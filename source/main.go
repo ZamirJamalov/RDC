@@ -95,9 +95,10 @@ func main() {
         lwCallbackHandler := handler.NewLWCallbackHandler(simaService)
         otpHandler := handler.NewOTPHandler(otpService)
         mygovHandler := handler.NewMyGovHandler(mygovService)
+        expertHandler := handler.NewExpertHandler(appService)
 
         // --- Route registration + middleware chain ---
-        router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler)
+        router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler)
 
         // --- Start the HTTP server with graceful shutdown ---
         srv := &http.Server{Addr: cfg.ServerAddr, Handler: router}

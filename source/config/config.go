@@ -56,6 +56,9 @@ type Config struct {
         MyGovApiKey   string
         MyGovUseMock  bool
         MyGovTimeoutS int
+
+        // Phase 5: income + contacts validation (T-5.2)
+        MinOfficialIncomeAZN float64 // minimum official income required for approval
 }
 
 // Load reads configuration from environment variables. Required fields (DB_HOST,
@@ -88,6 +91,7 @@ func Load() *Config {
                 MyGovApiKey:            getEnv("MYGOV_API_KEY", ""),
                 MyGovUseMock:           getEnvBool("MYGOV_USE_MOCK", true),
                 MyGovTimeoutS:          getEnvInt("MYGOV_TIMEOUT_S", 15),
+                MinOfficialIncomeAZN:   getEnvFloat("MIN_OFFICIAL_INCOME_AZN", 300.0),
         }
 
         if cfg.MigrationsDropRecreate {
@@ -151,8 +155,24 @@ func getEnvInt(key string, fallback int) int {
         return fallback
 }
 
+func getEnvFloat(key string, fallback float64) float64 {
+        if value, ok := os.LookupEnv(key); ok {
+                if f, err := parseFloat(value); err == nil {
+                        return f
+                }
+                slog.Warn("invalid float env var, using fallback", "key", key, "value", value, "fallback", fallback)
+        }
+        return fallback
+}
+
 func parseInt(s string) (int, error) {
         var n int
         _, err := fmt.Sscanf(strings.TrimSpace(s), "%d", &n)
         return n, err
+}
+
+func parseFloat(s string) (float64, error) {
+        var f float64
+        _, err := fmt.Sscanf(strings.TrimSpace(s), "%f", &f)
+        return f, err
 }
