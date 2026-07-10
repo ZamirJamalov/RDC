@@ -6,17 +6,18 @@ import (
         "log/slog"
 
         "rdc-source/internal/model"
-        "rdc-source/internal/repository"
 )
 
 // ApplicationService handles loan application business logic.
 type ApplicationService struct {
-        repo         *repository.ApplicationRepo
+        repo         ApplicationStore
         creditEngine *CreditEngine
 }
 
 // NewApplicationService creates a new ApplicationService.
-func NewApplicationService(repo *repository.ApplicationRepo, engine *CreditEngine) *ApplicationService {
+// The repo parameter accepts any ApplicationStore implementation (e.g.
+// *repository.ApplicationRepo in production, or a mock in tests).
+func NewApplicationService(repo ApplicationStore, engine *CreditEngine) *ApplicationService {
         return &ApplicationService{
                 repo:         repo,
                 creditEngine: engine,
