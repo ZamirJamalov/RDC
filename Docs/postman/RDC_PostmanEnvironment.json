@@ -1,0 +1,56 @@
+{
+  "name": "RDC — Local Environment",
+  "values": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "enabled": true
+    },
+    {
+      "key": "customer_pin",
+      "value": "TEST001",
+      "enabled": true
+    },
+    {
+      "key": "customer_phone",
+      "value": "+994501234567",
+      "enabled": true
+    },
+    {
+      "key": "akb_score",
+      "value": "400",
+      "enabled": true
+    },
+    {
+      "key": "otp_code",
+      "value": "123456",
+      "enabled": true,
+      "description": "Mock mode-da server logundan oxuyun və buraya yazın"
+    },
+    {
+      "key": "application_id",
+      "value": "",
+      "enabled": true,
+      "description": "Auto-set from POST /api/applications"
+    },
+    {
+      "key": "otp_token",
+      "value": "",
+      "enabled": true,
+      "description": "Auto-set from POST /api/otp/verify"
+    },
+    {
+      "key": "credit_level",
+      "value": "",
+      "enabled": true,
+      "description": "Auto-set from GET /api/applications/offer"
+    },
+    {
+      "key": "sima_session_id",
+      "value": "",
+      "enabled": true,
+      "description": "Auto-set from POST /api/router/sima/init"
+    }
+  ],
+  "_postman_variable_scope": "environment"
+}
