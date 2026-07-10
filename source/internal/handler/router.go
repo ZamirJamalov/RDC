@@ -29,6 +29,7 @@ func NewRouter(
         lwCallbackHandler *LWCallbackHandler,
         otpHandler *OTPHandler,
         mygovHandler *MyGovHandler,
+        expertHandler *ExpertHandler,
 ) http.Handler {
         mux := http.NewServeMux()
 
@@ -64,6 +65,12 @@ func NewRouter(
         // MyGov endpoints (T-4.11)
         mux.HandleFunc("POST /api/mygov/permission-link", mygovHandler.PermissionLink)
         mux.HandleFunc("POST /api/mygov/fetch-data", mygovHandler.FetchData)
+
+        // Expert (operator) endpoints (T-5.7)
+        mux.HandleFunc("GET /api/expert/queue", expertHandler.Queue)
+        mux.HandleFunc("GET /api/expert/{id}", expertHandler.GetApplication)
+        mux.HandleFunc("PUT /api/expert/{id}/approve", expertHandler.Approve)
+        mux.HandleFunc("PUT /api/expert/{id}/reject", expertHandler.Reject)
 
         // Wrap with middleware: RequestID → Recovery → Logger → mux
         var handler http.Handler = mux
