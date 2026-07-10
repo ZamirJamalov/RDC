@@ -39,6 +39,7 @@ func NewRouter(
 
         // Loan application endpoints
         mux.HandleFunc("POST /api/applications", appHandler.Create)
+        mux.HandleFunc("GET /api/applications/offer", appHandler.GetOffer)
         mux.HandleFunc("GET /api/applications/{id}", appHandler.GetByID)
         mux.HandleFunc("PUT /api/applications/{id}/status", appHandler.UpdateStatus)
         mux.HandleFunc("GET /api/applications/{id}/status", appHandler.GetStatus)
