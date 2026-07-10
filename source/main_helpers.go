@@ -5,7 +5,9 @@ import (
         "time"
 
         "rdc-source/config"
+        "rdc-source/pkg/mygov"
         "rdc-source/pkg/otp"
+        "rdc-source/pkg/sima"
 )
 
 // shutdownTimeout is the maximum time we wait for in-flight requests to finish
@@ -43,6 +45,34 @@ func newOTPProvider(cfg *config.Config) otp.Provider {
                 cfg.OTPApiKey,
                 cfg.OTPSender,
                 time.Duration(cfg.OTPTimeoutS)*time.Second,
+        )
+}
+
+// newSimaProvider creates the SIMA KYC provider based on configuration (T-4.1 to T-4.2).
+func newSimaProvider(cfg *config.Config) sima.Provider {
+        if cfg.SimaUseMock {
+                slog.Info("using mock SIMA provider (dev/test mode)")
+                return sima.NewMockProvider()
+        }
+        slog.Info("using HTTP SIMA provider", "base_url", cfg.SimaBaseURL)
+        return sima.NewHTTPProvider(
+                cfg.SimaBaseURL,
+                cfg.SimaApiKey,
+                time.Duration(cfg.SimaTimeoutS)*time.Second,
+        )
+}
+
+// newMyGovProvider creates the MyGov provider based on configuration (T-4.8).
+func newMyGovProvider(cfg *config.Config) mygov.Provider {
+        if cfg.MyGovUseMock {
+                slog.Info("using mock MyGov provider (dev/test mode)")
+                return mygov.NewMockProvider()
+        }
+        slog.Info("using HTTP MyGov provider", "base_url", cfg.MyGovBaseURL)
+        return mygov.NewHTTPProvider(
+                cfg.MyGovBaseURL,
+                cfg.MyGovApiKey,
+                time.Duration(cfg.MyGovTimeoutS)*time.Second,
         )
 }
 

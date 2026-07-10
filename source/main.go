@@ -78,15 +78,26 @@ func main() {
         otpRepo := repository.NewOTPRepo(db)
         otpService := service.NewOTPService(otpProvider, otpRepo)
 
+        // --- SIMA Provider + Service (T-4.1 to T-4.5) ---
+        simaProvider := newSimaProvider(cfg)
+        simaRepo := repository.NewSimaRepo(db)
+        simaService := service.NewSimaService(simaProvider, simaRepo)
+
+        // --- MyGov Provider + Service (T-4.8 to T-4.10) ---
+        mygovProvider := newMyGovProvider(cfg)
+        mygovRepo := repository.NewMyGovRepo(db)
+        mygovService := service.NewMyGovService(mygovProvider, mygovRepo)
+
         // --- Handler layer ---
         lwMockHandler := handler.NewLWMockHandler(lwProvider)
         appHandler := handler.NewApplicationHandler(appService)
         lwRouterHandler := handler.NewLWRouterHandler(lwProvider)
-        lwCallbackHandler := handler.NewLWCallbackHandler()
+        lwCallbackHandler := handler.NewLWCallbackHandler(simaService)
         otpHandler := handler.NewOTPHandler(otpService)
+        mygovHandler := handler.NewMyGovHandler(mygovService)
 
         // --- Route registration + middleware chain ---
-        router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler)
+        router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler)
 
         // --- Start the HTTP server with graceful shutdown ---
         srv := &http.Server{Addr: cfg.ServerAddr, Handler: router}
