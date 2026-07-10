@@ -2,16 +2,15 @@ package service
 
 import (
         "context"
+        "database/sql"
 
         "rdc-source/internal/model"
         "rdc-source/internal/repository"
 )
-
 // mockApplicationStore is a test-only implementation of ApplicationStore.
 // Each field controls the return value of the corresponding method, allowing
 // tests to inject specific scenarios (success, error, not-found, etc.)
-// without touching a real database.
-//
+// without touching a real database.//
 // All "recording" fields (e.g. CreatedApps, StatusUpdates) capture the calls
 // made during the test so assertions can verify the service interacted with
 // the store as expected.
@@ -62,6 +61,10 @@ type mockApplicationStore struct {
 
         // SaveCreditLevelHistory
         saveHistoryErr error
+
+        // WithTx (T-1.3) — when non-nil, WithTx returns this error without
+        // calling fn. Use to simulate transaction failures.
+        withTxErr error
 
         // --- Recording of calls made during the test ---
 
@@ -181,6 +184,81 @@ func (m *mockApplicationStore) GetLevelRanges(_ context.Context, _ string, _ int
 }
 
 func (m *mockApplicationStore) SaveCreditLevelHistory(_ context.Context, customerPIN, toLevel string, appID int) error {
+        m.historySaves = append(m.historySaves, mockHistorySave{
+                CustomerPIN: customerPIN,
+                ToLevel:     toLevel,
+                AppID:       appID,
+        })
+        return m.saveHistoryErr
+}
+
+// --- Tx-aware variants (T-1.3) ---
+//
+// These accept a repository.TxRunner but ignore it — the mock doesn't actually
+// run inside a real transaction. The runner is only relevant for the real DB
+// implementation. The recording fields (decisionUpdates, checkSaves,
+// historySaves) are shared with the non-tx variants so assertions work the
+// same regardless of which variant the code under test calls.
+
+func (m *mockApplicationStore) WithTx(_ context.Context, fn func(repository.TxRunner) error) error {
+        // For the mock, we pass a nil runner — the *Tx methods below never use it.
+        // If a test wants to simulate a tx failure, set withTxErr.
+        if m.withTxErr != nil {
+                return m.withTxErr
+        }
+        return fn(nilTxRunner{})
+}
+
+// nilTxRunner is a no-op TxRunner used by the mock's WithTx. The *Tx methods
+// in the mock ignore the runner entirely, so this satisfies the interface
+// without doing any real work.
+type nilTxRunner struct{}
+
+func (nilTxRunner) ExecContext(_ context.Context, _ string, _ ...any) (sql.Result, error) {
+        return nil, nil
+}
+
+func (nilTxRunner) QueryContext(_ context.Context, _ string, _ ...any) (*sql.Rows, error) {
+        return nil, nil
+}
+
+func (nilTxRunner) QueryRowContext(_ context.Context, _ string, _ ...any) *sql.Row {
+        return nil
+}
+
+func (m *mockApplicationStore) UpdateApplicationStatusTx(_ context.Context, _ repository.TxRunner, id int, status string) error {
+        m.statusUpdates = append(m.statusUpdates, mockStatusUpdate{ID: id, Status: status})
+        return m.updateStatusErr
+}
+
+func (m *mockApplicationStore) UpdateApplicationDecisionTx(_ context.Context, _ repository.TxRunner, id int,
+        status, creditLevel, rejectionReason string, approvedAmount, approvedRate float64) error {
+        m.decisionUpdates = append(m.decisionUpdates, mockDecisionUpdate{
+                ID:              id,
+                Status:          status,
+                CreditLevel:     creditLevel,
+                RejectionReason: rejectionReason,
+                ApprovedAmount:  approvedAmount,
+                ApprovedRate:    approvedRate,
+        })
+        // Simulate the DB UPDATE by mutating the stored application, so subsequent
+        // GetApplicationByID calls return the updated state (matching real DB behavior).
+        if app, ok := m.appByID[id]; ok {
+                app.Status = status
+                app.CreditLevel = creditLevel
+                app.RejectionReason = rejectionReason
+                app.ApprovedAmount = approvedAmount
+                app.ApprovedRate = approvedRate
+        }
+        return m.updateDecisionErr
+}
+
+func (m *mockApplicationStore) SaveCheckResultTx(_ context.Context, _ repository.TxRunner, _ int, check *model.ApplicationCheckResult) error {
+        m.checkSaves = append(m.checkSaves, *check)
+        return m.saveCheckErr
+}
+
+func (m *mockApplicationStore) SaveCreditLevelHistoryTx(_ context.Context, _ repository.TxRunner, customerPIN, toLevel string, appID int) error {
         m.historySaves = append(m.historySaves, mockHistorySave{
                 CustomerPIN: customerPIN,
                 ToLevel:     toLevel,

@@ -3,7 +3,6 @@ package service
 import (
         "context"
         "fmt"
-        "log/slog"
 
         "rdc-source/internal/model"
 )
@@ -69,17 +68,11 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, req *model.C
                 return nil, fmt.Errorf("failed to create application: %w", err)
         }
 
-        // Trigger credit engine asynchronously so the API returns immediately.
-        // Errors from the background pipeline are logged (never silently discarded).
-        go func() {
-                bgCtx := context.Background()
-                if procErr := s.creditEngine.ProcessApplication(bgCtx, app.ID); procErr != nil {
-                        slog.Error("credit engine processing failed",
-                                "application_id", app.ID,
-                                "customer_pin", app.CustomerPIN,
-                                "error", procErr)
-                }
-        }()
+        // Trigger credit engine asynchronously with retry (T-1.2). The HTTP
+        // response returns immediately; the pipeline runs in the background.
+        // If all retries fail, the application is marked as rejected with a
+        // descriptive reason (see retry.go::triggerAsyncProcessing).
+        s.triggerAsyncProcessing(app)
 
         return app, nil
 }
