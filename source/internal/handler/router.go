@@ -8,9 +8,7 @@ import (
 )
 
 // NewRouter builds the HTTP mux with all application routes registered and the
-// standard middleware chain applied. Keeping route registration in one place
-// makes it easy to see the full API surface and to add new endpoints without
-// touching main.go.
+// standard middleware chain applied.
 //
 // Middleware chain (outer-to-inner):
 //  1. RequestID — assigns X-Request-ID to every request
@@ -18,12 +16,20 @@ import (
 //  3. Logger    — emits one structured log line per request
 //
 // Route groups:
-//   - /api/mock/lw/*        — mock LW data setup (dev/test only)
-//   - /api/applications/*   — loan application CRUD + status + checks
-func NewRouter(appHandler *ApplicationHandler, lwMockHandler *LWMockHandler) http.Handler {
+//   - /api/mock/lw/*           — mock LW data setup (dev/test only)
+//   - /api/applications/*      — loan application CRUD + status + checks
+//   - /api/router/*            — LW router endpoints (personal-info, akb, asan, sima)
+//   - /api/lw/*                — LW operations (blacklist, approve)
+//   - /api/rdc/callback/*      — async callbacks from LW (sima-result)
+func NewRouter(
+	appHandler *ApplicationHandler,
+	lwMockHandler *LWMockHandler,
+	lwRouterHandler *LWRouterHandler,
+	lwCallbackHandler *LWCallbackHandler,
+) http.Handler {
 	mux := http.NewServeMux()
 
-	// LW Mock endpoints (formerly Mock LMS)
+	// LW Mock endpoints (dev/test only)
 	mux.HandleFunc("POST /api/mock/lw/setup", lwMockHandler.SetupLoans)
 	mux.HandleFunc("GET /api/mock/lw/query", lwMockHandler.QueryLoans)
 
@@ -33,6 +39,20 @@ func NewRouter(appHandler *ApplicationHandler, lwMockHandler *LWMockHandler) htt
 	mux.HandleFunc("PUT /api/applications/{id}/status", appHandler.UpdateStatus)
 	mux.HandleFunc("GET /api/applications/{id}/status", appHandler.GetStatus)
 	mux.HandleFunc("GET /api/applications/{id}/checks", appHandler.GetChecks)
+
+	// LW Router endpoints (T-2.1 to T-2.7)
+	mux.HandleFunc("GET /api/router/personal-info", lwRouterHandler.PersonalInfo)
+	mux.HandleFunc("GET /api/router/akb-score", lwRouterHandler.AkbScore)
+	mux.HandleFunc("GET /api/router/akb-history", lwRouterHandler.AkbHistory)
+	mux.HandleFunc("GET /api/router/asan-finance", lwRouterHandler.AsanFinance)
+	mux.HandleFunc("POST /api/router/sima/init", lwRouterHandler.SimaInit)
+
+	// LW Operations (T-2.4, T-2.6)
+	mux.HandleFunc("GET /api/lw/blacklist", lwRouterHandler.Blacklist)
+	mux.HandleFunc("POST /api/lw/loans/approve", lwRouterHandler.ApproveLoan)
+
+	// LW Callbacks (T-2.8)
+	mux.HandleFunc("POST /api/rdc/callback/sima-result", lwCallbackHandler.SimaResult)
 
 	// Wrap with middleware: RequestID → Recovery → Logger → mux
 	var handler http.Handler = mux

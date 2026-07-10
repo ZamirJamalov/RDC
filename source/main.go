@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"rdc-source/config"
 	"rdc-source/internal/handler"
@@ -23,8 +24,7 @@ func main() {
 	// Load configuration (will fatal on missing required env vars)
 	cfg := config.Load()
 
-	// Initialize structured logger (log/slog) — JSON format is friendlier for
-	// log aggregation tools (ELK, Loki, CloudWatch, etc.).
+	// Initialize structured logger (log/slog) — JSON format.
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: parseLogLevel(cfg.LogLevel),
 	}))
@@ -35,6 +35,8 @@ func main() {
 		"db_name", cfg.DBName,
 		"server_addr", cfg.ServerAddr,
 		"migrations_drop_recreate", cfg.MigrationsDropRecreate,
+		"lw_use_mock", cfg.UseMockLW,
+		"lw_base_url", cfg.LWBaseURL,
 	)
 
 	// Connect to SQL Server
@@ -45,16 +47,13 @@ func main() {
 	}
 	defer db.Close()
 
-	// Verify the connection
 	if err = db.Ping(); err != nil {
 		slog.Error("failed to ping database", "error", err)
 		os.Exit(1)
 	}
 	slog.Info("connected to SQL Server")
 
-	// Run database migrations on startup. In production
-	// (MIGRATIONS_DROP_RECREATE=false) this is idempotent — uses IF NOT EXISTS
-	// guards and never drops data.
+	// Run database migrations
 	if err := migration.Run(db, "migrations", migration.Options{
 		DropRecreate: cfg.MigrationsDropRecreate,
 	}); err != nil {
@@ -65,8 +64,10 @@ func main() {
 	// --- Repository layer ---
 	appRepo := repository.NewApplicationRepo(db)
 
-	// --- LW Provider (unified: loan data + blacklist + router + approve) ---
-	lwProvider := lw.NewMockProvider(db)
+	// --- LW Provider (T-2.13) ---
+	// In mock mode: reads from local DB (mock_lms_loans table) + canned responses.
+	// In real mode: makes HTTP calls to LWBaseURL with LWApiKey.
+	lwProvider := newLWProvider(cfg, db)
 
 	// --- Service layer ---
 	creditEngine := service.NewCreditEngine(lwProvider, appRepo)
@@ -75,9 +76,11 @@ func main() {
 	// --- Handler layer ---
 	lwMockHandler := handler.NewLWMockHandler(lwProvider)
 	appHandler := handler.NewApplicationHandler(appService)
+	lwRouterHandler := handler.NewLWRouterHandler(lwProvider)
+	lwCallbackHandler := handler.NewLWCallbackHandler()
 
 	// --- Route registration + middleware chain ---
-	router := handler.NewRouter(appHandler, lwMockHandler)
+	router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler)
 
 	// --- Start the HTTP server with graceful shutdown ---
 	srv := &http.Server{Addr: cfg.ServerAddr, Handler: router}
@@ -102,4 +105,21 @@ func main() {
 		slog.Error("forced shutdown", "error", err)
 	}
 	slog.Info("server stopped")
+}
+
+// newLWProvider creates the LW provider based on configuration (T-2.13).
+// When UseMockLW is true (default for dev), returns a MockProvider backed by
+// the local DB. When false, returns an HTTPProvider that calls the real LW
+// system at LWBaseURL with LWApiKey.
+func newLWProvider(cfg *config.Config, db *sql.DB) lw.Provider {
+	if cfg.UseMockLW {
+		slog.Info("using mock LW provider (dev/test mode)")
+		return lw.NewMockProvider(db)
+	}
+	slog.Info("using HTTP LW provider", "base_url", cfg.LWBaseURL, "timeout_s", cfg.LWTimeoutS)
+	return lw.NewHTTPProvider(
+		cfg.LWBaseURL,
+		cfg.LWApiKey,
+		time.Duration(cfg.LWTimeoutS)*time.Second,
+	)
 }
