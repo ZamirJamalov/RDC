@@ -1,0 +1,99 @@
+# ============================================================
+# RDC Server — Docker Compose (T-6.10)
+# ============================================================
+# Usage:
+#   cp .env.example .env  (edit values)
+#   docker-compose up -d
+#
+# Services:
+#   rdc       — the RDC server (port 8000)
+#   sqlserver — SQL Server Express (port 1433, dev only)
+# ============================================================
+
+services:
+  # --- RDC Server ---
+  rdc:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # Database (connects to the sqlserver service below)
+      DB_HOST: sqlserver
+      DB_PORT: "1433"
+      DB_USER: ${DB_USER:-sa}
+      DB_PASSWORD: ${DB_PASSWORD:-YourStrong!Passw0rd}
+      DB_NAME: ${DB_NAME:-RDC}
+
+      # Server
+      SERVER_ADDR: ":8000"
+
+      # Migrations — set to true for first run (creates tables), then false
+      MIGRATIONS_DROP_RECREATE: "true"
+
+      # Logging
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+
+      # LW Provider
+      LW_USE_MOCK: "true"
+      LW_BASE_URL: ${LW_BASE_URL:-http://localhost:8080}
+      LW_API_KEY: ${LW_API_KEY:-}
+      LW_TIMEOUT_S: "30"
+
+      # OTP Provider
+      OTP_USE_MOCK: "true"
+      OTP_BASE_URL: ${OTP_BASE_URL:-http://localhost:8081}
+      OTP_API_KEY: ${OTP_API_KEY:-}
+      OTP_SENDER: ${OTP_SENDER:-RDC}
+      OTP_TIMEOUT_S: "10"
+
+      # SIMA Provider
+      SIMA_USE_MOCK: "true"
+      SIMA_BASE_URL: ${SIMA_BASE_URL:-http://localhost:8082}
+      SIMA_API_KEY: ${SIMA_API_KEY:-}
+      SIMA_TIMEOUT_S: "15"
+
+      # MyGov Provider
+      MYGOV_USE_MOCK: "true"
+      MYGOV_BASE_URL: ${MYGOV_BASE_URL:-http://localhost:8083}
+      MYGOV_API_KEY: ${MYGOV_API_KEY:-}
+      MYGOV_TIMEOUT_S: "15"
+
+      # Phase 5
+      MIN_OFFICIAL_INCOME_AZN: ${MIN_OFFICIAL_INCOME_AZN:-300}
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - rdc-net
+
+  # --- SQL Server (dev/test only) ---
+  # In production, use a managed SQL Server instance and remove this service.
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: ${DB_PASSWORD:-YourStrong!Passw0rd}
+      MSSQL_PID: Express
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P $$SA_PASSWORD -Q 'SELECT 1' -C || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+    networks:
+      - rdc-net
+
+volumes:
+  sqlserver-data:
+
+networks:
+  rdc-net:
+    driver: bridge
