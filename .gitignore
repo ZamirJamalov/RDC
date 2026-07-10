@@ -1,0 +1,34 @@
+# Environment files (contain secrets — never commit)
+.env
+.env.local
+.env.*.local
+
+# Go binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+rdc-source
+rdc
+
+# Go test / coverage
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# IDE / editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+/bin/
+/dist/
