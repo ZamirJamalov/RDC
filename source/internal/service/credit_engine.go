@@ -4,18 +4,19 @@ import (
         "context"
         "fmt"
         "rdc-source/internal/model"
-        "rdc-source/internal/repository"
         "rdc-source/pkg/lw"
 )
 
 // CreditEngine processes loan applications through the credit decision pipeline.
 type CreditEngine struct {
         lwProvider lw.Provider
-        appRepo    *repository.ApplicationRepo
+        appRepo    ApplicationStore
 }
 
 // NewCreditEngine creates a new CreditEngine with the given dependencies.
-func NewCreditEngine(provider lw.Provider, repo *repository.ApplicationRepo) *CreditEngine {
+// The repo parameter accepts any ApplicationStore implementation (e.g.
+// *repository.ApplicationRepo in production, or a mock in tests).
+func NewCreditEngine(provider lw.Provider, repo ApplicationStore) *CreditEngine {
         return &CreditEngine{
                 lwProvider: provider,
                 appRepo:    repo,
