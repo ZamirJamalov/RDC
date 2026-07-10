@@ -1,10 +1,10 @@
 package service
 
 import (
-	"context"
+        "context"
 
-	"rdc-source/internal/model"
-	"rdc-source/internal/repository"
+        "rdc-source/internal/model"
+        "rdc-source/internal/repository"
 )
 
 // ApplicationStore is the persistence interface used by CreditEngine and
@@ -20,49 +20,68 @@ import (
 // All methods accept a context.Context for cancellation/timeout propagation,
 // and return errors wrapped with a descriptive prefix.
 type ApplicationStore interface {
-	// CreateApplication inserts a new loan application and sets the ID on the
-	// struct. The application's Status field is the source of truth for the
-	// initial status (callers should set it to model.StatusPending).
-	CreateApplication(ctx context.Context, app *model.LoanApplication) error
+        // --- Transaction control ---
 
-	// GetApplicationByID fetches a loan application by its primary key.
-	// Returns an error (wrapping sql.ErrNoRows) if not found.
-	GetApplicationByID(ctx context.Context, id int) (*model.LoanApplication, error)
+        // WithTx wraps fn in a single DB transaction. If fn returns nil the tx is
+        // committed; otherwise it is rolled back. The TxRunner passed to fn is
+        // used by the *Tx methods below so they all share the same transaction.
+        WithTx(ctx context.Context, fn func(repository.TxRunner) error) error
 
-	// UpdateApplicationStatus updates only the status field of an application.
-	// Used by the credit engine to transition pending → checking.
-	UpdateApplicationStatus(ctx context.Context, id int, status string) error
+        // --- Non-tx methods (for backward compat & simple cases) ---
 
-	// UpdateApplicationDecision updates the decision-related fields after
-	// credit engine processing or manual operator action.
-	UpdateApplicationDecision(ctx context.Context, id int,
-		status, creditLevel, rejectionReason string,
-		approvedAmount, approvedRate float64) error
+        // CreateApplication inserts a new loan application and sets the ID on the
+        // struct. The application's Status field is the source of truth for the
+        // initial status (callers should set it to model.StatusPending).
+        CreateApplication(ctx context.Context, app *model.LoanApplication) error
 
-	// SaveCheckResult inserts a check result for an application.
-	SaveCheckResult(ctx context.Context, appID int, check *model.ApplicationCheckResult) error
+        // GetApplicationByID fetches a loan application by its primary key.
+        // Returns an error (wrapping sql.ErrNoRows) if not found.
+        GetApplicationByID(ctx context.Context, id int) (*model.LoanApplication, error)
 
-	// GetCheckResults retrieves all check results for an application ordered by ID.
-	GetCheckResults(ctx context.Context, appID int) ([]model.ApplicationCheckResult, error)
+        // UpdateApplicationStatus updates only the status field of an application.
+        // Used by the credit engine to transition pending → checking.
+        UpdateApplicationStatus(ctx context.Context, id int, status string) error
 
-	// HasPendingApplication checks if a customer already has an application
-	// that is not yet finalized (pending / checking / pending_approval).
-	// Returns (0, "", nil) if no such application exists.
-	HasPendingApplication(ctx context.Context, customerPIN string) (int, string, error)
+        // UpdateApplicationDecision updates the decision-related fields after
+        // credit engine processing or manual operator action.
+        UpdateApplicationDecision(ctx context.Context, id int,
+                status, creditLevel, rejectionReason string,
+                approvedAmount, approvedRate float64) error
 
-	// GetCreditLevelRate looks up the applicable interest rate for a given
-	// credit level, amount, term, and unlock phase.
-	GetCreditLevelRate(ctx context.Context, level string, amount float64, termMonths int, unlockPhase int) (float64, error)
+        // SaveCheckResult inserts a check result for an application.
+        SaveCheckResult(ctx context.Context, appID int, check *model.ApplicationCheckResult) error
 
-	// CountApprovedAtLevel counts how many loan applications a customer has
-	// had approved at a specific credit level.
-	CountApprovedAtLevel(ctx context.Context, customerPIN string, level string) (int, error)
+        // GetCheckResults retrieves all check results for an application ordered by ID.
+        GetCheckResults(ctx context.Context, appID int) ([]model.ApplicationCheckResult, error)
 
-	// GetLevelRanges returns all active rate configurations for a given credit
-	// level and unlock phase. Used for building descriptive error messages.
-	GetLevelRanges(ctx context.Context, level string, unlockPhase int) ([]repository.LevelRange, error)
+        // HasPendingApplication checks if a customer already has an application
+        // that is not yet finalized (pending / checking / pending_approval).
+        // Returns (0, "", nil) if no such application exists.
+        HasPendingApplication(ctx context.Context, customerPIN string) (int, string, error)
 
-	// SaveCreditLevelHistory records a credit level assignment for a customer.
-	// Called whenever an application is approved (auto or manual).
-	SaveCreditLevelHistory(ctx context.Context, customerPIN, toLevel string, appID int) error
+        // GetCreditLevelRate looks up the applicable interest rate for a given
+        // credit level, amount, term, and unlock phase.
+        GetCreditLevelRate(ctx context.Context, level string, amount float64, termMonths int, unlockPhase int) (float64, error)
+
+        // CountApprovedAtLevel counts how many loan applications a customer has
+        // had approved at a specific credit level.
+        CountApprovedAtLevel(ctx context.Context, customerPIN string, level string) (int, error)
+
+        // GetLevelRanges returns all active rate configurations for a given credit
+        // level and unlock phase. Used for building descriptive error messages.
+        GetLevelRanges(ctx context.Context, level string, unlockPhase int) ([]repository.LevelRange, error)
+
+        // SaveCreditLevelHistory records a credit level assignment for a customer.
+        // Called whenever an application is approved (auto or manual).
+        SaveCreditLevelHistory(ctx context.Context, customerPIN, toLevel string, appID int) error
+
+        // --- Tx-aware variants (used by ProcessApplication for atomicity) ---
+
+        UpdateApplicationStatusTx(ctx context.Context, runner repository.TxRunner, id int, status string) error
+        UpdateApplicationDecisionTx(ctx context.Context, runner repository.TxRunner, id int,
+                status, creditLevel, rejectionReason string,
+                approvedAmount, approvedRate float64) error
+        SaveCheckResultTx(ctx context.Context, runner repository.TxRunner, appID int, check *model.ApplicationCheckResult) error
+        SaveCreditLevelHistoryTx(ctx context.Context, runner repository.TxRunner, customerPIN, toLevel string, appID int) error
 }
+

@@ -321,15 +321,16 @@ func TestProcessApplication_ChecksSaved(t *testing.T) {
                 t.Fatalf("unexpected error: %v", err)
         }
 
-        // Expect 3 checks saved: active-loan, payment-history, credit-level
-        if len(store.checkSaves) != 3 {
-                t.Fatalf("expected 3 check saves, got %d", len(store.checkSaves))
+        // Expect 4 checks saved: active-loan, payment-history, credit-level, blacklist
+        if len(store.checkSaves) != 4 {
+                t.Fatalf("expected 4 check saves, got %d", len(store.checkSaves))
         }
 
         checkTypes := map[string]bool{
                 "lms_active_loan_check":     false,
                 "lms_payment_history_check": false,
                 "credit_level_check":        false,
+                "blacklist_check":           false,
         }
         for _, cs := range store.checkSaves {
                 if _, ok := checkTypes[cs.CheckType]; !ok {
