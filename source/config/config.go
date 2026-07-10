@@ -35,6 +35,15 @@ type Config struct {
         LWApiKey   string
         UseMockLW  bool
         LWTimeoutS int // HTTP timeout for LW calls, in seconds
+
+        // OTP Provider configuration (T-3.1 to T-3.3)
+        // When OTPUseMock is true, the OTP provider logs codes instead of sending SMS.
+        // When false, the HTTPProvider calls a real SMS gateway at OTPBaseURL.
+        OTPBaseURL  string
+        OTPApiKey   string
+        OTPSender   string // sender ID shown on the customer's phone
+        OTPUseMock  bool
+        OTPTimeoutS int // HTTP timeout for OTP calls, in seconds
 }
 
 // Load reads configuration from environment variables. Required fields (DB_HOST,
@@ -54,6 +63,11 @@ func Load() *Config {
                 LWApiKey:               getEnv("LW_API_KEY", ""),
                 UseMockLW:              getEnvBool("LW_USE_MOCK", true),
                 LWTimeoutS:             getEnvInt("LW_TIMEOUT_S", 30),
+                OTPBaseURL:             getEnv("OTP_BASE_URL", "http://localhost:8081"),
+                OTPApiKey:              getEnv("OTP_API_KEY", ""),
+                OTPSender:              getEnv("OTP_SENDER", "RDC"),
+                OTPUseMock:             getEnvBool("OTP_USE_MOCK", true),
+                OTPTimeoutS:            getEnvInt("OTP_TIMEOUT_S", 10),
         }
 
         if cfg.MigrationsDropRecreate {
