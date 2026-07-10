@@ -114,6 +114,7 @@
 | G-31 | Structured logging yoxdur | Production debugging çətin |
 | G-32 | HTTP middleware yoxdur (CORS, auth, rate-limit, request-ID) | Production tələbi |
 | G-33 | Magic strings (`"approved"`, `"rejected"`, `"pending_approval"`) | Typo riski |
+| G-34 | 3 fayl 200 sətiri keçir (`credit_engine.go` 339, `application_repo.go` 266, `application_service.go` 205); `main.go` 129 sətirdə 3 məsuliyyət qarışıq (wiring + migration + SQL parser); fayl adı mismatch (`mock_lms_handler.go` içində `LWMockHandler`) | Oxunaqlılıq aşağı, mid-level developer çətinlik çəkir |
 
 ---
 
@@ -135,6 +136,14 @@
 | T-0.8 | `source/internal/handler/application_handler.go` | `http.HandleFunc` → `http.Handler` + middleware chain |
 | T-0.9 | `source/internal/service/credit_engine_test.go` (yeni) | `determineCreditLevel`, `computeAnalytics` üçün unit test |
 | T-0.10 | `source/internal/service/application_service_test.go` (yeni) | `CreateApplication`, `UpdateStatus` üçün unit test (mock repo ilə) |
+| T-0.11 | `source/internal/service/credit_level.go` (yeni) | `computeAnalytics`, `determineCreditLevel`, `buildRangeSummary` funksiyalarını `credit_engine.go`-dan köçür (~105 sətir). Təmiz saf funksiyalar, DB əlaqəsi yoxdur |
+| T-0.12 | `source/internal/service/credit_checks.go` (yeni) | `runChecks` (paralel check execution) və `makeDecision` metodlarını `credit_engine.go`-dan köçür (~75 sətir). `ProcessApplication` sadə orchestrator qalır |
+| T-0.13 | `source/internal/repository/credit_level_repo.go` (yeni) | `GetCreditLevelRate`, `CountApprovedAtLevel`, `GetLevelRanges`, `SaveCreditLevelHistory` + `LevelRange` struct-ını `application_repo.go`-dan köçür (~115 sətir). ApplicationRepo metodları eyni paketdə qalır |
+| T-0.14 | `source/internal/service/application_service_status.go` (yeni) | `UpdateStatusRequest` və `UpdateStatus` metodunu `application_service.go`-dan köçür (~65 sətir). Operator workflow-u müşteri axınından ayrılır |
+| T-0.15 | `source/internal/migration/migration.go` (yeni) | `Run` və `splitSQLStatements` funksiyalarını `main.go`-dan köçür (~70 sətir). SQL migration runner tamamilə ayrı paket |
+| T-0.16 | `source/internal/handler/router.go` (yeni) | `NewRouter(appHandler, lwMockHandler)` funksiyası — bütün HTTP route-ları bir yerdə qeydiyyat (~30 sətir). `main.go` yalnız wiring qalır |
+| T-0.17 | `source/internal/handler/mock_lms_handler.go` → `lw_mock_handler.go` | Fayl rename: ad mismatch düzəldilir (fayl adı `mock_lms`, içində `LWMockHandler`). Məntiq dəyişmir |
+| T-0.18 | `source/main.go` | Refactor sonrası: `migration.Run()` və `handler.NewRouter()` çağırışları ilə ~55 sətirə endir (129→55, 57% azalma) |
 
 ### Phase 1 — Kritik Düzəlişlər (2–3 gün)
 
@@ -250,16 +259,24 @@
 - `source/internal/model/mock_lms.go`
 
 ### Dəyişdiriləcək fayllar
-- `source/main.go` — routing, middleware, graceful shutdown, provider seçimi
+- `source/main.go` — routing, middleware, graceful shutdown, provider seçimi + **refactor: 129→~55 sətir** (migration + router çıxarılır)
 - `source/config/config.go` — yeni env-lər, hardcoded credential silinməsi
-- `source/internal/service/credit_engine.go` — pipeline genişləndirilməsi, LW ApproveLoan çağırışı, paralelləşdirmə
-- `source/internal/service/application_service.go` — OTP tələbi, init/confirm ayrılması
+- `source/internal/service/credit_engine.go` — pipeline genişləndirilməsi, LW ApproveLoan çağırışı, paralelləşdirmə + **refactor: 339→~160 sətir** (helper-lər çıxarılır)
+- `source/internal/service/application_service.go` — OTP tələbi, init/confirm ayrılması + **refactor: 205→~140 sətir** (operator workflow-u çıxarılır)
 - `source/internal/handler/application_handler.go` — yeni endpoint-lər
 - `source/internal/model/loan_application.go` — yeni sahələr
-- `source/internal/repository/application_repo.go` — `WithTx` helper, yeni sahələr
+- `source/internal/repository/application_repo.go` — `WithTx` helper, yeni sahələr + **refactor: 266→~155 sətir** (credit level sorğuları çıxarılır)
 - `source/migrations/001_init.sql` — drop-only-dev moduna keçid
 - `source/pkg/lw/mock_provider.go` — bütün metodlar dolu mock qaytarsın (error yox)
 - `README.md` — tam setup təlimatı
+
+### Refactor nəticəsində yaradılacaq yeni fayllar (Phase 0, G-34)
+- `source/internal/service/credit_level.go` (~105 sətir) — kredit səviyyəsi məntiqi (saf funksiyalar)
+- `source/internal/service/credit_checks.go` (~75 sətir) — paralel check execution + qərar
+- `source/internal/repository/credit_level_repo.go` (~115 sətir) — credit_levels cədvəli sorğuları
+- `source/internal/service/application_service_status.go` (~65 sətir) — operator approve/reject workflow
+- `source/internal/migration/migration.go` (~70 sətir) — SQL migration runner
+- `source/internal/handler/router.go` (~30 sətir) — HTTP route qeydiyyatı
 
 ### Yaradılacaq yeni fayllar (ümumi: ~30 fayl)
 
@@ -335,6 +352,7 @@
 | G-21,22 (3 əlaqə nömrəsi, ünvan) | 3 | 2 | Aşağı | 🟢 P3 — Phase 5 |
 | G-27 (test yoxdur) | 4 | 3 | Orta | 🟢 P3 — Davamlı |
 | G-29 (dead code) | 2 | 1 | Aşağı | 🟢 P3 — Phase 0 |
+| G-34 (fayl ölçüləri & oxunaqlılıq) | 3 | 2 | Aşağı | 🟢 P3 — Phase 0 |
 | G-30,31,32 (prod readiness) | 3 | 2 | Orta | 🟢 P3 — Phase 0/6 |
 
 ---
@@ -343,7 +361,7 @@
 
 | Phase | Təxmini gün | Təxmini saat (1 gün = 6 saat) |
 |---|---|---|
-| Phase 0 — Hazırlıq | 1–2 gün | 6–12 saat |
+| Phase 0 — Hazırlıq (dead code silmə + fayl refactor daxil) | 2–3 gün | 12–18 saat |
 | Phase 1 — Kritik düzəlişlər | 2–3 gün | 12–18 saat |
 | Phase 2 — LW Router endpoint-ləri | 3–4 gün | 18–24 saat |
 | Phase 3 — OTP/SMS axını | 3–4 gün | 18–24 saat |
@@ -353,6 +371,8 @@
 | **Cəmi** | **19–26 iş günü** | **~114–156 saat** |
 
 Təxmini **4–6 həftə** (1 developer, full-time) — bu, yalnız kod yazma vaxtıdır. LW/SIMA/MyGov/ASAN inteqrasiya sənədlərinin əldə edilməsi və test edilməsi üçün əlavə 1–2 həfə nəzərə alınmalıdır.
+
+> **Qeyd:** Phase 0-da G-34 (fayl refactor) ~2 saatlıq işdir — saf köçürmə, 0 davranış dəyişikliyi, `go build` ilə dərhal yoxlanır.
 
 ---
 
@@ -421,6 +441,205 @@ Hər phase aşağıdakı şərtləri qarşıladıqda "bitmiş" sayılır:
 3. **LW API sənədlərini** əldə etmək üçün LW sahibi ilə əlaqə saxla (Phase 2 bloklanır)
 4. **SIMA, MyGov, ASAN Finance** inteqrasiya sənədləri üçün müvafiq qurumlarla razılıq al
 5. Hər phase bitdikdən sonra demo sessiyası keçir və flow diaqramı ilə yenidən müqayisə et
+
+---
+
+## Əlavə A: Fayl Refactoring Planı (G-34 — ≤200 sətir hədəfi)
+
+**Məqsəd:** Hər Go faylını ≤200 sətirə salmaq, dependency iç-içəliyini azaltmaq və mid-level developer üçün oxunaqlılığı artırmaq. Bu refactor **0 davranış dəyişikliyi** ilə — yalnız fayl bölünməsi və köçürmə ilə həyata keçirilir.
+
+### A.1 Mövcud Vəziyyət
+
+| # | Fayl | Sətir | Status |
+|---|---|---:|---|
+| 1 | `internal/service/credit_engine.go` | **339** | ❌ 139 sətir artıq |
+| 2 | `internal/repository/application_repo.go` | **266** | ❌ 66 sətir artıq |
+| 3 | `internal/service/application_service.go` | **205** | ❌ 5 sətir artıq |
+| 4 | `pkg/lw/mock_provider.go` | 168 | ✅ |
+| 5 | `pkg/lw/model.go` | 150 | ✅ |
+| 6 | `internal/handler/application_handler.go` | 142 | ✅ |
+| 7 | `main.go` | 129 | ⚠️ İçində 3 məsuliyyət qarışıq |
+| 8 | `internal/repository/mock_lms_repo.go` | 106 | 💀 Dead code (silinəcək) |
+| 9 | `internal/handler/mock_lms_handler.go` | 73 | ⚠️ Yanlış ad (rename olunacaq) |
+| 10–16 | Digər fayllar | <60 | ✅ |
+
+**Cəmi:** 16 fayl, 1,869 sətir.
+
+### A.2 Problemlər
+
+**Problem A — Dead Code (4 fayl, 239 sətir):** `pkg/lms/` və `mock_lms_*` faylları refactor nəticəsində tərk edilib, amma silinməyib. `main.go` onları import etmir, heç bir yerdə istifadə olunmur. **Silmək qətiyyən funksionallığı pozmayacaq** (Grep ilə təsdiqlənib).
+
+**Problem B — `credit_engine.go` 339 sətir:** Eyni faylda 5 fərqli məsuliyyət: CreditEngine struct + constructor, `PreValidate`, `ProcessApplication` (169 sətir!), `computeAnalytics` + `determineCreditLevel`, `buildRangeSummary`.
+
+**Problem C — `application_repo.go` 266 sətir:** 2 domen qarışıq: Application CRUD + Check Results + Credit Level sorğuları + `LevelRange` struct.
+
+**Problem D — `application_service.go` 205 sətir:** Müştəri axını (CreateApplication, GetStatus) və operator workflow-u (UpdateStatus) eyni faylda.
+
+**Problem E — `main.go` 129 sətir:** 3 fərqli məsuliyyət: Application wiring + SQL migration runner + SQL statement parser.
+
+### A.3 Refactoring Addımları
+
+#### Addım 1 — Dead Code Sil (T-0.4)
+
+| Silinəcək fayl | Sətir | Səbəb |
+|---|---:|---|
+| `pkg/lms/provider.go` | 39 | `main.go` istifadə etmir; `lw.Provider` ilə əvəz olunub |
+| `internal/repository/mock_lms_repo.go` | 106 | Yalnız `pkg/lms/provider.go` istifadə edirdi |
+| `internal/service/mock_lms_service.go` | 48 | Heç bir handler/service reference etmir |
+| `internal/model/mock_lms.go` | 46 | Yalnız yuxarıdakılar istifadə edirdi |
+
+**Net:** −239 sətir, 0 davranış dəyişikliyi.
+
+#### Addım 2 — `credit_engine.go` → 3 fayl (T-0.11, T-0.12)
+
+**Yeni: `internal/service/credit_level.go` (~105 sətir)** — kredit səviyyəsi məntiqi (saf funksiyalar, DB əlaqəsi yoxdur):
+- `loanAnalytics` struct (7 sətir)
+- `computeAnalytics(loans)` (19 sətir)
+- `determineCreditLevel(a, akb)` (29 sətir)
+- `buildRangeSummary(ranges, phase)` (32 sətir)
+
+**Yeni: `internal/service/credit_checks.go` (~75 sətir)** — paralel check execution + qərar:
+- `(e *CreditEngine) runChecks(analytics)` (50 sətir)
+- `(e *CreditEngine) makeDecision(ctx, appID, app, analytics, level, phase)` (25 sətir)
+
+**Qalan: `credit_engine.go` (~160 sətir)** — əsas orchestrator:
+- `CreditEngine` struct + constructor
+- `PreValidate(ctx, pin, amount, term, akb)` (40 sətir)
+- `ProcessApplication(ctx, appID)` (100 sətir — sadə orchestrator)
+
+#### Addım 3 — `application_repo.go` → 2 fayl (T-0.13)
+
+**Yeni: `internal/repository/credit_level_repo.go` (~115 sətir)** — `credit_levels` cədvəli sorğuları (ApplicationRepo metodları, eyni paketdə):
+- `LevelRange` struct
+- `GetCreditLevelRate` (16 sətir)
+- `CountApprovedAtLevel` (13 sətir)
+- `GetLevelRanges` (28 sətir)
+- `SaveCreditLevelHistory` (11 sətir)
+
+**Qalan: `application_repo.go` (~155 sətir)** — Application + application_checks cədvəli əməliyyatları.
+
+#### Addım 4 — `application_service.go` → 2 fayl (T-0.14)
+
+**Yeni: `internal/service/application_service_status.go` (~65 sətir)** — operator workflow:
+- `UpdateStatusRequest` struct
+- `UpdateStatus(ctx, id, req)` (50 sətir)
+
+**Qalan: `application_service.go` (~140 sətir)** — müştəri axını: CreateApplication, GetApplication, GetStatus, GetChecks.
+
+#### Addım 5 — `main.go` → 3 fayl (T-0.15, T-0.16, T-0.18)
+
+**Yeni: `internal/migration/migration.go` (~70 sətir)** — SQL migration runner:
+- `Run(db, migrationsDir)` (25 sətir)
+- `splitSQLStatements(content)` (31 sətir)
+
+**Yeni: `internal/handler/router.go` (~30 sətir)** — HTTP route qeydiyyatı:
+- `NewRouter(appHandler, lwMockHandler)` — 7 route qeydiyyat edir
+
+**Qalan: `main.go` (~55 sətir)** — saf wiring: config → DB → migration → DI → router → server.
+
+#### Addım 6 — Fayl Rename (T-0.17)
+
+`internal/handler/mock_lms_handler.go` → `internal/handler/lw_mock_handler.go`
+
+Fayl adı `mock_lms_handler.go`-dur, amma içində `LWMockHandler` var (ad mismatch). Sadəcə rename. Məntiq dəyişmir.
+
+### A.4 Yekun Strukturu
+
+```
+source/
+├── main.go                                         ~55 ✅ (129→55)
+├── config/config.go                                 53 ✅
+├── internal/
+│   ├── handler/
+│   │   ├── application_handler.go                  142 ✅
+│   │   ├── lw_mock_handler.go (rename)              73 ✅
+│   │   └── router.go (yeni)                          ~30 ✅
+│   ├── migration/
+│   │   └── migration.go (yeni)                       ~70 ✅
+│   ├── model/
+│   │   ├── credit_level.go                          24 ✅
+│   │   └── loan_application.go                       56 ✅
+│   ├── repository/
+│   │   ├── application_repo.go              ~155 ✅ (266→155)
+│   │   └── credit_level_repo.go             ~115 ✅ (yeni)
+│   └── service/
+│       ├── application_service.go            ~140 ✅ (205→140)
+│       ├── application_service_status.go      ~65 ✅ (yeni)
+│       ├── credit_engine.go                  ~160 ✅ (339→160)
+│       ├── credit_checks.go                   ~75 ✅ (yeni)
+│       └── credit_level.go                   ~105 ✅ (yeni)
+└── pkg/
+    └── lw/
+        ├── mock_provider.go                         168 ✅
+        ├── model.go                                 150 ✅
+        └── provider.go                               25 ✅
+```
+
+**Yekun rəqəmlər:**
+- Əvvəl: 16 fayl, 1,869 sətir
+- Sonra: 13 fayl, ~1,560 sətir (dead code silindiyi üçün 239 sətir azaldı)
+- **200 sətiri keçən fayl sayı: 0**
+- Ən böyük fayl: `mock_provider.go` (168 sətir)
+
+### A.5 Dependency & Oxunaqlılıq Təsiri
+
+Bu layihədə dependency zənciri onsuz da düzdür:
+
+```
+main → handler → service → repository → DB
+                      ↘ lw.Provider
+```
+
+Təklif olunan refactor bu zənciri **dəyişmir** — yalnız eyni səviyyədə faylları bölır:
+- `credit_checks.go` → `credit_engine.go`-ya baxmır (eyni paket, eyni struct metodu)
+- `credit_level_repo.go` → `application_repo.go`-ya baxmır (eyni `ApplicationRepo` struct-ının metodları)
+- Heç bir yeni import əlavə olunmur
+
+### A.6 Mid-level Developer Üçün Faydalar
+
+| Sual | Əvvəl | Sonra |
+|---|---|---|
+| "Kredit qərarı necə verilir?" | 339 sətirlik `credit_engine.go`-nu tam oxumaq lazım | `credit_engine.go` (160 sətir) → sadəcə `ProcessApplication`-a baxmaq kifayət |
+| "Faiz dərəcəsi haradan gəlir?" | `application_repo.go`-da 8 metod arasında axtarış | Birbaşa `credit_level_repo.go`-ya baxmaq |
+| "Operator approve-u necə işləyir?" | `application_service.go`-da 4 CRUD metodu ilə qarışıq | Ayrı fayl, tək məsuliyyət |
+| "Kredit səviyyəsi necə hesablanır?" | Pipeline kodunun içinə gömülü | `credit_level.go` tamamilə saf funksiyalar |
+| "Dead code var?" | 4 fayl çaşdırır | Hamısı silinib |
+| "Server harada başlayır?" | 129 sətirdə routing + SQL parser qarışıq | `main.go` 55 sətir — saf wiring |
+| "Routing necə qurulur?" | `main.go` içində, DI wiring ilə qarışıq | `handler/router.go` tamamilə ayrı |
+| "Migration necə işləyir?" | `main.go`-da 2 funksiya (54 sətir) | `migration/migration.go` tamamilə ayrı |
+| "Yeni route əlavə etmək?" | `main.go`-nu redaktə etmək | `router.go`-ya 1 sətir əlavə etmək |
+
+### A.7 Dəyişiklik Miqdarı Xülasəsi
+
+| Əməliyyat növü | Sayı | Təxmini sətir dəyişikliyi |
+|---|---:|---|
+| Fayl silmə | 4 | −239 sətir |
+| Yeni fayl yaratma (mövcud kodun köçürülməsi) | 6 | +460 sətir (move) |
+| Fayl bölma (mövcud) | 4 | −460 sətir (move) |
+| Fayl rename | 1 | 0 |
+| **Yeni kod sətirləri** | — | **0** (heç bir funksiya dəyişmədən yazılmır) |
+| **Silinən kod sətirləri** | — | **0** (yalnız dead code silinir, `go build`-i pozmur) |
+| **Davranış dəyişikliyi** | — | **Yoxdur** |
+
+**Təxmini vaxt:** 1–2 saat (sətir sətir köçürmə, `go build` ilə yoxlama)
+
+### A.8 Risklər
+
+- **Çox aşağı risk:** Bütün dəyişikliklər eyni paket daxilində fayl bölünməsidir; Go compile baxımından əvvəlki ilə eynidir
+- **Test üçün təsir:** Test yoxdur (özü də problem, amma bu refactor test əlavə etməyi asanlaşdıracaq)
+- **İdxal/eksport dəyişikliyi:** Heç bir — bütün struct və metodlar eyni adlarla qalır
+
+### A.9 İcra Sırası
+
+1. **Addım 1** — Dead code sil → `go build` yoxla
+2. **Addım 2** — `credit_engine.go` bölün → `go build` yoxla
+3. **Addım 3** — `application_repo.go` bölün → `go build` yoxla
+4. **Addım 4** — `application_service.go` bölün → `go build` yoxla
+5. **Addım 5** — `main.go` bölün → `go build` yoxla
+6. **Addım 6** — Rename → `go build` yoxla
+7. **Yekun** — `go vet ./...` və `go test ./...` (əgər test varsa) ilə təsdiq et
+
+Hər addımdan sonra `go build` işlədilir ki, bölünmə zamanı səhv olarsa dərhal tapsın.
 
 ---
 
