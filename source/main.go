@@ -1,83 +1,105 @@
 package main
 
 import (
-        "context"
-        "database/sql"
-        "fmt"
-        "log"
-        "net/http"
-        "os"
-        "os/signal"
-        "syscall"
+	"context"
+	"database/sql"
+	"log/slog"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 
-        "rdc-source/config"
-        "rdc-source/internal/handler"
-        "rdc-source/internal/migration"
-        "rdc-source/internal/repository"
-        "rdc-source/internal/service"
-        "rdc-source/pkg/lw"
+	"rdc-source/config"
+	"rdc-source/internal/handler"
+	"rdc-source/internal/migration"
+	"rdc-source/internal/repository"
+	"rdc-source/internal/service"
+	"rdc-source/pkg/lw"
 
-        _ "github.com/microsoft/go-mssqldb"
+	_ "github.com/microsoft/go-mssqldb"
 )
 
 func main() {
-        // Load configuration
-        cfg := config.Load()
+	// Load configuration (will fatal on missing required env vars)
+	cfg := config.Load()
 
-        // Connect to SQL Server
-        db, err := sql.Open("mssql", cfg.DSN())
-        if err != nil {
-                log.Fatalf("Failed to open database: %v", err)
-        }
-        defer db.Close()
+	// Initialize structured logger (log/slog) — JSON format is friendlier for
+	// log aggregation tools (ELK, Loki, CloudWatch, etc.).
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: parseLogLevel(cfg.LogLevel),
+	}))
+	slog.SetDefault(logger)
 
-        // Verify the connection
-        if err = db.Ping(); err != nil {
-                log.Fatalf("Failed to ping database: %v", err)
-        }
-        log.Println("Connected to SQL Server successfully")
+	slog.Info("starting RDC server",
+		"db_host", cfg.DBHost,
+		"db_name", cfg.DBName,
+		"server_addr", cfg.ServerAddr,
+		"migrations_drop_recreate", cfg.MigrationsDropRecreate,
+	)
 
-        // Run database migrations on startup
-        if err := migration.Run(db, "migrations"); err != nil {
-                log.Fatalf("Migration failed: %v", err)
-        }
+	// Connect to SQL Server
+	db, err := sql.Open("mssql", cfg.DSN())
+	if err != nil {
+		slog.Error("failed to open database", "error", err)
+		os.Exit(1)
+	}
+	defer db.Close()
 
-        // --- Repository layer ---
-        appRepo := repository.NewApplicationRepo(db)
+	// Verify the connection
+	if err = db.Ping(); err != nil {
+		slog.Error("failed to ping database", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("connected to SQL Server")
 
-        // --- LW Provider (unified: loan data + blacklist + router + approve) ---
-        lwProvider := lw.NewMockProvider(db)
+	// Run database migrations on startup. In production
+	// (MIGRATIONS_DROP_RECREATE=false) this is idempotent — uses IF NOT EXISTS
+	// guards and never drops data.
+	if err := migration.Run(db, "migrations", migration.Options{
+		DropRecreate: cfg.MigrationsDropRecreate,
+	}); err != nil {
+		slog.Error("migration failed", "error", err)
+		os.Exit(1)
+	}
 
-        // --- Service layer ---
-        creditEngine := service.NewCreditEngine(lwProvider, appRepo)
-        appService := service.NewApplicationService(appRepo, creditEngine)
+	// --- Repository layer ---
+	appRepo := repository.NewApplicationRepo(db)
 
-        // --- Handler layer ---
-        lwMockHandler := handler.NewLWMockHandler(lwProvider)
-        appHandler := handler.NewApplicationHandler(appService)
+	// --- LW Provider (unified: loan data + blacklist + router + approve) ---
+	lwProvider := lw.NewMockProvider(db)
 
-        // --- Route registration ---
-        router := handler.NewRouter(appHandler, lwMockHandler)
+	// --- Service layer ---
+	creditEngine := service.NewCreditEngine(lwProvider, appRepo)
+	appService := service.NewApplicationService(appRepo, creditEngine)
 
-        // --- Start the server on port 8000 with graceful shutdown ---
-        addr := ":8000"
-        srv := &http.Server{Addr: addr, Handler: router}
+	// --- Handler layer ---
+	lwMockHandler := handler.NewLWMockHandler(lwProvider)
+	appHandler := handler.NewApplicationHandler(appService)
 
-        go func() {
-                fmt.Printf("RDC server starting on %s\n", addr)
-                if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-                        log.Fatalf("Server failed: %v", err)
-                }
-        }()
+	// --- Route registration + middleware chain ---
+	router := handler.NewRouter(appHandler, lwMockHandler)
 
-        // Wait for interrupt signal (SIGINT / SIGTERM)
-        stop := make(chan os.Signal, 1)
-        signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-        <-stop
+	// --- Start the HTTP server with graceful shutdown ---
+	srv := &http.Server{Addr: cfg.ServerAddr, Handler: router}
 
-        log.Println("Shutting down server...")
-        if err := srv.Shutdown(context.Background()); err != nil {
-                log.Printf("Forced shutdown: %v", err)
-        }
-        log.Println("Server stopped")
+	go func() {
+		slog.Info("server listening", "addr", cfg.ServerAddr)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			slog.Error("server failed", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// Wait for interrupt signal (SIGINT / SIGTERM)
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+	<-stop
+
+	slog.Info("shutting down server...")
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		slog.Error("forced shutdown", "error", err)
+	}
+	slog.Info("server stopped")
 }

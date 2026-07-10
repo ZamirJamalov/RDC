@@ -98,13 +98,13 @@ func (e *CreditEngine) makeDecision(ctx context.Context, appID int, app *model.L
         // 1. Reject: active loans
         if analytics.hasActive {
                 return e.appRepo.UpdateApplicationDecision(ctx, appID,
-                        "rejected", creditLevel, "Customer has active loans", 0, 0)
+                        model.StatusRejected, creditLevel, "Customer has active loans", 0, 0)
         }
 
         // 2. Reject: late payments in history
         if analytics.completedCount > 0 && !analytics.allOnTime {
                 return e.appRepo.UpdateApplicationDecision(ctx, appID,
-                        "rejected", creditLevel, "Late payments found in loan history", 0, 0)
+                        model.StatusRejected, creditLevel, "Late payments found in loan history", 0, 0)
         }
 
         // 3. Look up the rate for this credit level, amount, term, and unlock phase
@@ -116,13 +116,13 @@ func (e *CreditEngine) makeDecision(ctx context.Context, appID int, app *model.L
                                 app.Amount, app.TermMonths, creditLevel, unlockPhase, buildRangeSummary(ranges, unlockPhase))
                 }
                 return e.appRepo.UpdateApplicationDecision(ctx, appID,
-                        "rejected", creditLevel, reason, 0, 0)
+                        model.StatusRejected, creditLevel, reason, 0, 0)
         }
 
         // 4. Elite: auto-approve; 5. Others: pending_approval (manual review)
-        if creditLevel == "elite" {
+        if creditLevel == model.CreditLevelElite {
                 if err := e.appRepo.UpdateApplicationDecision(ctx, appID,
-                        "approved", creditLevel, "", app.Amount, rate); err != nil {
+                        model.StatusApproved, creditLevel, "", app.Amount, rate); err != nil {
                         return err
                 }
                 // Save credit level history (best-effort, do not fail the decision on this)
@@ -132,7 +132,7 @@ func (e *CreditEngine) makeDecision(ctx context.Context, appID int, app *model.L
 
         // New / Trusted / Valuable: pending_approval with proposed amount and rate
         return e.appRepo.UpdateApplicationDecision(ctx, appID,
-                "pending_approval", creditLevel, "", app.Amount, rate)
+                model.StatusPendingApproval, creditLevel, "", app.Amount, rate)
 }
 
 // resolveUnlockPhase returns 2 if the customer already has 1+ approved application at
