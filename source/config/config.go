@@ -44,6 +44,18 @@ type Config struct {
         OTPSender   string // sender ID shown on the customer's phone
         OTPUseMock  bool
         OTPTimeoutS int // HTTP timeout for OTP calls, in seconds
+
+        // SIMA Provider configuration (T-4.1 to T-4.2)
+        SimaBaseURL  string
+        SimaApiKey   string
+        SimaUseMock  bool
+        SimaTimeoutS int
+
+        // MyGov Provider configuration (T-4.8)
+        MyGovBaseURL  string
+        MyGovApiKey   string
+        MyGovUseMock  bool
+        MyGovTimeoutS int
 }
 
 // Load reads configuration from environment variables. Required fields (DB_HOST,
@@ -68,6 +80,14 @@ func Load() *Config {
                 OTPSender:              getEnv("OTP_SENDER", "RDC"),
                 OTPUseMock:             getEnvBool("OTP_USE_MOCK", true),
                 OTPTimeoutS:            getEnvInt("OTP_TIMEOUT_S", 10),
+                SimaBaseURL:            getEnv("SIMA_BASE_URL", "http://localhost:8082"),
+                SimaApiKey:             getEnv("SIMA_API_KEY", ""),
+                SimaUseMock:            getEnvBool("SIMA_USE_MOCK", true),
+                SimaTimeoutS:           getEnvInt("SIMA_TIMEOUT_S", 15),
+                MyGovBaseURL:           getEnv("MYGOV_BASE_URL", "http://localhost:8083"),
+                MyGovApiKey:            getEnv("MYGOV_API_KEY", ""),
+                MyGovUseMock:           getEnvBool("MYGOV_USE_MOCK", true),
+                MyGovTimeoutS:          getEnvInt("MYGOV_TIMEOUT_S", 15),
         }
 
         if cfg.MigrationsDropRecreate {
