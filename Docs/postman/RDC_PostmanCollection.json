@@ -1,0 +1,3236 @@
+{
+  "info": {
+    "name": "RDC API — Full Test Collection",
+    "_postman_id": "7402cca0-b4e9-4ca4-b0ea-03ab8f980939",
+    "description": "RDC (Retail Decision Engine) API tam test collection-u.\n\nFlow üzrə sıralanmış: Setup → OTP → LW Checks → Application → SIMA → MyGov → ASAN → Status → Expert.\n\nHər endpoint üçün: 🟢 Happy Path, 🟡 Edge Case, 🔴 Error Path.\n\nİstifadə:\n1. Environment-i import edin (RDC_PostmanEnvironment.json)\n2. customer_pin, customer_phone dəyərlərini dəyişin\n3. Sıra ilə request-ləri işlədin\n4. Auto-chaining: application_id, otp_token, credit_level avtomatik set olunur",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0. Setup (Mock Data)",
+      "item": [
+        {
+          "name": "🟢 Setup: Yeni müştəri (0 kredit)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mock/lw/setup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mock",
+                "lw",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"scenario_name\": \"new_customer\",\n  \"loans\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Yeni müştəri üçün boş kredit tarixçəsi. new level gözlənilir."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has customer_pin\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"customer_pin\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Setup: Trusted (1 completed, on-time)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mock/lw/setup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mock",
+                "lw",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"scenario_name\": \"trusted\",\n  \"loans\": [\n    {\n      \"lms_loan_id\": \"LMS-001\",\n      \"loan_type\": \"micro\",\n      \"amount\": 300,\n      \"term_months\": 3,\n      \"start_date\": \"2025-01-01\",\n      \"end_date\": \"2025-04-01\",\n      \"status\": \"completed\",\n      \"remaining_amount\": 0,\n      \"was_on_time\": true,\n      \"early_completion\": false\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "1 tamamlanmış, vaxtında. trusted level gözlənilir."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Setup: Elite (2 completed, 1 early)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mock/lw/setup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mock",
+                "lw",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"scenario_name\": \"elite\",\n  \"loans\": [\n    {\n      \"lms_loan_id\": \"LMS-001\",\n      \"loan_type\": \"micro\",\n      \"amount\": 500,\n      \"term_months\": 6,\n      \"start_date\": \"2024-06-01\",\n      \"end_date\": \"2024-12-01\",\n      \"status\": \"completed\",\n      \"remaining_amount\": 0,\n      \"was_on_time\": true,\n      \"early_completion\": true\n    },\n    {\n      \"lms_loan_id\": \"LMS-002\",\n      \"loan_type\": \"micro\",\n      \"amount\": 700,\n      \"term_months\": 6,\n      \"start_date\": \"2025-01-01\",\n      \"end_date\": \"2025-07-01\",\n      \"status\": \"completed\",\n      \"remaining_amount\": 0,\n      \"was_on_time\": true,\n      \"early_completion\": false\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "2 tamamlanmış, 1 early. elite level (auto-approve) gözlənilir."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Setup: Aktiv kreditli",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mock/lw/setup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mock",
+                "lw",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"scenario_name\": \"active\",\n  \"loans\": [\n    {\n      \"lms_loan_id\": \"LMS-ACT\",\n      \"loan_type\": \"micro\",\n      \"amount\": 400,\n      \"term_months\": 3,\n      \"start_date\": \"2026-06-01\",\n      \"end_date\": \"2026-09-01\",\n      \"status\": \"active\",\n      \"remaining_amount\": 300,\n      \"was_on_time\": true,\n      \"early_completion\": false\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Aktiv kredit. Pipeline reject etməlidir."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Setup: Gecikməli",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mock/lw/setup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mock",
+                "lw",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"scenario_name\": \"late\",\n  \"loans\": [\n    {\n      \"lms_loan_id\": \"LMS-LATE\",\n      \"loan_type\": \"micro\",\n      \"amount\": 300,\n      \"term_months\": 3,\n      \"start_date\": \"2025-01-01\",\n      \"end_date\": \"2025-04-01\",\n      \"status\": \"completed\",\n      \"remaining_amount\": 0,\n      \"was_on_time\": false,\n      \"early_completion\": false\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Gecikməli ödəniş. Pipeline reject etməlidir."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Query: Kreditləri sorğula",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mock/lw/query?customer_pin={{customer_pin}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mock",
+                "lw",
+                "query?customer_pin={{customer_pin}}"
+              ]
+            },
+            "description": "Müştərinin cari kredit tarixçəsi."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has customer_pin\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"customer_pin\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Setup: customer_pin boş",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mock/lw/setup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mock",
+                "lw",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"\",\n  \"loans\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Boş PIN ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: customer_pin\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"customer_pin\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Query: customer_pin yoxdur",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mock/lw/query",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mock",
+                "lw",
+                "query"
+              ]
+            },
+            "description": "PIN olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: customer_pin\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"customer_pin\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1. OTP Verification",
+      "item": [
+        {
+          "name": "🟢 OTP Send: Happy path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/otp/send",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "otp",
+                "send"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{customer_phone}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "SMS göndərir. Mock mode-da kod log-a yazılır."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has phone\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"phone\"); });",
+                  "pm.test(\"Has sent\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"sent\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 OTP Verify: Happy path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/otp/verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "otp",
+                "verify"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{customer_phone}}\",\n  \"code\": \"{{otp_code}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Doğru kod ilə verify. Token set olunur.\n⚠️ Mock mode-da kodu server logundan götürün, {{otp_code}}-a yazın."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has valid\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"valid\"); });",
+                  "const j = pm.response.json();",
+                  "if (j && j.token) { pm.environment.set(\"otp_token\", j.token); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟡 OTP Send: Edge - telefon formatı",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/otp/send",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "otp",
+                "send"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"+994551234567\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Fərqli telefon formatı."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 OTP Send: telefon boş",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/otp/send",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "otp",
+                "send"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Boş telefon ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: phone\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"phone\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 OTP Send: invalid JSON",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/otp/send",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "otp",
+                "send"
+              ]
+            },
+            "description": "JSON body olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 OTP Send: rate limit (2-ci SMS < 1 dəq)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/otp/send",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "otp",
+                "send"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{customer_phone}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "1 dəqiqə ərzində 2-ci SMS. 429 gözlənilir.\n⚠️ Əvvəlcə 1 OTP Send işlədin, sonra dərhal bunu."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 429\", () => pm.response.to.have.status(429));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 OTP Verify: yanlış kod",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/otp/verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "otp",
+                "verify"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{customer_phone}}\",\n  \"code\": \"000000\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Yanlış kod. 200 amma valid=false."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test('valid=false', () => { const j = pm.response.json(); pm.expect(j.valid).to.be.false; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 OTP Verify: kod boş",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/otp/verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "otp",
+                "verify"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{customer_phone}}\",\n  \"code\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Boş kod ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: phone and code\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"phone and code\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 OTP Verify: telefon boş",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/otp/verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "otp",
+                "verify"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"\",\n  \"code\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Boş telefon ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: phone and code\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"phone and code\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. LW Router Checks",
+      "item": [
+        {
+          "name": "🟢 Personal Info: Happy path",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/router/personal-info?fin={{customer_pin}}&serial=ID123",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "personal-info?fin={{customer_pin}}&serial=ID123"
+              ]
+            },
+            "description": "DIN şəxsiyyət məlumatı."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has fin\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"fin\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 AKB Score: Happy path",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/router/akb-score?fin={{customer_pin}}&serial=ID123",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-score?fin={{customer_pin}}&serial=ID123"
+              ]
+            },
+            "description": "AKB kredit skoru."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has score\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"score\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 AKB History: Happy path",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/router/akb-history?fin={{customer_pin}}&serial=ID123",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-history?fin={{customer_pin}}&serial=ID123"
+              ]
+            },
+            "description": "AKB tam kredit tarixçəsi."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has report_id\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"report_id\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Blacklist: Not blacklisted",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/lw/blacklist?fin={{customer_pin}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "lw",
+                "blacklist?fin={{customer_pin}}"
+              ]
+            },
+            "description": "Qara siyahı yoxlaması."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has is_blacklisted\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"is_blacklisted\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟡 AKB Score: Edge - skoru 0 (fallback)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/router/akb-score?fin=ZEROAKB&serial=ID123",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-score?fin=ZEROAKB&serial=ID123"
+              ]
+            },
+            "description": "AKB 0 olarsa, request-dən gələn dəyər istifadə olunur."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Personal Info: fin boş",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/router/personal-info",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "personal-info"
+              ]
+            },
+            "description": "fin olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: fin\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"fin\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 AKB Score: fin boş",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/router/akb-score",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-score"
+              ]
+            },
+            "description": "fin olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: fin\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"fin\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 AKB History: fin boş",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/router/akb-history",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-history"
+              ]
+            },
+            "description": "fin olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: fin\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"fin\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Blacklist: fin boş",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/lw/blacklist",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "lw",
+                "blacklist"
+              ]
+            },
+            "description": "fin olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: fin\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"fin\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3. Offer + Application",
+      "item": [
+        {
+          "name": "🟢 Offer: Yeni müştəri",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/offer?customer_pin={{customer_pin}}&akb_score=400",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "offer?customer_pin={{customer_pin}}&akb_score=400"
+              ]
+            },
+            "description": "Müştərinin kredit səviyyəsinə uyğun təkliflər."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has credit_level\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"credit_level\"); });",
+                  "pm.test(\"Has ranges\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"ranges\"); });",
+                  "const j = pm.response.json();",
+                  "if (j && j.credit_level) { pm.environment.set(\"credit_level\", j.credit_level); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Offer: AKB override (750 → valuable)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/offer?customer_pin={{customer_pin}}&akb_score=750",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "offer?customer_pin={{customer_pin}}&akb_score=750"
+              ]
+            },
+            "description": "AKB 750+ valuable level təyin edir."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Application: Happy path (yeni → pending_approval)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_full_name\": \"Test M\\u00fc\\u015ft\\u0259ri\",\n  \"amount\": 200,\n  \"term_months\": 3,\n  \"akb_score\": 400,\n  \"contact1_phone\": \"+994501111111\",\n  \"contact2_phone\": \"+994502222222\",\n  \"contact3_phone\": \"+994503333333\",\n  \"actual_address\": \"Bak\\u0131 \\u015f\\u0259h\\u0259ri, N\\u0259simi rayonu, Test k\\u00fc\\u00e7\\u0259si 1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Yeni müraciət. application_id set olunur."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Has id\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"id\"); });",
+                  "pm.test(\"Has status\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"status\"); });",
+                  "const j = pm.response.json();",
+                  "if (j && j.id) { pm.environment.set(\"application_id\", j.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Application: Happy path (elite → auto-approve)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"ELITE001\",\n  \"customer_full_name\": \"Elite M\\u00fc\\u015ft\\u0259ri\",\n  \"amount\": 500,\n  \"term_months\": 6,\n  \"akb_score\": 400\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Elite müştəri (setup-də ELITE001 ilə mock data yaradın). Auto-approve gözlənilir."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Has id\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"id\"); });",
+                  "const j = pm.response.json();",
+                  "if (j && j.id) { pm.environment.set(\"application_id\", j.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟡 Application: Edge - maksimal (3000 AZN, 12 ay)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"ELITE001\",\n  \"customer_full_name\": \"Elite\",\n  \"amount\": 3000,\n  \"term_months\": 12,\n  \"akb_score\": 400\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Maksimal məbləğ + müddət (elite phase 2 tələb olunur)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟡 Application: Edge - minimal (100 AZN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_full_name\": \"Test\",\n  \"amount\": 100,\n  \"term_months\": 3,\n  \"akb_score\": 400\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Minimal məbləğ."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Offer: customer_pin boş",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/offer",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "offer"
+              ]
+            },
+            "description": "customer_pin olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: customer_pin\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"customer_pin\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Application: customer_pin boş",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_full_name\": \"Test\",\n  \"amount\": 200,\n  \"term_months\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Boş PIN ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: customer_pin\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"customer_pin\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Application: customer_full_name boş",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"amount\": 200,\n  \"term_months\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Boş ad ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: customer_full_name\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"customer_full_name\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Application: amount=0",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_full_name\": \"Test\",\n  \"amount\": 0,\n  \"term_months\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sıfır məbləğ ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: amount\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"amount\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Application: amount=-100",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_full_name\": \"Test\",\n  \"amount\": -100,\n  \"term_months\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Mənfi məbləğ ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: amount\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"amount\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Application: term_months=0",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_full_name\": \"Test\",\n  \"amount\": 200,\n  \"term_months\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sıfır müddət ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: term_months\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"term_months\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Application: duplicate pending",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_full_name\": \"Test\",\n  \"amount\": 200,\n  \"term_months\": 3,\n  \"akb_score\": 400\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Eyni müştəriyə 2-ci müraciət. 400 + AZ mesaj.\n⚠️ Əvvəlcə 1 uğurlu müraciət edin."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: işlənməkdə\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"işlənməkdə\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Application: rate tapılmadı (9999 AZN, 99 ay)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_full_name\": \"Test\",\n  \"amount\": 9999,\n  \"term_months\": 99,\n  \"akb_score\": 400\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Yanlış məbləğ/müddət. 400 + AZ mesaj."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: kecerli deyil\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"kecerli deyil\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4. SIMA KYC",
+      "item": [
+        {
+          "name": "🟢 SIMA Init: Happy path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/router/sima/init?application_id={{application_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "sima",
+                "init?application_id={{application_id}}"
+              ]
+            },
+            "description": "SIMA KYC başladılır. sima_session_id set olunur."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has session_id\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"session_id\"); });",
+                  "const j = pm.response.json();",
+                  "if (j && j.session_id) { pm.environment.set(\"sima_session_id\", j.session_id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 SIMA Callback: Success status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rdc/callback/sima-result",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rdc",
+                "callback",
+                "sima-result"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": \"{{application_id}}\",\n  \"session_id\": \"{{sima_session_id}}\",\n  \"status\": \"success\",\n  \"detail\": \"KYC completed\",\n  \"completed_at\": \"2026-07-11T12:00:00Z\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "SIMA-dan uğurlu callback simulyasiya."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has received\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"received\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟡 SIMA Callback: Failed status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rdc/callback/sima-result",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rdc",
+                "callback",
+                "sima-result"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": \"{{application_id}}\",\n  \"session_id\": \"{{sima_session_id}}\",\n  \"status\": \"failed\",\n  \"detail\": \"Face not recognized\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "SIMA-dan failed callback. Yenə 200 (acknowledge)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has received\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"received\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 SIMA Init: app_id yoxdur",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/router/sima/init",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "sima",
+                "init"
+              ]
+            },
+            "description": "app_id olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: application_id\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"application_id\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 SIMA Init: app_id=abc",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/router/sima/init?application_id=abc",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "sima",
+                "init?application_id=abc"
+              ]
+            },
+            "description": "Non-numeric app_id ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: application_id\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"application_id\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 SIMA Callback: invalid JSON",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rdc/callback/sima-result",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rdc",
+                "callback",
+                "sima-result"
+              ]
+            },
+            "description": "JSON body olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 SIMA Callback: app_id yoxdur",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rdc/callback/sima-result",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rdc",
+                "callback",
+                "sima-result"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"session_id\": \"SIMA-001\",\n  \"status\": \"success\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "app_id olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: application_id\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"application_id\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 SIMA Callback: session_id yoxdur",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rdc/callback/sima-result",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rdc",
+                "callback",
+                "sima-result"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": 1,\n  \"status\": \"success\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "session_id olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: session_id\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"session_id\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5. MyGov",
+      "item": [
+        {
+          "name": "🟢 MyGov Permission Link: Happy path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mygov/permission-link",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mygov",
+                "permission-link"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": \"{{application_id}}\",\n  \"customer_pin\": \"{{customer_pin}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "MyGov icazə linki yaradılır."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has url\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"url\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 MyGov Fetch Data: Happy path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mygov/fetch-data?application_id={{application_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mygov",
+                "fetch-data?application_id={{application_id}}"
+              ]
+            },
+            "description": "MyGov-dan rəsmi gəlir məlumatı çəkilir."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has status\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"status\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 MyGov Permission: app_id yoxdur",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mygov/permission-link",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mygov",
+                "permission-link"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "app_id olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: application_id\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"application_id\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 MyGov Permission: customer_pin boş",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mygov/permission-link",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mygov",
+                "permission-link"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Boş PIN ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: customer_pin\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"customer_pin\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 MyGov Fetch: app_id yoxdur",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mygov/fetch-data",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mygov",
+                "fetch-data"
+              ]
+            },
+            "description": "app_id olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: application_id\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"application_id\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 MyGov Fetch: app_id=abc",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mygov/fetch-data?application_id=abc",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mygov",
+                "fetch-data?application_id=abc"
+              ]
+            },
+            "description": "Non-numeric app_id ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: application_id\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"application_id\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. ASAN Finance",
+      "item": [
+        {
+          "name": "🟢 ASAN Finance: Happy path",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/router/asan-finance?fin={{customer_pin}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "asan-finance?fin={{customer_pin}}"
+              ]
+            },
+            "description": "ASAN Finance-dən rəsmi gəlir."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has official_income\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"official_income\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 ASAN Finance: fin boş",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/router/asan-finance",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "asan-finance"
+              ]
+            },
+            "description": "fin olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: fin\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"fin\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7. Status & Decision",
+      "item": [
+        {
+          "name": "🟢 Get Application: Happy path",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/{{application_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{application_id}}"
+              ]
+            },
+            "description": "Müraciəti ID ilə gətir."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has id\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"id\"); });",
+                  "pm.test(\"Has status\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"status\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Get Status: Full status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/{{application_id}}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{application_id}}",
+                "status"
+              ]
+            },
+            "description": "Tam status (checks + decision)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has status\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"status\"); });",
+                  "pm.test(\"Has checks\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"checks\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Get Checks: All check results",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/{{application_id}}/checks",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{application_id}}",
+                "checks"
+              ]
+            },
+            "description": "Bütün check nəticələri."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 LW Approve: Happy path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/lw/loans/approve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "lw",
+                "loans",
+                "approve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": \"{{application_id}}\",\n  \"amount\": 500,\n  \"credit_level\": \"elite\",\n  \"term_months\": 6\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "LW-ə approve göndər. Mock-da success."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has contract_status\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"contract_status\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Get Application: invalid id (0)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "0"
+              ]
+            },
+            "description": "id=0 ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: invalid\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"invalid\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Get Application: tapılmadı (99999)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/99999",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "99999"
+              ]
+            },
+            "description": "Mövcud olmayan ID ilə 404."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Get Status: id=0",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/0/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "0",
+                "status"
+              ]
+            },
+            "description": "id=0 ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: invalid\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"invalid\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Get Checks: id=-1",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/-1/checks",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "-1",
+                "checks"
+              ]
+            },
+            "description": "Mənfi ID ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: invalid\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"invalid\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 LW Approve: app_id yoxdur",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/lw/loans/approve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "lw",
+                "loans",
+                "approve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 500,\n  \"credit_level\": \"elite\",\n  \"term_months\": 6\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "app_id olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: application_id\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"application_id\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 LW Approve: app_id=0",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/lw/loans/approve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "lw",
+                "loans",
+                "approve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": 0,\n  \"amount\": 500,\n  \"credit_level\": \"elite\",\n  \"term_months\": 6\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "app_id=0 ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: application_id\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"application_id\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 LW Approve: invalid JSON",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/lw/loans/approve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "lw",
+                "loans",
+                "approve"
+              ]
+            },
+            "description": "JSON body olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8. Expert Panel",
+      "item": [
+        {
+          "name": "🟢 Expert Queue: List pending",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/expert/queue",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "expert",
+                "queue"
+              ]
+            },
+            "description": "pending_approval müraciətlər."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Expert Get: Application detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/expert/{{application_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "expert",
+                "{{application_id}}"
+              ]
+            },
+            "description": "Ekspert üçün müraciət detalı."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has id\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"id\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Expert Approve: Happy path",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/expert/{{application_id}}/approve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "expert",
+                "{{application_id}}",
+                "approve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"credit_level\": \"valuable\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Müraciəti təsdiqlə. credit_level tələb olunur.\n⚠️ Application pending_approval olmalıdır."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has status\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"status\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Expert Reject: Happy path",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/expert/{{application_id}}/reject",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "expert",
+                "{{application_id}}",
+                "reject"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Manual reject by expert\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Müraciəti rədd et.\n⚠️ Application pending_approval olmalıdır."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has status\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"status\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Expert Get: invalid id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/expert/0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "expert",
+                "0"
+              ]
+            },
+            "description": "id=0 ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Expert Get: tapılmadı",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/expert/99999",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "expert",
+                "99999"
+              ]
+            },
+            "description": "Mövcud olmayan ID ilə 404."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Expert Approve: credit_level boş",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/expert/{{application_id}}/approve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "expert",
+                "{{application_id}}",
+                "approve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "credit_level olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: credit_level\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"credit_level\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Expert Approve: invalid credit_level (platinum)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/expert/{{application_id}}/approve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "expert",
+                "{{application_id}}",
+                "approve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"credit_level\": \"platinum\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Yanlış credit_level ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: must be one of\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"must be one of\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Expert Approve: app pending_approval deyil",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/expert/99999/approve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "expert",
+                "99999",
+                "approve"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"credit_level\": \"valuable\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Pending_approval olmayan app üçün 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: pending_approval\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"pending_approval\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
