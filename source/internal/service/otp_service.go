@@ -48,7 +48,9 @@ func (s *OTPService) SendOTP(ctx context.Context, phone string) (*model.OTPSendR
         }
 
         // Rate limit: max 1 SMS per minute per phone
-        recentCount, err := s.repo.CountRecentCodes(ctx, phone, time.Duration(model.OTPRateLimitWindow)*time.Second)
+        // Uses SQL Server's GETDATE() for the time comparison to avoid timezone
+        // mismatch between Go (UTC) and SQL Server (local time).
+        recentCount, err := s.repo.CountRecentCodes(ctx, phone, model.OTPRateLimitWindow)
         if err != nil {
                 return nil, fmt.Errorf("failed to check rate limit: %w", err)
         }

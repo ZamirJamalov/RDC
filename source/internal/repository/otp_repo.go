@@ -32,6 +32,8 @@ func NewOTPRepo(db *sql.DB) *OTPRepo {
 
 // Create inserts a new OTP code record. The codeHash should be a SHA-256 hash
 // of the 6-digit code — never store the plaintext code in the database.
+// expiresAt is converted to a local-time string to match SQL Server's DATETIME
+// format, avoiding timezone mismatch issues.
 func (r *OTPRepo) Create(ctx context.Context, phone, codeHash string, expiresAt time.Time) error {
 	_, err := r.db.ExecContext(ctx, `
 		INSERT INTO otp_codes (phone, code_hash, status, expires_at)
@@ -102,15 +104,20 @@ func (r *OTPRepo) MarkVerified(ctx context.Context, id int) error {
 }
 
 // CountRecentCodes counts how many OTP codes were created for the given phone
-// number within the last `window` seconds. Used for rate limiting (max 1 SMS
-// per minute per phone).
-func (r *OTPRepo) CountRecentCodes(ctx context.Context, phone string, window time.Duration) (int, error) {
+// number within the last `windowSeconds` seconds. Used for rate limiting
+// (max 1 SMS per minute per phone).
+//
+// IMPORTANT: Uses SQL Server's GETDATE() for the time comparison instead of
+// passing Go's time.Now(). This avoids timezone mismatch between Go (which
+// may run in UTC) and SQL Server (which may use local time). If we passed
+// Go's time, the comparison could be off by hours and the rate limit would
+// never reset.
+func (r *OTPRepo) CountRecentCodes(ctx context.Context, phone string, windowSeconds int) (int, error) {
 	var count int
-	since := time.Now().Add(-window)
 	err := r.db.QueryRowContext(ctx, `
 		SELECT COUNT(*) FROM otp_codes
-		WHERE phone = ? AND created_at >= ?`,
-		phone, since).Scan(&count)
+		WHERE phone = ? AND created_at >= DATEADD(second, -?, GETDATE())`,
+		phone, windowSeconds).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("failed to count recent OTP codes: %w", err)
 	}
