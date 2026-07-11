@@ -63,6 +63,7 @@ func main() {
 
         // --- Repository layer ---
         appRepo := repository.NewApplicationRepo(db)
+        customerRepo := repository.NewCustomerRepo(db)
 
         // --- LW Provider (T-2.13) ---
         // In mock mode: reads from local DB (mock_lms_loans table) + canned responses.
@@ -71,7 +72,7 @@ func main() {
 
         // --- Service layer ---
         creditEngine := service.NewCreditEngine(lwProvider, appRepo)
-        appService := service.NewApplicationService(appRepo, creditEngine)
+        appService := service.NewApplicationService(appRepo, creditEngine, customerRepo)
 
         // --- OTP Provider + Service (T-3.1 to T-3.7) ---
         otpProvider := newOTPProvider(cfg)
