@@ -3,6 +3,7 @@ package service
 import (
         "context"
         "fmt"
+        "log/slog"
 
         "rdc-source/internal/model"
 )
@@ -11,15 +12,20 @@ import (
 type ApplicationService struct {
         repo         ApplicationStore
         creditEngine *CreditEngine
+        customerRepo CustomerStore
 }
 
 // NewApplicationService creates a new ApplicationService.
 // The repo parameter accepts any ApplicationStore implementation (e.g.
 // *repository.ApplicationRepo in production, or a mock in tests).
-func NewApplicationService(repo ApplicationStore, engine *CreditEngine) *ApplicationService {
+// The customerRepo is used to find or create a customer record before
+// the application is created — customer info is stored in a single
+// profile, not duplicated per application.
+func NewApplicationService(repo ApplicationStore, engine *CreditEngine, customerRepo CustomerStore) *ApplicationService {
         return &ApplicationService{
                 repo:         repo,
                 creditEngine: engine,
+                customerRepo: customerRepo,
         }
 }
 
@@ -46,7 +52,26 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, req *model.C
                 LoanPurpose:      req.LoanPurpose,
                 Status:           model.StatusPending,
                 AkbScore:         req.AkbScore,
+                Contact1Phone:    req.Contact1Phone,
+                Contact2Phone:    req.Contact2Phone,
+                Contact3Phone:    req.Contact3Phone,
+                ActualAddress:    req.ActualAddress,
         }
+
+        // Find or create the customer record (single profile per PIN).
+        // Customer info is stored in the customers table, not duplicated
+        // per application.
+        customer := &model.Customer{
+                CustomerPIN:   req.CustomerPIN,
+                FullName:      req.CustomerFullName,
+                ActualAddress: req.ActualAddress,
+        }
+        if err := s.customerRepo.GetOrCreate(ctx, customer); err != nil {
+                return nil, fmt.Errorf("failed to find or create customer: %w", err)
+        }
+        slog.Info("customer ready",
+                "customer_id", customer.ID,
+                "customer_pin", customer.CustomerPIN)
 
         // Check for duplicate: customer must not have an existing non-final application
         existingID, existingStatus, err := s.repo.HasPendingApplication(ctx, req.CustomerPIN)
@@ -66,6 +91,15 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, req *model.C
         err = s.repo.CreateApplication(ctx, app)
         if err != nil {
                 return nil, fmt.Errorf("failed to create application: %w", err)
+        }
+
+        // Link the application to the customer record (best-effort —
+        // if this fails, the application is still valid, just not linked).
+        if err := s.customerRepo.LinkApplication(ctx, app.ID, customer.ID); err != nil {
+                slog.Warn("failed to link application to customer",
+                        "application_id", app.ID,
+                        "customer_id", customer.ID,
+                        "error", err)
         }
 
         // Trigger credit engine asynchronously with retry (T-1.2). The HTTP
