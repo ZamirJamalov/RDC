@@ -72,6 +72,15 @@ func (s *OTPService) SendOTP(ctx context.Context, phone string) (*model.OTPSendR
         // Hash the code for storage (never store plaintext)
         codeHash := hashCode(code)
 
+        // Expire any existing active codes for this phone before inserting
+        // a new one. The filtered unique index UQ_otp_codes_phone_active
+        // only allows one active code per phone — without this step, a
+        // second send (after rate limit passes) would fail with a
+        // duplicate key error.
+        if err := s.repo.ExpireActiveByPhone(ctx, phone); err != nil {
+                return nil, fmt.Errorf("failed to expire previous OTP: %w", err)
+        }
+
         // Store in DB
         expiresAt := time.Now().Add(time.Duration(model.OTPCodeTTL) * time.Second)
         if err := s.repo.Create(ctx, phone, codeHash, expiresAt); err != nil {
