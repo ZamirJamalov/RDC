@@ -43,6 +43,15 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, req *model.C
         if req.TermMonths <= 0 {
                 return nil, fmt.Errorf("term_months must be greater than zero")
         }
+        // Validate card number: must be exactly 16 digits
+        if len(req.CardNumber) != 16 {
+                return nil, fmt.Errorf("card_number must be exactly 16 digits")
+        }
+        for _, c := range req.CardNumber {
+                if c < '0' || c > '9' {
+                        return nil, fmt.Errorf("card_number must contain only digits")
+                }
+        }
 
         app := &model.LoanApplication{
                 CustomerPIN:      req.CustomerPIN,
@@ -52,6 +61,7 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, req *model.C
                 LoanPurpose:      req.LoanPurpose,
                 Status:           model.StatusPending,
                 AkbScore:         req.AkbScore,
+                CardNumber:       req.CardNumber,
                 Contact1Phone:    req.Contact1Phone,
                 Contact2Phone:    req.Contact2Phone,
                 Contact3Phone:    req.Contact3Phone,

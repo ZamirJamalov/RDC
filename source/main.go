@@ -64,6 +64,7 @@ func main() {
         // --- Repository layer ---
         appRepo := repository.NewApplicationRepo(db)
         customerRepo := repository.NewCustomerRepo(db)
+        lwEventRepo := repository.NewLWLoanEventRepo(db)
 
         // --- LW Provider (T-2.13) ---
         // In mock mode: reads from local DB (mock_lms_loans table) + canned responses.
@@ -97,9 +98,10 @@ func main() {
         otpHandler := handler.NewOTPHandler(otpService)
         mygovHandler := handler.NewMyGovHandler(mygovService)
         expertHandler := handler.NewExpertHandler(appService)
+        lwLoanStatusHandler := handler.NewLWLoanStatusHandler(lwEventRepo)
 
         // --- Route registration + middleware chain ---
-        router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler)
+        router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler, lwLoanStatusHandler)
 
         // --- Start the HTTP server with graceful shutdown ---
         srv := &http.Server{Addr: cfg.ServerAddr, Handler: router}

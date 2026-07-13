@@ -157,3 +157,14 @@ func (p *HTTPProvider) ApproveLoan(ctx context.Context, req *ApproveLoanRequest)
         }
         return &resp, nil
 }
+
+// GetLoanStatus fetches the current status of a loan in the LW system.
+// Used for polling (fallback when async callbacks don't arrive).
+func (p *HTTPProvider) GetLoanStatus(ctx context.Context, appID int) (*LoanStatusResponse, error) {
+        var resp LoanStatusResponse
+        err := p.getJSON(ctx, fmt.Sprintf("%s/api/lw/loans/%d/status", p.baseURL, appID), &resp)
+        if err != nil {
+                return nil, fmt.Errorf("http provider: GetLoanStatus: %w", err)
+        }
+        return &resp, nil
+}

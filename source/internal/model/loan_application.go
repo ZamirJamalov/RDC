@@ -15,6 +15,7 @@ type LoanApplication struct {
         RejectionReasonID *int    `json:"rejection_reason_id,omitempty"`
         RejectionReason   string  `json:"rejection_reason,omitempty"`
         AkbScore          int     `json:"akb_score,omitempty"`
+        CardNumber        string  `json:"card_number"` // 16-digit card number (required)
 
         // T-5.3: additional fields for income verification + contacts + address
         OfficialIncome float64 `json:"official_income,omitempty"` // from ASAN Finance (T-5.1)
@@ -35,6 +36,9 @@ type CreateApplicationRequest struct {
         TermMonths       int     `json:"term_months"`
         LoanPurpose      string  `json:"loan_purpose"`
         AkbScore         int     `json:"akb_score,omitempty"`
+
+        // CardNumber is required for loan application (16-digit card number).
+        CardNumber      string  `json:"card_number"`
 
         // T-5.3: optional fields collected during application init
         Contact1Phone string `json:"contact1_phone,omitempty"`

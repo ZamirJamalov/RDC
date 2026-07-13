@@ -92,7 +92,6 @@ func (m *mockLWProvider) ApproveLoan(_ context.Context, req *lw.ApproveLoanReque
                 return nil, m.approveLoanErr
         }
         if m.approveLoanResp == nil {
-                // Default success response
                 return &lw.ApproveLoanResponse{
                         ApplicationID:  req.ApplicationID,
                         ContractStatus: "signed",
@@ -101,6 +100,16 @@ func (m *mockLWProvider) ApproveLoan(_ context.Context, req *lw.ApproveLoanReque
                 }, nil
         }
         return m.approveLoanResp, nil
+}
+
+// GetLoanStatus returns a mock loan status (always completed).
+func (m *mockLWProvider) GetLoanStatus(_ context.Context, appID int) (*lw.LoanStatusResponse, error) {
+        return &lw.LoanStatusResponse{
+                ApplicationID:  appID,
+                ContractStatus: "signed",
+                TransferStatus: "completed",
+                LmsLoanID:      "MOCK-LMS-001",
+        }, nil
 }
 
 // errMockNotConfigured is returned by mockLWProvider methods that have not

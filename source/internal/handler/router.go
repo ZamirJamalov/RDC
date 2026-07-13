@@ -30,6 +30,7 @@ func NewRouter(
         otpHandler *OTPHandler,
         mygovHandler *MyGovHandler,
         expertHandler *ExpertHandler,
+        lwLoanStatusHandler *LWLoanStatusHandler,
 ) http.Handler {
         mux := http.NewServeMux()
 
@@ -44,6 +45,7 @@ func NewRouter(
         mux.HandleFunc("PUT /api/applications/{id}/status", appHandler.UpdateStatus)
         mux.HandleFunc("GET /api/applications/{id}/status", appHandler.GetStatus)
         mux.HandleFunc("GET /api/applications/{id}/checks", appHandler.GetChecks)
+        mux.HandleFunc("GET /api/applications/{id}/loan-status", lwLoanStatusHandler.GetStatus)
 
         // LW Router endpoints (T-2.1 to T-2.7)
         mux.HandleFunc("GET /api/router/personal-info", lwRouterHandler.PersonalInfo)
@@ -58,6 +60,7 @@ func NewRouter(
 
         // LW Callbacks (T-2.8)
         mux.HandleFunc("POST /api/rdc/callback/sima-result", lwCallbackHandler.SimaResult)
+        mux.HandleFunc("POST /api/rdc/callback/lw-loan-status", lwLoanStatusHandler.Callback)
 
         // OTP endpoints (T-3.8)
         mux.HandleFunc("POST /api/otp/send", otpHandler.Send)
