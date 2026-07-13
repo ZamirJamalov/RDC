@@ -88,7 +88,7 @@ func main() {
         // --- MyGov Provider + Service (T-4.8 to T-4.10) ---
         mygovProvider := newMyGovProvider(cfg)
         mygovRepo := repository.NewMyGovRepo(db)
-        mygovService := service.NewMyGovService(mygovProvider, mygovRepo, appRepo, otpProvider, cfg.MyGovClientID, cfg.MyGovRedirectURI)
+        mygovService := service.NewMyGovService(mygovProvider, mygovRepo, appRepo, otpProvider, cfg.MyGovClientID, cfg.MyGovRedirectURI, cfg.MyGovWebURL)
 
         // --- Handler layer ---
         lwMockHandler := handler.NewLWMockHandler(lwProvider)
