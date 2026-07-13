@@ -82,7 +82,7 @@ func TestCreateApplication_DuplicatePending(t *testing.T) {
 
         req := &model.CreateApplicationRequest{
                 CustomerPIN: "PIN1", CustomerFullName: "Ali",
-                Amount: 200, TermMonths: 3,
+                Amount: 200, TermMonths: 3, CardNumber: "4111111111111111",
         }
         _, err := svc.CreateApplication(ctx, req)
         if err == nil {
@@ -109,7 +109,7 @@ func TestCreateApplication_PreValidateFails(t *testing.T) {
 
         req := &model.CreateApplicationRequest{
                 CustomerPIN: "PIN1", CustomerFullName: "Ali",
-                Amount: 9999, TermMonths: 99,
+                Amount: 9999, TermMonths: 99, CardNumber: "4111111111111111",
         }
         _, err := svc.CreateApplication(ctx, req)
         if err == nil {
@@ -137,7 +137,7 @@ func TestCreateApplication_Success(t *testing.T) {
 
         req := &model.CreateApplicationRequest{
                 CustomerPIN: "PIN1", CustomerFullName: "Ali Valiyev",
-                Amount: 200, TermMonths: 3, AkbScore: 400,
+                Amount: 200, TermMonths: 3, AkbScore: 400, CardNumber: "4111111111111111",
         }
         app, err := svc.CreateApplication(ctx, req)
         if err != nil {

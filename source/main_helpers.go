@@ -1,10 +1,12 @@
 package main
 
 import (
+        "database/sql"
         "log/slog"
         "time"
 
         "rdc-source/config"
+        "rdc-source/internal/repository"
         "rdc-source/pkg/mygov"
         "rdc-source/pkg/otp"
         "rdc-source/pkg/sima"
@@ -31,21 +33,18 @@ func parseLogLevel(s string) slog.Level {
         }
 }
 
-// newOTPProvider creates the OTP provider based on configuration (T-3.1 to T-3.3).
+// newOTPProvider creates the OTP provider based on configuration.
 // When OTPUseMock is true (default for dev), returns a MockProvider that logs
-// the code. When false, returns an HTTPProvider that calls a real SMS gateway.
-func newOTPProvider(cfg *config.Config) otp.Provider {
+// the code. When false, returns a DynamicSMSProvider that reads the active
+// SMS gateway config from the database (runtime switchable).
+func newOTPProvider(cfg *config.Config, db *sql.DB) otp.Provider {
         if cfg.OTPUseMock {
                 slog.Info("using mock OTP provider (dev/test mode — codes logged, not sent)")
                 return otp.NewMockProvider()
         }
-        slog.Info("using HTTP OTP provider", "base_url", cfg.OTPBaseURL, "sender", cfg.OTPSender)
-        return otp.NewHTTPProvider(
-                cfg.OTPBaseURL,
-                cfg.OTPApiKey,
-                cfg.OTPSender,
-                time.Duration(cfg.OTPTimeoutS)*time.Second,
-        )
+        slog.Info("using dynamic SMS provider (DB-driven, 1-minute cache)")
+        smsRepo := repository.NewSMSProviderRepo(db)
+        return otp.NewDynamicSMSProvider(smsRepo, 1*time.Minute)
 }
 
 // newSimaProvider creates the SIMA KYC provider based on configuration (T-4.1 to T-4.2).
