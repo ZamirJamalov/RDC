@@ -1,8 +1,8 @@
 package otp
 
 import (
-	"context"
-	"log/slog"
+        "context"
+        "log/slog"
 )
 
 // MockProvider implements the OTP Provider interface by logging the code
@@ -13,25 +13,24 @@ import (
 // The code is logged at INFO level so it appears in the server logs and
 // can be copied from there for testing. Example log line:
 //
-//	INFO mock OTP code phone=+994501234567 code=123456
+//      INFO mock OTP code phone=+994501234567 code=123456
 type MockProvider struct{}
 
 // NewMockProvider creates a new MockProvider.
 func NewMockProvider() *MockProvider {
-	return &MockProvider{}
+        return &MockProvider{}
 }
 
-// Send logs the OTP code at INFO level. Always succeeds (never returns an
-// error) — there's no real SMS gateway to fail.
-func (p *MockProvider) Send(_ context.Context, phone, code string) error {
-	slog.Info("mock OTP code",
-		"phone", phone,
-		"code", code,
-		"provider", "mock")
-	return nil
+// Send logs the message at INFO level. Always succeeds.
+func (p *MockProvider) Send(_ context.Context, phone, message string) error {
+        slog.Info("mock SMS",
+                "phone", phone,
+                "message", message,
+                "provider", "mock")
+        return nil
 }
 
 // Name returns "mock".
 func (p *MockProvider) Name() string {
-	return "mock"
+        return "mock"
 }

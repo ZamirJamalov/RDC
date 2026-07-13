@@ -19,8 +19,8 @@ type mockOTPSendCall struct {
         Code  string
 }
 
-func (m *mockOTPProvider) Send(_ context.Context, phone, code string) error {
-        m.sendCalls = append(m.sendCalls, mockOTPSendCall{Phone: phone, Code: code})
+func (m *mockOTPProvider) Send(_ context.Context, phone, message string) error {
+        m.sendCalls = append(m.sendCalls, mockOTPSendCall{Phone: phone, Code: message})
         return m.sendErr
 }
 

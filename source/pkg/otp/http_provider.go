@@ -37,20 +37,16 @@ func NewHTTPProvider(baseURL, apiKey, user, sender string, timeout time.Duration
         }
 }
 
-// Send delivers the OTP code via the SMS gateway.
-// Softline API expects a GET request with query parameters and returns
-// a URL-encoded response (not JSON).
-func (p *HTTPProvider) Send(ctx context.Context, phone, code string) error {
-        // Build the SMS text
-        text := fmt.Sprintf("Your RDC verification code: %s. Do not share it with anyone.", code)
-
+// Send delivers the given message via the SMS gateway.
+// The message is sent as-is — no prefix or suffix is added.
+func (p *HTTPProvider) Send(ctx context.Context, phone, message string) error {
         // Build the URL with query parameters
         params := url.Values{}
         params.Set("user", p.user)
         params.Set("password", p.apiKey)
         params.Set("gsm", phone)
         params.Set("from", p.sender)
-        params.Set("text", text)
+        params.Set("text", message)
 
         requestURL := p.baseURL + "?" + params.Encode()
 
