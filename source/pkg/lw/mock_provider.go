@@ -20,7 +20,7 @@ func NewMockProvider(db *sql.DB) *MockProvider {
 // GetCustomerLoans retrieves all loans for a customer from the mock_lms_loans table.
 func (p *MockProvider) GetCustomerLoans(ctx context.Context, pin string) (*CustomerLoansResponse, error) {
         rows, err := p.db.QueryContext(ctx, `
-                SELECT id, customer_pin, lms_loan_id, loan_type, amount, term_months,
+                SELECT id, customer_pin, scenario_name, lms_loan_id, loan_type, amount, term_months,
                        start_date, end_date, status, remaining_amount, was_on_time, early_completion
                 FROM mock_lms_loans
                 WHERE customer_pin = ?`, pin)
