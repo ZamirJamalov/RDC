@@ -165,6 +165,19 @@ func (m *mockApplicationStore) HasPendingApplication(_ context.Context, _ string
         return m.pendingAppID, m.pendingStatus, m.pendingErr
 }
 
+// ListByStatus returns all stored applications (by ID) that match the status.
+// Used by the expert queue endpoint tests.
+func (m *mockApplicationStore) ListByStatus(_ context.Context, status string) ([]model.LoanApplication, error) {
+        var result []model.LoanApplication
+        for _, app := range m.appByID {
+                if app.Status == status {
+                        copied := *app
+                        result = append(result, copied)
+                }
+        }
+        return result, nil
+}
+
 func (m *mockApplicationStore) GetCreditLevelRate(_ context.Context, _ string, _ float64, _ int, _ int) (float64, error) {
         return m.rate, m.rateErr
 }

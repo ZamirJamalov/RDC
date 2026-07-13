@@ -166,3 +166,10 @@ func (s *ApplicationService) GetChecks(ctx context.Context, id int) ([]model.App
         }
         return s.repo.GetCheckResults(ctx, id)
 }
+
+// ListPendingApproval retrieves all applications in pending_approval status.
+// Used by the expert queue endpoint to show operators which applications
+// are waiting for manual review. Ordered by oldest first (FIFO).
+func (s *ApplicationService) ListPendingApproval(ctx context.Context) ([]model.LoanApplication, error) {
+        return s.repo.ListByStatus(ctx, model.StatusPendingApproval)
+}

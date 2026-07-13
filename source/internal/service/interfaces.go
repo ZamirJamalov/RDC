@@ -59,6 +59,10 @@ type ApplicationStore interface {
         // Returns (0, "", nil) if no such application exists.
         HasPendingApplication(ctx context.Context, customerPIN string) (int, string, error)
 
+        // ListByStatus retrieves all applications with the given status, ordered
+        // by oldest first. Used by the expert queue to list pending_approval apps.
+        ListByStatus(ctx context.Context, status string) ([]model.LoanApplication, error)
+
         // GetCreditLevelRate looks up the applicable interest rate for a given
         // credit level, amount, term, and unlock phase.
         GetCreditLevelRate(ctx context.Context, level string, amount float64, termMonths int, unlockPhase int) (float64, error)
