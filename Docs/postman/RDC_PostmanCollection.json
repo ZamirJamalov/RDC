@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "RDC API — Full Test Collection",
-    "_postman_id": "7402cca0-b4e9-4ca4-b0ea-03ab8f980939",
+    "_postman_id": "8f962b65-143c-4ed4-88cc-c21b00ee3d2e",
     "description": "RDC (Retail Decision Engine) API tam test collection-u.\n\nFlow üzrə sıralanmış: Setup → OTP → LW Checks → Application → SIMA → MyGov → ASAN → Status → Expert.\n\nHər endpoint üçün: 🟢 Happy Path, 🟡 Edge Case, 🔴 Error Path.\n\nİstifadə:\n1. Environment-i import edin (RDC_PostmanEnvironment.json)\n2. customer_pin, customer_phone dəyərlərini dəyişin\n3. Sıra ilə request-ləri işlədin\n4. Auto-chaining: application_id, otp_token, credit_level avtomatik set olunur",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -1210,7 +1210,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_full_name\": \"Test M\\u00fc\\u015ft\\u0259ri\",\n  \"amount\": 200,\n  \"term_months\": 3,\n  \"akb_score\": 400,\n  \"contact1_phone\": \"+994501111111\",\n  \"contact2_phone\": \"+994502222222\",\n  \"contact3_phone\": \"+994503333333\",\n  \"actual_address\": \"Bak\\u0131 \\u015f\\u0259h\\u0259ri, N\\u0259simi rayonu, Test k\\u00fc\\u00e7\\u0259si 1\"\n}",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_full_name\": \"Test M\\u00fc\\u015ft\\u0259ri\",\n  \"amount\": 200,\n  \"term_months\": 3,\n  \"akb_score\": 400,\n  \"card_number\": \"4111111111111111\",\n  \"contact1_phone\": \"+994501111111\",\n  \"contact2_phone\": \"+994502222222\",\n  \"contact3_phone\": \"+994503333333\",\n  \"actual_address\": \"Bak\\u0131 \\u015f\\u0259h\\u0259ri, N\\u0259simi rayonu, Test k\\u00fc\\u00e7\\u0259si 1\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1257,7 +1257,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customer_pin\": \"ELITE001\",\n  \"customer_full_name\": \"Elite M\\u00fc\\u015ft\\u0259ri\",\n  \"amount\": 500,\n  \"term_months\": 6,\n  \"akb_score\": 400\n}",
+              "raw": "{\n  \"customer_pin\": \"ELITE001\",\n  \"customer_full_name\": \"Elite M\\u00fc\\u015ft\\u0259ri\",\n  \"amount\": 500,\n  \"term_months\": 6,\n  \"akb_score\": 400,\n  \"card_number\": \"4222222222222222\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1303,7 +1303,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customer_pin\": \"ELITE001\",\n  \"customer_full_name\": \"Elite\",\n  \"amount\": 3000,\n  \"term_months\": 12,\n  \"akb_score\": 400\n}",
+              "raw": "{\n  \"customer_pin\": \"ELITE001\",\n  \"customer_full_name\": \"Elite\",\n  \"amount\": 3000,\n  \"term_months\": 12,\n  \"akb_score\": 400,\n  \"card_number\": \"4333333333333333\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1347,7 +1347,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_full_name\": \"Test\",\n  \"amount\": 100,\n  \"term_months\": 3,\n  \"akb_score\": 400\n}",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_full_name\": \"Test\",\n  \"amount\": 100,\n  \"term_months\": 3,\n  \"akb_score\": 400,\n  \"card_number\": \"4111111111111111\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1653,7 +1653,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_full_name\": \"Test\",\n  \"amount\": 200,\n  \"term_months\": 3,\n  \"akb_score\": 400\n}",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_full_name\": \"Test\",\n  \"amount\": 200,\n  \"term_months\": 3,\n  \"akb_score\": 400,\n  \"card_number\": \"4111111111111111\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1698,7 +1698,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_full_name\": \"Test\",\n  \"amount\": 9999,\n  \"term_months\": 99,\n  \"akb_score\": 400\n}",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_full_name\": \"Test\",\n  \"amount\": 9999,\n  \"term_months\": 99,\n  \"akb_score\": 400,\n  \"card_number\": \"4111111111111111\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1715,6 +1715,141 @@
                 "exec": [
                   "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
                   "pm.test(\"Error contains: kecerli deyil\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"kecerli deyil\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Application: card_number boş",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_full_name\": \"Test\",\n  \"amount\": 200,\n  \"term_months\": 3,\n  \"akb_score\": 400,\n  \"card_number\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Boş kart nömrəsi ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: card_number\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"card_number\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Application: card_number 15 rəqəm",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_full_name\": \"Test\",\n  \"amount\": 200,\n  \"term_months\": 3,\n  \"akb_score\": 400,\n  \"card_number\": \"411111111111111\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "15 rəqəmli kart (16 olmalıdır) ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: card_number\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"card_number\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Application: card_number hərflə",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_full_name\": \"Test\",\n  \"amount\": 200,\n  \"term_months\": 3,\n  \"akb_score\": 400,\n  \"card_number\": \"4111abcd11111111\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Hərf tərkibli kart nömrəsi ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: card_number\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"card_number\"); });",
                   "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
                 ]
               }
@@ -3224,6 +3359,359 @@
                 "exec": [
                   "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
                   "pm.test(\"Error contains: pending_approval\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"pending_approval\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "9. LW Loan Status",
+      "item": [
+        {
+          "name": "🟢 LW Callback: Contract signed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rdc/callback/lw-loan-status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rdc",
+                "callback",
+                "lw-loan-status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": \"{{application_id}}\",\n  \"event_status\": \"contract_signed\",\n  \"lms_loan_id\": \"LW-2026-001234\",\n  \"detail\": \"Contract signed by customer\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "LW müqavilə imzalandığını bildirir."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has received\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"received\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 LW Callback: Transfer completed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rdc/callback/lw-loan-status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rdc",
+                "callback",
+                "lw-loan-status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": \"{{application_id}}\",\n  \"event_status\": \"transfer_completed\",\n  \"lms_loan_id\": \"LW-2026-001234\",\n  \"detail\": \"Money transferred to card ****1111\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "LW pulun kartına köçürüldüyünü bildirir."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has received\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"received\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟡 LW Callback: Failed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rdc/callback/lw-loan-status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rdc",
+                "callback",
+                "lw-loan-status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": \"{{application_id}}\",\n  \"event_status\": \"failed\",\n  \"detail\": \"Transfer failed: card declined\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "LW xəta baş verdiyini bildirir. Yenə 200 (acknowledge)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has received\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"received\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Get Loan Status: All events",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/{{application_id}}/loan-status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{application_id}}",
+                "loan-status"
+              ]
+            },
+            "description": "Application üçün bütün LW hadisələrini sorğulayır (polling)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has events\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"events\"); });",
+                  "pm.test(\"Has count\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"count\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 LW Callback: app_id yoxdur",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rdc/callback/lw-loan-status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rdc",
+                "callback",
+                "lw-loan-status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event_status\": \"contract_signed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "app_id olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: application_id\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"application_id\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 LW Callback: event_status yoxdur",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rdc/callback/lw-loan-status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rdc",
+                "callback",
+                "lw-loan-status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": \"{{application_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "event_status olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: event_status\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"event_status\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 LW Callback: invalid JSON",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/rdc/callback/lw-loan-status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "rdc",
+                "callback",
+                "lw-loan-status"
+              ]
+            },
+            "description": "JSON body olmadan 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Get Loan Status: invalid id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/0/loan-status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "0",
+                "loan-status"
+              ]
+            },
+            "description": "id=0 ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
                   "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
                 ]
               }
