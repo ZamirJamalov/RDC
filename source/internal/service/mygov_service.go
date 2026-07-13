@@ -5,7 +5,6 @@ import (
         "encoding/json"
         "fmt"
         "log/slog"
-        "net/url"
         "time"
 
         "rdc-source/internal/model"
@@ -66,7 +65,7 @@ func (s *MyGovService) GenerateLink(ctx context.Context, appID int, customerPIN 
         }
 
         // 3. Build deeplink
-        deeplink := mygov.BuildDeeplink(s.clientID, nonce, state, url.QueryEscape(s.redirectURI))
+        deeplink := mygov.BuildDeeplink(s.clientID, nonce, state, s.redirectURI)
 
         // 4. Set expiry (5 minutes per MyGov spec)
         expiresAt := time.Now().Add(5 * time.Minute)
