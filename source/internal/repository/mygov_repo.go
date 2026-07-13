@@ -32,8 +32,8 @@ func (r *MyGovRepo) Create(ctx context.Context, appID int, customerPIN, token, u
 // CreateWithDeeplink inserts a MyGov permission with nonce, state, and deeplink.
 func (r *MyGovRepo) CreateWithDeeplink(ctx context.Context, appID int, customerPIN, nonce, state, deeplink string, expiresAt time.Time) error {
         _, err := r.db.ExecContext(ctx, `
-                INSERT INTO mygov_permissions (application_id, customer_pin, link_url, link_expires_at, nonce, state, deeplink, expires_at, status)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
+                INSERT INTO mygov_permissions (application_id, customer_pin, permission_token, link_url, link_expires_at, nonce, state, deeplink, expires_at, status)
+                VALUES (?, ?, '', ?, ?, ?, ?, ?, ?, 'pending')`,
                 appID, customerPIN, deeplink, expiresAt, nonce, state, deeplink, expiresAt)
         if err != nil {
                 return fmt.Errorf("failed to insert MyGov permission with deeplink: %w", err)
