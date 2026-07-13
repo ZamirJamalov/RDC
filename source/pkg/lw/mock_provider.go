@@ -192,3 +192,14 @@ func (p *MockProvider) ApproveLoan(ctx context.Context, req *ApproveLoanRequest)
                 LmsLoanID:      fmt.Sprintf("LW-MOCK-%d", req.ApplicationID),
         }, nil
 }
+
+// GetLoanStatus fetches the current status of a loan in the LW system.
+// Mock implementation: always returns "completed" status.
+func (p *MockProvider) GetLoanStatus(_ context.Context, appID int) (*LoanStatusResponse, error) {
+        return &LoanStatusResponse{
+                ApplicationID:  appID,
+                ContractStatus: "signed",
+                TransferStatus: "completed",
+                LmsLoanID:      fmt.Sprintf("LW-MOCK-%d", appID),
+        }, nil
+}
