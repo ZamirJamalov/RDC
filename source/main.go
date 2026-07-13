@@ -76,7 +76,7 @@ func main() {
         appService := service.NewApplicationService(appRepo, creditEngine, customerRepo)
 
         // --- OTP Provider + Service (T-3.1 to T-3.7) ---
-        otpProvider := newOTPProvider(cfg)
+        otpProvider := newOTPProvider(cfg, db)
         otpRepo := repository.NewOTPRepo(db)
         otpService := service.NewOTPService(otpProvider, otpRepo)
 
