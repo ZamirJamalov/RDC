@@ -55,8 +55,8 @@ func (p *HTTPProvider) Send(ctx context.Context, phone, code string) error {
         requestURL := p.baseURL + "?" + params.Encode()
 
         // Debug: log the exact URL being sent (mask password for security)
-        debugURL := fmt.Sprintf("user=%s&password=***&gsm=%s&from=%s", p.user, phone, p.sender)
-        slog.Info("SMS request", "url", requestURL, "params", debugURL, "provider_user", p.user)
+        debugParams := fmt.Sprintf("user=%s&password=***&gsm=%s&from=%s", p.user, phone, p.sender)
+        slog.Info("SMS request", "url", requestURL, "params", debugParams, "provider_user", p.user)
 
         req, err := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
         if err != nil {

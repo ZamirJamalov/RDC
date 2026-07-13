@@ -95,7 +95,7 @@ func (d *DynamicSMSProvider) getActiveProvider(ctx context.Context) (Provider, e
         // Create HTTPProvider with DB config
         provider := NewHTTPProvider(
                 cfg.BaseURL,
-                cfg.Password, // Softline API uses password (API key) for auth
+                cfg.Password, // Softline API uses password for auth
                 cfg.Username, // user
                 cfg.SenderID, // sender
                 time.Duration(cfg.TimeoutSeconds)*time.Second,

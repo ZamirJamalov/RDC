@@ -16,6 +16,7 @@ type LoanApplication struct {
         RejectionReason   string  `json:"rejection_reason,omitempty"`
         AkbScore          int     `json:"akb_score,omitempty"`
         CardNumber        string  `json:"card_number"` // 16-digit card number (required)
+        CustomerPhone     string  `json:"customer_phone,omitempty"` // OTP-verified phone for MyGov SMS
 
         // T-5.3: additional fields for income verification + contacts + address
         OfficialIncome float64 `json:"official_income,omitempty"` // from ASAN Finance (T-5.1)
@@ -39,6 +40,9 @@ type CreateApplicationRequest struct {
 
         // CardNumber is required for loan application (16-digit card number).
         CardNumber      string  `json:"card_number"`
+
+        // CustomerPhone is the OTP-verified phone number, used for MyGov SMS.
+        CustomerPhone   string  `json:"customer_phone,omitempty"`
 
         // T-5.3: optional fields collected during application init
         Contact1Phone string `json:"contact1_phone,omitempty"`
