@@ -22,9 +22,9 @@ func (r *ApplicationRepo) CreateApplication(ctx context.Context, app *model.Loan
         err := r.db.QueryRowContext(ctx, `
                 INSERT INTO loan_applications
                         (customer_pin, customer_full_name, amount, term_months, loan_purpose, status, akb_score,
-                         contact1_phone, contact2_phone, contact3_phone, actual_address, card_number)
+                         contact1_phone, contact2_phone, contact3_phone, actual_address, card_number, customer_phone)
                 OUTPUT INSERTED.id
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 app.CustomerPIN,
                 app.CustomerFullName,
                 app.Amount,
@@ -37,6 +37,7 @@ func (r *ApplicationRepo) CreateApplication(ctx context.Context, app *model.Loan
                 app.Contact3Phone,
                 app.ActualAddress,
                 app.CardNumber,
+                app.CustomerPhone,
         ).Scan(&app.ID)
         if err != nil {
                 return fmt.Errorf("failed to insert application: %w", err)
@@ -53,14 +54,14 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
         var approvedAmount, approvedRate sql.NullFloat64
         var akbScore sql.NullInt64
         var officialIncome sql.NullFloat64
-        var contact1, contact2, contact3, address sql.NullString
+        var contact1, contact2, contact3, address, customerPhone sql.NullString
 
         err := r.db.QueryRowContext(ctx, `
                 SELECT id, customer_pin, customer_full_name, amount, term_months, loan_purpose,
                        status, credit_level, approved_amount, approved_rate,
                        rejection_reason_id, rejection_reason, akb_score,
                        official_income, contact1_phone, contact2_phone, contact3_phone, actual_address,
-                       card_number,
+                       card_number, customer_phone,
                        created_at, updated_at
                 FROM loan_applications WHERE id = ?`, id).Scan(
                 &app.ID,
@@ -82,6 +83,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                 &contact3,
                 &address,
                 &app.CardNumber,
+                &customerPhone,
                 &app.CreatedAt,
                 &app.UpdatedAt,
         )
@@ -101,6 +103,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
         app.Contact2Phone = contact2.String
         app.Contact3Phone = contact3.String
         app.ActualAddress = address.String
+        app.CustomerPhone = customerPhone.String
         if akbScore.Valid {
                 app.AkbScore = int(akbScore.Int64)
         }

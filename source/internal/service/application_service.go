@@ -62,6 +62,7 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, req *model.C
                 Status:           model.StatusPending,
                 AkbScore:         req.AkbScore,
                 CardNumber:       req.CardNumber,
+                CustomerPhone:    req.CustomerPhone,
                 Contact1Phone:    req.Contact1Phone,
                 Contact2Phone:    req.Contact2Phone,
                 Contact3Phone:    req.Contact3Phone,

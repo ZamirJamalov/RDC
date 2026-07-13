@@ -57,6 +57,10 @@ type Config struct {
         MyGovUseMock  bool
         MyGovTimeoutS int
 
+        // MyGov Deeplink configuration
+        MyGovClientID    string // UUID provided by IDDA
+        MyGovRedirectURI string // Partner redirect URI after consent approval
+
         // Phase 5: income + contacts validation (T-5.2)
         MinOfficialIncomeAZN float64 // minimum official income required for approval
 }
@@ -91,6 +95,8 @@ func Load() *Config {
                 MyGovApiKey:            getEnv("MYGOV_API_KEY", ""),
                 MyGovUseMock:           getEnvBool("MYGOV_USE_MOCK", true),
                 MyGovTimeoutS:          getEnvInt("MYGOV_TIMEOUT_S", 15),
+                MyGovClientID:          getEnv("MYGOV_CLIENT_ID", ""),
+                MyGovRedirectURI:       getEnv("MYGOV_REDIRECT_URI", "https://webhook.site/9f74dfae-92bc-458e-a3e3-b5134a9bf8bb"),
                 MinOfficialIncomeAZN:   getEnvFloat("MIN_OFFICIAL_INCOME_AZN", 300.0),
         }
 
