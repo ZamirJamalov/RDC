@@ -30,11 +30,11 @@ BEGIN
     INSERT INTO sms_providers (provider_code, base_url, app_key, username, password, sender_id, timeout_seconds, is_active)
     VALUES (
         'softline',
-        'http://gw.softline.az/sendsms',
+        'http://gw.soft-line.az/sendsms',
         'ZXe5Gk1G11',
         'softlinetestapi',
         'ZXe5Gk1G11',
-        'SOFTLINE',
+        'AZMK',
         10,
         1
     );
