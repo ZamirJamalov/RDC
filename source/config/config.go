@@ -60,6 +60,7 @@ type Config struct {
         // MyGov Deeplink configuration
         MyGovClientID    string // UUID provided by IDDA
         MyGovRedirectURI string // Partner redirect URI after consent approval
+        MyGovWebURL      string // Web URL for SMS (netlify app that triggers mygov:// deeplink)
 
         // Phase 5: income + contacts validation (T-5.2)
         MinOfficialIncomeAZN float64 // minimum official income required for approval
@@ -97,6 +98,7 @@ func Load() *Config {
                 MyGovTimeoutS:          getEnvInt("MYGOV_TIMEOUT_S", 15),
                 MyGovClientID:          getEnv("MYGOV_CLIENT_ID", ""),
                 MyGovRedirectURI:       getEnv("MYGOV_REDIRECT_URI", "https://webhook.site/9f74dfae-92bc-458e-a3e3-b5134a9bf8bb"),
+                MyGovWebURL:            getEnv("MYGOV_WEB_URL", "https://lively-pie-17ab5c.netlify.app/"),
                 MinOfficialIncomeAZN:   getEnvFloat("MIN_OFFICIAL_INCOME_AZN", 300.0),
         }
 

@@ -21,10 +21,11 @@ type MyGovService struct {
         smsProvider otp.Provider
         clientID    string
         redirectURI string
+        webURL      string
 }
 
 // NewMyGovService creates a new MyGovService.
-func NewMyGovService(provider mygov.Provider, repo *repository.MyGovRepo, appRepo *repository.ApplicationRepo, smsProvider otp.Provider, clientID, redirectURI string) *MyGovService {
+func NewMyGovService(provider mygov.Provider, repo *repository.MyGovRepo, appRepo *repository.ApplicationRepo, smsProvider otp.Provider, clientID, redirectURI, webURL string) *MyGovService {
         return &MyGovService{
                 provider:    provider,
                 repo:        repo,
@@ -32,6 +33,7 @@ func NewMyGovService(provider mygov.Provider, repo *repository.MyGovRepo, appRep
                 smsProvider: smsProvider,
                 clientID:    clientID,
                 redirectURI: redirectURI,
+                webURL:      webURL,
         }
 }
 
@@ -64,21 +66,24 @@ func (s *MyGovService) GenerateLink(ctx context.Context, appID int, customerPIN 
                 return nil, fmt.Errorf("failed to generate state: %w", err)
         }
 
-        // 3. Build deeplink
+        // 3. Build deeplink (stored in DB for reference)
         deeplink := mygov.BuildDeeplink(s.clientID, nonce, state, s.redirectURI)
 
-        // 4. Set expiry (5 minutes per MyGov spec)
+        // 4. Build web URL (sent via SMS — clickable on all phones)
+        webURL := mygov.BuildWebURL(s.webURL, s.clientID, nonce, state, s.redirectURI)
+
+        // 5. Set expiry (5 minutes per MyGov spec)
         expiresAt := time.Now().Add(5 * time.Minute)
 
-        // 5. Store in DB
+        // 6. Store in DB (deeplink for reference)
         if err := s.repo.CreateWithDeeplink(ctx, appID, customerPIN, nonce, state, deeplink, expiresAt); err != nil {
                 return nil, fmt.Errorf("failed to store MyGov permission: %w", err)
         }
 
-        // 6. Send SMS with deeplink
-        mygovMessage := fmt.Sprintf("Icaze tesdiqlemek ucun linki acin: %s", deeplink)
+        // 7. Send SMS with web URL (NOT deeplink — mygov:// can't be clicked in SMS)
+        mygovMessage := fmt.Sprintf("Icaze tesdiqlemek ucun linki acin: %s", webURL)
         if err := s.smsProvider.Send(ctx, app.CustomerPhone, mygovMessage); err != nil {
-                slog.Error("failed to send MyGov deeplink SMS",
+                slog.Error("failed to send MyGov SMS",
                         "application_id", appID,
                         "phone", app.CustomerPhone,
                         "error", err)
