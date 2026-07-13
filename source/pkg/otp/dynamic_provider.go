@@ -49,14 +49,13 @@ func NewDynamicSMSProvider(repo SMSProviderReader, cacheTTL time.Duration) *Dyna
         }
 }
 
-// Send delivers the OTP code via the active SMS provider.
-// Implements otp.Provider interface.
-func (d *DynamicSMSProvider) Send(ctx context.Context, phone, code string) error {
+// Send delivers the given message via the active SMS provider.
+func (d *DynamicSMSProvider) Send(ctx context.Context, phone, message string) error {
         provider, err := d.getActiveProvider(ctx)
         if err != nil {
                 return fmt.Errorf("failed to get active SMS provider: %w", err)
         }
-        return provider.Send(ctx, phone, code)
+        return provider.Send(ctx, phone, message)
 }
 
 // Name returns "dynamic".

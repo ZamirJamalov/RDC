@@ -77,7 +77,8 @@ func (s *MyGovService) GenerateLink(ctx context.Context, appID int, customerPIN 
         }
 
         // 6. Send SMS with deeplink
-        if err := s.smsProvider.Send(ctx, app.CustomerPhone, deeplink); err != nil {
+        mygovMessage := fmt.Sprintf("Icaze tesdiqlemek ucun linki acin: %s", deeplink)
+        if err := s.smsProvider.Send(ctx, app.CustomerPhone, mygovMessage); err != nil {
                 slog.Error("failed to send MyGov deeplink SMS",
                         "application_id", appID,
                         "phone", app.CustomerPhone,

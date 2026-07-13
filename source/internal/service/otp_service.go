@@ -78,8 +78,9 @@ func (s *OTPService) SendOTP(ctx context.Context, phone string) (*model.OTPSendR
                 return nil, fmt.Errorf("failed to store OTP code: %w", err)
         }
 
-        // Send via SMS provider
-        if err := s.provider.Send(ctx, phone, code); err != nil {
+        // Send via SMS provider — construct the OTP message here
+        otpMessage := fmt.Sprintf("Sizin RDC tesdiq kodunuz: %s. Bu kodu hec kimle paylasmayin.", code)
+        if err := s.provider.Send(ctx, phone, otpMessage); err != nil {
                 slog.Error("failed to send OTP SMS",
                         "phone", phone,
                         "provider", s.provider.Name(),
