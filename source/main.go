@@ -3,6 +3,7 @@ package main
 import (
         "context"
         "database/sql"
+        "io/fs"
         "log/slog"
         "net/http"
         "os"
@@ -105,9 +106,13 @@ func main() {
         router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler, lwLoanStatusHandler)
 
         // UI: serve embedded static files from web/ directory.
-        // Requests starting with /api/ go to the API router; everything else
-        // (/, /index.html, /detail.html) serves the frontend.
-        fileServer := http.FileServer(http.FS(webFiles))
+        // fs.Sub strips the "web/" prefix so /detail.html maps to web/detail.html.
+        webFS, err := fs.Sub(webFiles, "web")
+        if err != nil {
+                slog.Error("failed to create sub filesystem for web", "error", err)
+                os.Exit(1)
+        }
+        fileServer := http.FileServer(http.FS(webFS))
         httpHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
                 if strings.HasPrefix(r.URL.Path, "/api/") {
                         router.ServeHTTP(w, r)
