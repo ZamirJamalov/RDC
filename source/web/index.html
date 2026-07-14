@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RDC — Muraciet Siyahisi</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div x-data="appList()" x-init="load()" class="max-w-4xl mx-auto py-8 px-4">
+        
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold text-gray-800">RDC — Muraciet Siyahisi</h1>
+            <button @click="load()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+                Yenile
+            </button>
+        </div>
+
+        <!-- Loading -->
+        <div x-show="loading" class="text-center py-8 text-gray-500">
+            Yuklenir...
+        </div>
+
+        <!-- Error -->
+        <div x-show="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" x-text="error">
+        </div>
+
+        <!-- Empty -->
+        <div x-show="!loading && !error && applications.length === 0" class="text-center py-8 text-gray-500">
+            Heç bir muraciet yoxdur.
+        </div>
+
+        <!-- Application List -->
+        <div x-show="!loading && applications.length > 0" class="space-y-4">
+            <template x-for="app in applications" :key="app.id">
+                <div class="bg-white rounded-lg shadow p-5 hover:shadow-md transition-shadow cursor-pointer"
+                     @click="window.location.href='/detail.html?id=' + app.id">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="font-semibold text-lg text-gray-800" x-text="'#' + app.id"></span>
+                                <span class="text-gray-600" x-text="app.customer_full_name"></span>
+                            </div>
+                            <div class="text-sm text-gray-500 space-y-1">
+                                <p><span class="font-medium">PIN:</span> <span x-text="app.customer_pin"></span></p>
+                                <p><span class="font-medium">Mebleg:</span> <span x-text="app.amount + ' AZN'"></span></p>
+                                <p><span class="font-medium">Muddet:</span> <span x-text="app.term_months + ' ay'"></span></p>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <span class="inline-block px-3 py-1 rounded-full text-sm font-medium"
+                                  :class="{
+                                      'bg-yellow-100 text-yellow-800': app.status === 'pending_approval',
+                                      'bg-green-100 text-green-800': app.status === 'approved',
+                                      'bg-red-100 text-red-800': app.status === 'rejected',
+                                      'bg-blue-100 text-blue-800': app.status === 'pending' || app.status === 'checking'
+                                  }"
+                                  x-text="app.status">
+                            </span>
+                            <p class="text-sm text-gray-400 mt-2" x-text="app.credit_level ? ('Level: ' + app.credit_level) : ''"></p>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <script>
+        function appList() {
+            return {
+                applications: [],
+                loading: false,
+                error: '',
+
+                async load() {
+                    this.loading = true;
+                    this.error = '';
+                    try {
+                        const resp = await fetch('/api/expert/queue');
+                        if (!resp.ok) throw new Error('Sorgu ugursuz: ' + resp.status);
+                        const data = await resp.json();
+                        this.applications = data.applications || [];
+                    } catch (e) {
+                        this.error = e.message;
+                    } finally {
+                        this.loading = false;
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>

@@ -7,6 +7,7 @@ import (
         "net/http"
         "os"
         "os/signal"
+        "strings"
         "syscall"
         "time"
 
@@ -103,8 +104,20 @@ func main() {
         // --- Route registration + middleware chain ---
         router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler, lwLoanStatusHandler)
 
+        // UI: serve embedded static files from web/ directory.
+        // Requests starting with /api/ go to the API router; everything else
+        // (/, /index.html, /detail.html) serves the frontend.
+        fileServer := http.FileServer(http.FS(webFiles))
+        httpHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+                if strings.HasPrefix(r.URL.Path, "/api/") {
+                        router.ServeHTTP(w, r)
+                        return
+                }
+                fileServer.ServeHTTP(w, r)
+        })
+
         // --- Start the HTTP server with graceful shutdown ---
-        srv := &http.Server{Addr: cfg.ServerAddr, Handler: router}
+        srv := &http.Server{Addr: cfg.ServerAddr, Handler: httpHandler}
 
         go func() {
                 slog.Info("server listening", "addr", cfg.ServerAddr)
