@@ -69,9 +69,6 @@ func (s *MyGovService) GenerateLink(ctx context.Context, appID int, customerPIN 
         // 3. Build deeplink (stored in DB for reference)
         deeplink := mygov.BuildDeeplink(s.clientID, nonce, state, s.redirectURI)
 
-        // 4. Build web URL (sent via SMS — clickable on all phones)
-        webURL := mygov.BuildWebURL(s.webURL, s.clientID, nonce, state, s.redirectURI)
-
         // 5. Set expiry (5 minutes per MyGov spec)
         expiresAt := time.Now().Add(5 * time.Minute)
 
@@ -80,8 +77,8 @@ func (s *MyGovService) GenerateLink(ctx context.Context, appID int, customerPIN 
                 return nil, fmt.Errorf("failed to store MyGov permission: %w", err)
         }
 
-        // 7. Send SMS with web URL (NOT deeplink — mygov:// can't be clicked in SMS)
-        mygovMessage := fmt.Sprintf("Icaze tesdiqlemek ucun linki acin: %s", webURL)
+	// 7. Send SMS with static web URL (no query params)
+	mygovMessage := fmt.Sprintf("Icazeni tesdiqlemek ucun linki acin: %s", s.webURL)
         if err := s.smsProvider.Send(ctx, app.CustomerPhone, mygovMessage); err != nil {
                 slog.Error("failed to send MyGov SMS",
                         "application_id", appID,
