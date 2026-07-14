@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RDC — Muraciet Detali</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div x-data="appDetail()" x-init="load()" class="max-w-3xl mx-auto py-8 px-4">
+        
+        <!-- Back button -->
+        <div class="mb-6">
+            <a href="/" class="text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                ← Geri
+            </a>
+        </div>
+
+        <!-- Loading -->
+        <div x-show="loading" class="text-center py-8 text-gray-500">
+            Yuklenir...
+        </div>
+
+        <!-- Error -->
+        <div x-show="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" x-text="error">
+        </div>
+
+        <!-- Content -->
+        <div x-show="!loading && !error && app">
+            <div class="bg-white rounded-lg shadow p-6 space-y-6">
+                
+                <!-- Header -->
+                <div class="flex justify-between items-center border-b pb-4">
+                    <h1 class="text-2xl font-bold text-gray-800" x-text="'Muraciet #' + app.id"></h1>
+                    <span class="inline-block px-3 py-1 rounded-full text-sm font-medium"
+                          :class="{
+                              'bg-yellow-100 text-yellow-800': app.status === 'pending_approval',
+                              'bg-green-100 text-green-800': app.status === 'approved',
+                              'bg-red-100 text-red-800': app.status === 'rejected',
+                              'bg-blue-100 text-blue-800': app.status === 'pending' || app.status === 'checking'
+                          }"
+                          x-text="app.status">
+                    </span>
+                </div>
+
+                <!-- Customer Info -->
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-700 mb-3">Musteri Melumatlari</h2>
+                    <div class="grid grid-cols-2 gap-3 text-sm">
+                        <div><span class="font-medium text-gray-500">PIN:</span> <span x-text="app.customer_pin"></span></div>
+                        <div><span class="font-medium text-gray-500">Ad Soyad:</span> <span x-text="app.customer_full_name"></span></div>
+                        <div><span class="font-medium text-gray-500">Telefon:</span> <span x-text="app.customer_phone || '-'"></span></div>
+                        <div><span class="font-medium text-gray-500">Kart:</span> <span x-text="app.card_number ? '****' + app.card_number.slice(-4) : '-'"></span></div>
+                    </div>
+                </div>
+
+                <!-- Loan Details -->
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-700 mb-3">Kredit Melumatlari</h2>
+                    <div class="grid grid-cols-3 gap-3 text-sm">
+                        <div><span class="font-medium text-gray-500">Mebleg:</span> <span x-text="app.amount + ' AZN'"></span></div>
+                        <div><span class="font-medium text-gray-500">Muddet:</span> <span x-text="app.term_months + ' ay'"></span></div>
+                        <div><span class="font-medium text-gray-500">Level:</span> <span x-text="app.credit_level || '-'"></span></div>
+                    </div>
+                </div>
+
+                <!-- Contacts -->
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-700 mb-3">Elaqe Nomreleri</h2>
+                    <div class="grid grid-cols-3 gap-3 text-sm">
+                        <div><span class="font-medium text-gray-500">1:</span> <span x-text="app.contact1_phone || '-'"></span></div>
+                        <div><span class="font-medium text-gray-500">2:</span> <span x-text="app.contact2_phone || '-'"></span></div>
+                        <div><span class="font-medium text-gray-500">3:</span> <span x-text="app.contact3_phone || '-'"></span></div>
+                    </div>
+                </div>
+
+                <!-- MyGov Query -->
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-700 mb-3">MyGov Sorğusu</h2>
+                    <div class="flex gap-3 mb-3">
+                        <button @click="sendMyGov()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm"
+                                :disabled="mygovLoading">
+                            <span x-show="!mygovLoading">MyGov Link Gonder</span>
+                            <span x-show="mygovLoading">Gonderilir...</span>
+                        </button>
+                        <button @click="fetchMyGov()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm"
+                                :disabled="mygovFetching">
+                            <span x-show="!mygovFetching">Is Yeri / Pensiya Sorğula</span>
+                            <span x-show="mygovFetching">Sorğulanir...</span>
+                        </button>
+                    </div>
+                    <div x-show="mygovResult" class="bg-gray-50 rounded p-3 text-sm">
+                        <pre x-text="mygovResult"></pre>
+                    </div>
+                </div>
+
+                <!-- Check Results -->
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-700 mb-3">Yoxlama Neticeleri</h2>
+                    <div class="space-y-2">
+                        <template x-for="check in checks" :key="check.check_type">
+                            <div class="flex items-center justify-between bg-gray-50 rounded px-3 py-2 text-sm">
+                                <span x-text="check.check_type"></span>
+                                <span class="font-medium"
+                                      :class="check.status === 'passed' ? 'text-green-600' : 'text-red-600'"
+                                      x-text="check.status">
+                                </span>
+                            </div>
+                        </template>
+                        <div x-show="checks.length === 0" class="text-sm text-gray-400">
+                            Hələ yoxlama nəticəsi yoxdur.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Credit Offer -->
+                <div x-show="app.approved_amount > 0 || app.approved_rate > 0">
+                    <h2 class="text-lg font-semibold text-gray-700 mb-3">Sistemin Teklifi</h2>
+                    <div class="bg-green-50 border border-green-200 rounded p-4">
+                        <div class="grid grid-cols-3 gap-3 text-sm">
+                            <div><span class="font-medium text-gray-500">Teyin olunan mebleg:</span> <span class="font-bold text-green-700" x-text="app.approved_amount + ' AZN'"></span></div>
+                            <div><span class="font-medium text-gray-500">Faiz:</span> <span class="font-bold text-green-700" x-text="app.approved_rate + '%'"></span></div>
+                            <div><span class="font-medium text-gray-500">Muddet:</span> <span class="font-bold text-green-700" x-text="app.term_months + ' ay'"></span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div x-show="app.status === 'pending_approval'" class="flex gap-4 pt-4 border-t">
+                    <div class="flex-1">
+                        <select x-model="approveLevel" class="w-full border rounded px-3 py-2 mb-2 text-sm">
+                            <option value=""> Kredit levelini secin...</option>
+                            <option value="new">new</option>
+                            <option value="trusted">trusted</option>
+                            <option value="valuable">valuable</option>
+                            <option value="elite">elite</option>
+                        </select>
+                        <button @click="approve()" class="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 font-medium"
+                                :disabled="!approveLevel || actionLoading">
+                            <span x-show="!actionLoading">✓ Tesdiq Et</span>
+                            <span x-show="actionLoading">Emeliyyat...</span>
+                        </button>
+                    </div>
+                    <div class="flex-1">
+                        <input type="text" x-model="rejectReason" placeholder="Imtina sebebi (opsional)" 
+                               class="w-full border rounded px-3 py-2 mb-2 text-sm">
+                        <button @click="reject()" class="w-full bg-red-600 text-white px-4 py-3 rounded-lg hover:bg-red-700 font-medium"
+                                :disabled="actionLoading">
+                            <span x-show="!actionLoading">✗ Imtina Et</span>
+                            <span x-show="actionLoading">Emeliyyat...</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Success/Error messages -->
+                <div x-show="actionMessage" class="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded" x-text="actionMessage">
+                </div>
+                <div x-show="actionError" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded" x-text="actionError">
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function appDetail() {
+            return {
+                app: null,
+                checks: [],
+                loading: false,
+                error: '',
+                approveLevel: '',
+                rejectReason: '',
+                actionLoading: false,
+                actionMessage: '',
+                actionError: '',
+                mygovLoading: false,
+                mygovFetching: false,
+                mygovResult: '',
+
+                get id() {
+                    return new URLSearchParams(window.location.search).get('id');
+                },
+
+                async load() {
+                    this.loading = true;
+                    this.error = '';
+                    try {
+                        const [appResp, statusResp] = await Promise.all([
+                            fetch('/api/applications/' + this.id),
+                            fetch('/api/applications/' + this.id + '/status')
+                        ]);
+                        if (!appResp.ok) throw new Error('Muraciet tapilmadi');
+                        this.app = await appResp.json();
+                        if (statusResp.ok) {
+                            const statusData = await statusResp.json();
+                            this.checks = statusData.checks || [];
+                        }
+                    } catch (e) {
+                        this.error = e.message;
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+
+                async approve() {
+                    this.actionLoading = true;
+                    this.actionMessage = '';
+                    this.actionError = '';
+                    try {
+                        const resp = await fetch('/api/expert/' + this.id + '/approve', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ credit_level: this.approveLevel })
+                        });
+                        if (!resp.ok) {
+                            const err = await resp.json();
+                            throw new Error(err.error || 'Tesdiq ugursuz');
+                        }
+                        this.actionMessage = 'Muraciet tesdiq edildi!';
+                        await this.load();
+                    } catch (e) {
+                        this.actionError = e.message;
+                    } finally {
+                        this.actionLoading = false;
+                    }
+                },
+
+                async reject() {
+                    this.actionLoading = true;
+                    this.actionMessage = '';
+                    this.actionError = '';
+                    try {
+                        const body = this.rejectReason ? { reason: this.rejectReason } : {};
+                        const resp = await fetch('/api/expert/' + this.id + '/reject', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(body)
+                        });
+                        if (!resp.ok) {
+                            const err = await resp.json();
+                            throw new Error(err.error || 'Imtina ugursuz');
+                        }
+                        this.actionMessage = 'Muraciet imtina edildi.';
+                        await this.load();
+                    } catch (e) {
+                        this.actionError = e.message;
+                    } finally {
+                        this.actionLoading = false;
+                    }
+                },
+
+                async sendMyGov() {
+                    this.mygovLoading = true;
+                    this.mygovResult = '';
+                    try {
+                        const resp = await fetch('/api/mygov/permission-link', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                application_id: this.id,
+                                customer_pin: this.app.customer_pin
+                            })
+                        });
+                        const data = await resp.json();
+                        if (!resp.ok) throw new Error(data.error || 'MyGov link gonderilmedi');
+                        this.mygovResult = 'SMS gonderildi! Link: ' + data.url;
+                    } catch (e) {
+                        this.mygovResult = 'Xeta: ' + e.message;
+                    } finally {
+                        this.mygovLoading = false;
+                    }
+                },
+
+                async fetchMyGov() {
+                    this.mygovFetching = true;
+                    this.mygovResult = '';
+                    try {
+                        const resp = await fetch('/api/mygov/fetch-data?application_id=' + this.id, {
+                            method: 'POST'
+                        });
+                        const data = await resp.json();
+                        if (!resp.ok) throw new Error(data.error || 'Sorgu ugursuz');
+                        this.mygovResult = 'Sorgu tamamlandi: ' + JSON.stringify(data, null, 2);
+                    } catch (e) {
+                        this.mygovResult = 'Xeta: ' + e.message;
+                    } finally {
+                        this.mygovFetching = false;
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
