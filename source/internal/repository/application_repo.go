@@ -21,11 +21,12 @@ func NewApplicationRepo(db *sql.DB) *ApplicationRepo {
 func (r *ApplicationRepo) CreateApplication(ctx context.Context, app *model.LoanApplication) error {
         err := r.db.QueryRowContext(ctx, `
                 INSERT INTO loan_applications
-                        (customer_pin, customer_full_name, amount, term_months, loan_purpose, status, akb_score,
+                        (customer_pin, customer_serial, customer_full_name, amount, term_months, loan_purpose, status, akb_score,
                          contact1_phone, contact2_phone, contact3_phone, actual_address, card_number, customer_phone)
                 OUTPUT INSERTED.id
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 app.CustomerPIN,
+                app.CustomerSerial,
                 app.CustomerFullName,
                 app.Amount,
                 app.TermMonths,
@@ -54,14 +55,14 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
         var approvedAmount, approvedRate sql.NullFloat64
         var akbScore sql.NullInt64
         var officialIncome sql.NullFloat64
-        var contact1, contact2, contact3, address, customerPhone sql.NullString
+        var contact1, contact2, contact3, address, customerPhone, customerSerial sql.NullString
 
         err := r.db.QueryRowContext(ctx, `
                 SELECT id, customer_pin, customer_full_name, amount, term_months, loan_purpose,
                        status, credit_level, approved_amount, approved_rate,
                        rejection_reason_id, rejection_reason, akb_score,
                        official_income, contact1_phone, contact2_phone, contact3_phone, actual_address,
-                       card_number, customer_phone,
+                       card_number, customer_phone, customer_serial,
                        created_at, updated_at
                 FROM loan_applications WHERE id = ?`, id).Scan(
                 &app.ID,
@@ -84,6 +85,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                 &address,
                 &app.CardNumber,
                 &customerPhone,
+                &customerSerial,
                 &app.CreatedAt,
                 &app.UpdatedAt,
         )
@@ -104,6 +106,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
         app.Contact3Phone = contact3.String
         app.ActualAddress = address.String
         app.CustomerPhone = customerPhone.String
+        app.CustomerSerial = customerSerial.String
         if akbScore.Valid {
                 app.AkbScore = int(akbScore.Int64)
         }

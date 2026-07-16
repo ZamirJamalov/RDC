@@ -57,7 +57,7 @@ func TestCreateApplication_Validation(t *testing.T) {
 
         for _, tc := range tests {
                 t.Run(tc.name, func(t *testing.T) {
-                        svc := NewApplicationService(newMockStore(), NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore())
+                        svc := NewApplicationService(newMockStore(), NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
                         _, err := svc.CreateApplication(ctx, tc.req)
                         if err == nil {
                                 t.Fatal("expected error, got nil")
@@ -78,7 +78,7 @@ func TestCreateApplication_DuplicatePending(t *testing.T) {
         store.pendingAppID = 42
         store.pendingStatus = model.StatusChecking
 
-        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore())
+        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
 
         req := &model.CreateApplicationRequest{
                 CustomerPIN: "PIN1", CustomerFullName: "Ali",
@@ -105,7 +105,7 @@ func TestCreateApplication_PreValidateFails(t *testing.T) {
         store.rateErr = errors.New("no rate found")
         store.levelRangesErr = errors.New("no ranges")
 
-        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), store), newMockCustomerStore())
+        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), store), newMockCustomerStore(), NewOTPService(nil, nil))
 
         req := &model.CreateApplicationRequest{
                 CustomerPIN: "PIN1", CustomerFullName: "Ali",
@@ -133,7 +133,7 @@ func TestCreateApplication_Success(t *testing.T) {
 
         provider := newMockLWProvider() // no loans → "new" level
         engine := NewCreditEngine(provider, store)
-        svc := NewApplicationService(store, engine, newMockCustomerStore())
+        svc := NewApplicationService(store, engine, newMockCustomerStore(), NewOTPService(nil, nil))
 
         req := &model.CreateApplicationRequest{
                 CustomerPIN: "PIN1", CustomerFullName: "Ali Valiyev",
@@ -172,7 +172,7 @@ func TestCreateApplication_Success(t *testing.T) {
 // TestGetApplication_InvalidID verifies that ID <= 0 is rejected.
 func TestGetApplication_InvalidID(t *testing.T) {
         ctx := context.Background()
-        svc := NewApplicationService(newMockStore(), NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore())
+        svc := NewApplicationService(newMockStore(), NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
 
         _, err := svc.GetApplication(ctx, 0)
         if err == nil || !contains(err.Error(), "invalid application id") {
@@ -189,7 +189,7 @@ func TestGetApplication_InvalidID(t *testing.T) {
 func TestGetApplication_NotFound(t *testing.T) {
         ctx := context.Background()
         store := newMockStore() // empty → not found
-        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore())
+        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
 
         _, err := svc.GetApplication(ctx, 999)
         if err == nil {
@@ -229,7 +229,7 @@ func TestGetStatus_DecisionIncluded(t *testing.T) {
                         store.checkResults = []model.ApplicationCheckResult{
                                 {CheckType: "lms_active_loan_check", Status: "passed"},
                         }
-                        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore())
+                        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
 
                         resp, err := svc.GetStatus(ctx, 1)
                         if err != nil {
@@ -259,7 +259,7 @@ func TestGetStatus_DecisionIncluded(t *testing.T) {
 // TestGetStatus_InvalidID verifies ID validation.
 func TestGetStatus_InvalidID(t *testing.T) {
         ctx := context.Background()
-        svc := NewApplicationService(newMockStore(), NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore())
+        svc := NewApplicationService(newMockStore(), NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
 
         _, err := svc.GetStatus(ctx, -1)
         if err == nil || !contains(err.Error(), "invalid application id") {
@@ -278,7 +278,7 @@ func TestGetStatus_IncludesChecks(t *testing.T) {
                 {CheckType: "lms_payment_history_check", Status: "passed", Detail: "On time"},
                 {CheckType: "credit_level_check", Status: "passed", Detail: "elite"},
         }
-        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore())
+        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
 
         resp, err := svc.GetStatus(ctx, 1)
         if err != nil {
@@ -295,7 +295,7 @@ func TestGetStatus_IncludesChecks(t *testing.T) {
 // TestGetChecks_InvalidID verifies ID validation.
 func TestGetChecks_InvalidID(t *testing.T) {
         ctx := context.Background()
-        svc := NewApplicationService(newMockStore(), NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore())
+        svc := NewApplicationService(newMockStore(), NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
 
         _, err := svc.GetChecks(ctx, 0)
         if err == nil || !contains(err.Error(), "invalid application id") {
@@ -312,7 +312,7 @@ func TestGetChecks_ReturnsResults(t *testing.T) {
                 {CheckType: "type1", Status: "passed"},
                 {CheckType: "type2", Status: "failed", Detail: "reason"},
         }
-        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore())
+        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
 
         checks, err := svc.GetChecks(ctx, 5)
         if err != nil {
@@ -332,7 +332,7 @@ func TestUpdateStatus_InvalidStatus(t *testing.T) {
 
         store := newMockStore()
         store.appByID[1] = &model.LoanApplication{ID: 1, Status: model.StatusPendingApproval}
-        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore())
+        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
 
         tests := []string{"pending", "checking", "pending_approval", "foo", ""}
         for _, status := range tests {
@@ -355,7 +355,7 @@ func TestUpdateStatus_NotPendingApproval(t *testing.T) {
 
         store := newMockStore()
         store.appByID[1] = &model.LoanApplication{ID: 1, Status: model.StatusApproved}
-        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore())
+        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
 
         _, err := svc.UpdateStatus(ctx, 1, &UpdateStatusRequest{Status: model.StatusRejected})
         if err == nil {
@@ -373,7 +373,7 @@ func TestUpdateStatus_ApprovedWithoutCreditLevel(t *testing.T) {
 
         store := newMockStore()
         store.appByID[1] = &model.LoanApplication{ID: 1, Status: model.StatusPendingApproval}
-        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore())
+        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
 
         _, err := svc.UpdateStatus(ctx, 1, &UpdateStatusRequest{Status: model.StatusApproved})
         if err == nil {
@@ -391,7 +391,7 @@ func TestUpdateStatus_ApprovedWithInvalidCreditLevel(t *testing.T) {
 
         store := newMockStore()
         store.appByID[1] = &model.LoanApplication{ID: 1, Status: model.StatusPendingApproval}
-        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore())
+        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
 
         _, err := svc.UpdateStatus(ctx, 1, &UpdateStatusRequest{
                 Status:      model.StatusApproved,
@@ -418,7 +418,7 @@ func TestUpdateStatus_ApproveSuccess(t *testing.T) {
         // the new status, so the second GetApplicationByID (after the update)
         // returns the approved state.
 
-        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore())
+        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
 
         app, err := svc.UpdateStatus(ctx, 1, &UpdateStatusRequest{
                 Status:      model.StatusApproved,
@@ -463,7 +463,7 @@ func TestUpdateStatus_RejectSuccess(t *testing.T) {
         }
         // The mock will mutate this on UpdateApplicationDecision.
 
-        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore())
+        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
 
         app, err := svc.UpdateStatus(ctx, 1, &UpdateStatusRequest{
                 Status: model.StatusRejected,
@@ -500,7 +500,7 @@ func TestUpdateStatus_RejectSuccess(t *testing.T) {
 // TestUpdateStatus_InvalidID verifies ID validation.
 func TestUpdateStatus_InvalidID(t *testing.T) {
         ctx := context.Background()
-        svc := NewApplicationService(newMockStore(), NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore())
+        svc := NewApplicationService(newMockStore(), NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
 
         _, err := svc.UpdateStatus(ctx, 0, &UpdateStatusRequest{Status: model.StatusApproved})
         if err == nil || !contains(err.Error(), "invalid application id") {
