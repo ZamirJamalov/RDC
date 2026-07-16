@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "RDC API — Full Test Collection",
-    "_postman_id": "90414be3-11f6-4ef8-a98d-686bd1ee8344",
+    "_postman_id": "99aa49d5-acdb-4c72-bd52-396933d0b363",
     "description": "RDC (Retail Decision Engine) API tam test collection-u.\n\nFlow üzrə sıralanmış: Setup → OTP → LW Checks → Application → SIMA → MyGov → ASAN → Status → Expert.\n\nHər endpoint üçün: 🟢 Happy Path, 🟡 Edge Case, 🔴 Error Path.\n\nİstifadə:\n1. Environment-i import edin (RDC_PostmanEnvironment.json)\n2. customer_pin, customer_phone dəyərlərini dəyişin\n3. Sıra ilə request-ləri işlədin\n4. Auto-chaining: application_id, otp_token, credit_level avtomatik set olunur",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
@@ -1251,6 +1251,475 @@
     {
       "name": "3. Offer + Application",
       "item": [
+        {
+          "name": "🟢 Init: Musteri müraciəti başlat (FIN+Serial+Phone)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/init",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "init"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_serial\": \"ID123456\",\n  \"customer_phone\": \"{{customer_phone}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Müştəri FIN, seriya və telefon daxil edir. OTP göndərilir. Status: pending_customer.\n⚠️ OTP kodu server logundan oxuyun."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 201\", () => pm.response.to.have.status(201));",
+                  "pm.test(\"Has id\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"id\"); });",
+                  "pm.test(\"Has status\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"status\"); });",
+                  "const j = pm.response.json();",
+                  "if (j && j.id) { pm.environment.set(\"application_id\", j.id); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Init Verify: OTP təsdiqlə (→ pending_expert)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/init/verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "init",
+                "verify"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": \"{{application_id}}\",\n  \"phone\": \"{{customer_phone}}\",\n  \"otp_code\": \"{{otp_code}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Müştəri OTP kodu daxil edir. Status → pending_expert.\n⚠️ {{otp_code}}-ı server logundan oxuyub environment-a yazın."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has status\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"status\"); });",
+                  "pm.test('status=pending_expert', () => { const j = pm.response.json(); pm.expect(j.status).to.eq('pending_expert'); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Complete: Ekspert məlumatları tamamla (→ pending)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/{{application_id}}/complete",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{application_id}}",
+                "complete"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_full_name\": \"Test M\\u00fc\\u015ft\\u0259ri\",\n  \"amount\": 200,\n  \"term_months\": 3,\n  \"akb_score\": 400,\n  \"card_number\": \"4111111111111111\",\n  \"contact1_phone\": \"+994501111111\",\n  \"contact2_phone\": \"+994502222222\",\n  \"contact3_phone\": \"+994503333333\",\n  \"actual_address\": \"Bak\\u0131 \\u015f\\u0259h\\u0259ri, N\\u0259simi rayonu, Test k\\u00fc\\u00e7\\u0259si 1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Ekspert qalan məlumatları daxil edir. Credit engine işə düşür.\n⚠️ Bu addımdan sonra 2-3 saniye gözləyin, sonra status yoxlayın."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has status\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"status\"); });",
+                  "pm.test('status=pending', () => { const j = pm.response.json(); pm.expect(['pending','checking'].includes(j.status)).to.be.true; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Init: customer_pin boş",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/init",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "init"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_serial\": \"ID123\",\n  \"customer_phone\": \"{{customer_phone}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Boş PIN ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: customer_pin\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"customer_pin\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Init: customer_phone boş",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/init",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "init"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"{{customer_pin}}\",\n  \"customer_serial\": \"ID123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Boş telefon ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: customer_phone\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"customer_phone\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Init Verify: yanlış OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/init/verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "init",
+                "verify"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": \"{{application_id}}\",\n  \"phone\": \"{{customer_phone}}\",\n  \"otp_code\": \"000000\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Yanlış OTP kodu ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: invalid\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"invalid\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Init Verify: app tapılmadı",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/init/verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "init",
+                "verify"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": 99999,\n  \"phone\": \"{{customer_phone}}\",\n  \"otp_code\": \"123456\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Mövcud olmayan app ID ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: not found\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"not found\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Complete: app pending_expert deyil",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/99999/complete",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "99999",
+                "complete"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_full_name\": \"Test\",\n  \"amount\": 200,\n  \"term_months\": 3,\n  \"card_number\": \"4111111111111111\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "pending_expert status-unda olmayan app üçün 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: pending_expert\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"pending_expert\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Complete: card_number 15 rəqəm",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/{{application_id}}/complete",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{application_id}}",
+                "complete"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_full_name\": \"Test\",\n  \"amount\": 200,\n  \"term_months\": 3,\n  \"card_number\": \"411111111111111\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "15 rəqəmli kart ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: card_number\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"card_number\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Complete: amount=0",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/{{application_id}}/complete",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{application_id}}",
+                "complete"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_full_name\": \"Test\",\n  \"amount\": 0,\n  \"term_months\": 3,\n  \"card_number\": \"4111111111111111\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Sıfır məbləğ ilə 400."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains: amount\", () => { const j = pm.response.json(); pm.expect(j.error).to.include(\"amount\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
         {
           "name": "🟢 Offer: Yeni müştəri",
           "request": {
