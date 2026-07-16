@@ -79,6 +79,10 @@ type ApplicationStore interface {
         // Called whenever an application is approved (auto or manual).
         SaveCreditLevelHistory(ctx context.Context, customerPIN, toLevel string, appID int) error
 
+        // GetCustomerCurrentLevel returns the customer's current credit level
+        // based on their most recent LW-confirmed approved application.
+        GetCustomerCurrentLevel(ctx context.Context, customerPIN string) (string, error)
+
         // --- Tx-aware variants (used by ProcessApplication for atomicity) ---
 
         UpdateApplicationStatusTx(ctx context.Context, runner repository.TxRunner, id int, status string) error

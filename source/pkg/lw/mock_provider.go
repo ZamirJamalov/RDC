@@ -21,7 +21,8 @@ func NewMockProvider(db *sql.DB) *MockProvider {
 func (p *MockProvider) GetCustomerLoans(ctx context.Context, pin string) (*CustomerLoansResponse, error) {
         rows, err := p.db.QueryContext(ctx, `
                 SELECT id, customer_pin, scenario_name, lms_loan_id, loan_type, amount, term_months,
-                       start_date, end_date, status, remaining_amount, was_on_time, early_completion
+                       start_date, end_date, status, remaining_amount, was_on_time, early_completion,
+                       delay_days, level_at_close, closed_at
                 FROM mock_lms_loans
                 WHERE customer_pin = ?`, pin)
         if err != nil {
@@ -33,6 +34,7 @@ func (p *MockProvider) GetCustomerLoans(ctx context.Context, pin string) (*Custo
         for rows.Next() {
                 var loan CustomerLoan
                 var scenarioName sql.NullString
+                var levelAtClose, closedAt sql.NullString
                 err := rows.Scan(
                         &loan.ID,
                         &loan.CustomerPIN,
@@ -47,10 +49,15 @@ func (p *MockProvider) GetCustomerLoans(ctx context.Context, pin string) (*Custo
                         &loan.RemainingAmount,
                         &loan.WasOnTime,
                         &loan.EarlyCompletion,
+                        &loan.DelayDays,
+                        &levelAtClose,
+                        &closedAt,
                 )
                 if err != nil {
                         return nil, fmt.Errorf("lw mock: failed to scan loan row: %w", err)
                 }
+                loan.LevelAtClose = levelAtClose.String
+                loan.ClosedAt = closedAt.String
                 loans = append(loans, loan)
         }
 
@@ -85,8 +92,9 @@ func (p *MockProvider) SetupCustomerLoans(ctx context.Context, req *LoanSetupReq
                 _, err = tx.ExecContext(ctx, `
                         INSERT INTO mock_lms_loans
                                 (customer_pin, scenario_name, lms_loan_id, loan_type, amount, term_months,
-                                 start_date, end_date, status, remaining_amount, was_on_time, early_completion)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                                 start_date, end_date, status, remaining_amount, was_on_time, early_completion,
+                                 delay_days, level_at_close, closed_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                         req.CustomerPIN,
                         req.ScenarioName,
                         loan.LmsLoanID,
@@ -99,6 +107,9 @@ func (p *MockProvider) SetupCustomerLoans(ctx context.Context, req *LoanSetupReq
                         loan.RemainingAmount,
                         loan.WasOnTime,
                         loan.EarlyCompletion,
+                        loan.DelayDays,
+                        loan.LevelAtClose,
+                        loan.ClosedAt,
                 )
                 if err != nil {
                         return fmt.Errorf("lw mock: failed to insert loan %s: %w", loan.LmsLoanID, err)

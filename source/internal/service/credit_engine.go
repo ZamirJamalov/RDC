@@ -45,9 +45,10 @@ func (e *CreditEngine) PreValidate(ctx context.Context, customerPIN string, amou
         // 2. Resolve AKB score (LW first, request value as fallback)
         resolvedAkb := e.resolveAkbScore(ctx, customerPIN, akbScore)
 
-        // 3. Determine credit level (LW history + AKB score override)
+        // 3. Determine credit level (LW history + AKB score override + current level from DB)
         analytics := computeAnalytics(customerLoans.Loans)
-        creditLevel := determineCreditLevel(analytics, resolvedAkb)
+        currentLevel, _ := e.appRepo.GetCustomerCurrentLevel(ctx, customerPIN)
+        creditLevel := determineCreditLevel(analytics, resolvedAkb, currentLevel)
 
         // 4. Determine unlock phase
         unlockPhase := 1
@@ -148,7 +149,8 @@ func (e *CreditEngine) ProcessApplication(ctx context.Context, appID int) error 
         }
 
         // Step 7: Determine credit level + unlock phase
-        creditLevel := determineCreditLevel(analytics, resolvedAkb)
+        currentLevel, _ := e.appRepo.GetCustomerCurrentLevel(ctx, app.CustomerPIN)
+        creditLevel := determineCreditLevel(analytics, resolvedAkb, currentLevel)
         approvedCount, err := e.appRepo.CountApprovedAtLevel(ctx, app.CustomerPIN, creditLevel)
         if err != nil {
                 return fmt.Errorf("failed to count approved loans at level: %w", err)
