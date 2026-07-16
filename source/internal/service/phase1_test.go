@@ -101,11 +101,12 @@ func TestProcessApplication_LWApproveLoanCalledOnApproval(t *testing.T) {
         }
         store.rate = 27.0
         store.approvedCount = 1 // phase 2
+        store.currentLevel = "valuable" // customer is at valuable level
 
-        // 2 completed on-time loans, 1 early → elite → auto-approve
+        // 2 completed loans at "valuable" level, 0 delay, 2mo term → elite → auto-approve
         provider := newMockLWProvider().withLoans([]lw.CustomerLoan{
-                {Status: "completed", WasOnTime: true, EarlyCompletion: true},
-                {Status: "completed", WasOnTime: true, EarlyCompletion: false},
+                {Status: "completed", WasOnTime: true, DelayDays: 0, TermMonths: 2, LevelAtClose: "valuable"},
+                {Status: "completed", WasOnTime: true, DelayDays: 0, TermMonths: 3, LevelAtClose: "valuable"},
         })
 
         engine := NewCreditEngine(provider, store)
@@ -144,10 +145,11 @@ func TestProcessApplication_LWApproveLoanFailureDowngradesToRejected(t *testing.
         }
         store.rate = 27.0
         store.approvedCount = 1
+        store.currentLevel = "valuable"
 
         provider := newMockLWProvider().withLoans([]lw.CustomerLoan{
-                {Status: "completed", WasOnTime: true, EarlyCompletion: true},
-                {Status: "completed", WasOnTime: true, EarlyCompletion: false},
+                {Status: "completed", WasOnTime: true, DelayDays: 0, TermMonths: 2, LevelAtClose: "valuable"},
+                {Status: "completed", WasOnTime: true, DelayDays: 0, TermMonths: 3, LevelAtClose: "valuable"},
         })
         provider.approveLoanErr = errors.New("LW contract signing failed")
 

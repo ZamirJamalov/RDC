@@ -62,6 +62,9 @@ type mockApplicationStore struct {
         // SaveCreditLevelHistory
         saveHistoryErr error
 
+        // GetCustomerCurrentLevel — configurable return for testing
+        currentLevel string
+
         // WithTx (T-1.3) — when non-nil, WithTx returns this error without
         // calling fn. Use to simulate transaction failures.
         withTxErr error
@@ -203,6 +206,11 @@ func (m *mockApplicationStore) SaveCreditLevelHistory(_ context.Context, custome
                 AppID:       appID,
         })
         return m.saveHistoryErr
+}
+
+// GetCustomerCurrentLevel returns a configurable current level for testing.
+func (m *mockApplicationStore) GetCustomerCurrentLevel(_ context.Context, _ string) (string, error) {
+        return m.currentLevel, nil
 }
 
 // --- Tx-aware variants (T-1.3) ---

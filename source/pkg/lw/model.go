@@ -15,6 +15,9 @@ type CustomerLoan struct {
         RemainingAmount float64 `json:"remaining_amount"`
         WasOnTime       bool    `json:"was_on_time"`
         EarlyCompletion bool    `json:"early_completion"`
+        DelayDays       int     `json:"delay_days"`
+        LevelAtClose    string  `json:"level_at_close"`
+        ClosedAt        string  `json:"closed_at"`
 }
 
 // CustomerLoansResponse is the aggregated response of all loans for a customer.
@@ -44,6 +47,9 @@ type LoanSetupItem struct {
         RemainingAmount float64 `json:"remaining_amount"`
         WasOnTime       bool    `json:"was_on_time"`
         EarlyCompletion bool    `json:"early_completion"`
+        DelayDays       int     `json:"delay_days"`
+        LevelAtClose    string  `json:"level_at_close"`
+        ClosedAt        string  `json:"closed_at"`
 }
 
 // PersonalInfoResponse contains customer personal information from DIN.
