@@ -83,6 +83,10 @@ type ApplicationStore interface {
         // based on their most recent LW-confirmed approved application.
         GetCustomerCurrentLevel(ctx context.Context, customerPIN string) (string, error)
 
+        // UpdateApplicationDetails fills in the remaining fields after the expert
+        // completes the application (used by CompleteApplication flow).
+        UpdateApplicationDetails(ctx context.Context, id int, app *model.LoanApplication) error
+
         // --- Tx-aware variants (used by ProcessApplication for atomicity) ---
 
         UpdateApplicationStatusTx(ctx context.Context, runner repository.TxRunner, id int, status string) error

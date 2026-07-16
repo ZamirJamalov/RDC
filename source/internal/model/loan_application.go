@@ -4,6 +4,7 @@ package model
 type LoanApplication struct {
         ID                int     `json:"id"`
         CustomerPIN       string  `json:"customer_pin"`
+        CustomerSerial    string  `json:"customer_serial,omitempty"`
         CustomerFullName  string  `json:"customer_full_name"`
         Amount            float64 `json:"amount"`
         TermMonths        int     `json:"term_months"`

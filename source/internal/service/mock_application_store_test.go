@@ -213,6 +213,24 @@ func (m *mockApplicationStore) GetCustomerCurrentLevel(_ context.Context, _ stri
         return m.currentLevel, nil
 }
 
+// UpdateApplicationDetails updates the mock store's application record.
+func (m *mockApplicationStore) UpdateApplicationDetails(_ context.Context, id int, app *model.LoanApplication) error {
+        if existing, ok := m.appByID[id]; ok {
+                existing.CustomerFullName = app.CustomerFullName
+                existing.Amount = app.Amount
+                existing.TermMonths = app.TermMonths
+                existing.LoanPurpose = app.LoanPurpose
+                existing.AkbScore = app.AkbScore
+                existing.Contact1Phone = app.Contact1Phone
+                existing.Contact2Phone = app.Contact2Phone
+                existing.Contact3Phone = app.Contact3Phone
+                existing.ActualAddress = app.ActualAddress
+                existing.CardNumber = app.CardNumber
+                existing.Status = app.Status
+        }
+        return nil
+}
+
 // --- Tx-aware variants (T-1.3) ---
 //
 // These accept a repository.TxRunner but ignore it — the mock doesn't actually

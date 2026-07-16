@@ -73,14 +73,15 @@ func main() {
         // In real mode: makes HTTP calls to LWBaseURL with LWApiKey.
         lwProvider := newLWProvider(cfg, db)
 
+	// --- OTP Provider + Service (T-3.1 to T-3.7) ---
+	otpProvider := newOTPProvider(cfg, db)
+	otpRepo := repository.NewOTPRepo(db)
+	otpService := service.NewOTPService(otpProvider, otpRepo)
+
         // --- Service layer ---
         creditEngine := service.NewCreditEngine(lwProvider, appRepo)
-        appService := service.NewApplicationService(appRepo, creditEngine, customerRepo)
+	appService := service.NewApplicationService(appRepo, creditEngine, customerRepo, otpService)
 
-        // --- OTP Provider + Service (T-3.1 to T-3.7) ---
-        otpProvider := newOTPProvider(cfg, db)
-        otpRepo := repository.NewOTPRepo(db)
-        otpService := service.NewOTPService(otpProvider, otpRepo)
 
         // --- SIMA Provider + Service (T-4.1 to T-4.5) ---
         simaProvider := newSimaProvider(cfg)

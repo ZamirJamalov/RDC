@@ -13,6 +13,7 @@ type ApplicationService struct {
         repo         ApplicationStore
         creditEngine *CreditEngine
         customerRepo CustomerStore
+	otpService   *OTPService
 }
 
 // NewApplicationService creates a new ApplicationService.
@@ -21,11 +22,12 @@ type ApplicationService struct {
 // The customerRepo is used to find or create a customer record before
 // the application is created — customer info is stored in a single
 // profile, not duplicated per application.
-func NewApplicationService(repo ApplicationStore, engine *CreditEngine, customerRepo CustomerStore) *ApplicationService {
+func NewApplicationService(repo ApplicationStore, engine *CreditEngine, customerRepo CustomerStore, otpService *OTPService) *ApplicationService {
         return &ApplicationService{
                 repo:         repo,
                 creditEngine: engine,
                 customerRepo: customerRepo,
+		otpService:   otpService,
         }
 }
 
