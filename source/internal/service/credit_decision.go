@@ -77,10 +77,8 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
         }
 
         // 5. Elite: auto-approve; 6. Others: pending_approval (manual review)
-        // Calculate total amount (principal + interest) for both cases.
-        // Formula: Interest = Principal × (Rate / (100 - Rate))
-        //          Total = Principal + Interest
-        // Example: 300 × (30/70) = 128.57 interest → 428.57 total
+        // Calculate total amount sent to LW = Principal + (Principal × Rate / (100 - Rate))
+        // Example: 300 + (300 × 30 / 70) = 300 + 128.57 = 428.57 AZN
         totalAmount := calculateTotalAmount(app.Amount, rate)
 
         if creditLevel == model.CreditLevelElite {
@@ -101,17 +99,15 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
         }, nil
 }
 
-// calculateTotalAmount calculates the total repayment amount including interest.
-// Formula: Interest = Principal × (Rate / (100 - Rate))
-//          Total = Principal + Interest
-// Example: Principal=300, Rate=30 → 300 + (300 × 30/70) = 300 + 128.57 = 428.57
+// calculateTotalAmount returns the total repayment amount sent to LW.
+// Formula: Total = Principal + (Principal × Rate / (100 - Rate))
+// Example: 300 + (300 × 30 / 70) = 300 + 128.57 = 428.57 AZN
 // Result is rounded to 2 decimal places.
 func calculateTotalAmount(principal, rate float64) float64 {
         if rate <= 0 || rate >= 100 {
                 return principal
         }
-        interest := principal * (rate / (100 - rate))
-        total := principal + interest
+        total := principal + (principal * (rate / (100 - rate)))
         return math.Round(total*100) / 100
 }
 
