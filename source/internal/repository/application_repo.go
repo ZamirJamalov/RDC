@@ -52,14 +52,14 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
         var app model.LoanApplication
         var rejectionReasonID sql.NullInt64
         var rejectionReason, creditLevel sql.NullString
-        var approvedAmount, approvedRate sql.NullFloat64
+        var approvedAmount, approvedRate, totalAmount sql.NullFloat64
         var akbScore sql.NullInt64
         var officialIncome sql.NullFloat64
         var contact1, contact2, contact3, address, customerPhone, customerSerial sql.NullString
 
         err := r.db.QueryRowContext(ctx, `
                 SELECT id, customer_pin, customer_full_name, amount, term_months, loan_purpose,
-                       status, credit_level, approved_amount, approved_rate,
+                       status, credit_level, approved_amount, approved_rate, total_amount,
                        rejection_reason_id, rejection_reason, akb_score,
                        official_income, contact1_phone, contact2_phone, contact3_phone, actual_address,
                        card_number, customer_phone, customer_serial,
@@ -75,6 +75,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                 &creditLevel,
                 &approvedAmount,
                 &approvedRate,
+                &totalAmount,
                 &rejectionReasonID,
                 &rejectionReason,
                 &akbScore,
@@ -99,6 +100,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
         app.CreditLevel = creditLevel.String
         app.ApprovedAmount = approvedAmount.Float64
         app.ApprovedRate = approvedRate.Float64
+        app.TotalAmount = totalAmount.Float64
         app.RejectionReason = rejectionReason.String
         app.OfficialIncome = officialIncome.Float64
         app.Contact1Phone = contact1.String
@@ -131,7 +133,7 @@ func (r *ApplicationRepo) UpdateApplicationStatus(ctx context.Context, id int, s
 
 // UpdateApplicationDecision updates the decision-related fields after credit engine processing.
 func (r *ApplicationRepo) UpdateApplicationDecision(ctx context.Context, id int,
-        status, creditLevel, rejectionReason string, approvedAmount, approvedRate float64) error {
+        status, creditLevel, rejectionReason string, approvedAmount, approvedRate, totalAmount float64) error {
 
         _, err := r.db.ExecContext(ctx, `
                 UPDATE loan_applications
@@ -139,10 +141,11 @@ func (r *ApplicationRepo) UpdateApplicationDecision(ctx context.Context, id int,
                     credit_level = ?,
                     approved_amount = ?,
                     approved_rate = ?,
+                    total_amount = ?,
                     rejection_reason = ?,
                     updated_at = GETDATE()
                 WHERE id = ?`,
-                status, creditLevel, approvedAmount, approvedRate, rejectionReason, id)
+                status, creditLevel, approvedAmount, approvedRate, totalAmount, rejectionReason, id)
         if err != nil {
                 return fmt.Errorf("failed to update application decision: %w", err)
         }

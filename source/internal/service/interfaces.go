@@ -46,7 +46,7 @@ type ApplicationStore interface {
         // credit engine processing or manual operator action.
         UpdateApplicationDecision(ctx context.Context, id int,
                 status, creditLevel, rejectionReason string,
-                approvedAmount, approvedRate float64) error
+                approvedAmount, approvedRate, totalAmount float64) error
 
         // SaveCheckResult inserts a check result for an application.
         SaveCheckResult(ctx context.Context, appID int, check *model.ApplicationCheckResult) error
@@ -92,7 +92,7 @@ type ApplicationStore interface {
         UpdateApplicationStatusTx(ctx context.Context, runner repository.TxRunner, id int, status string) error
         UpdateApplicationDecisionTx(ctx context.Context, runner repository.TxRunner, id int,
                 status, creditLevel, rejectionReason string,
-                approvedAmount, approvedRate float64) error
+                approvedAmount, approvedRate, totalAmount float64) error
         SaveCheckResultTx(ctx context.Context, runner repository.TxRunner, appID int, check *model.ApplicationCheckResult) error
         SaveCreditLevelHistoryTx(ctx context.Context, runner repository.TxRunner, customerPIN, toLevel string, appID int) error
 }

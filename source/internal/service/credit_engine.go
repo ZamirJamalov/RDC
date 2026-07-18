@@ -188,7 +188,7 @@ func (e *CreditEngine) ProcessApplication(ctx context.Context, appID int) error 
                                 "error", err)
                         rejectReason := fmt.Sprintf("LW approval failed: %v", err)
                         if err := e.appRepo.UpdateApplicationDecision(ctx, appID,
-                                model.StatusRejected, creditLevel, rejectReason, 0, 0); err != nil {
+                                model.StatusRejected, creditLevel, rejectReason, 0, 0, 0); err != nil {
                                 return fmt.Errorf("failed to downgrade after LW rejection: %w", err)
                         }
                 }

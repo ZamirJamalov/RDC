@@ -13,6 +13,7 @@ type LoanApplication struct {
         CreditLevel       string  `json:"credit_level"`
         ApprovedAmount    float64 `json:"approved_amount"`
         ApprovedRate      float64 `json:"approved_rate"`
+        TotalAmount       float64 `json:"total_amount,omitempty"` // Principal + Interest (sent to LW)
         RejectionReasonID *int    `json:"rejection_reason_id,omitempty"`
         RejectionReason   string  `json:"rejection_reason,omitempty"`
         AkbScore          int     `json:"akb_score,omitempty"`

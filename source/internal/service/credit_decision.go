@@ -4,6 +4,7 @@ import (
         "context"
         "fmt"
         "log/slog"
+        "math"
 
         "rdc-source/internal/model"
         "rdc-source/internal/repository"
@@ -17,6 +18,7 @@ type decisionResult struct {
         RejectionReason string
         ApprovedAmount  float64
         ApprovedRate    float64
+        TotalAmount     float64 // Principal + Interest (sent to LW)
 }
 
 // computeDecision evaluates the analytics, blacklist, credit level, and rate
@@ -75,11 +77,17 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
         }
 
         // 5. Elite: auto-approve; 6. Others: pending_approval (manual review)
+        // Calculate total amount sent to LW = Principal + Interest, where
+        // Interest = (Rate / (100 - Rate)) × 100.
+        // Example: 300 + (30/70)*100 = 300 + 42.86 = 342.86 AZN
+        totalAmount := calculateTotalAmount(app.Amount, rate)
+
         if creditLevel == model.CreditLevelElite {
                 return &decisionResult{
                         Status:         model.StatusApproved,
                         ApprovedAmount: app.Amount,
                         ApprovedRate:   rate,
+                        TotalAmount:    totalAmount,
                 }, nil
         }
 
@@ -88,7 +96,23 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
                 Status:         model.StatusPendingApproval,
                 ApprovedAmount: app.Amount,
                 ApprovedRate:   rate,
+                TotalAmount:    totalAmount,
         }, nil
+}
+
+// calculateTotalAmount returns the total repayment amount sent to LW.
+// Formula: Total = Principal + (Rate / (100 - Rate)) × 100
+// Example: 300 + (30/70)*100 = 300 + 42.86 = 342.86 AZN
+// Result is rounded to 2 decimal places.
+//
+// Edge cases: rate <= 0 or rate >= 100 returns principal unchanged.
+func calculateTotalAmount(principal, rate float64) float64 {
+        if rate <= 0 || rate >= 100 {
+                return principal
+        }
+        interest := (rate / (100 - rate)) * 100
+        total := principal + interest
+        return math.Round(total*100) / 100
 }
 
 // applyDecisionTx writes the decision to the DB inside the given transaction.
@@ -99,7 +123,7 @@ func (e *CreditEngine) applyDecisionTx(ctx context.Context, runner repository.Tx
 
         if err := e.appRepo.UpdateApplicationDecisionTx(ctx, runner, appID,
                 decision.Status, creditLevel, decision.RejectionReason,
-                decision.ApprovedAmount, decision.ApprovedRate); err != nil {
+                decision.ApprovedAmount, decision.ApprovedRate, decision.TotalAmount); err != nil {
                 return fmt.Errorf("failed to update decision: %w", err)
         }
 
@@ -129,7 +153,7 @@ func (e *CreditEngine) applyDecisionTx(ctx context.Context, runner repository.Tx
 func (e *CreditEngine) notifyLwApproval(ctx context.Context, app *model.LoanApplication, creditLevel string, decision *decisionResult) error {
         req := &lw.ApproveLoanRequest{
                 ApplicationID: app.ID,
-                Amount:        decision.ApprovedAmount,
+                Amount:        decision.TotalAmount, // Send total (principal + interest) to LW
                 CardNumber:    app.CardNumber,
                 CreditLevel:   creditLevel,
                 TermMonths:    app.TermMonths,
