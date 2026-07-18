@@ -77,17 +77,18 @@ func (r *ApplicationRepo) UpdateApplicationStatusTx(ctx context.Context, runner 
 
 // UpdateApplicationDecisionTx is the tx-aware variant of UpdateApplicationDecision.
 func (r *ApplicationRepo) UpdateApplicationDecisionTx(ctx context.Context, runner TxRunner, id int,
-        status, creditLevel, rejectionReason string, approvedAmount, approvedRate float64) error {
+        status, creditLevel, rejectionReason string, approvedAmount, approvedRate, totalAmount float64) error {
         _, err := runner.ExecContext(ctx, `
                 UPDATE loan_applications
                 SET status = ?,
                     credit_level = ?,
                     approved_amount = ?,
                     approved_rate = ?,
+                    total_amount = ?,
                     rejection_reason = ?,
                     updated_at = GETDATE()
                 WHERE id = ?`,
-                status, creditLevel, approvedAmount, approvedRate, rejectionReason, id)
+                status, creditLevel, approvedAmount, approvedRate, totalAmount, rejectionReason, id)
         if err != nil {
                 return fmt.Errorf("failed to update application decision: %w", err)
         }

@@ -122,8 +122,8 @@ func TestProcessApplication_LWApproveLoanCalledOnApproval(t *testing.T) {
         if call.ApplicationID != 1 {
                 t.Errorf("ApproveLoan ApplicationID = %d, want 1", call.ApplicationID)
         }
-        if call.Amount != 500 {
-                t.Errorf("ApproveLoan Amount = %v, want 500", call.Amount)
+        if call.Amount != 536.99 {
+                t.Errorf("ApproveLoan Amount = %v, want 536.99 (500 principal + (27/73)*100 interest)", call.Amount)
         }
         if call.CreditLevel != model.CreditLevelElite {
                 t.Errorf("ApproveLoan CreditLevel = %q, want elite", call.CreditLevel)
