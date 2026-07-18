@@ -65,12 +65,16 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
         }
 
         var rejectionReason string
+        var totalAmount float64
         if req.Status == model.StatusRejected {
                 rejectionReason = "Manually rejected"
+        } else if req.Status == model.StatusApproved {
+                // Calculate total amount for manual approval
+                totalAmount = calculateTotalAmount(app.Amount, app.ApprovedRate)
         }
 
         err = s.repo.UpdateApplicationDecision(ctx, id,
-                req.Status, creditLevel, rejectionReason, app.Amount, app.ApprovedRate)
+                req.Status, creditLevel, rejectionReason, app.Amount, app.ApprovedRate, totalAmount)
         if err != nil {
                 return nil, fmt.Errorf("failed to update status: %w", err)
         }

@@ -137,7 +137,7 @@ func (s *ApplicationService) triggerAsyncProcessing(app *model.LoanApplication) 
                         // stay in "checking" forever. The reason explains what happened.
                         rejectReason := "Credit engine failed after retries: " + err.Error()
                         if rejectErr := s.repo.UpdateApplicationDecision(ctx, app.ID,
-                                model.StatusRejected, "", rejectReason, 0, 0); rejectErr != nil {
+                                model.StatusRejected, "", rejectReason, 0, 0, 0); rejectErr != nil {
                                 slog.Error("failed to mark application as rejected after engine failure",
                                         "application_id", app.ID,
                                         "original_error", err,

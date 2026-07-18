@@ -90,6 +90,7 @@ type mockDecisionUpdate struct {
         RejectionReason string
         ApprovedAmount  float64
         ApprovedRate    float64
+        TotalAmount     float64
 }
 
 type mockHistorySave struct {
@@ -128,7 +129,7 @@ func (m *mockApplicationStore) UpdateApplicationStatus(_ context.Context, id int
 }
 
 func (m *mockApplicationStore) UpdateApplicationDecision(_ context.Context, id int,
-        status, creditLevel, rejectionReason string, approvedAmount, approvedRate float64) error {
+        status, creditLevel, rejectionReason string, approvedAmount, approvedRate, totalAmount float64) error {
         m.decisionUpdates = append(m.decisionUpdates, mockDecisionUpdate{
                 ID:              id,
                 Status:          status,
@@ -136,6 +137,7 @@ func (m *mockApplicationStore) UpdateApplicationDecision(_ context.Context, id i
                 RejectionReason: rejectionReason,
                 ApprovedAmount:  approvedAmount,
                 ApprovedRate:    approvedRate,
+                TotalAmount:     totalAmount,
         })
         // Simulate the DB UPDATE by mutating the stored application, so subsequent
         // GetApplicationByID calls return the updated state (matching real DB behavior).
@@ -145,6 +147,7 @@ func (m *mockApplicationStore) UpdateApplicationDecision(_ context.Context, id i
                 app.RejectionReason = rejectionReason
                 app.ApprovedAmount = approvedAmount
                 app.ApprovedRate = approvedRate
+                app.TotalAmount = totalAmount
         }
         return m.updateDecisionErr
 }
@@ -271,7 +274,7 @@ func (m *mockApplicationStore) UpdateApplicationStatusTx(_ context.Context, _ re
 }
 
 func (m *mockApplicationStore) UpdateApplicationDecisionTx(_ context.Context, _ repository.TxRunner, id int,
-        status, creditLevel, rejectionReason string, approvedAmount, approvedRate float64) error {
+        status, creditLevel, rejectionReason string, approvedAmount, approvedRate, totalAmount float64) error {
         m.decisionUpdates = append(m.decisionUpdates, mockDecisionUpdate{
                 ID:              id,
                 Status:          status,
@@ -279,6 +282,7 @@ func (m *mockApplicationStore) UpdateApplicationDecisionTx(_ context.Context, _ 
                 RejectionReason: rejectionReason,
                 ApprovedAmount:  approvedAmount,
                 ApprovedRate:    approvedRate,
+                TotalAmount:     totalAmount,
         })
         // Simulate the DB UPDATE by mutating the stored application, so subsequent
         // GetApplicationByID calls return the updated state (matching real DB behavior).
@@ -288,6 +292,7 @@ func (m *mockApplicationStore) UpdateApplicationDecisionTx(_ context.Context, _ 
                 app.RejectionReason = rejectionReason
                 app.ApprovedAmount = approvedAmount
                 app.ApprovedRate = approvedRate
+                app.TotalAmount = totalAmount
         }
         return m.updateDecisionErr
 }
