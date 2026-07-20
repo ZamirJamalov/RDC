@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALPUL — Kredit ki, səninla oynayır</title>
+    <meta name="description" content="Hər vaxtında ödəniş faizi aşağı salır. ALPUL ilə kredit səviyyən yüksəldikcə faiz düşür: 30% → 27% → 24% → 20%.">
+
+    <!-- Tailwind for utility classes -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Alpine.js for interactivity -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <!-- Inter font (Revolut-style) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --alpul-bg: #0A0A0F;
+            --alpul-bg-soft: #12121A;
+            --alpul-card: #181822;
+            --alpul-border: #26263A;
+            --alpul-text: #F5F5F7;
+            --alpul-text-soft: #9CA3AF;
+            --alpul-accent: #7C3AED;
+            --alpul-accent-2: #EC4899;
+            --alpul-success: #10B981;
+            --alpul-gold: #F59E0B;
+        }
+
+        * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--alpul-bg);
+            color: var(--alpul-text);
+            font-feature-settings: 'tnum' on, 'lnum' on;
+        }
+
+        /* Animated gradient background blob — Revolut-style hero */
+        .hero-bg::before {
+            content: '';
+            position: absolute;
+            top: -20%; left: 50%;
+            transform: translateX(-50%);
+            width: 900px; height: 900px;
+            background: radial-gradient(circle, rgba(124, 58, 237, 0.25) 0%, rgba(236, 72, 153, 0.15) 40%, transparent 70%);
+            filter: blur(80px);
+            z-index: 0;
+            pointer-events: none;
+            animation: pulse 8s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.7; transform: translateX(-50%) scale(1); }
+            50%      { opacity: 1;   transform: translateX(-50%) scale(1.1); }
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #FFFFFF 0%, #C4B5FD 50%, #F9A8D4 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .gradient-accent {
+            background: linear-gradient(135deg, #7C3AED 0%, #EC4899 100%);
+        }
+
+        .gradient-accent-text {
+            background: linear-gradient(135deg, #A78BFA 0%, #F472B6 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .card-glow {
+            background: var(--alpul-card);
+            border: 1px solid var(--alpul-border);
+            box-shadow: 0 20px 60px -20px rgba(124, 58, 237, 0.15);
+        }
+
+        .card-glow:hover {
+            border-color: rgba(124, 58, 237, 0.4);
+            box-shadow: 0 25px 70px -20px rgba(124, 58, 237, 0.3);
+            transition: all 0.25s ease-out;
+        }
+
+        /* Level cards */
+        .level-card {
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .level-card:hover {
+            transform: translateY(-4px);
+        }
+
+        .level-card::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(135deg, transparent 60%, currentColor 200%);
+            opacity: 0.08;
+            pointer-events: none;
+        }
+
+        .level-new      { color: #94A3B8; }
+        .level-trusted  { color: #64748B; }
+        .level-valuable { color: #F59E0B; }
+        .level-elite    { color: #10B981; }
+
+        /* Progress dots between levels */
+        .level-line {
+            background: linear-gradient(90deg, #94A3B8 0%, #64748B 33%, #F59E0B 66%, #10B981 100%);
+            height: 2px;
+        }
+
+        /* Calculator input */
+        .calc-input {
+            background: var(--alpul-bg-soft);
+            border: 1px solid var(--alpul-border);
+            color: var(--alpul-text);
+            transition: border-color 0.2s ease;
+        }
+        .calc-input:focus {
+            outline: none;
+            border-color: var(--alpul-accent);
+            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+        }
+
+        /* Slider */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            cursor: pointer;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 4px;
+            background: var(--alpul-border);
+            border-radius: 2px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 18px; width: 18px;
+            margin-top: -7px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #7C3AED, #EC4899);
+            box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.2);
+        }
+        input[type="range"]::-moz-range-track {
+            height: 4px;
+            background: var(--alpul-border);
+            border-radius: 2px;
+        }
+        input[type="range"]::-moz-range-thumb {
+            height: 18px; width: 18px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #7C3AED, #EC4899);
+        }
+
+        /* Animated number reveal */
+        .num-shift {
+            transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.25s ease;
+        }
+
+        .cta-btn {
+            background: linear-gradient(135deg, #7C3AED 0%, #EC4899 100%);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .cta-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 40px -10px rgba(124, 58, 237, 0.5);
+        }
+        .cta-btn:active { transform: translateY(0); }
+
+        /* Step number badge */
+        .step-num {
+            background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(236, 72, 153, 0.2));
+            border: 1px solid rgba(124, 58, 237, 0.3);
+            color: #C4B5FD;
+        }
+
+        /* Decorative grid */
+        .grid-deco {
+            background-image:
+                linear-gradient(rgba(124, 58, 237, 0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(124, 58, 237, 0.04) 1px, transparent 1px);
+            background-size: 60px 60px;
+        }
+
+        .faq-item summary {
+            list-style: none;
+            cursor: pointer;
+        }
+        .faq-item summary::-webkit-details-marker { display: none; }
+        .faq-item summary .arrow { transition: transform 0.2s ease; }
+        .faq-item[open] summary .arrow { transform: rotate(180deg); }
+
+        /* Subtle fade-in for sections */
+        .fade-in {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.6s ease, transform 0.6s ease;
+        }
+        .fade-in.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        @media (max-width: 768px) {
+            .hero-headline { font-size: 2.5rem !important; line-height: 1.1 !important; }
+        }
+    </style>
+</head>
+<body x-data="alpulLanding()" x-cloak>
+
+<!-- ============ NAV ============ -->
+<nav class="fixed top-0 inset-x-0 z-50 backdrop-blur-xl bg-black/40 border-b border-white/5">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+        <a href="#" class="flex items-center gap-2">
+            <div class="w-9 h-9 rounded-xl gradient-accent flex items-center justify-center font-black text-white text-lg">A</div>
+            <span class="text-xl font-bold tracking-tight">ALPUL</span>
+        </a>
+        <div class="hidden md:flex items-center gap-8 text-sm text-gray-300">
+            <a href="#how" class="hover:text-white transition">Necə işləyir</a>
+            <a href="#levels" class="hover:text-white transition">Səviyyələr</a>
+            <a href="#calc" class="hover:text-white transition">Kalkulyator</a>
+            <a href="#faq" class="hover:text-white transition">SSS</a>
+        </div>
+        <a href="#apply" class="cta-btn text-white text-sm font-semibold px-5 py-2.5 rounded-xl">
+            Müraciət et
+        </a>
+    </div>
+</nav>
+
+<!-- ============ HERO + CALCULATOR ============ -->
+<section class="relative hero-bg pt-32 pb-20 px-6 overflow-hidden">
+    <div class="grid-deco absolute inset-0 opacity-30 pointer-events-none"></div>
+
+    <div class="relative max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
+
+        <!-- Left: Headline -->
+        <div>
+            <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-xs text-gray-300 mb-6">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                Gamification ilə çalışan kredit
+            </div>
+
+            <h1 class="hero-headline text-5xl md:text-6xl font-extrabold tracking-tight leading-[1.05] mb-6">
+                <span class="gradient-text">Kredit ki,</span><br>
+                <span class="text-white">səninla oynayır —</span><br>
+                <span class="gradient-accent-text">sənin xeyrinə.</span>
+            </h1>
+
+            <p class="text-lg text-gray-400 mb-8 max-w-lg leading-relaxed">
+                Hər vaxtında ödəniş faizi aşağı salır. <span class="text-white font-semibold">30% → 27% → 24% → 20%</span> — səviyyən yüksəldikcə kredit ucuzlaşır.
+            </p>
+
+            <div class="flex flex-wrap items-center gap-4">
+                <a href="#apply" class="cta-btn text-white font-semibold px-7 py-3.5 rounded-xl text-base">
+                    İndi başla →
+                </a>
+                <a href="#calc" class="text-gray-300 font-medium px-5 py-3.5 rounded-xl border border-white/10 hover:bg-white/5 transition text-base">
+                    Qənaəti hesabla
+                </a>
+            </div>
+
+            <!-- Trust badges -->
+            <div class="flex flex-wrap items-center gap-x-8 gap-y-3 mt-10 text-xs text-gray-500">
+                <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-emerald-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                    ASAN Finance inteqrasiyası
+                </div>
+                <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-emerald-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                    SIMA imzası ilə
+                </div>
+                <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-emerald-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                    MyGov təsdiqi
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Live Calculator -->
+        <div id="calc" class="card-glow rounded-3xl p-8">
+            <div class="flex items-center justify-between mb-6">
+                <div>
+                    <div class="text-xs uppercase tracking-widest text-violet-400 font-semibold mb-1">Səviyyə Kalkulyatoru</div>
+                    <h3 class="text-2xl font-bold">Ne qədər qənaət edə bilərsən?</h3>
+                </div>
+                <div class="text-right">
+                    <div class="text-xs text-gray-500">Cari səviyyə</div>
+                    <div class="text-sm font-semibold text-emerald-400">🎯 Elite</div>
+                </div>
+            </div>
+
+            <!-- Inputs -->
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="text-xs text-gray-400 mb-2 block">Kredit məbləği</label>
+                    <div class="relative">
+                        <input type="number" x-model.number="amount" min="100" max="5000" step="50"
+                               class="calc-input w-full px-4 py-3 rounded-xl text-lg font-semibold pr-10">
+                        <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₼</span>
+                    </div>
+                    <input type="range" x-model.number="amount" min="100" max="5000" step="50" class="w-full mt-3">
+                </div>
+                <div>
+                    <label class="text-xs text-gray-400 mb-2 block">Müddət</label>
+                    <div class="relative">
+                        <input type="number" x-model.number="term" min="1" max="24" step="1"
+                               class="calc-input w-full px-4 py-3 rounded-xl text-lg font-semibold pr-10">
+                        <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">ay</span>
+                    </div>
+                    <input type="range" x-model.number="term" min="1" max="24" step="1" class="w-full mt-3">
+                </div>
+            </div>
+
+            <!-- Level rows -->
+            <div class="space-y-2.5 mb-5">
+                <template x-for="lvl in levels" :key="lvl.name">
+                    <div class="flex items-center justify-between p-3 rounded-xl bg-black/30 border border-white/5"
+                         :class="lvl.name === 'ELITE' ? 'ring-1 ring-emerald-500/40' : ''">
+                        <div class="flex items-center gap-3">
+                            <span class="text-xl" x-text="lvl.icon"></span>
+                            <div>
+                                <div class="font-semibold text-sm" x-text="lvl.name"></div>
+                                <div class="text-xs text-gray-500" x-text="lvl.subtitle"></div>
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="font-bold text-lg num-shift" :class="lvl.textClass" x-text="formatMoney(totalFor(lvl.rate)) + ' ₼'"></div>
+                            <div class="text-xs text-gray-500">
+                                <span x-text="lvl.rate.toFixed(0)"></span>% faiz
+                                <span x-show="savingsFor(lvl.rate) > 0" class="text-emerald-400 ml-1">
+                                    ↓ <span x-text="formatMoney(savingsFor(lvl.rate))"></span>₼
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Summary -->
+            <div class="rounded-2xl bg-gradient-to-br from-violet-500/10 to-pink-500/10 border border-violet-500/20 p-4 mb-5">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <div class="text-xs text-gray-400 mb-0.5">Elite-də qənaət</div>
+                        <div class="text-2xl font-extrabold gradient-accent-text">
+                            <span x-text="formatMoney(eliteSavings)"></span> ₼
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-xs text-gray-400 mb-0.5">Adi bankla müqayisədə</div>
+                        <div class="text-sm font-semibold text-gray-300">NEW → ELITE</div>
+                    </div>
+                </div>
+            </div>
+
+            <a href="#apply" class="cta-btn block text-center text-white font-semibold py-3.5 rounded-xl">
+                Bu şərtlə müraciət et →
+            </a>
+
+            <p class="text-xs text-gray-500 text-center mt-3">
+                * Nümayiş üçün nümunəvi faiz dərəcələri. Real təklif müraciətdən sonra formalaşır.
+            </p>
+        </div>
+
+    </div>
+</section>
+
+<!-- ============ HOW IT WORKS ============ -->
+<section id="how" class="py-24 px-6 border-t border-white/5">
+    <div class="max-w-7xl mx-auto">
+        <div class="text-center mb-16">
+            <div class="text-xs uppercase tracking-widest text-violet-400 font-semibold mb-3">Necə işləyir</div>
+            <h2 class="text-4xl md:text-5xl font-bold tracking-tight mb-4">3 addımda ucuzlaşan kredit</h2>
+            <p class="text-gray-400 max-w-xl mx-auto">ALPUL sadə bir prinsiplə işləyir: nə qədər düzgün ödəsən, bir sonrakı kredit o qədər ucuz olur.</p>
+        </div>
+
+        <div class="grid md:grid-cols-3 gap-6">
+            <!-- Step 1 -->
+            <div class="card-glow rounded-2xl p-8 relative">
+                <div class="step-num w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg mb-6">1</div>
+                <h3 class="text-xl font-bold mb-3">İlk krediti götür</h3>
+                <p class="text-gray-400 text-sm leading-relaxed mb-4">Sən <span class="text-white font-semibold">NEW</span> səviyyəsində başlayırsan. 30% faizlə, amma bu, sonuncu dəfə bu dərəcədə borc alırsan.</p>
+                <div class="text-xs text-gray-500 px-3 py-2 rounded-lg bg-black/30 border border-white/5">
+                    Misal: 300₼ → 342.86₼ qaytarırsan
+                </div>
+            </div>
+
+            <!-- Step 2 -->
+            <div class="card-glow rounded-2xl p-8 relative">
+                <div class="step-num w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg mb-6">2</div>
+                <h3 class="text-xl font-bold mb-3">Vaxtında ödə</h3>
+                <p class="text-gray-400 text-sm leading-relaxed mb-4">Hər vaxtında ödəniş <span class="text-white font-semibold">xal</span> qazandırır. Gecikmə yoxdursa, növbəti mərhələyə keçidsən.</p>
+                <div class="text-xs text-gray-500 px-3 py-2 rounded-lg bg-black/30 border border-white/5">
+                    1-ci ödəniş vaxtında → TRUSTED (27%)
+                </div>
+            </div>
+
+            <!-- Step 3 -->
+            <div class="card-glow rounded-2xl p-8 relative">
+                <div class="step-num w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg mb-6">3</div>
+                <h3 class="text-xl font-bold mb-3">Səviyyə yüksəlt</h3>
+                <p class="text-gray-400 text-sm leading-relaxed mb-4">Səviyyə nə qədər yüksək olursa, faiz bir o qədər aşağı. <span class="text-white font-semibold">ELITE</span>-də 20% faizlə kredit götürürsən.</p>
+                <div class="text-xs text-gray-500 px-3 py-2 rounded-lg bg-black/30 border border-white/5">
+                    Elite: 300₼ → 325₼ (17.86₼ qənaət)
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ LEVELS LADDER ============ -->
+<section id="levels" class="py-24 px-6 bg-gradient-to-b from-transparent to-violet-950/10 border-t border-white/5">
+    <div class="max-w-7xl mx-auto">
+        <div class="text-center mb-16">
+            <div class="text-xs uppercase tracking-widest text-violet-400 font-semibold mb-3">Səviyyələr</div>
+            <h2 class="text-4xl md:text-5xl font-bold tracking-tight mb-4">Pilləkən yuxarı</h2>
+            <p class="text-gray-400 max-w-xl mx-auto">Hər pillədə faiz düşür, qənaət artır.</p>
+        </div>
+
+        <!-- Ladder visualization -->
+        <div class="relative">
+            <div class="level-line absolute left-0 right-0 top-1/2 -translate-y-1/2 hidden md:block"></div>
+
+            <div class="grid md:grid-cols-4 gap-6 relative">
+                <!-- NEW -->
+                <div class="level-card level-new card-glow rounded-2xl p-6 text-center">
+                    <div class="text-4xl mb-3">🥉</div>
+                    <div class="text-xs uppercase tracking-widest text-gray-400 mb-1">Level 1</div>
+                    <h3 class="text-2xl font-bold mb-2 text-slate-300">NEW</h3>
+                    <div class="text-4xl font-extrabold text-slate-300 mb-1">30<span class="text-xl">%</span></div>
+                    <div class="text-xs text-gray-500 mb-4">Başlanğıc faiz</div>
+                    <div class="text-sm px-3 py-2 rounded-lg bg-black/30 border border-white/5">
+                        300₼ kredit = <span class="font-semibold text-slate-300">342.86₼</span>
+                    </div>
+                </div>
+
+                <!-- TRUSTED -->
+                <div class="level-card level-trusted card-glow rounded-2xl p-6 text-center">
+                    <div class="text-4xl mb-3">🥈</div>
+                    <div class="text-xs uppercase tracking-widest text-gray-400 mb-1">Level 2</div>
+                    <h3 class="text-2xl font-bold mb-2 text-slate-400">TRUSTED</h3>
+                    <div class="text-4xl font-extrabold text-slate-400 mb-1">27<span class="text-xl">%</span></div>
+                    <div class="text-xs text-gray-500 mb-4">1 vaxtında ödənişdən sonra</div>
+                    <div class="text-sm px-3 py-2 rounded-lg bg-black/30 border border-white/5">
+                        300₼ = <span class="font-semibold text-slate-400">336.99₼</span>
+                        <span class="text-emerald-400 ml-1">↓5.87</span>
+                    </div>
+                </div>
+
+                <!-- VALUABLE -->
+                <div class="level-card level-valuable card-glow rounded-2xl p-6 text-center">
+                    <div class="text-4xl mb-3">🥇</div>
+                    <div class="text-xs uppercase tracking-widest text-gray-400 mb-1">Level 3</div>
+                    <h3 class="text-2xl font-bold mb-2 text-amber-500">VALUABLE</h3>
+                    <div class="text-4xl font-extrabold text-amber-500 mb-1">24<span class="text-xl">%</span></div>
+                    <div class="text-xs text-gray-500 mb-4">3 vaxtında ödənişdən sonra</div>
+                    <div class="text-sm px-3 py-2 rounded-lg bg-black/30 border border-white/5">
+                        300₼ = <span class="font-semibold text-amber-500">331.58₼</span>
+                        <span class="text-emerald-400 ml-1">↓11.28</span>
+                    </div>
+                </div>
+
+                <!-- ELITE -->
+                <div class="level-card level-elite card-glow rounded-2xl p-6 text-center ring-1 ring-emerald-500/40">
+                    <div class="text-4xl mb-3">💎</div>
+                    <div class="text-xs uppercase tracking-widest text-emerald-400 mb-1">Level 4 — Max</div>
+                    <h3 class="text-2xl font-bold mb-2 text-emerald-400">ELITE</h3>
+                    <div class="text-4xl font-extrabold text-emerald-400 mb-1">20<span class="text-xl">%</span></div>
+                    <div class="text-xs text-gray-500 mb-4">Ən yüksək etimad</div>
+                    <div class="text-sm px-3 py-2 rounded-lg bg-black/30 border border-white/5">
+                        300₼ = <span class="font-semibold text-emerald-400">325.00₼</span>
+                        <span class="text-emerald-400 ml-1">↓17.86</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progression note -->
+        <div class="mt-12 max-w-2xl mx-auto text-center">
+            <p class="text-sm text-gray-400">
+                <span class="text-white font-semibold">Diqqət:</span> Səviyyə yalnız vaxtında ödənişlə yüksəlir. 90 gündən artıq fasilədə bir pillə geri düşürsən.
+            </p>
+        </div>
+    </div>
+</section>
+
+<!-- ============ SOCIAL PROOF ============ -->
+<section class="py-24 px-6 border-t border-white/5">
+    <div class="max-w-7xl mx-auto">
+        <div class="grid lg:grid-cols-3 gap-8">
+            <!-- Stat 1 -->
+            <div class="text-center">
+                <div class="text-5xl md:text-6xl font-extrabold gradient-accent-text mb-2">5,200+</div>
+                <div class="text-gray-400">istifadəçi artıq ALPUL ilə borc alıb</div>
+            </div>
+            <!-- Stat 2 -->
+            <div class="text-center">
+                <div class="text-5xl md:text-6xl font-extrabold gradient-accent-text mb-2">₼340K</div>
+                <div class="text-gray-400">toplam qənaət (geçən ay)</div>
+            </div>
+            <!-- Stat 3 -->
+            <div class="text-5xl md:text-6xl font-extrabold gradient-accent-text mb-2 text-center">94%</div>
+            <div class="text-gray-400 text-center">istifadəçi ELITE səviyyəsinə çatıb</div>
+        </div>
+
+        <!-- Testimonial -->
+        <div class="mt-16 max-w-3xl mx-auto card-glow rounded-2xl p-8">
+            <div class="flex items-start gap-4">
+                <div class="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center font-bold text-white text-lg flex-shrink-0">E</div>
+                <div>
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="font-semibold">Eli M.</span>
+                        <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">💎 ELITE</span>
+                    </div>
+                    <p class="text-gray-300 leading-relaxed mb-3">"İlk kreditimi 30% faizlə götürdüm. 4 ay dalbadal vaxtında ödədim və indi 20% faizlə kredit alıram. Ümumilikdə 60₼ qənaət etdim. Bu sadəcə bank deyil — oyun qaydaları mənim xeyrimə işləyir."</p>
+                    <div class="text-xs text-gray-500">Bakı · ALPUL istifadəçisi 8 aydır</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section id="faq" class="py-24 px-6 border-t border-white/5">
+    <div class="max-w-3xl mx-auto">
+        <div class="text-center mb-12">
+            <div class="text-xs uppercase tracking-widest text-violet-400 font-semibold mb-3">SSS</div>
+            <h2 class="text-4xl font-bold tracking-tight">Sualların cavabları</h2>
+        </div>
+
+        <div class="space-y-3">
+            <details class="faq-item card-glow rounded-xl p-5">
+                <summary class="flex items-center justify-between">
+                    <span class="font-semibold">Kredit necə alınır?</span>
+                    <svg class="arrow w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </summary>
+                <p class="text-gray-400 text-sm mt-4 leading-relaxed">
+                    Online müraciət et → OTP ilə telefon təsdiqi → ASAN Finance və MyGov məlumatlarının yoxlanılması → SIMA imzası → kredit qərarı. Bütün proses 5 dəqiqə çəkir və tam onlayndır.
+                </p>
+            </details>
+
+            <details class="faq-item card-glow rounded-xl p-5">
+                <summary class="flex items-center justify-between">
+                    <span class="font-semibold">Səviyyə necə yüksəlir?</span>
+                    <svg class="arrow w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </summary>
+                <p class="text-gray-400 text-sm mt-4 leading-relaxed">
+                    Hər vaxtında ödəniş səni bir pillə yuxarı aparır. 1-ci ödənişdən sonra TRUSTED, 3-cüdən sonra VALUABLE, 5-ci vaxtında ödənişdən sonra ELITE səviyyəsinə keçirsən. Gecikmə olarsa, keçid gecikir.
+                </p>
+            </details>
+
+            <details class="faq-item card-glow rounded-xl p-5">
+                <summary class="flex items-center justify-between">
+                    <span class="font-semibold">Vaxtında ödəməsəm nə olur?</span>
+                    <svg class="arrow w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </summary>
+                <p class="text-gray-400 text-sm mt-4 leading-relaxed">
+                    Gecikmə halında növbəti səviyyəyə keçid dondurulur. 90 gündən artıq fasilədə bir pillə geri düşürsən. Amma heç vaxt NEW-dən aşağı düşmürsən — bir dəfə qazandığın status ən azından NEW olaraq qalır.
+                </p>
+            </details>
+
+            <details class="faq-item card-glow rounded-xl p-5">
+                <summary class="flex items-center justify-between">
+                    <span class="font-semibold">Faiz dərəcəsi dəyişə bilərmi?</span>
+                    <svg class="arrow w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </summary>
+                <p class="text-gray-400 text-sm mt-4 leading-relaxed">
+                    Sənin səviyyənin faizi müraciət etdiyin an sabitlənir və kredit müddəti boyu dəyişmir. Yəni 27% ilə başlasan, bütün müddət 27% qalır — səviyyən sonradan yüksəlsə belə.
+                </p>
+            </details>
+
+            <details class="faq-item card-glow rounded-xl p-5">
+                <summary class="flex items-center justify-between">
+                    <span class="font-semibold">Hansı sənədlər lazımdır?</span>
+                    <svg class="arrow w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </summary>
+                <p class="text-gray-400 text-sm mt-4 leading-relaxed">
+                    Yalnız FIN kodu və aktiv telefon nömrəsi. ASAN Finance və MyGov məlumatlarınız avtomatik yoxlanılır. Bəzi hallarda əlavə məlumat (ümumi gəlir, faktiki ünvan) tələb oluna bilər — bunlar ekspert mərhələsində toplanır.
+                </p>
+            </details>
+        </div>
+    </div>
+</section>
+
+<!-- ============ FINAL CTA ============ -->
+<section id="apply" class="py-24 px-6 border-t border-white/5 relative overflow-hidden">
+    <div class="absolute inset-0 hero-bg opacity-50"></div>
+    <div class="relative max-w-4xl mx-auto text-center">
+        <h2 class="text-4xl md:text-6xl font-extrabold tracking-tight mb-6">
+            <span class="gradient-text">Bu gün başla.</span><br>
+            <span class="text-white">Sabah ucuz kredit al.</span>
+        </h2>
+        <p class="text-lg text-gray-400 mb-10 max-w-xl mx-auto">
+            İlk müraciət 5 dəqiqə çəkir. Vaxtında ödəsən, bir sonrakı dəfə daha ucuz.
+        </p>
+        <a href="#" class="cta-btn inline-block text-white font-bold text-lg px-10 py-4 rounded-xl">
+            Müraciət et →
+        </a>
+        <p class="text-xs text-gray-500 mt-6">Müraciət üçün 18+, FIN kodu və aktiv telefon tələb olunur.</p>
+    </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer class="border-t border-white/5 py-12 px-6">
+    <div class="max-w-7xl mx-auto">
+        <div class="grid md:grid-cols-4 gap-8">
+            <div>
+                <div class="flex items-center gap-2 mb-4">
+                    <div class="w-8 h-8 rounded-lg gradient-accent flex items-center justify-center font-black text-white text-sm">A</div>
+                    <span class="text-lg font-bold">ALPUL</span>
+                </div>
+                <p class="text-sm text-gray-500">Gamification ilə çalışan smart kredit platforması.</p>
+            </div>
+            <div>
+                <div class="text-sm font-semibold mb-3 text-gray-300">Məhsul</div>
+                <ul class="space-y-2 text-sm text-gray-500">
+                    <li><a href="#how" class="hover:text-white transition">Necə işləyir</a></li>
+                    <li><a href="#levels" class="hover:text-white transition">Səviyyələr</a></li>
+                    <li><a href="#calc" class="hover:text-white transition">Kalkulyator</a></li>
+                </ul>
+            </div>
+            <div>
+                <div class="text-sm font-semibold mb-3 text-gray-300">Şirkət</div>
+                <ul class="space-y-2 text-sm text-gray-500">
+                    <li><a href="#" class="hover:text-white transition">Haqqımızda</a></li>
+                    <li><a href="#" class="hover:text-white transition">Lisenziya</a></li>
+                    <li><a href="#" class="hover:text-white transition">Əlaqə</a></li>
+                </ul>
+            </div>
+            <div>
+                <div class="text-sm font-semibold mb-3 text-gray-300">Qanuni</div>
+                <ul class="space-y-2 text-sm text-gray-500">
+                    <li><a href="#" class="hover:text-white transition">Şərtlər</a></li>
+                    <li><a href="#" class="hover:text-white transition">Gizlilik</a></li>
+                    <li><a href="#faq" class="hover:text-white transition">SSS</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="mt-12 pt-6 border-t border-white/5 flex flex-col md:flex-row justify-between items-center text-xs text-gray-500">
+            <div>© 2026 ALPUL. Bütün hüquqlar qorunur.</div>
+            <div class="mt-3 md:mt-0">Lisenziyalaşdırılmış kredit təşkilatı · AMFK #1234</div>
+        </div>
+    </div>
+</footer>
+
+<script>
+function alpulLanding() {
+    return {
+        amount: 300,
+        term: 3,
+        levels: [
+            { name: 'NEW',      subtitle: 'Başlanğıc səviyyə',  icon: '🥉', rate: 30, textClass: 'text-slate-300' },
+            { name: 'TRUSTED',  subtitle: '1 ödənişdən sonra',  icon: '🥈', rate: 27, textClass: 'text-slate-400' },
+            { name: 'VALUABLE', subtitle: '3 ödənişdən sonra',  icon: '🥇', rate: 24, textClass: 'text-amber-500' },
+            { name: 'ELITE',    subtitle: 'Maksimum etimad',    icon: '💎', rate: 20, textClass: 'text-emerald-400' },
+        ],
+
+        // Total = Principal + (Rate / (100 - Rate)) × 100
+        totalFor(rate) {
+            if (rate <= 0 || rate >= 100) return this.amount;
+            const interest = (rate / (100 - rate)) * 100;
+            const total = this.amount + interest;
+            return Math.round(total * 100) / 100;
+        },
+
+        // Savings vs NEW level (30%)
+        savingsFor(rate) {
+            const base = this.totalFor(30);
+            const cur  = this.totalFor(rate);
+            return Math.round((base - cur) * 100) / 100;
+        },
+
+        get eliteSavings() {
+            return this.savingsFor(20);
+        },
+
+        formatMoney(v) {
+            return v.toLocaleString('az-AZ', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+    }
+}
+
+// Fade-in on scroll
+const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+        if (e.isIntersecting) e.target.classList.add('visible');
+    });
+}, { threshold: 0.1 });
+document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+</script>
+
+<style>
+[x-cloak] { display: none !important; }
+</style>
+
+</body>
+</html>
