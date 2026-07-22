@@ -500,6 +500,466 @@
               }
             }
           ]
+        },
+        {
+          "name": "🔴 Reject #1: AKB score < 200 (PR #51)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mock/lw/setup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mock",
+                "lw",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"REJECT_AKB_LOW\",\n  \"scenario_name\": \"akb_score_low\",\n  \"loans\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Qayda 1 (PR #51): AKB skoru 200-dən aşağı → reject.\n\nBu scenario müştərinin kredit tarixçəsini boş qaytarır. AKB skoru müraciət zamanı göndərilir:\n\n```\nPOST /api/applications/init\n{ \"akb_score\": 150 }\n```\n\nVə ya real AKB servisi 150 qaytararsa, avtomatik reject olacaq.\n\nGözlənilən reject reason: 'AKB score 150 below minimum (200)'"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Reject #4: AKB stop factors (PR #51)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mock/lw/setup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mock",
+                "lw",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"REJECT_STOP_FACTORS\",\n  \"scenario_name\": \"akb_stop_factors\",\n  \"loans\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Qayda 4 (PR #51): AKB stop faktorları mövcuddursa → reject.\n\nStop faktorları AKB skoru response-da 2 hərfli kodlar kimi gəlir (məs: AB, TY).\nBu mock setup scenario yalnız müştəri kredit tarixçəsini boş qaytarır —\nstop faktorları real AKB servisi tərəfindən təmin edilir.\n\nGözlənilən reject reason: 'AKB stop factor(s): AB, TY'"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Reject #3: Age > 69 (PR #51)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mock/lw/setup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mock",
+                "lw",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"REJECT_AGE\",\n  \"scenario_name\": \"age_over_69\",\n  \"loans\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Qayda 3 (PR #51): Müştərinin yaşı 69-dan yuxarı → reject.\n\nYaş PersonalInfo (DIN) servisdən gəlir — DOB göndərilir, biz yaş hesablayırıq.\nBu mock setup scenario müştəri kredit tarixçəsini boş qaytarır.\n\nGözlənilən reject reason: 'Customer age 76 exceeds maximum (69)'"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Reject #5: AZMK blacklist (PR #53)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mock/lw/setup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mock",
+                "lw",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"REJECT_AZMK\",\n  \"scenario_name\": \"azmk_blacklisted\",\n  \"loans\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Qayda 5 (PR #53): Müştəri AZMK (Mərkəzi Kredit Reyestri) qara siyahısındadır → reject.\n\nAZMK yoxlanışı LW router vasitəsilə həyata keçir:\n```\nGET /api/router/azmk-blacklist?fin={{customer_pin}}\n```\n\nBu mock setup scenario yalnız müştəri kredit tariyçəsini boş qaytarır —\nAZMK statusu real AZMK servisdən gəlir.\n\nGözlənilən reject reason: 'Customer is on the AZMK (Central Credit Register) blacklist'"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Reject #6: Aktiv kredit cari gecikmə > 5 gün (PR #52)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mock/lw/setup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mock",
+                "lw",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"REJECT_ACTIVE_DELAY\",\n  \"scenario_name\": \"active_loan_high_delay\",\n  \"loans\": [\n    {\n      \"lms_loan_id\": \"LOAN-ACTIVE-DELAY\",\n      \"loan_type\": \"consumer\",\n      \"amount\": 1500,\n      \"term_months\": 12,\n      \"start_date\": \"2025-06-01\",\n      \"end_date\": \"2026-06-01\",\n      \"status\": \"active\",\n      \"remaining_amount\": 800,\n      \"was_on_time\": false,\n      \"early_completion\": false,\n      \"delay_days\": 10,\n      \"level_at_close\": \"\",\n      \"closed_at\": \"\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Qayda 6 (PR #52): Aktiv kreditdə cari gecikmə 5 gündən çox → reject.\n\nBu scenario aktiv krediti 10 gün gecikmə ilə təşkil edir.\nLW GetCustomerLoans bu krediti qaytaracaq və engine reject edəcək.\n\nGözlənilən reject reason: 'Active loan has 10 days current overdue (max allowed: 5)'"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Reject: Gecikməli ödəniş tarixçəsi (mövcud qayda)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mock/lw/setup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mock",
+                "lw",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"REJECT_LATE_PAYMENTS\",\n  \"scenario_name\": \"late_payment_history\",\n  \"loans\": [\n    {\n      \"lms_loan_id\": \"LOAN-LATE\",\n      \"loan_type\": \"consumer\",\n      \"amount\": 500,\n      \"term_months\": 3,\n      \"start_date\": \"2024-01-01\",\n      \"end_date\": \"2024-04-01\",\n      \"status\": \"completed\",\n      \"remaining_amount\": 0,\n      \"was_on_time\": false,\n      \"early_completion\": false,\n      \"delay_days\": 5,\n      \"level_at_close\": \"new\",\n      \"closed_at\": \"2024-04-05\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Mövcud qayda: Bağlanmış kreditlərdə gecikmə varsa → reject.\n\nBu scenario 1 bağlanmış krediti 5 gün gecikmə ilə təşkil edir.\n\nGözlənilən reject reason: 'Late payments found in loan history'"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Reject: Aktiv kredit mövcuddur (mövcud qayda)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mock/lw/setup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mock",
+                "lw",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"REJECT_ACTIVE_LOAN\",\n  \"scenario_name\": \"has_active_loan\",\n  \"loans\": [\n    {\n      \"lms_loan_id\": \"LOAN-ACTIVE\",\n      \"loan_type\": \"consumer\",\n      \"amount\": 1000,\n      \"term_months\": 6,\n      \"start_date\": \"2026-01-01\",\n      \"end_date\": \"2026-07-01\",\n      \"status\": \"active\",\n      \"remaining_amount\": 500,\n      \"was_on_time\": true,\n      \"early_completion\": false,\n      \"delay_days\": 0,\n      \"level_at_close\": \"\",\n      \"closed_at\": \"\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Mövcud qayda: Aktiv krediti olan müştəriyə yeni kredit verilmir.\n\nGözlənilən reject reason: 'Customer has active loans'"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Reject: Müştəri LW qara siyahısındadır (T-1.5)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mock/lw/setup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mock",
+                "lw",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"REJECT_BLACKLIST\",\n  \"scenario_name\": \"blacklisted_customer\",\n  \"loans\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Mövcud qayda (T-1.5): Müştəri LW-nin öz qara siyahısındadır.\n\nMock modda CheckBlacklist həmişə false qaytarır — bu scenario yalnız\ninformasiya məqsədlidir. Real LW-də qara siyahı yoxlanışı:\n```\nGET /api/lw/blacklist?fin={{customer_pin}}\n```\n\nGözlənilən reject reason: 'Customer is blacklisted'"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "ℹ️ AKB History qaydaları (2, 7, 8, 9, 10, 12) — sınaq qeydləri",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mock/lw/setup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mock",
+                "lw",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"REJECT_AKB_HISTORY_DOC\",\n  \"scenario_name\": \"akb_history_rules_documentation\",\n  \"loans\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "PR #52 qaydaları AKB History məlumatları əsasında işləyir:\n\n| Qayda | Şərt | Threshold |\n|-------|------|-----------|\n| 2 | Gecikmə əmsalı (24 ay) | > 6 gün/ay |\n| 7 | Son 3 ay max gecikmə | >= 20 gün |\n| 8 | Son 6 ay max gecikmə | >= 30 gün |\n| 9 | Son 12 ay max gecikmə | >= 45 gün |\n| 10 | Son 18 ay max gecikmə | >= 60 gün |\n| 12 | Aktiv aylıq ödənişlər | > 2000 AZN |\n\nBu qaydalar AKB History servisdən gələn məlumatlara əsaslanır:\n```\nGET /api/router/akb-history?fin={{customer_pin}}&serial={{customer_serial}}\n```\n\nSınaq üçün mock AKB History-ni konfiqurasiya etmək lazımdır. Bu,\nmock modda birbaşa Postman-dən mümkün deyil — kod səviyyəsində testlər\nphase1_test.go-da implementasiya olunub.\n\nİstehsalat mühitində LW-nin AKB History endpoint-indən gələcək real\nməlumatlarla bu qaydalar avtomatik aktivləşəcək."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "ℹ️ Qayda 11: Komplayns (manual proses)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/mock/lw/setup",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "mock",
+                "lw",
+                "setup"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customer_pin\": \"REJECT_COMPLIANCE_DOC\",\n  \"scenario_name\": \"compliance_manual_doc\",\n  \"loans\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Qayda 11 (Komplayns yoxlaması) — manual proses, kod dəyişikliyi yoxdur.\n\nWorkflow:\n1. Ekspert müştərinin komplayns statusunu manual yoxlayır\n2. Əgər komplayns problemlidirsə, ekspert compliance-ə yönləndirir\n3. Compliance kredit verməyi məqbul hesab etməsə, ekspert reject edir\n\nReject üçün:\n```\nPUT /api/expert/{{application_id}}/reject\n{ \"reason\": \"Compliance tərəfindən imtina: komplayns yoxlaması keçilmədi\" }\n```\n\nBu qayda avtomatik deyil — tamamilə ekspert/compliance qərarıdır."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -1047,6 +1507,43 @@
               ]
             },
             "description": "Qara siyahı yoxlaması."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has is_blacklisted\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"is_blacklisted\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 AZMK Blacklist: Not on blacklist (PR #53)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/router/azmk-blacklist?fin={{customer_pin}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "azmk-blacklist?fin={{customer_pin}}"
+              ]
+            },
+            "description": "AZMK (Mərkəzi Kredit Reyestri) qara siyahısı yoxlanışı (PR #53, qayda 5).\n\nResponse: {\"fin\":\"...\",\"is_blacklisted\":false}\n\nƏgər is_blacklisted=true → müraciət avtomatik reject olunacaq."
           },
           "event": [
             {
