@@ -62,16 +62,96 @@ type PersonalInfoResponse struct {
         Address      string `json:"address"`
 }
 
-// AkbScoreResponse contains the AKB credit score.
+// AkbScoreResponse mirrors the LW router JSON response, which is a direct
+// conversion of the AKB SOAP XML (tag names preserved).
+//
+// AKB SOAP structure (per business, PR #55):
+//
+//   <soap:Envelope>
+//     <soap:Body>
+//       <ns2:getBorrowerScoreResponse xmlns:ns2="http://inquiryws.mkr.risk.az/">
+//         <return>
+//           <response>AB</response>   ← stop factor code (empty when no stop factor)
+//           <point>1</point>          ← score: 1 = stop factor present, >1 = real score
+//         </return>
+//       </ns2:getBorrowerScoreResponse>
+//     </soap:Body>
+//   </soap:Envelope>
+//
+// LW converts this SOAP to JSON, preserving the XML tag names. The resulting
+// JSON looks like:
+//
+//   Stop factor present:
+//     {"return": {"response": "AB", "point": 1}}
+//
+//   No stop factor:
+//     {"return": {"response": "",     "point": 750}}
+//
+// Rules (PR #55):
+//   - point == 1 → stop factor is present; response holds the 2-letter code
+//   - point >  1 → real credit score; response is empty
+//   - Only one stop factor code is returned at a time (never multiple)
 type AkbScoreResponse struct {
+        // Fin is set by the LW router (not part of the AKB SOAP body) so the
+        // caller can correlate the response with the request.
         Fin       string `json:"fin"`
-        Score     int    `json:"score"`
-        QueryDate string `json:"query_date"`
 
-        // StopFactors contains 2-letter stop factor codes returned by AKB
-        // (e.g. "AB", "TY"). If the list is non-empty, the application must be
-        // rejected automatically — see PR #51 (rejection rule 4).
-        StopFactors []string `json:"stop_factors,omitempty"`
+        // QueryDate is set by the LW router (echoes the inquiry date).
+        QueryDate string `json:"query_date,omitempty"`
+
+        // Return mirrors the AKB SOAP <return> element. LW preserves the tag
+        // name verbatim during SOAP→JSON conversion.
+        Return *AkbScoreReturn `json:"return,omitempty"`
+}
+
+// AkbScoreReturn mirrors the AKB SOAP <return> element containing the score
+// and stop factor code.
+type AkbScoreReturn struct {
+        // Response holds the 2-letter stop factor code when Point == 1
+        // (e.g. "AB", "TY"). Empty string when no stop factor is present.
+        Response string `json:"response,omitempty"`
+
+        // Point is the AKB credit score.
+        //   1  → stop factor present (see Response)
+        //   >1 → real credit score
+        Point int `json:"point"`
+}
+
+// Helper accessors on AkbScoreResponse keep the decision logic readable and
+// centralize the "score == 1 means stop factor" rule.
+
+// HasStopFactor returns true when AKB signalled a stop factor (Point == 1).
+// Returns false when the response is nil (LW error / unavailable).
+func (r *AkbScoreResponse) HasStopFactor() bool {
+        return r != nil && r.Return != nil && r.Return.Point == 1
+}
+
+// StopFactorCode returns the 2-letter stop factor code when HasStopFactor is
+// true, otherwise empty string.
+func (r *AkbScoreResponse) StopFactorCode() string {
+        if r.HasStopFactor() {
+                return r.Return.Response
+        }
+        return ""
+}
+
+// Score returns the real AKB credit score. When a stop factor is present
+// (Point == 1), returns 0 because the "real" score is not available — the
+// caller should check HasStopFactor first and treat the application as
+// rejected on stop-factor grounds. When no stop factor, returns Point.
+//
+// Returns 0 when the response is nil (LW error / unavailable) — the caller
+// treats 0 as "no AKB information" and falls back to the request-supplied
+// score (fail-soft).
+func (r *AkbScoreResponse) Score() int {
+        if r == nil || r.Return == nil {
+                return 0
+        }
+        if r.Return.Point == 1 {
+                // Stop factor present — the real score is not meaningful.
+                return 0
+        }
+        return r.Return.Point
 }
 
 // AkbHistoryResponse contains the full AKB inquiry response.

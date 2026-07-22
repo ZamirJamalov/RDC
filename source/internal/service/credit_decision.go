@@ -5,7 +5,6 @@ import (
         "fmt"
         "log/slog"
         "math"
-        "strings"
 
         "rdc-source/internal/model"
         "rdc-source/internal/repository"
@@ -67,20 +66,27 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
                 }, nil
         }
 
-        // 2. Reject: AKB stop factors present (PR #51, rule 4)
-        if len(analytics.akbStopFactors) > 0 {
+        // 2. Reject: AKB stop factor present (PR #51, rule 4; PR #55 real format)
+        // AKB signals a stop factor with Point == 1 and a 2-letter code in
+        // <response>. Only one code is returned at a time (per business).
+        if analytics.akbHasStopFactor {
+                code := analytics.akbStopFactorCode
+                if code == "" {
+                        code = "unknown"
+                }
                 return &decisionResult{
                         Status: model.StatusRejected,
-                        RejectionReason: fmt.Sprintf("AKB stop factor(s): %s",
-                                strings.Join(analytics.akbStopFactors, ", ")),
+                        RejectionReason: fmt.Sprintf("AKB stop factor: %s (score=1)",
+                                code),
                 }, nil
         }
 
         // 3. Reject: AKB score below threshold (PR #51, rule 1)
-        // Note: a score of 0 means AKB didn't return a value (we fell back to the
-        // request-supplied akbScore, which may also be 0). We only reject on a
+        // Note: score == 0 means AKB didn't return a usable value (we fell back to
+        // the request-supplied akbScore, which may also be 0). We only reject on a
         // genuine low score (> 0 and < 200) — a missing score is treated as
         // "no information" and does not block the application.
+        // Score == 1 is already handled above as a stop factor.
         if analytics.akbScore > 0 && analytics.akbScore < 200 {
                 return &decisionResult{
                         Status: model.StatusRejected,

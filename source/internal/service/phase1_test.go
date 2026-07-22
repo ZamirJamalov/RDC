@@ -234,12 +234,15 @@ func TestProcessApplication_LWApproveLoanNotCalledForPendingApproval(t *testing.
 }
 
 // TestResolveAkbScore_LWOverride (T-1.6) verifies that when LW returns a
-// non-zero AKB score, it overrides the request-supplied value.
+// real AKB score (>1), it overrides the request-supplied value.
 func TestResolveAkbScore_LWOverride(t *testing.T) {
         ctx := context.Background()
 
         provider := newMockLWProvider()
-        provider.akbScore = &lw.AkbScoreResponse{Score: 750, Fin: "PIN1"}
+        provider.akbScore = &lw.AkbScoreResponse{
+                Fin:    "PIN1",
+                Return: &lw.AkbScoreReturn{Response: "", Point: 750},
+        }
 
         engine := NewCreditEngine(provider, newMockStore())
 
@@ -251,12 +254,15 @@ func TestResolveAkbScore_LWOverride(t *testing.T) {
 }
 
 // TestResolveAkbScore_LWZeroFallbackToRequest (T-1.6) verifies that when LW
-// returns score=0, the request-supplied value is used.
+// returns Point=0 (no usable data), the request-supplied value is used.
 func TestResolveAkbScore_LWZeroFallbackToRequest(t *testing.T) {
         ctx := context.Background()
 
         provider := newMockLWProvider()
-        provider.akbScore = &lw.AkbScoreResponse{Score: 0, Fin: "PIN1"} // LW has no score
+        provider.akbScore = &lw.AkbScoreResponse{
+                Fin:    "PIN1",
+                Return: &lw.AkbScoreReturn{Response: "", Point: 0}, // LW has no score
+        }
 
         engine := NewCreditEngine(provider, newMockStore())
 
@@ -299,7 +305,10 @@ func TestProcessApplication_AKBFromLWUsedForLevel(t *testing.T) {
 
         // No loans → would be "new" with AKB 400. But LW says AKB 750 → "valuable".
         provider := newMockLWProvider()
-        provider.akbScore = &lw.AkbScoreResponse{Score: 750, Fin: "PIN1"}
+        provider.akbScore = &lw.AkbScoreResponse{
+                Fin:    "PIN1",
+                Return: &lw.AkbScoreReturn{Response: "", Point: 750},
+        }
 
         engine := NewCreditEngine(provider, store)
         if err := engine.ProcessApplication(ctx, 1); err != nil {
@@ -564,8 +573,11 @@ func TestProcessApplication_AkbScoreBelow200(t *testing.T) {
         store.rate = 30.0
 
         provider := newMockLWProvider()
-        // LW returns AKB score 150 — below 200 threshold.
-        provider.akbScore = &lw.AkbScoreResponse{Fin: "PIN1", Score: 150}
+        // LW returns AKB score 150 — below 200 threshold, no stop factor.
+        provider.akbScore = &lw.AkbScoreResponse{
+                Fin:    "PIN1",
+                Return: &lw.AkbScoreReturn{Response: "", Point: 150},
+        }
 
         engine := NewCreditEngine(provider, store)
         if err := engine.ProcessApplication(ctx, 1); err != nil {
@@ -613,8 +625,11 @@ func TestProcessApplication_AkbScoreZeroNoRejection(t *testing.T) {
         store.currentLevel = ""
 
         provider := newMockLWProvider()
-        // LW returns AKB score 0 — fallback to request value (400).
-        provider.akbScore = &lw.AkbScoreResponse{Fin: "PIN1", Score: 0}
+        // LW returns Point=0 (no usable AKB data) — fallback to request value (400).
+        provider.akbScore = &lw.AkbScoreResponse{
+                Fin:    "PIN1",
+                Return: &lw.AkbScoreReturn{Response: "", Point: 0},
+        }
 
         engine := NewCreditEngine(provider, store)
         if err := engine.ProcessApplication(ctx, 1); err != nil {
@@ -630,8 +645,9 @@ func TestProcessApplication_AkbScoreZeroNoRejection(t *testing.T) {
         }
 }
 
-// TestProcessApplication_AkbStopFactorRejection verifies that any non-empty
-// AKB stop factor list causes rejection (PR #51, rule 4).
+// TestProcessApplication_AkbStopFactorRejection verifies that a stop factor
+// signalled by AKB (Point == 1 + 2-letter code) causes rejection
+// (PR #51, rule 4; PR #55 real SOAP format).
 func TestProcessApplication_AkbStopFactorRejection(t *testing.T) {
         ctx := context.Background()
 
@@ -642,11 +658,11 @@ func TestProcessApplication_AkbStopFactorRejection(t *testing.T) {
         store.rate = 30.0
 
         provider := newMockLWProvider()
-        // High AKB score BUT stop factors present — must still reject.
+        // AKB signals stop factor: Point == 1, Response = "AB".
+        // Per business: only one stop factor code at a time.
         provider.akbScore = &lw.AkbScoreResponse{
-                Fin:         "PIN1",
-                Score:       750,
-                StopFactors: []string{"AB", "TY"},
+                Fin:    "PIN1",
+                Return: &lw.AkbScoreReturn{Response: "AB", Point: 1},
         }
 
         engine := NewCreditEngine(provider, store)
@@ -659,13 +675,16 @@ func TestProcessApplication_AkbStopFactorRejection(t *testing.T) {
         }
         du := store.decisionUpdates[0]
         if du.Status != model.StatusRejected {
-                t.Errorf("status = %q, want rejected (stop factors override score)", du.Status)
+                t.Errorf("status = %q, want rejected (stop factor overrides everything)", du.Status)
         }
         if !contains(du.RejectionReason, "AKB stop factor") {
                 t.Errorf("rejection reason = %q, want stop factor message", du.RejectionReason)
         }
-        if !contains(du.RejectionReason, "AB") || !contains(du.RejectionReason, "TY") {
-                t.Errorf("rejection reason = %q, want both codes AB and TY listed", du.RejectionReason)
+        if !contains(du.RejectionReason, "AB") {
+                t.Errorf("rejection reason = %q, want stop factor code AB listed", du.RejectionReason)
+        }
+        if !contains(du.RejectionReason, "score=1") {
+                t.Errorf("rejection reason = %q, want 'score=1' marker", du.RejectionReason)
         }
 
         // Verify the akb_stop_factor_check was saved with failed status.

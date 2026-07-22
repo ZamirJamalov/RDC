@@ -82,7 +82,13 @@ func (m *mockLWProvider) GetAkbScore(_ context.Context, fin, _ string) (*lw.AkbS
                 return nil, m.akbScoreErr
         }
         if m.akbScore == nil {
-                return &lw.AkbScoreResponse{Fin: fin, Score: 0}, nil
+                // Default: AKB returned no usable data (Point == 0). The engine
+                // falls back to the request-supplied akbScore. Tests that need a
+                // specific score or stop factor should set m.akbScore explicitly.
+                return &lw.AkbScoreResponse{
+                        Fin:    fin,
+                        Return: &lw.AkbScoreReturn{Response: "", Point: 0},
+                }, nil
         }
         return m.akbScore, nil
 }

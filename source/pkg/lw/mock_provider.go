@@ -153,13 +153,15 @@ func (p *MockProvider) GetPersonalInfo(ctx context.Context, fin, serial string) 
 }
 
 // GetAkbScore returns a mock AKB score.
-// Mock implementation: returns score 0 (no override) unless the score is
-// pre-configured in the mock_lms_loans table. StopFactors is empty by default.
+// Mock implementation: returns an empty response with no stop factor and
+// no real score (Score() returns 0). The engine falls back to the
+// request-supplied akbScore. Tests can use the test mock
+// (mock_lw_provider_test.go) to inject specific AKB responses.
 func (p *MockProvider) GetAkbScore(ctx context.Context, fin, serial string) (*AkbScoreResponse, error) {
         return &AkbScoreResponse{
                 Fin:       fin,
-                Score:     0, // 0 means "no override" — the engine falls back to the request-supplied score
                 QueryDate: "",
+                Return:    &AkbScoreReturn{Response: "", Point: 0},
         }, nil
 }
 
