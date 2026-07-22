@@ -2,6 +2,7 @@ package service
 
 import (
         "context"
+        "fmt"
 
         "rdc-source/pkg/lw"
 )
@@ -33,6 +34,10 @@ type mockLWProvider struct {
         // GetPersonalInfo
         personalInfo    *lw.PersonalInfoResponse
         personalInfoErr error
+
+        // GetAkbHistory
+        akbHistory    *lw.AkbHistoryResponse
+        akbHistoryErr error
 
         // ApproveLoan (T-1.1)
         approveLoanResp    *lw.ApproveLoanResponse
@@ -90,8 +95,20 @@ func (m *mockLWProvider) GetPersonalInfo(_ context.Context, fin, _ string) (*lw.
         return m.personalInfo, nil
 }
 
-func (m *mockLWProvider) GetAkbHistory(_ context.Context, _, _ string) (*lw.AkbHistoryResponse, error) {
-        return nil, errMockNotConfigured
+func (m *mockLWProvider) GetAkbHistory(_ context.Context, fin, _ string) (*lw.AkbHistoryResponse, error) {
+        if m.akbHistoryErr != nil {
+                return nil, m.akbHistoryErr
+        }
+        if m.akbHistory == nil {
+                // Default: empty AKB history (no liabilities) so existing tests pass.
+                return &lw.AkbHistoryResponse{
+                        ReportID:      fmt.Sprintf("MOCK-AKB-%s", fin),
+                        ReportingDate: "2026-01-01",
+                        Borrower:      lw.AkbBorrower{Fin: fin, Name: "Mock Customer", Status: "active"},
+                        Liabilities:   []lw.AkbLiability{},
+                }, nil
+        }
+        return m.akbHistory, nil
 }
 
 func (m *mockLWProvider) GetAsanFinance(_ context.Context, _ string) (*lw.AsanFinanceResponse, error) {

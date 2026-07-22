@@ -27,18 +27,24 @@ type decisionResult struct {
 // applies via applyDecisionTx.
 //
 // Decision order (first match wins):
-//  1. Blacklisted            → reject (T-1.5)
-//  2. AKB stop factors       → reject (PR #51, rule 4)
-//  3. AKB score < 200        → reject (PR #51, rule 1)
-//  4. Age > 69               → reject (PR #51, rule 3)
-//  5. Active loan            → reject
-//  6. Late payments          → reject
-//  7. No applicable rate     → reject (with descriptive reason)
-//  8. Elite level            → approve (auto)
-//  9. Other levels           → pending_approval (manual review)
+//  1.  Blacklisted                  → reject (T-1.5)
+//  2.  AKB stop factors             → reject (PR #51, rule 4)
+//  3.  AKB score < 200              → reject (PR #51, rule 1)
+//  4.  Age > 69                     → reject (PR #51, rule 3)
+//  4b. Delay ratio > 6 (24 months)  → reject (PR #52, rule 2)
+//  4c. Active delay > 5 days        → reject (PR #52, rule 6)
+//  4d. Last 3 months max ≥ 20       → reject (PR #52, rule 7)
+//  4e. Last 6 months max ≥ 30       → reject (PR #52, rule 8)
+//  4f. Last 12 months max ≥ 45      → reject (PR #52, rule 9)
+//  4g. Last 18 months max ≥ 60      → reject (PR #52, rule 10)
+//  4h. Monthly payments > 2000 AZN  → reject (PR #52, rule 12)
+//  5.  Active loan                  → reject
+//  6.  Late payments                → reject
+//  7.  No applicable rate           → reject (with descriptive reason)
+//  8.  Elite level                  → approve (auto)
+//  9.  Other levels                 → pending_approval (manual review)
 //
-// This function does NOT write to the DB — it's a pure decision computation
-// so it's easy to test in isolation.
+// Rules 4b–4h are skipped when AKB history is unavailable (fail-soft).
 func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel string,
         unlockPhase int, app *model.LoanApplication, blacklisted bool) (*decisionResult, error) {
 
@@ -81,6 +87,75 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
                         RejectionReason: fmt.Sprintf("Customer age %d exceeds maximum (69)",
                                 analytics.customerAge),
                 }, nil
+        }
+
+        // 4b-4h: AKB History-based rejections (PR #52).
+        // All 7 rules are gated on analytics.akbHistoryAvailable — when AKB is
+        // unreachable, the rules are skipped (fail-soft). Per business decision,
+        // an unreachable AKB must not block the application.
+        if analytics.akbHistoryAvailable {
+                // 4b. Reject: delay ratio > 6 days/month over last 24 months (rule 2)
+                if analytics.delayRatio > 6 {
+                        return &decisionResult{
+                                Status: model.StatusRejected,
+                                RejectionReason: fmt.Sprintf("Delay ratio %.2f exceeds maximum (6 days/month) over last 24 months",
+                                        analytics.delayRatio),
+                        }, nil
+                }
+
+                // 4c. Reject: active liability with current delay > 5 days (rule 6)
+                if analytics.activeMaxDelayDays > 5 {
+                        return &decisionResult{
+                                Status: model.StatusRejected,
+                                RejectionReason: fmt.Sprintf("Active loan has %d days current overdue (max allowed: 5)",
+                                        analytics.activeMaxDelayDays),
+                        }, nil
+                }
+
+                // 4d. Reject: any single-month delay >= 20 in last 3 months (rule 7)
+                if analytics.maxDelayLast3Months >= 20 {
+                        return &decisionResult{
+                                Status: model.StatusRejected,
+                                RejectionReason: fmt.Sprintf("Max delay %d days in last 3 months (threshold: 20)",
+                                        analytics.maxDelayLast3Months),
+                        }, nil
+                }
+
+                // 4e. Reject: any single-month delay >= 30 in last 6 months (rule 8)
+                if analytics.maxDelayLast6Months >= 30 {
+                        return &decisionResult{
+                                Status: model.StatusRejected,
+                                RejectionReason: fmt.Sprintf("Max delay %d days in last 6 months (threshold: 30)",
+                                        analytics.maxDelayLast6Months),
+                        }, nil
+                }
+
+                // 4f. Reject: any single-month delay >= 45 in last 12 months (rule 9)
+                if analytics.maxDelayLast12Months >= 45 {
+                        return &decisionResult{
+                                Status: model.StatusRejected,
+                                RejectionReason: fmt.Sprintf("Max delay %d days in last 12 months (threshold: 45)",
+                                        analytics.maxDelayLast12Months),
+                        }, nil
+                }
+
+                // 4g. Reject: any single-month delay >= 60 in last 18 months (rule 10)
+                if analytics.maxDelayLast18Months >= 60 {
+                        return &decisionResult{
+                                Status: model.StatusRejected,
+                                RejectionReason: fmt.Sprintf("Max delay %d days in last 18 months (threshold: 60)",
+                                        analytics.maxDelayLast18Months),
+                        }, nil
+                }
+
+                // 4h. Reject: total monthly payments on active liabilities > 2000 AZN (rule 12)
+                if analytics.totalMonthlyPayments > 2000 {
+                        return &decisionResult{
+                                Status: model.StatusRejected,
+                                RejectionReason: fmt.Sprintf("Total monthly payments %.2f AZN exceeds maximum (2000)",
+                                        analytics.totalMonthlyPayments),
+                        }, nil
+                }
         }
 
         // 5. Reject: active loans

@@ -30,6 +30,39 @@ type loanAnalytics struct {
         // customerAge is the customer's age in years, computed from DOB
         // returned by GetPersonalInfo. Rule: age > 69 → reject.
         customerAge int
+
+        // PR #52 — AKB History-derived fields (populated from GetAkbHistory).
+
+        // delayRatio is the average delay days per payment month over the last 24
+        // months. Formula: sum(OverdueDays in last 24 months) / count(active months).
+        // Rule: delayRatio > 6 → reject (rule 2).
+        delayRatio float64
+
+        // activeMaxDelayDays is the maximum DaysMainSumOverdue across active
+        // liabilities. Rule: > 5 → reject (rule 6).
+        activeMaxDelayDays int
+
+        // maxDelayLast3Months is the maximum OverdueDays observed in any single
+        // reporting period within the last 3 months. Rule: >= 20 → reject (rule 7).
+        maxDelayLast3Months int
+
+        // maxDelayLast6Months — rule 8: >= 30 → reject.
+        maxDelayLast6Months int
+
+        // maxDelayLast12Months — rule 9: >= 45 → reject.
+        maxDelayLast12Months int
+
+        // maxDelayLast18Months — rule 10: >= 60 → reject.
+        maxDelayLast18Months int
+
+        // totalMonthlyPayments is the sum of MonthlyPaymentAmount across all active
+        // liabilities. Rule: > 2000 → reject (rule 12).
+        totalMonthlyPayments float64
+
+        // akbHistoryAvailable indicates whether GetAkbHistory returned a usable
+        // response. When false (LW error / nil response), all AKB-History-derived
+        // rules are skipped (fail-soft).
+        akbHistoryAvailable bool
 }
 
 type completedLoanInfo struct {
