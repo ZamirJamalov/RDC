@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALPUL — Kredit Müraciəti</title>
+    <meta name="description" content="ALPUL kredit müraciəti — FIN, seriya, telefon və OTP ilə başla.">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --alpul-bg: #0A0A0F;
+            --alpul-bg-soft: #12121A;
+            --alpul-card: #181822;
+            --alpul-border: #26263A;
+            --alpul-text: #F5F5F7;
+            --alpul-text-soft: #9CA3AF;
+            --alpul-accent: #7C3AED;
+            --alpul-accent-2: #EC4899;
+            --alpul-success: #10B981;
+            --alpul-gold: #F59E0B;
+            --alpul-error: #EF4444;
+        }
+
+        * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--alpul-bg);
+            color: var(--alpul-text);
+            font-feature-settings: 'tnum' on, 'lnum' on;
+            min-height: 100vh;
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #FFFFFF 0%, #C4B5FD 50%, #F9A8D4 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .gradient-accent {
+            background: linear-gradient(135deg, #7C3AED 0%, #EC4899 100%);
+        }
+
+        .gradient-accent-text {
+            background: linear-gradient(135deg, #A78BFA 0%, #F472B6 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .card-glow {
+            background: var(--alpul-card);
+            border: 1px solid var(--alpul-border);
+            box-shadow: 0 20px 60px -20px rgba(124, 58, 237, 0.15);
+        }
+
+        .input-field {
+            background: var(--alpul-bg-soft);
+            border: 1px solid var(--alpul-border);
+            color: var(--alpul-text);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .input-field:focus {
+            outline: none;
+            border-color: var(--alpul-accent);
+            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+        }
+        .input-field::placeholder { color: #4B5563; }
+
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            cursor: pointer;
+            width: 100%;
+        }
+        input[type="range"]::-webkit-slider-runnable-track {
+            height: 6px;
+            background: linear-gradient(90deg, var(--alpul-accent) 0%, var(--alpul-accent-2) var(--range-fill, 50%), var(--alpul-border) var(--range-fill, 50%), var(--alpul-border) 100%);
+            border-radius: 3px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 22px; width: 22px;
+            margin-top: -8px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #7C3AED, #EC4899);
+            box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.2);
+            border: 2px solid #fff;
+        }
+        input[type="range"]::-moz-range-track {
+            height: 6px;
+            background: var(--alpul-border);
+            border-radius: 3px;
+        }
+        input[type="range"]::-moz-range-thumb {
+            height: 22px; width: 22px;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #7C3AED, #EC4899);
+        }
+
+        .cta-btn {
+            background: linear-gradient(135deg, #7C3AED 0%, #EC4899 100%);
+            transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+        }
+        .cta-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 40px -10px rgba(124, 58, 237, 0.5);
+        }
+        .cta-btn:active:not(:disabled) { transform: translateY(0); }
+        .cta-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .step-dot {
+            transition: all 0.3s ease;
+        }
+        .step-dot.active {
+            background: linear-gradient(135deg, #7C3AED, #EC4899);
+            color: white;
+        }
+        .step-dot.done {
+            background: var(--alpul-success);
+            color: white;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .spinner {
+            border: 3px solid var(--alpul-border);
+            border-top-color: var(--alpul-accent);
+            border-radius: 50%;
+            width: 48px; height: 48px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes pulse-soft {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        .pulse-soft { animation: pulse-soft 1.5s ease-in-out infinite; }
+
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body x-data="applyApp()" x-cloak>
+
+<div class="min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="border-b border-white/5 backdrop-blur-xl bg-black/40 sticky top-0 z-40">
+        <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+            <a href="/landing.html" class="flex items-center gap-2">
+                <div class="w-9 h-9 rounded-xl gradient-accent flex items-center justify-center font-black text-white text-lg">A</div>
+                <span class="text-xl font-bold tracking-tight">ALPUL</span>
+            </a>
+            <div class="text-xs text-gray-500">Kredit müraciəti</div>
+        </div>
+    </header>
+
+    <!-- Progress steps -->
+    <div class="max-w-2xl mx-auto w-full px-6 pt-8 pb-4">
+        <div class="flex items-center justify-between gap-2">
+            <template x-for="(step, idx) in steps" :key="idx">
+                <div class="flex items-center flex-1 last:flex-none">
+                    <div class="flex flex-col items-center gap-2">
+                        <div class="step-dot w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm border border-white/10"
+                             :class="{
+                                'active': currentStep === idx,
+                                'done': currentStep > idx
+                             }">
+                            <template x-if="currentStep > idx">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                            </template>
+                            <template x-if="currentStep <= idx">
+                                <span x-text="idx + 1"></span>
+                            </template>
+                        </div>
+                        <span class="text-xs text-gray-500 hidden sm:block" x-text="step"></span>
+                    </div>
+                    <div class="flex-1 h-px mx-2 bg-white/10" x-show="idx < steps.length - 1"></div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Main content -->
+    <main class="flex-1 max-w-2xl mx-auto w-full px-6 py-6">
+
+        <!-- Error banner -->
+        <div x-show="error" x-transition class="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 flex items-start gap-3">
+            <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+            <div>
+                <div class="font-semibold text-sm">Xəta baş verdi</div>
+                <div class="text-sm mt-1" x-text="error"></div>
+            </div>
+        </div>
+
+        <!-- STEP 1: Init + OTP -->
+        <div x-show="currentStep === 0" x-transition class="card-glow rounded-3xl p-8">
+            <h2 class="text-3xl font-bold mb-2">Kredit müraciəti</h2>
+            <p class="text-gray-400 mb-8">Məlumatlarınızı daxil edin və OTP kodu ilə təsdiqləyin.</p>
+
+            <div class="space-y-5">
+                <!-- FIN -->
+                <div>
+                    <label class="text-sm text-gray-400 mb-2 block">FIN kodu <span class="text-red-400">*</span></label>
+                    <input type="text" x-model="form.fin" maxlength="7" placeholder="7 simvol"
+                           class="input-field w-full px-4 py-3.5 rounded-xl text-lg font-semibold uppercase tracking-wider"
+                           :disabled="otpSent">
+                </div>
+
+                <!-- Seriya -->
+                <div>
+                    <label class="text-sm text-gray-400 mb-2 block">Seriya nömrəsi <span class="text-red-400">*</span></label>
+                    <input type="text" x-model="form.serial" placeholder="Məs: AA1234567"
+                           class="input-field w-full px-4 py-3.5 rounded-xl text-lg font-semibold"
+                           :disabled="otpSent">
+                </div>
+
+                <!-- Phone -->
+                <div>
+                    <label class="text-sm text-gray-400 mb-2 block">Telefon nömrəsi <span class="text-red-400">*</span></label>
+                    <div class="flex gap-2">
+                        <input type="text" value="+994" disabled class="input-field w-20 px-3 py-3.5 rounded-xl text-center font-semibold">
+                        <input type="tel" x-model="form.phone" placeholder="50 123 45 67" maxlength="9"
+                               class="input-field flex-1 px-4 py-3.5 rounded-xl text-lg font-semibold"
+                               :disabled="otpSent"
+                               @input="form.phone = form.phone.replace(/[^0-9]/g, '')">
+                    </div>
+                </div>
+
+                <!-- OTP section -->
+                <div x-show="otpSent" x-transition class="pt-2">
+                    <label class="text-sm text-gray-400 mb-2 block">OTP kodu <span class="text-red-400">*</span></label>
+                    <input type="text" x-model="form.otp" maxlength="6" placeholder="6 rəqəm"
+                           class="input-field w-full px-4 py-3.5 rounded-xl text-2xl font-bold tracking-[0.5em] text-center"
+                           @input="form.otp = form.otp.replace(/[^0-9]/g, '')">
+                    <p class="text-xs text-gray-500 mt-2" x-show="otpSent">
+                        ✉️ OTP kodu <span class="text-white" x-text="'+' + form.phone"></span> nömrəsinə göndərildi.
+                    </p>
+                </div>
+
+                <!-- Action buttons -->
+                <div class="pt-4">
+                    <button x-show="!otpSent" @click="sendOtp"
+                            :disabled="loading || !form.fin || !form.serial || !form.phone"
+                            class="cta-btn w-full text-white font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
+                        <span x-show="!loading">OTP Göndər →</span>
+                        <span x-show="loading" class="flex items-center gap-2">
+                            <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                            Göndərilir...
+                        </span>
+                    </button>
+
+                    <button x-show="otpSent" @click="verifyOtp"
+                            :disabled="loading || form.otp.length !== 6"
+                            class="cta-btn w-full text-white font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
+                        <span x-show="!loading">Müraciət Göndər →</span>
+                        <span x-show="loading" class="flex items-center gap-2">
+                            <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                            Yoxlanılır...
+                        </span>
+                    </button>
+
+                    <button x-show="otpSent" @click="resetOtp" :disabled="loading"
+                            class="w-full text-gray-400 hover:text-white text-sm mt-3 transition">
+                        ← Geri qayıt
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- STEP 2: Loading / Reviewing -->
+        <div x-show="currentStep === 1" x-transition class="card-glow rounded-3xl p-12 text-center">
+            <div class="spinner mx-auto mb-6"></div>
+            <h2 class="text-2xl font-bold mb-3">Müraciətinizə baxılır...</h2>
+            <p class="text-gray-400 max-w-md mx-auto pulse-soft">
+                Sistem sizin kredit səviyyənizi təhlil edir. Bu, bir neçə saniyə çəkə bilər.
+            </p>
+            <p class="text-xs text-gray-600 mt-6">Muraciət №: <span class="font-mono text-gray-400" x-text="applicationId"></span></p>
+        </div>
+
+        <!-- STEP 3: Offer + Customer Confirm -->
+        <div x-show="currentStep === 2" x-transition class="card-glow rounded-3xl p-8">
+            <h2 class="text-3xl font-bold mb-2">Kredit təklifiniz</h2>
+            <p class="text-gray-400 mb-8">Sizin kredit səviyyənizə uyğun təklif aşağıdadır.</p>
+
+            <!-- Credit level badge -->
+            <div x-show="offer" class="mb-6 p-4 rounded-xl bg-gradient-to-br from-violet-500/10 to-pink-500/10 border border-violet-500/20 flex items-center justify-between">
+                <div>
+                    <div class="text-xs text-gray-400 mb-1">Sizin kredit səviyyəniz</div>
+                    <div class="text-2xl font-bold gradient-accent-text" x-text="offer?.credit_level?.toUpperCase()"></div>
+                </div>
+                <div class="text-right">
+                    <div class="text-xs text-gray-400 mb-1">Faiz dərəcəsi</div>
+                    <div class="text-2xl font-bold text-emerald-400">
+                        <span x-text="selectedRange?.rate || '—'"></span>%
+                    </div>
+                </div>
+            </div>
+
+            <div x-show="offer" class="space-y-6">
+                <!-- Amount slider -->
+                <div>
+                    <div class="flex justify-between items-baseline mb-3">
+                        <label class="text-sm text-gray-400">Kredit məbləği</label>
+                        <div class="text-3xl font-extrabold">
+                            <span x-text="form.amount"></span>
+                            <span class="text-base text-gray-400">AZN</span>
+                        </div>
+                    </div>
+                    <input type="range" :min="rangeMin" :max="rangeMax" step="10" x-model.number="form.amount"
+                           :style="`--range-fill: ${((form.amount - rangeMin) / (rangeMax - rangeMin)) * 100}%`">
+                    <div class="flex justify-between text-xs text-gray-500 mt-2">
+                        <span><span x-text="rangeMin"></span> AZN</span>
+                        <span><span x-text="rangeMax"></span> AZN</span>
+                    </div>
+                </div>
+
+                <!-- Term (read-only, system-set) -->
+                <div class="p-4 rounded-xl bg-black/30 border border-white/5">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <div class="text-xs text-gray-400 mb-1">Kredit müddəti</div>
+                            <div class="text-lg font-semibold">
+                                <span x-text="selectedRange?.term_months || '—'"></span> ay
+                            </div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-xs text-gray-400 mb-1">Aylıq ödəniş (təxmini)</div>
+                            <div class="text-lg font-semibold">
+                                <span x-text="monthlyPayment"></span> AZN
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-2">Müddət sistem tərəfindən kredit səviyyənizə əsasən təyin olunur.</p>
+                </div>
+
+                <!-- Card number -->
+                <div>
+                    <label class="text-sm text-gray-400 mb-2 block">Kart nömrəsi (16 rəqəm) <span class="text-red-400">*</span></label>
+                    <input type="text" x-model="form.cardNumber" maxlength="16" placeholder="4169 7312 3456 7890"
+                           class="input-field w-full px-4 py-3.5 rounded-xl text-lg font-mono tracking-wider"
+                           @input="form.cardNumber = form.cardNumber.replace(/[^0-9]/g, '')">
+                </div>
+
+                <!-- Card ownership checkbox -->
+                <label class="flex items-start gap-3 cursor-pointer p-3 rounded-xl hover:bg-white/5 transition">
+                    <input type="checkbox" x-model="form.cardConfirmed"
+                           class="mt-1 w-5 h-5 rounded accent-violet-500">
+                    <span class="text-sm text-gray-300">
+                        <span class="font-semibold">Bu kart məlumatı mənə məxsusdur</span>, təsdiq edirəm. Kartın digər şəxsə məxsus olduğu halda məsuliyyət daşımıram.
+                    </span>
+                </label>
+
+                <!-- Address -->
+                <div>
+                    <label class="text-sm text-gray-400 mb-2 block">Faktiki yaşayış ünvanı <span class="text-red-400">*</span></label>
+                    <textarea x-model="form.address" rows="2" placeholder="Məs: Bakı, Nizami r., Murtuza Muxtarov 12, m. 34"
+                              class="input-field w-full px-4 py-3.5 rounded-xl resize-none"></textarea>
+                </div>
+
+                <!-- Confirm button -->
+                <button @click="confirmApplication"
+                        :disabled="loading || !form.amount || form.cardNumber.length !== 16 || !form.cardConfirmed || !form.address"
+                        class="cta-btn w-full text-white font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
+                    <span x-show="!loading">Təsdiq edirəm →</span>
+                    <span x-show="loading" class="flex items-center gap-2">
+                        <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                        Göndərilir...
+                    </span>
+                </button>
+            </div>
+
+            <div x-show="!offer && !loading" class="text-center py-8">
+                <p class="text-gray-400">Təklif yüklənə bilmədi. Zəhmət olmasa səhifəni yeniləyin.</p>
+            </div>
+        </div>
+
+        <!-- STEP 4: Success -->
+        <div x-show="currentStep === 3" x-transition class="card-glow rounded-3xl p-12 text-center">
+            <div class="w-20 h-20 mx-auto mb-6 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
+                <svg class="w-12 h-12 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                </svg>
+            </div>
+            <h2 class="text-3xl font-bold mb-3">Müraciətiniz qəbul olundu!</h2>
+            <p class="text-gray-400 max-w-md mx-auto mb-8">
+                Müraciət nömrəniz: <span class="font-mono font-semibold text-white" x-text="applicationId"></span>
+            </p>
+            <div class="bg-black/30 border border-white/5 rounded-xl p-5 max-w-sm mx-auto text-left">
+                <div class="flex justify-between py-2 border-b border-white/5">
+                    <span class="text-gray-400 text-sm">Məbləğ</span>
+                    <span class="font-semibold"><span x-text="confirmedAmount"></span> AZN</span>
+                </div>
+                <div class="flex justify-between py-2 border-b border-white/5">
+                    <span class="text-gray-400 text-sm">Müddət</span>
+                    <span class="font-semibold"><span x-text="confirmedTerm"></span> ay</span>
+                </div>
+                <div class="flex justify-between py-2">
+                    <span class="text-gray-400 text-sm">Status</span>
+                    <span class="font-semibold text-emerald-400">Gözləmədə</span>
+                </div>
+            </div>
+            <p class="text-sm text-gray-500 mt-8">
+                Ekspertimiz sizinlə əlaqə saxlayacaq.
+            </p>
+            <a href="/landing.html" class="inline-block mt-6 text-violet-400 hover:text-violet-300 text-sm transition">
+                ← Ana səhifəyə qayıt
+            </a>
+        </div>
+
+    </main>
+
+    <footer class="border-t border-white/5 py-6 mt-12">
+        <div class="max-w-5xl mx-auto px-6 text-center text-xs text-gray-600">
+            © 2026 ALPUL · Lisenziyalaşdırılmış kredit təşkilatı
+        </div>
+    </footer>
+</div>
+
+<script>
+function applyApp() {
+    return {
+        steps: ['Məlumat', 'Yoxlanış', 'Təklif', 'Nəticə'],
+        currentStep: 0,
+        loading: false,
+        error: '',
+
+        // Application state
+        applicationId: null,
+
+        // Form fields
+        form: {
+            fin: '',
+            serial: '',
+            phone: '',
+            otp: '',
+            amount: 0,
+            cardNumber: '',
+            cardConfirmed: false,
+            address: '',
+        },
+
+        // OTP/UI state
+        otpSent: false,
+
+        // Offer data (fetched in step 2)
+        offer: null,
+        selectedRange: null,
+
+        // Confirmed values for success screen
+        confirmedAmount: 0,
+        confirmedTerm: 0,
+
+        // Computed: min/max for the slider (first range in the offer)
+        get rangeMin() {
+            if (!this.offer || !this.offer.ranges || !this.offer.ranges.length) return 50;
+            return Math.min(...this.offer.ranges.map(r => r.min_amount));
+        },
+        get rangeMax() {
+            if (!this.offer || !this.offer.ranges || !this.offer.ranges.length) return 300;
+            return Math.max(...this.offer.ranges.map(r => r.max_amount));
+        },
+        get monthlyPayment() {
+            if (!this.selectedRange || !this.form.amount) return '—';
+            // Total = principal + (rate / (100 - rate)) × 100  (matches backend)
+            const rate = this.selectedRange.rate;
+            const total = this.form.amount + (rate / (100 - rate)) * 100;
+            const monthly = total / this.selectedRange.term_months;
+            return monthly.toFixed(2);
+        },
+
+        // --- Actions ---
+
+        async sendOtp() {
+            this.error = '';
+            this.loading = true;
+            try {
+                const resp = await fetch('/api/applications/init', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        customer_pin: this.form.fin,
+                        customer_serial: this.form.serial,
+                        customer_phone: '+994' + this.form.phone,
+                    }),
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'OTP göndərilə bilmədi');
+
+                this.applicationId = data.id;
+                this.otpSent = true;
+            } catch (e) {
+                this.error = e.message;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async verifyOtp() {
+            this.error = '';
+            this.loading = true;
+            try {
+                // 1. Verify OTP
+                const resp = await fetch('/api/applications/init/verify', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        application_id: this.applicationId,
+                        phone: '+994' + this.form.phone,
+                        otp_code: this.form.otp,
+                    }),
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'OTP təsdiq olunmadı');
+
+                // 2. Move to loading step
+                this.currentStep = 1;
+
+                // 3. Fetch offer (customer_pin is required by the endpoint)
+                const offerResp = await fetch(`/api/applications/offer?customer_pin=${encodeURIComponent(this.form.fin)}&akb_score=0`);
+                const offerData = await offerResp.json();
+                if (!offerResp.ok) throw new Error(offerData.error || 'Təklif əldə edilə bilmədi');
+
+                this.offer = offerData;
+                // Pick the range that matches the lowest amount as default selection
+                // (so the slider starts at the minimum of the first range)
+                if (this.offer.ranges && this.offer.ranges.length > 0) {
+                    this.selectedRange = this.offer.ranges[0];
+                    this.form.amount = this.rangeMin;
+                }
+
+                // 4. Move to offer step
+                this.currentStep = 2;
+            } catch (e) {
+                this.error = e.message;
+                this.currentStep = 0; // back to init on error
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        resetOtp() {
+            this.otpSent = false;
+            this.form.otp = '';
+            this.error = '';
+        },
+
+        async confirmApplication() {
+            this.error = '';
+            this.loading = true;
+            try {
+                // Find the matching range for the selected amount
+                const matchedRange = this.offer.ranges.find(r =>
+                    this.form.amount >= r.min_amount && this.form.amount <= r.max_amount
+                );
+                if (!matchedRange) {
+                    throw new Error('Seçilən məbləğ heç bir təklif aralığına uyğun gəlmir.');
+                }
+                this.selectedRange = matchedRange;
+
+                const resp = await fetch(`/api/applications/${this.applicationId}/customer-confirm`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        amount: this.form.amount,
+                        card_number: this.form.cardNumber,
+                        actual_address: this.form.address,
+                        card_ownership_confirmed: this.form.cardConfirmed,
+                    }),
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Təsdiq zamanı xəta baş verdi');
+
+                // Save confirmed values for success screen
+                this.confirmedAmount = data.amount || this.form.amount;
+                this.confirmedTerm = data.term_months || this.selectedRange.term_months;
+
+                // 5. Show success
+                this.currentStep = 3;
+            } catch (e) {
+                this.error = e.message;
+            } finally {
+                this.loading = false;
+            }
+        },
+    };
+}
+</script>
+
+</body>
+</html>
