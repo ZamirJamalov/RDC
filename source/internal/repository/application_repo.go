@@ -56,6 +56,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
         var akbScore sql.NullInt64
         var officialIncome sql.NullFloat64
         var contact1, contact2, contact3, address, customerPhone, customerSerial sql.NullString
+        var customerConfirmedAt sql.NullString
 
         err := r.db.QueryRowContext(ctx, `
                 SELECT id, customer_pin, customer_full_name, amount, term_months, loan_purpose,
@@ -63,6 +64,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                        rejection_reason_id, rejection_reason, akb_score,
                        official_income, contact1_phone, contact2_phone, contact3_phone, actual_address,
                        card_number, customer_phone, customer_serial,
+                       customer_confirmed_at, card_ownership_confirmed,
                        created_at, updated_at
                 FROM loan_applications WHERE id = ?`, id).Scan(
                 &app.ID,
@@ -87,6 +89,8 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                 &app.CardNumber,
                 &customerPhone,
                 &customerSerial,
+                &customerConfirmedAt,
+                &app.CardOwnershipConfirmed,
                 &app.CreatedAt,
                 &app.UpdatedAt,
         )
@@ -109,6 +113,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
         app.ActualAddress = address.String
         app.CustomerPhone = customerPhone.String
         app.CustomerSerial = customerSerial.String
+        app.CustomerConfirmedAt = customerConfirmedAt.String
         if akbScore.Valid {
                 app.AkbScore = int(akbScore.Int64)
         }
