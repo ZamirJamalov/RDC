@@ -56,6 +56,7 @@ func NewRouter(
         mux.HandleFunc("GET /api/router/akb-history", lwRouterHandler.AkbHistory)
         mux.HandleFunc("GET /api/router/asan-finance", lwRouterHandler.AsanFinance)
         mux.HandleFunc("POST /api/router/sima/init", lwRouterHandler.SimaInit)
+        mux.HandleFunc("GET /api/router/azmk-blacklist", lwRouterHandler.AzmkBlacklist) // PR #53
 
         // LW Operations (T-2.4, T-2.6)
         mux.HandleFunc("GET /api/lw/blacklist", lwRouterHandler.Blacklist)

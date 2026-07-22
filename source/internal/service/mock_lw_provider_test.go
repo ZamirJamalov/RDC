@@ -27,6 +27,10 @@ type mockLWProvider struct {
         blacklisted    bool
         blacklistErr   error
 
+        // GetAzmkBlacklist (PR #53)
+        azmkBlacklisted    bool
+        azmkBlacklistErr   error
+
         // GetAkbScore
         akbScore    *lw.AkbScoreResponse
         akbScoreErr error
@@ -64,6 +68,13 @@ func (m *mockLWProvider) SetupCustomerLoans(_ context.Context, _ *lw.LoanSetupRe
 
 func (m *mockLWProvider) CheckBlacklist(_ context.Context, _ string) (bool, error) {
         return m.blacklisted, m.blacklistErr
+}
+
+// GetAzmkBlacklist (PR #53) — returns the configured AZMK blacklist state.
+// Fail-soft in production is handled by the caller (credit_engine.go); here we
+// surface the error so tests can assert fail-soft behavior explicitly.
+func (m *mockLWProvider) GetAzmkBlacklist(_ context.Context, _ string) (bool, error) {
+        return m.azmkBlacklisted, m.azmkBlacklistErr
 }
 
 func (m *mockLWProvider) GetAkbScore(_ context.Context, fin, _ string) (*lw.AkbScoreResponse, error) {

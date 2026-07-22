@@ -114,6 +114,28 @@ func (h *LWRouterHandler) Blacklist(w http.ResponseWriter, r *http.Request) {
         })
 }
 
+// AzmkBlacklist handles GET /api/router/azmk-blacklist?fin=... (PR #53).
+// Forwards the request to the AZMK external service via the LW router.
+func (h *LWRouterHandler) AzmkBlacklist(w http.ResponseWriter, r *http.Request) {
+        fin := r.URL.Query().Get("fin")
+        if fin == "" {
+                writeLWRouterError(w, http.StatusBadRequest, "fin query parameter is required")
+                return
+        }
+
+        blacklisted, err := h.lwProvider.GetAzmkBlacklist(r.Context(), fin)
+        if err != nil {
+                slog.Error("LW GetAzmkBlacklist failed", "fin", fin, "error", err)
+                writeLWRouterError(w, http.StatusBadGateway, "failed to check AZMK blacklist: "+err.Error())
+                return
+        }
+
+        writeLWRouterJSON(w, http.StatusOK, map[string]interface{}{
+                "fin":            fin,
+                "is_blacklisted": blacklisted,
+        })
+}
+
 // AsanFinance handles GET /api/router/asan-finance?fin=...
 // Returns the customer's official income from ASAN Finance (via LW router).
 func (h *LWRouterHandler) AsanFinance(w http.ResponseWriter, r *http.Request) {

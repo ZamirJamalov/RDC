@@ -63,6 +63,14 @@ type loanAnalytics struct {
         // response. When false (LW error / nil response), all AKB-History-derived
         // rules are skipped (fail-soft).
         akbHistoryAvailable bool
+
+        // PR #53 — AZMK blacklist flag.
+        // True when the customer appears on the AZMK (Central Credit Register of
+        // Azerbaijan) blacklist. Rule: azmkBlacklisted → reject (rule 5).
+        // When GetAzmkBlacklist fails, this stays false (fail-soft) — the caller
+        // also sets azmkCheckAvailable=false so the rule is skipped entirely.
+        azmkBlacklisted     bool
+        azmkCheckAvailable  bool
 }
 
 type completedLoanInfo struct {

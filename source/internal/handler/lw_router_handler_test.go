@@ -29,6 +29,10 @@ type mockLWProviderForHandler struct {
         blacklisted    bool
         blacklistErr   error
 
+        // AZMK blacklist (PR #53)
+        azmkBlacklisted    bool
+        azmkBlacklistErr   error
+
         asanFinance    *lw.AsanFinanceResponse
         asanFinanceErr error
 
@@ -46,6 +50,9 @@ func (m *mockLWProviderForHandler) SetupCustomerLoans(_ context.Context, _ *lw.L
 }
 func (m *mockLWProviderForHandler) CheckBlacklist(_ context.Context, _ string) (bool, error) {
         return m.blacklisted, m.blacklistErr
+}
+func (m *mockLWProviderForHandler) GetAzmkBlacklist(_ context.Context, _ string) (bool, error) {
+        return m.azmkBlacklisted, m.azmkBlacklistErr
 }
 func (m *mockLWProviderForHandler) GetPersonalInfo(_ context.Context, _, _ string) (*lw.PersonalInfoResponse, error) {
         return m.personalInfo, m.personalInfoErr
