@@ -214,7 +214,75 @@ In mock mode, all checks return "not blacklisted" and a default score.
 
 ---
 
-## Step 7: Create the Loan Application
+## Step 6.5: Customer Confirm (Public Website Flow) — NEW in PR #58
+
+**Goal:** Simulate the customer submitting their credit offer confirmation on the public website.
+
+**Postman folder:** `3. Offer + Application`
+
+This step replaces the old "create application with all fields" approach (Step 7 below) for the customer-facing flow. In the new flow (PR #58), the customer only fills in:
+- amount (selected from offer range)
+- card number (16 digits)
+- actual address
+- card ownership checkbox
+
+The backend fetches `customer_full_name`, `akb_score`, and `term_months` automatically from LW router.
+
+### 6.5a. Customer Confirm (Happy Path)
+
+- Request: `🟢 Customer Confirm: Happy path (amount + card + address + checkbox)`
+- Make sure `{{application_id}}` is set (from Step 5 Init Verify).
+- Click **Send**.
+
+**What you should see:**
+- Status: `200 OK`
+- `customer_full_name` is populated (from PersonalInfo)
+- `akb_score` is populated (from AKB)
+- `term_months` is populated (from offer, matched to amount)
+- `customer_confirmed_at` has a timestamp
+- `card_ownership_confirmed: true`
+- `status: "pending_expert"` (still waiting for expert)
+
+**Behind the scenes:**
+1. Backend calls `GetPersonalInfo` → fills `customer_full_name`
+2. Backend calls `GetAkbScore` → fills `akb_score`
+3. Backend calls `GetOffer` → finds the range matching `amount=200` → sets `term_months`
+4. Saves everything with `customer_confirmed_at = now()`
+5. Application stays in `pending_expert` — expert must still add contact phones
+
+### 6.5b. Customer Confirm — Error Cases
+
+Test the validation rules by sending these requests one by one:
+
+| Request | Expected Error |
+|---------|----------------|
+| `🔴 Customer Confirm: amount aralıqdan kənar (9999 AZN)` | `400` — "keçərli deyil" |
+| `🔴 Customer Confirm: card_number 15 rəqəm` | `400` — "16 digits" |
+| `🔴 Customer Confirm: kart sahibliyi təsdiq olunmayıb` | `400` — "ownership must be confirmed" |
+| `🔴 Customer Confirm: app pending_expert deyil` | `400` — "pending_expert status" |
+
+### 6.5c. Complete (Expert Adds Contacts Only)
+
+After the customer confirms, the expert calls the customer to collect 3 contact phone numbers, then completes the application.
+
+- Request: `🟢 Complete (customer-confirm-dan sonra): Expert yalnız kontaktları daxil edir`
+- Click **Send**.
+
+**What you should see:**
+- Status: `200 OK`
+- `contact1_phone`, `contact2_phone`, `contact3_phone` populated
+- `customer_full_name`, `amount`, `term_months`, `card_number` preserved from customer-confirm
+- `status: "pending"` (engine starts asynchronously)
+
+**IMPORTANT — Wait 2 seconds:**
+The credit engine runs in the background. Wait 2-3 seconds before checking the final status in Step 8.
+
+**Why this step:** PR #58 introduced the customer-facing confirmation flow. The customer fills only 4 fields on the website; the backend fetches the rest from LW router (fail-hard on error).
+
+---
+
+## Step 7: Create the Loan Application (Legacy / Direct API)
+
 
 **Goal:** Submit the loan application.
 
@@ -385,7 +453,10 @@ After this step, the application is approved.
 | 6b | 2. LW Router Checks | AKB Score | 200 OK |
 | 6c | 2. LW Router Checks | AKB History | 200 OK |
 | 6d | 2. LW Router Checks | Blacklist | not blacklisted |
-| 7 | 3. Offer + Application | Application: Happy path | 201 Created (id saved) |
+| **6.5a** | **3. Offer + Application** | **Customer Confirm: Happy path** | **200 OK (full_name + akb + term auto-filled)** |
+| **6.5b** | **3. Offer + Application** | **Customer Confirm: Error cases (4)** | **400 errors** |
+| **6.5c** | **3. Offer + Application** | **Complete (after customer-confirm): contacts only** | **200 OK (engine triggered)** |
+| 7 | 3. Offer + Application | Application: Happy path (legacy) | 201 Created (id saved) |
 | 8a | 7. Status & Decision | Get Status | pending_approval |
 | 8b | 7. Status & Decision | Get Checks | 4 checks passed |
 | 9a | 4. SIMA KYC | SIMA Init | session_id saved |
@@ -397,6 +468,9 @@ After this step, the application is approved.
 | 12b | 8. Expert Panel | Expert Get | pending_approval |
 | 12c | 8. Expert Panel | Expert Approve | approved |
 | 13 | 7. Status & Decision | Get Status | **approved** ✅ |
+
+**New flow (PR #58, recommended for production):** Steps 1 → 2 → 3 → 4 → 5 → 6.5a → 6.5c → 8a
+**Legacy flow (still works for direct API testing):** Steps 1 → 2 → 3 → 4 → 5 → 7 → 8a
 
 ---
 
