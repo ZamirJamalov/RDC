@@ -98,28 +98,47 @@ func (e *CreditEngine) resolveAkbScore(ctx context.Context, customerPIN string, 
         return score
 }
 
-// resolveAkbScoreAndStopFactors is the PR #51 extension of resolveAkbScore:
-// it returns both the score and the stop factor list returned by AKB.
+// resolveAkbScoreAndStopFactors fetches the AKB score from LW and interprets
+// the SOAP-derived JSON response per PR #55.
 //
-// Fail-soft: on LW error or nil response, the fallback score is used and
-// the stop factor list is empty. This matches the existing resolveAkbScore
-// semantics — AKB is an enhancement, not a hard dependency.
+// Returns:
+//   - score: the real AKB credit score (>1). Returns 0 when LW is unavailable
+//     or when AKB signalled a stop factor (Point == 1) — in the latter case
+//     hasStopFactor is true and the caller should reject on stop-factor grounds
+//     rather than score threshold.
+//   - stopFactorCode: the 2-letter stop factor code when hasStopFactor is true
+//   - hasStopFactor: true when AKB returned Point == 1
+//
+// Fail-soft: on LW error or nil response, returns (fallback, "", false) —
+// the caller uses the request-supplied fallback score and assumes no stop
+// factor. AKB is an enhancement, not a hard dependency.
 //
 // The caller populates the loanAnalytics struct with these values before
 // invoking computeDecision / runChecks.
-func (e *CreditEngine) resolveAkbScoreAndStopFactors(ctx context.Context, customerPIN string, fallback int) (int, []string) {
+func (e *CreditEngine) resolveAkbScoreAndStopFactors(ctx context.Context, customerPIN string, fallback int) (score int, stopFactorCode string, hasStopFactor bool) {
         resp, err := e.lwProvider.GetAkbScore(ctx, customerPIN, "")
         if err != nil {
                 slog.Warn("failed to fetch AKB score from LW — using request fallback",
                         "customer_pin", customerPIN,
                         "fallback_score", fallback,
                         "error", err)
-                return fallback, nil
+                return fallback, "", false
         }
-        if resp == nil || resp.Score == 0 {
-                return fallback, nil
+        if resp == nil || resp.Return == nil {
+                return fallback, "", false
         }
-        return resp.Score, resp.StopFactors
+
+        // Per AKB semantics (PR #55):
+        //   Point == 1 → stop factor present (Response holds the 2-letter code)
+        //   Point >  1 → real credit score
+        //   Point == 0 → AKB returned no useful data (treat as fail-soft)
+        if resp.Return.Point == 1 {
+                return 0, resp.Return.Response, true
+        }
+        if resp.Return.Point == 0 {
+                return fallback, "", false
+        }
+        return resp.Return.Point, "", false
 }
 
 // resolveCustomerAge fetches the customer's personal info from LW (via DIN)
@@ -302,11 +321,12 @@ func (e *CreditEngine) ProcessApplication(ctx context.Context, appID int) error 
         // Step 4: Pre-compute loan analytics
         analytics := computeAnalytics(customerLoans.Loans)
 
-        // Step 5: Resolve AKB score + stop factors from LW (T-1.6, PR #51)
-        resolvedAkb, stopFactors := e.resolveAkbScoreAndStopFactors(ctx, app.CustomerPIN, app.AkbScore)
+        // Step 5: Resolve AKB score + stop factors from LW (T-1.6, PR #51, PR #55)
+        resolvedAkb, stopFactorCode, hasStopFactor := e.resolveAkbScoreAndStopFactors(ctx, app.CustomerPIN, app.AkbScore)
         app.AkbScore = resolvedAkb
         analytics.akbScore = resolvedAkb
-        analytics.akbStopFactors = stopFactors
+        analytics.akbStopFactorCode = stopFactorCode
+        analytics.akbHasStopFactor = hasStopFactor
 
         // Step 5b: Resolve customer age from LW PersonalInfo (PR #51, rule 3)
         analytics.customerAge = e.resolveCustomerAge(ctx, app.CustomerPIN, app.CustomerSerial)

@@ -3,7 +3,6 @@ package service
 import (
         "fmt"
         "rdc-source/internal/model"
-        "strings"
         "sync"
         "time"
 )
@@ -116,19 +115,23 @@ func (e *CreditEngine) runChecks(analytics *loanAnalytics, app *model.LoanApplic
         }
         checks = append(checks, azmkCheck)
 
-        // Check 5: AKB stop factor check (PR #51, rule 4) — sequential,
-        // data pre-populated on `analytics` by the caller.
+        // Check 5: AKB stop factor check (PR #51, rule 4; PR #55 real format) —
+        // sequential, data pre-populated on `analytics` by the caller.
+        // AKB signals stop factor with Point == 1 and a 2-letter code in <response>.
         stopFactorCheck := model.ApplicationCheckResult{
                 CheckType: "akb_stop_factor_check",
                 CheckedAt: time.Now().Format(time.RFC3339),
         }
-        if len(analytics.akbStopFactors) > 0 {
+        if analytics.akbHasStopFactor {
+                code := analytics.akbStopFactorCode
+                if code == "" {
+                        code = "unknown"
+                }
                 stopFactorCheck.Status = model.CheckStatusFailed
-                stopFactorCheck.Detail = fmt.Sprintf("AKB stop factor(s): %s",
-                        strings.Join(analytics.akbStopFactors, ", "))
+                stopFactorCheck.Detail = fmt.Sprintf("AKB stop factor: %s (score=1)", code)
         } else {
                 stopFactorCheck.Status = model.CheckStatusPassed
-                stopFactorCheck.Detail = "No AKB stop factors"
+                stopFactorCheck.Detail = "No AKB stop factor"
         }
         checks = append(checks, stopFactorCheck)
 

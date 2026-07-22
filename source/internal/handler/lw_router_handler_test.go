@@ -136,7 +136,10 @@ func TestLWRouterHandler_PersonalInfo_ProviderError(t *testing.T) {
 
 func TestLWRouterHandler_AkbScore_Success(t *testing.T) {
         provider := &mockLWProviderForHandler{
-                akbScore: &lw.AkbScoreResponse{Fin: "ABC123", Score: 750},
+                akbScore: &lw.AkbScoreResponse{
+                        Fin:    "ABC123",
+                        Return: &lw.AkbScoreReturn{Response: "", Point: 750},
+                },
         }
         h := NewLWRouterHandler(provider)
 
@@ -151,8 +154,8 @@ func TestLWRouterHandler_AkbScore_Success(t *testing.T) {
 
         var resp lw.AkbScoreResponse
         json.NewDecoder(w.Body).Decode(&resp)
-        if resp.Score != 750 {
-                t.Errorf("Score = %d, want 750", resp.Score)
+        if resp.Return == nil || resp.Return.Point != 750 {
+                t.Errorf("Return.Point = %v, want 750", resp.Return)
         }
 }
 

@@ -20,12 +20,19 @@ type loanAnalytics struct {
         // These are populated by the engine before calling computeDecision.
 
         // akbScore is the resolved AKB credit score (LW override > request fallback).
-        // Rule: score < 200 → reject.
+        // Rule: score < 200 → reject. When AKB signals a stop factor (Point == 1),
+        // akbScore is 0 (the real score is not meaningful) and akbHasStopFactor
+        // is true instead.
         akbScore int
 
-        // akbStopFactors is the list of 2-letter stop factor codes from AKB
-        // (e.g. ["AB", "TY"]). Rule: any non-empty list → reject.
-        akbStopFactors []string
+        // akbHasStopFactor is true when AKB returned Point == 1, signalling a
+        // stop factor. Rule: any stop factor → reject (rule 4).
+        akbHasStopFactor bool
+
+        // akbStopFactorCode is the 2-letter stop factor code from AKB (the
+        // <response> field). Empty when no stop factor is present. Per business:
+        // only one stop factor code is returned at a time.
+        akbStopFactorCode string
 
         // customerAge is the customer's age in years, computed from DOB
         // returned by GetPersonalInfo. Rule: age > 69 → reject.
