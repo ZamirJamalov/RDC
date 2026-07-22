@@ -91,10 +91,14 @@ func (e *CreditEngine) PreValidate(ctx context.Context, customerPIN string, amou
 // source of truth (when available).
 //
 // PR #51: this method now delegates to resolveAkbScoreAndStopFactors and
-// discards the stop factors. PreValidate / offer flow don't need them —
+// discards the stop factor fields. PreValidate / offer flow don't need them —
 // only ProcessApplication uses the stop factors (via the new method).
+//
+// PR #55: resolveAkbScoreAndStopFactors now returns 3 values
+// (score, stopFactorCode, hasStopFactor); both stop-factor fields are
+// discarded here with two underscores.
 func (e *CreditEngine) resolveAkbScore(ctx context.Context, customerPIN string, fallback int) int {
-        score, _ := e.resolveAkbScoreAndStopFactors(ctx, customerPIN, fallback)
+        score, _, _ := e.resolveAkbScoreAndStopFactors(ctx, customerPIN, fallback)
         return score
 }
 
