@@ -1844,6 +1844,291 @@
           ]
         },
         {
+          "name": "🟢 Customer Confirm: Happy path (amount + card + address + checkbox)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/{{application_id}}/customer-confirm",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{application_id}}",
+                "customer-confirm"
+              ]
+            },
+            "description": "PR #58 — Müştəri tərəfindən kredit təklifinin təsdiqi.\n\nBu endpoint müştəri saytda OTP təsdiq etdikdən sonra (status=pending_expert) çağrılır.\nMüştəri tərəfdən daxil edilən:\n  - amount (offer.ranges-dən seçilir)\n  - card_number (16 rəqəm)\n  - actual_address (faktiki ünvan)\n  - card_ownership_confirmed (checkbox — kart mənə məxsusdur)\n\nBackend tərəfindən doldurulan (fail-hard on LW error):\n  - customer_full_name ← LW GetPersonalInfo\n  - akb_score ← LW GetAkbScore\n  - term_months ← GetOffer ranges (məbləğə uyğun)\n\nStatus pending_expert qalır — ekspert CompleteApplication ilə 3 əlaqə telefonunu daxil edəcək.\n\nResponse-da gözlənilən:\n  - customer_full_name: dolu (PersonalInfo-dan)\n  - akb_score: > 0 (AKB-dən)\n  - term_months: > 0 (offer-dən)\n  - customer_confirmed_at: timestamp\n  - card_ownership_confirmed: true\n  - status: 'pending_expert'",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 200,\n  \"card_number\": \"4169731234567890\",\n  \"actual_address\": \"Bakı, Nizami r., Murtuza Muxtarov 12, m. 34\",\n  \"card_ownership_confirmed\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has customer_full_name\", () => { const j = pm.response.json(); pm.expect(j.customer_full_name).to.not.be.empty; });",
+                  "pm.test(\"Has term_months (system-set)\", () => { const j = pm.response.json(); pm.expect(j.term_months).to.be.above(0); });",
+                  "pm.test(\"Has akb_score\", () => { const j = pm.response.json(); pm.expect(j.akb_score).to.be.above(0); });",
+                  "pm.test(\"customer_confirmed_at set\", () => { const j = pm.response.json(); pm.expect(j.customer_confirmed_at).to.not.be.empty; });",
+                  "pm.test(\"card_ownership_confirmed=true\", () => { const j = pm.response.json(); pm.expect(j.card_ownership_confirmed).to.eq(true); });",
+                  "pm.test(\"Status pending_expert\", () => { const j = pm.response.json(); pm.expect(j.status).to.eq(\"pending_expert\"); });",
+                  "pm.test(\"Response < 3000ms\", () => pm.expect(pm.response.responseTime).to.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Customer Confirm: amount aralıqdan kənar (9999 AZN)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/{{application_id}}/customer-confirm",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{application_id}}",
+                "customer-confirm"
+              ]
+            },
+            "description": "Müştərinin seçdiyi məbləğ heç bir offer range-ə uyğun gəlmirsə → 400 error.\n\nGözlənilən error: 'seçdiyiniz məbləğ ... keçərli deyil'",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 9999,\n  \"card_number\": \"4169731234567890\",\n  \"actual_address\": \"Bakı\",\n  \"card_ownership_confirmed\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains 'keçərli deyil'\", () => { const j = pm.response.json(); pm.expect(JSON.stringify(j)).to.include(\"keçərli deyil\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Customer Confirm: card_number 15 rəqəm",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/{{application_id}}/customer-confirm",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{application_id}}",
+                "customer-confirm"
+              ]
+            },
+            "description": "Kart nömrəsi 16 rəqəm deyil → 400 error.\n\nGözlənilən error: 'card_number must be exactly 16 digits'",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 200,\n  \"card_number\": \"416973123456789\",\n  \"actual_address\": \"Bakı\",\n  \"card_ownership_confirmed\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains '16 digits'\", () => { const j = pm.response.json(); pm.expect(JSON.stringify(j)).to.include(\"16 digits\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Customer Confirm: kart sahibliyi təsdiq olunmayıb",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/{{application_id}}/customer-confirm",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{application_id}}",
+                "customer-confirm"
+              ]
+            },
+            "description": "Checkbox işarələnməyibsə → 400 error.\n\nGözlənilən error: 'card ownership must be confirmed'",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 200,\n  \"card_number\": \"4169731234567890\",\n  \"actual_address\": \"Bakı\",\n  \"card_ownership_confirmed\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains 'ownership'\", () => { const j = pm.response.json(); pm.expect(JSON.stringify(j)).to.include(\"ownership\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Customer Confirm: app pending_expert deyil",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/99999/customer-confirm",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "99999",
+                "customer-confirm"
+              ]
+            },
+            "description": "Application tapılmadı və ya pending_expert statusunda deyil → 400 error.\n\nGözlənilən error: 'application is not in pending_expert status'",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 200,\n  \"card_number\": \"4169731234567890\",\n  \"actual_address\": \"Bakı, Nizami r., Murtuza Muxtarov 12, m. 34\",\n  \"card_ownership_confirmed\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains 'pending_expert'\", () => { const j = pm.response.json(); pm.expect(JSON.stringify(j)).to.include(\"pending_expert\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Complete (customer-confirm-dan sonra): Expert yalnız kontaktları daxil edir",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/{{application_id}}/complete",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{application_id}}",
+                "complete"
+              ]
+            },
+            "description": "PR #58 — Müştəri təsdiq etdikdən sonra ekspertin CompleteApplication çağırışı.\n\nPR #58-də validation yumşaldıldı:\n  - contact1_phone: REQUIRED (ekspert mütləq 1 telefon almalıdır)\n  - contact2/3_phone: OPTIONAL\n  - customer_full_name, amount, term_months, card_number, actual_address, akb_score:\n    əgər customer-confirm tərəfindən artıq doludursa, tələb olunmur\n\nBu request-də yalnız 3 telefon göndərilir. Backend merge edir:\n  - Mövcud DB sahələri saxlanılır (customer_full_name, amount və s.)\n  - Yalnız telefonlar yenilənir\n  - Engine işə salınır (status: pending → checking)\n\nGözlənilən response:\n  - status: 'pending' (engine asinxron başlayır)\n  - customer_full_name, amount, term_months, card_number: customer-confirm-dan qalır\n  - contact1/2/3_phone: yeni daxil edilmiş",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"contact1_phone\": \"+994501111111\",\n  \"contact2_phone\": \"+994502222222\",\n  \"contact3_phone\": \"+994503333333\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has contact1_phone\", () => { const j = pm.response.json(); pm.expect(j.contact1_phone).to.eq(\"+994501111111\"); });",
+                  "pm.test(\"customer_full_name preserved\", () => { const j = pm.response.json(); pm.expect(j.customer_full_name).to.not.be.empty; });",
+                  "pm.test(\"amount preserved\", () => { const j = pm.response.json(); pm.expect(j.amount).to.be.above(0); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "🟢 Complete: Ekspert məlumatları tamamla (→ pending)",
           "request": {
             "method": "PUT",
