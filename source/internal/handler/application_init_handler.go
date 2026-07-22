@@ -85,3 +85,37 @@ func (h *ApplicationHandler) CompleteApplication(w http.ResponseWriter, r *http.
 
         writeJSON(w, http.StatusOK, app)
 }
+
+// CustomerConfirm handles POST /api/applications/{id}/customer-confirm (PR #58).
+// Customer (on the public website) confirms their credit offer by:
+//   - selecting an amount from the offered range
+//   - entering their 16-digit card number
+//   - ticking the "this card belongs to me" checkbox
+//   - entering their actual residential address
+//
+// Backend then fetches full_name (PersonalInfo) and akb_score (AKB) from LW
+// router, derives term_months from the offer, and saves everything. Application
+// stays in pending_expert — the expert will later add contact phones via
+// CompleteApplication.
+func (h *ApplicationHandler) CustomerConfirm(w http.ResponseWriter, r *http.Request) {
+        id, err := strconv.Atoi(r.PathValue("id"))
+        if err != nil || id <= 0 {
+                writeError(w, http.StatusBadRequest, "invalid application id")
+                return
+        }
+
+        var req service.CustomerConfirmRequest
+        if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+                writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+                return
+        }
+
+        app, err := h.service.CustomerConfirmApplication(r.Context(), id, &req)
+        if err != nil {
+                slog.Error("customer confirm failed", "application_id", id, "error", err)
+                writeError(w, http.StatusBadRequest, err.Error())
+                return
+        }
+
+        writeJSON(w, http.StatusOK, app)
+}

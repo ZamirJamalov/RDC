@@ -42,6 +42,7 @@ func NewRouter(
         mux.HandleFunc("POST /api/applications", appHandler.Create)
         mux.HandleFunc("POST /api/applications/init", appHandler.InitApplication)
         mux.HandleFunc("POST /api/applications/init/verify", appHandler.VerifyInitApplication)
+        mux.HandleFunc("POST /api/applications/{id}/customer-confirm", appHandler.CustomerConfirm) // PR #58
         mux.HandleFunc("PUT /api/applications/{id}/complete", appHandler.CompleteApplication)
         mux.HandleFunc("GET /api/applications/offer", appHandler.GetOffer)
         mux.HandleFunc("GET /api/applications/{id}", appHandler.GetByID)

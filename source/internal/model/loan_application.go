@@ -27,6 +27,15 @@ type LoanApplication struct {
         Contact3Phone  string  `json:"contact3_phone,omitempty"`
         ActualAddress  string  `json:"actual_address,omitempty"` // factiki ünvan (T-5.6)
 
+        // PR #58: customer-side confirmation flow.
+        // CustomerConfirmedAt is set when the customer submits the customer-confirm
+        // form on the public website (after selecting amount + entering card +
+        // address + ticking the ownership checkbox). Empty until that point.
+        CustomerConfirmedAt string `json:"customer_confirmed_at,omitempty"`
+        // CardOwnershipConfirmed is the audit flag from the customer's checkbox
+        // "I confirm this card belongs to me". Stored for legal/audit purposes.
+        CardOwnershipConfirmed bool `json:"card_ownership_confirmed"`
+
         CreatedAt string `json:"created_at"`
         UpdatedAt string `json:"updated_at"`
 }
