@@ -4,6 +4,7 @@ import (
         "context"
         "fmt"
         "log/slog"
+        "time"
 
         "rdc-source/internal/model"
         "rdc-source/internal/repository"
@@ -86,19 +87,72 @@ func (e *CreditEngine) PreValidate(ctx context.Context, customerPIN string, amou
 // T-1.6: previously the engine used the request-supplied akbScore directly,
 // which meant the operator could inject any score they wanted. Now LW is the
 // source of truth (when available).
+//
+// PR #51: this method now delegates to resolveAkbScoreAndStopFactors and
+// discards the stop factors. PreValidate / offer flow don't need them —
+// only ProcessApplication uses the stop factors (via the new method).
 func (e *CreditEngine) resolveAkbScore(ctx context.Context, customerPIN string, fallback int) int {
+        score, _ := e.resolveAkbScoreAndStopFactors(ctx, customerPIN, fallback)
+        return score
+}
+
+// resolveAkbScoreAndStopFactors is the PR #51 extension of resolveAkbScore:
+// it returns both the score and the stop factor list returned by AKB.
+//
+// Fail-soft: on LW error or nil response, the fallback score is used and
+// the stop factor list is empty. This matches the existing resolveAkbScore
+// semantics — AKB is an enhancement, not a hard dependency.
+//
+// The caller populates the loanAnalytics struct with these values before
+// invoking computeDecision / runChecks.
+func (e *CreditEngine) resolveAkbScoreAndStopFactors(ctx context.Context, customerPIN string, fallback int) (int, []string) {
         resp, err := e.lwProvider.GetAkbScore(ctx, customerPIN, "")
         if err != nil {
                 slog.Warn("failed to fetch AKB score from LW — using request fallback",
                         "customer_pin", customerPIN,
                         "fallback_score", fallback,
                         "error", err)
-                return fallback
+                return fallback, nil
         }
         if resp == nil || resp.Score == 0 {
-                return fallback
+                return fallback, nil
         }
-        return resp.Score
+        return resp.Score, resp.StopFactors
+}
+
+// resolveCustomerAge fetches the customer's personal info from LW (via DIN)
+// and computes age in years from DateOfBirth. Returns 0 if the date cannot
+// be parsed or GetPersonalInfo fails — the caller treats 0 as "unknown age"
+// and does NOT reject on it (fail-soft).
+func (e *CreditEngine) resolveCustomerAge(ctx context.Context, customerPIN, serial string) int {
+        resp, err := e.lwProvider.GetPersonalInfo(ctx, customerPIN, serial)
+        if err != nil {
+                slog.Warn("failed to fetch personal info from LW — age unknown (fail-soft)",
+                        "customer_pin", customerPIN,
+                        "error", err)
+                return 0
+        }
+        if resp == nil || resp.DateOfBirth == "" {
+                return 0
+        }
+        dob, err := time.Parse("2006-01-02", resp.DateOfBirth)
+        if err != nil {
+                slog.Warn("failed to parse DOB from personal info — age unknown (fail-soft)",
+                        "customer_pin", customerPIN,
+                        "dob", resp.DateOfBirth,
+                        "error", err)
+                return 0
+        }
+        now := time.Now()
+        age := now.Year() - dob.Year()
+        // Subtract 1 if the birthday hasn't happened yet this year.
+        if now.Month() < dob.Month() || (now.Month() == dob.Month() && now.Day() < dob.Day()) {
+                age--
+        }
+        if age < 0 {
+                return 0 // defensive: bad DOB in the future
+        }
+        return age
 }
 
 // ProcessApplication runs the full credit decision pipeline for a loan application.
@@ -134,9 +188,14 @@ func (e *CreditEngine) ProcessApplication(ctx context.Context, appID int) error 
         // Step 4: Pre-compute loan analytics
         analytics := computeAnalytics(customerLoans.Loans)
 
-        // Step 5: Resolve AKB score from LW (T-1.6)
-        resolvedAkb := e.resolveAkbScore(ctx, app.CustomerPIN, app.AkbScore)
+        // Step 5: Resolve AKB score + stop factors from LW (T-1.6, PR #51)
+        resolvedAkb, stopFactors := e.resolveAkbScoreAndStopFactors(ctx, app.CustomerPIN, app.AkbScore)
         app.AkbScore = resolvedAkb
+        analytics.akbScore = resolvedAkb
+        analytics.akbStopFactors = stopFactors
+
+        // Step 5b: Resolve customer age from LW PersonalInfo (PR #51, rule 3)
+        analytics.customerAge = e.resolveCustomerAge(ctx, app.CustomerPIN, app.CustomerSerial)
 
         // Step 6: Blacklist check (T-1.5, fail-open)
         blacklisted, blacklistErr := e.lwProvider.CheckBlacklist(ctx, app.CustomerPIN)

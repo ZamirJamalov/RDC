@@ -549,3 +549,272 @@ func TestDefaultRetryConfig(t *testing.T) {
                 t.Errorf("BackoffFactor = %v, want 2.0", cfg.BackoffFactor)
         }
 }
+
+// --- PR #51 tests: new rejection rules ---
+
+// TestProcessApplication_AkbScoreBelow200 verifies that an AKB score below 200
+// causes rejection (PR #51, rule 1).
+func TestProcessApplication_AkbScoreBelow200(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
+        }
+        store.rate = 30.0
+
+        provider := newMockLWProvider()
+        // LW returns AKB score 150 — below 200 threshold.
+        provider.akbScore = &lw.AkbScoreResponse{Fin: "PIN1", Score: 150}
+
+        engine := NewCreditEngine(provider, store)
+        if err := engine.ProcessApplication(ctx, 1); err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+
+        if len(store.decisionUpdates) != 1 {
+                t.Fatalf("expected 1 decision, got %d", len(store.decisionUpdates))
+        }
+        du := store.decisionUpdates[0]
+        if du.Status != model.StatusRejected {
+                t.Errorf("status = %q, want rejected", du.Status)
+        }
+        if !contains(du.RejectionReason, "AKB score 150") {
+                t.Errorf("rejection reason = %q, want AKB score 150 below minimum", du.RejectionReason)
+        }
+
+        // Verify the akb_score_check was saved with failed status.
+        var akbCheck *model.ApplicationCheckResult
+        for i, cs := range store.checkSaves {
+                if cs.CheckType == "akb_score_check" {
+                        akbCheck = &store.checkSaves[i]
+                        break
+                }
+        }
+        if akbCheck == nil {
+                t.Fatal("expected akb_score_check to be saved, got none")
+        }
+        if akbCheck.Status != model.CheckStatusFailed {
+                t.Errorf("akb_score_check status = %q, want failed", akbCheck.Status)
+        }
+}
+
+// TestProcessApplication_AkbScoreZeroNoRejection verifies that an AKB score of
+// 0 (no AKB override from LW) does NOT cause rejection — fail-soft.
+func TestProcessApplication_AkbScoreZeroNoRejection(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
+        }
+        store.rate = 30.0
+        store.approvedCount = 0
+        store.currentLevel = ""
+
+        provider := newMockLWProvider()
+        // LW returns AKB score 0 — fallback to request value (400).
+        provider.akbScore = &lw.AkbScoreResponse{Fin: "PIN1", Score: 0}
+
+        engine := NewCreditEngine(provider, store)
+        if err := engine.ProcessApplication(ctx, 1); err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+
+        if len(store.decisionUpdates) != 1 {
+                t.Fatalf("expected 1 decision, got %d", len(store.decisionUpdates))
+        }
+        du := store.decisionUpdates[0]
+        if du.Status != model.StatusPendingApproval {
+                t.Errorf("status = %q, want pending_approval (no AKB override = no rejection)", du.Status)
+        }
+}
+
+// TestProcessApplication_AkbStopFactorRejection verifies that any non-empty
+// AKB stop factor list causes rejection (PR #51, rule 4).
+func TestProcessApplication_AkbStopFactorRejection(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 700,
+        }
+        store.rate = 30.0
+
+        provider := newMockLWProvider()
+        // High AKB score BUT stop factors present — must still reject.
+        provider.akbScore = &lw.AkbScoreResponse{
+                Fin:         "PIN1",
+                Score:       750,
+                StopFactors: []string{"AB", "TY"},
+        }
+
+        engine := NewCreditEngine(provider, store)
+        if err := engine.ProcessApplication(ctx, 1); err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+
+        if len(store.decisionUpdates) != 1 {
+                t.Fatalf("expected 1 decision, got %d", len(store.decisionUpdates))
+        }
+        du := store.decisionUpdates[0]
+        if du.Status != model.StatusRejected {
+                t.Errorf("status = %q, want rejected (stop factors override score)", du.Status)
+        }
+        if !contains(du.RejectionReason, "AKB stop factor") {
+                t.Errorf("rejection reason = %q, want stop factor message", du.RejectionReason)
+        }
+        if !contains(du.RejectionReason, "AB") || !contains(du.RejectionReason, "TY") {
+                t.Errorf("rejection reason = %q, want both codes AB and TY listed", du.RejectionReason)
+        }
+
+        // Verify the akb_stop_factor_check was saved with failed status.
+        var stopCheck *model.ApplicationCheckResult
+        for i, cs := range store.checkSaves {
+                if cs.CheckType == "akb_stop_factor_check" {
+                        stopCheck = &store.checkSaves[i]
+                        break
+                }
+        }
+        if stopCheck == nil {
+                t.Fatal("expected akb_stop_factor_check to be saved, got none")
+        }
+        if stopCheck.Status != model.CheckStatusFailed {
+                t.Errorf("akb_stop_factor_check status = %q, want failed", stopCheck.Status)
+        }
+}
+
+// TestProcessApplication_AgeOver69 verifies that a customer older than 69 is
+// rejected (PR #51, rule 3).
+func TestProcessApplication_AgeOver69(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
+        }
+        store.rate = 30.0
+
+        provider := newMockLWProvider()
+        // DOB 1950-01-01 → age ~76 → reject.
+        provider.personalInfo = &lw.PersonalInfoResponse{
+                Fin:         "PIN1",
+                FullName:    "Old Customer",
+                DateOfBirth: "1950-01-01",
+        }
+
+        engine := NewCreditEngine(provider, store)
+        if err := engine.ProcessApplication(ctx, 1); err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+
+        if len(store.decisionUpdates) != 1 {
+                t.Fatalf("expected 1 decision, got %d", len(store.decisionUpdates))
+        }
+        du := store.decisionUpdates[0]
+        if du.Status != model.StatusRejected {
+                t.Errorf("status = %q, want rejected (age > 69)", du.Status)
+        }
+        if !contains(du.RejectionReason, "age") || !contains(du.RejectionReason, "exceeds maximum") {
+                t.Errorf("rejection reason = %q, want age exceeds maximum message", du.RejectionReason)
+        }
+
+        // Verify the age_check was saved with failed status.
+        var ageCheck *model.ApplicationCheckResult
+        for i, cs := range store.checkSaves {
+                if cs.CheckType == "age_check" {
+                        ageCheck = &store.checkSaves[i]
+                        break
+                }
+        }
+        if ageCheck == nil {
+                t.Fatal("expected age_check to be saved, got none")
+        }
+        if ageCheck.Status != model.CheckStatusFailed {
+                t.Errorf("age_check status = %q, want failed", ageCheck.Status)
+        }
+}
+
+// TestProcessApplication_AgeExactly69Allowed verifies that age 69 is allowed
+// (boundary: age > 69 is the rejection threshold, so 69 should pass).
+func TestProcessApplication_AgeExactly69Allowed(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
+        }
+        store.rate = 30.0
+        store.approvedCount = 0
+        store.currentLevel = ""
+
+        provider := newMockLWProvider()
+        // Calculate a DOB that gives exactly age 69 at test time.
+        // We'll use 1957-01-01 which gives age 69 in mid-2026.
+        provider.personalInfo = &lw.PersonalInfoResponse{
+                Fin:         "PIN1",
+                FullName:    "Senior Customer",
+                DateOfBirth: "1957-01-01",
+        }
+
+        engine := NewCreditEngine(provider, store)
+        if err := engine.ProcessApplication(ctx, 1); err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+
+        if len(store.decisionUpdates) != 1 {
+                t.Fatalf("expected 1 decision, got %d", len(store.decisionUpdates))
+        }
+        du := store.decisionUpdates[0]
+        // age 69 is NOT > 69, so should not reject on age.
+        if du.Status == model.StatusRejected && contains(du.RejectionReason, "age") {
+                t.Errorf("age 69 should be allowed, but got rejection: %q", du.RejectionReason)
+        }
+}
+
+// TestProcessApplication_PersonalInfoFailsNoAgeRejection verifies that when
+// GetPersonalInfo fails (LW error), the age is unknown (0) and the application
+// is NOT rejected on age grounds — fail-soft.
+func TestProcessApplication_PersonalInfoFailsNoAgeRejection(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
+        }
+        store.rate = 30.0
+        store.approvedCount = 0
+        store.currentLevel = ""
+
+        provider := newMockLWProvider()
+        provider.personalInfoErr = errors.New("LW unreachable")
+
+        engine := NewCreditEngine(provider, store)
+        if err := engine.ProcessApplication(ctx, 1); err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+
+        if len(store.decisionUpdates) != 1 {
+                t.Fatalf("expected 1 decision, got %d", len(store.decisionUpdates))
+        }
+        du := store.decisionUpdates[0]
+        // Should NOT reject on age when age is unknown.
+        if du.Status == model.StatusRejected && contains(du.RejectionReason, "age") {
+                t.Errorf("age unknown should not cause rejection, got: %q", du.RejectionReason)
+        }
+
+        // Verify the age_check was saved with passed status (fail-soft).
+        var ageCheck *model.ApplicationCheckResult
+        for i, cs := range store.checkSaves {
+                if cs.CheckType == "age_check" {
+                        ageCheck = &store.checkSaves[i]
+                        break
+                }
+        }
+        if ageCheck == nil {
+                t.Fatal("expected age_check to be saved, got none")
+        }
+        if ageCheck.Status != model.CheckStatusPassed {
+                t.Errorf("age_check status = %q, want passed (fail-soft on unknown age)", ageCheck.Status)
+        }
+}

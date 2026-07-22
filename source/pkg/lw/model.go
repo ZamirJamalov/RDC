@@ -67,6 +67,11 @@ type AkbScoreResponse struct {
         Fin       string `json:"fin"`
         Score     int    `json:"score"`
         QueryDate string `json:"query_date"`
+
+        // StopFactors contains 2-letter stop factor codes returned by AKB
+        // (e.g. "AB", "TY"). If the list is non-empty, the application must be
+        // rejected automatically — see PR #51 (rejection rule 4).
+        StopFactors []string `json:"stop_factors,omitempty"`
 }
 
 // AkbHistoryResponse contains the full AKB inquiry response.

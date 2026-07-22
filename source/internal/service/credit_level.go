@@ -15,6 +15,21 @@ type loanAnalytics struct {
         loansByLevel   map[string][]completedLoanInfo
         completedCount int
         allOnTime      bool
+
+        // PR #51 — additional rejection-rule inputs (fetched from LW / external sources).
+        // These are populated by the engine before calling computeDecision.
+
+        // akbScore is the resolved AKB credit score (LW override > request fallback).
+        // Rule: score < 200 → reject.
+        akbScore int
+
+        // akbStopFactors is the list of 2-letter stop factor codes from AKB
+        // (e.g. ["AB", "TY"]). Rule: any non-empty list → reject.
+        akbStopFactors []string
+
+        // customerAge is the customer's age in years, computed from DOB
+        // returned by GetPersonalInfo. Rule: age > 69 → reject.
+        customerAge int
 }
 
 type completedLoanInfo struct {
