@@ -98,6 +98,24 @@ func (e *CreditEngine) runChecks(analytics *loanAnalytics, app *model.LoanApplic
         }
         checks = append(checks, blacklistCheck)
 
+        // Check 4b: AZMK blacklist check (PR #53, rule 5) — sequential,
+        // result pre-populated on `analytics` by the caller.
+        azmkCheck := model.ApplicationCheckResult{
+                CheckType: "azmk_blacklist_check",
+                CheckedAt: time.Now().Format(time.RFC3339),
+        }
+        if !analytics.azmkCheckAvailable {
+                azmkCheck.Status = model.CheckStatusPassed
+                azmkCheck.Detail = "AZMK blacklist check unavailable (LW error) — fail-soft"
+        } else if analytics.azmkBlacklisted {
+                azmkCheck.Status = model.CheckStatusFailed
+                azmkCheck.Detail = "Customer is on the AZMK (Central Credit Register) blacklist"
+        } else {
+                azmkCheck.Status = model.CheckStatusPassed
+                azmkCheck.Detail = "Customer is not on the AZMK blacklist"
+        }
+        checks = append(checks, azmkCheck)
+
         // Check 5: AKB stop factor check (PR #51, rule 4) — sequential,
         // data pre-populated on `analytics` by the caller.
         stopFactorCheck := model.ApplicationCheckResult{

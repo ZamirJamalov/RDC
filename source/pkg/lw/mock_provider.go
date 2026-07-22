@@ -130,6 +130,14 @@ func (p *MockProvider) CheckBlacklist(ctx context.Context, fin string) (bool, er
         return false, nil
 }
 
+// GetAzmkBlacklist checks if a customer is on the AZMK blacklist (PR #53).
+// Mock implementation: always returns false (not on AZMK blacklist).
+// In real mode, the HTTPProvider routes this to the AZMK external service via LW.
+func (p *MockProvider) GetAzmkBlacklist(ctx context.Context, fin string) (bool, error) {
+        // Mock: no AZMK blacklist in local DB — always allow
+        return false, nil
+}
+
 // GetPersonalInfo returns mock personal info.
 // Mock implementation: returns a placeholder response with the FIN echoed back.
 // In real mode, the HTTPProvider fetches this from DIN via LW router.

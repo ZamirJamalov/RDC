@@ -51,6 +51,7 @@ const (
         pathGetCustomerLoans = "/api/lw/loans"           // GET ?pin=...
         pathSetupCustomerLoans = "/api/lw/loans/setup"   // POST
         pathCheckBlacklist   = "/api/lw/blacklist"       // GET ?fin=...
+        pathGetAzmkBlacklist = "/api/router/azmk-blacklist" // GET ?fin=... (PR #53)
         pathGetPersonalInfo  = "/api/router/personal-info" // GET ?fin=...&serial=...
         pathGetAkbScore      = "/api/router/akb-score"   // GET ?fin=...&serial=...
         pathGetAkbHistory    = "/api/router/akb-history" // GET ?fin=...&serial=...
@@ -89,6 +90,27 @@ func (p *HTTPProvider) CheckBlacklist(ctx context.Context, fin string) (bool, er
         err := p.getJSON(ctx, pathCheckBlacklist+"?fin="+fin, &resp)
         if err != nil {
                 return false, fmt.Errorf("http provider: CheckBlacklist: %w", err)
+        }
+        return resp.IsBlacklisted, nil
+}
+
+// --- AZMK Blacklist (PR #53) ---
+
+// azmkBlacklistResponse mirrors the LW router response for AZMK blacklist checks.
+// LW forwards the request to the AZMK external service and returns the result.
+type azmkBlacklistResponse struct {
+        Fin           string `json:"fin"`
+        IsBlacklisted bool   `json:"is_blacklisted"`
+}
+
+// GetAzmkBlacklist checks if a customer is on the AZMK (Central Credit Register
+// of Azerbaijan) blacklist, via the LW router. Rule 5 (PR #53): if on the AZMK
+// blacklist, the application must be rejected.
+func (p *HTTPProvider) GetAzmkBlacklist(ctx context.Context, fin string) (bool, error) {
+        var resp azmkBlacklistResponse
+        err := p.getJSON(ctx, pathGetAzmkBlacklist+"?fin="+fin, &resp)
+        if err != nil {
+                return false, fmt.Errorf("http provider: GetAzmkBlacklist: %w", err)
         }
         return resp.IsBlacklisted, nil
 }

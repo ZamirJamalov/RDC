@@ -1175,3 +1175,146 @@ func TestProcessApplication_AkbHistoryBelowThresholds(t *testing.T) {
                 t.Errorf("should not reject on AKB history when all metrics below thresholds, got: %q", du.RejectionReason)
         }
 }
+
+// --- PR #53 tests: AZMK blacklist ---
+
+// TestProcessApplication_AzmkBlacklistRejection verifies rule 5: a customer
+// on the AZMK blacklist is rejected, even when all other checks would pass.
+func TestProcessApplication_AzmkBlacklistRejection(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
+        }
+        store.rate = 30.0
+
+        provider := newMockLWProvider()
+        provider.azmkBlacklisted = true // triggers AZMK blacklist rejection
+
+        engine := NewCreditEngine(provider, store)
+        if err := engine.ProcessApplication(ctx, 1); err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+
+        if len(store.decisionUpdates) != 1 {
+                t.Fatalf("expected 1 decision, got %d", len(store.decisionUpdates))
+        }
+        du := store.decisionUpdates[0]
+        if du.Status != model.StatusRejected {
+                t.Errorf("status = %q, want rejected (AZMK blacklist)", du.Status)
+        }
+        if !contains(du.RejectionReason, "AZMK") {
+                t.Errorf("rejection reason = %q, want AZMK blacklist message", du.RejectionReason)
+        }
+
+        // Verify the azmk_blacklist_check was saved with failed status.
+        var azmkCheck *model.ApplicationCheckResult
+        for i, cs := range store.checkSaves {
+                if cs.CheckType == "azmk_blacklist_check" {
+                        azmkCheck = &store.checkSaves[i]
+                        break
+                }
+        }
+        if azmkCheck == nil {
+                t.Fatal("expected azmk_blacklist_check to be saved, got none")
+        }
+        if azmkCheck.Status != model.CheckStatusFailed {
+                t.Errorf("azmk_blacklist_check status = %q, want failed", azmkCheck.Status)
+        }
+}
+
+// TestProcessApplication_AzmkBlacklistFailSoft verifies that when
+// GetAzmkBlacklist returns an error, the AZMK rule is skipped (fail-soft)
+// and the application proceeds normally.
+func TestProcessApplication_AzmkBlacklistFailSoft(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
+        }
+        store.rate = 30.0
+        store.approvedCount = 0
+        store.currentLevel = ""
+
+        provider := newMockLWProvider()
+        provider.azmkBlacklistErr = errors.New("LW router unreachable")
+
+        engine := NewCreditEngine(provider, store)
+        if err := engine.ProcessApplication(ctx, 1); err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+
+        if len(store.decisionUpdates) != 1 {
+                t.Fatalf("expected 1 decision, got %d", len(store.decisionUpdates))
+        }
+        du := store.decisionUpdates[0]
+        // Should NOT reject on AZMK blacklist when AZMK check failed.
+        if du.Status == model.StatusRejected && contains(du.RejectionReason, "AZMK") {
+                t.Errorf("AZMK unavailable should not cause rejection, got: %q", du.RejectionReason)
+        }
+
+        // Verify the azmk_blacklist_check was saved with passed status + fail-soft note.
+        var azmkCheck *model.ApplicationCheckResult
+        for i, cs := range store.checkSaves {
+                if cs.CheckType == "azmk_blacklist_check" {
+                        azmkCheck = &store.checkSaves[i]
+                        break
+                }
+        }
+        if azmkCheck == nil {
+                t.Fatal("expected azmk_blacklist_check to be saved, got none")
+        }
+        if azmkCheck.Status != model.CheckStatusPassed {
+                t.Errorf("azmk_blacklist_check status = %q, want passed (fail-soft)", azmkCheck.Status)
+        }
+        if !contains(azmkCheck.Detail, "fail-soft") {
+                t.Errorf("azmk_blacklist_check detail = %q, want fail-soft note", azmkCheck.Detail)
+        }
+}
+
+// TestProcessApplication_AzmkBlacklistNotListed verifies that a customer NOT
+// on the AZMK blacklist does not get rejected on this rule.
+func TestProcessApplication_AzmkBlacklistNotListed(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
+        }
+        store.rate = 30.0
+        store.approvedCount = 0
+        store.currentLevel = ""
+
+        provider := newMockLWProvider()
+        provider.azmkBlacklisted = false // not on AZMK blacklist
+
+        engine := NewCreditEngine(provider, store)
+        if err := engine.ProcessApplication(ctx, 1); err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+
+        du := store.decisionUpdates[0]
+        if du.Status == model.StatusRejected && contains(du.RejectionReason, "AZMK") {
+                t.Errorf("customer not on AZMK blacklist should not be rejected on AZMK rule, got: %q", du.RejectionReason)
+        }
+
+        // Verify the azmk_blacklist_check was saved with passed status.
+        var azmkCheck *model.ApplicationCheckResult
+        for i, cs := range store.checkSaves {
+                if cs.CheckType == "azmk_blacklist_check" {
+                        azmkCheck = &store.checkSaves[i]
+                        break
+                }
+        }
+        if azmkCheck == nil {
+                t.Fatal("expected azmk_blacklist_check to be saved, got none")
+        }
+        if azmkCheck.Status != model.CheckStatusPassed {
+                t.Errorf("azmk_blacklist_check status = %q, want passed", azmkCheck.Status)
+        }
+        if !contains(azmkCheck.Detail, "not on the AZMK") {
+                t.Errorf("azmk_blacklist_check detail = %q, want 'not on the AZMK blacklist'", azmkCheck.Detail)
+        }
+}

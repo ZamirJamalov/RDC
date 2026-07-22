@@ -27,24 +27,26 @@ type decisionResult struct {
 // applies via applyDecisionTx.
 //
 // Decision order (first match wins):
-//  1.  Blacklisted                  → reject (T-1.5)
-//  2.  AKB stop factors             → reject (PR #51, rule 4)
-//  3.  AKB score < 200              → reject (PR #51, rule 1)
-//  4.  Age > 69                     → reject (PR #51, rule 3)
-//  4b. Delay ratio > 6 (24 months)  → reject (PR #52, rule 2)
-//  4c. Active delay > 5 days        → reject (PR #52, rule 6)
-//  4d. Last 3 months max ≥ 20       → reject (PR #52, rule 7)
-//  4e. Last 6 months max ≥ 30       → reject (PR #52, rule 8)
-//  4f. Last 12 months max ≥ 45      → reject (PR #52, rule 9)
-//  4g. Last 18 months max ≥ 60      → reject (PR #52, rule 10)
-//  4h. Monthly payments > 2000 AZN  → reject (PR #52, rule 12)
-//  5.  Active loan                  → reject
-//  6.  Late payments                → reject
-//  7.  No applicable rate           → reject (with descriptive reason)
-//  8.  Elite level                  → approve (auto)
-//  9.  Other levels                 → pending_approval (manual review)
+//  1.  Blacklisted (LW)              → reject (T-1.5)
+//  1b. AZMK blacklisted              → reject (PR #53, rule 5)
+//  2.  AKB stop factors              → reject (PR #51, rule 4)
+//  3.  AKB score < 200               → reject (PR #51, rule 1)
+//  4.  Age > 69                      → reject (PR #51, rule 3)
+//  4b. Delay ratio > 6 (24 months)   → reject (PR #52, rule 2)
+//  4c. Active delay > 5 days         → reject (PR #52, rule 6)
+//  4d. Last 3 months max ≥ 20        → reject (PR #52, rule 7)
+//  4e. Last 6 months max ≥ 30        → reject (PR #52, rule 8)
+//  4f. Last 12 months max ≥ 45       → reject (PR #52, rule 9)
+//  4g. Last 18 months max ≥ 60       → reject (PR #52, rule 10)
+//  4h. Monthly payments > 2000 AZN   → reject (PR #52, rule 12)
+//  5.  Active loan                   → reject
+//  6.  Late payments                 → reject
+//  7.  No applicable rate            → reject (with descriptive reason)
+//  8.  Elite level                   → approve (auto)
+//  9.  Other levels                  → pending_approval (manual review)
 //
-// Rules 4b–4h are skipped when AKB history is unavailable (fail-soft).
+// Rules 1b, 4b–4h are skipped when the corresponding LW call is unavailable
+// (fail-soft). Rule 1b is skipped when azmkCheckAvailable is false.
 func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel string,
         unlockPhase int, app *model.LoanApplication, blacklisted bool) (*decisionResult, error) {
 
@@ -53,6 +55,15 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
                 return &decisionResult{
                         Status:          model.StatusRejected,
                         RejectionReason: "Customer is blacklisted",
+                }, nil
+        }
+
+        // 1b. Reject: AZMK blacklist (PR #53, rule 5)
+        // Skipped when GetAzmkBlacklist failed (fail-soft) — see analytics.azmkCheckAvailable.
+        if analytics.azmkCheckAvailable && analytics.azmkBlacklisted {
+                return &decisionResult{
+                        Status:          model.StatusRejected,
+                        RejectionReason: "Customer is on the AZMK (Central Credit Register) blacklist",
                 }, nil
         }
 

@@ -269,15 +269,18 @@ func isAkbLiabilityActive(status string) bool {
 // ProcessApplication runs the full credit decision pipeline for a loan application.
 //
 // Pipeline (DB writes wrapped in a single transaction — T-1.3):
-//  1. Status → checking (outside tx, visible immediately)
-//  2. Fetch application + customer loans from LW
-//  3. Resolve AKB score from LW (T-1.6)
-//  4. Blacklist check from LW (T-1.5, fail-open on error)
-//  5. Determine credit level + unlock phase
-//  6. Run checks (active-loan + payment-history + credit-level + blacklist)
-//  7. Compute decision (credit_decision.go::computeDecision)
-//  8. Save checks + apply decision in transaction (T-1.3)
-//  9. If approved → call LW.ApproveLoan (T-1.1), downgrade to rejected on failure
+//  1.  Status → checking (outside tx, visible immediately)
+//  2.  Fetch application + customer loans from LW
+//  3.  Resolve AKB score + stop factors from LW (PR #51)
+//  3b. Resolve customer age from LW PersonalInfo (PR #51)
+//  3c. Resolve AKB history metrics from LW (PR #52)
+//  4.  Blacklist check from LW (T-1.5, fail-open on error)
+//  4b. AZMK blacklist check from LW router (PR #53, fail-soft on error)
+//  5.  Determine credit level + unlock phase
+//  6.  Run checks (active-loan + payment-history + credit-level + blacklist + AZMK + AKB + age)
+//  7.  Compute decision (credit_decision.go::computeDecision)
+//  8.  Save checks + apply decision in transaction (T-1.3)
+//  9.  If approved → call LW.ApproveLoan (T-1.1), downgrade to rejected on failure
 func (e *CreditEngine) ProcessApplication(ctx context.Context, appID int) error {
         // Step 1: Update status to "checking" (outside tx — visible immediately)
         if err := e.appRepo.UpdateApplicationStatus(ctx, appID, model.StatusChecking); err != nil {
@@ -319,6 +322,19 @@ func (e *CreditEngine) ProcessApplication(ctx context.Context, appID int) error 
                         "customer_pin", app.CustomerPIN,
                         "error", blacklistErr)
                 blacklisted = false
+        }
+
+        // Step 6b: AZMK blacklist check (PR #53, rule 5, fail-soft)
+        azmkBlacklisted, azmkErr := e.lwProvider.GetAzmkBlacklist(ctx, app.CustomerPIN)
+        if azmkErr != nil {
+                slog.Warn("failed to check AZMK blacklist — skipping AZMK rule (fail-soft)",
+                        "application_id", appID,
+                        "customer_pin", app.CustomerPIN,
+                        "error", azmkErr)
+                analytics.azmkCheckAvailable = false
+        } else {
+                analytics.azmkCheckAvailable = true
+                analytics.azmkBlacklisted = azmkBlacklisted
         }
 
         // Step 7: Determine credit level + unlock phase

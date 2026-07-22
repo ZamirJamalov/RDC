@@ -13,6 +13,11 @@ type Provider interface {
         // --- Blacklist (LW own database) ---
         CheckBlacklist(ctx context.Context, fin string) (bool, error)
 
+        // --- AZMK Blacklist (Central Credit Register of Azerbaijan) ---
+        // Routed via LW to the AZMK external service. Rule 5 (PR #53):
+        // if a customer is on the AZMK blacklist, the application must be rejected.
+        GetAzmkBlacklist(ctx context.Context, fin string) (bool, error)
+
         // --- External Router (LW routes to external services) ---
         GetPersonalInfo(ctx context.Context, fin, serial string) (*PersonalInfoResponse, error)
         GetAkbScore(ctx context.Context, fin, serial string) (*AkbScoreResponse, error)
