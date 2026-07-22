@@ -8,6 +8,11 @@ package model
 //      pending → checking → approved | rejected | pending_approval
 //                                        ↑            ↓
 //                                        └── approved / rejected (operator decision)
+//
+//      pending_expert / pending_approval → cancelled (operator decision)
+//
+// A cancelled application is terminal (like approved / rejected) and does NOT
+// count as an active application — the customer can file a new one immediately.
 const (
         // StatusPending means the application was just created and has not been picked
         // up by the credit engine yet.
@@ -37,11 +42,16 @@ const (
         // details (loan amount, term, card, contacts, address) and trigger the
         // credit engine.
         StatusPendingExpert = "pending_expert"
+
+        // StatusCancelled means the application was cancelled by an operator (expert)
+        // while it was waiting in pending_expert or pending_approval. A cancelled
+        // application is terminal — the customer can file a new application.
+        StatusCancelled = "cancelled"
 )
 
 // IsFinal reports whether the status is a terminal state.
 func IsFinal(status string) bool {
-        return status == StatusApproved || status == StatusRejected
+        return status == StatusApproved || status == StatusRejected || status == StatusCancelled
 }
 
 // IsActive reports whether the status indicates the application is still being
@@ -50,6 +60,14 @@ func IsActive(status string) bool {
         return status == StatusPending || status == StatusChecking ||
                 status == StatusPendingApproval || status == StatusPendingCustomer ||
                 status == StatusPendingExpert
+}
+
+// IsCancellable reports whether the application can be cancelled by an operator.
+// Only applications in pending_expert or pending_approval can be cancelled —
+// these are the human-review stages where the operator can decide to abort.
+// pending / checking (engine running) and terminal statuses cannot be cancelled.
+func IsCancellable(status string) bool {
+        return status == StatusPendingExpert || status == StatusPendingApproval
 }
 
 // ApplicationCheckResult status constants.

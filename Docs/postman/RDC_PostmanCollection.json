@@ -3760,6 +3760,100 @@
           ]
         },
         {
+          "name": "🟢 Expert Cancel: From pending_approval",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/{{application_id}}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{application_id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"cancelled\",\n  \"reason\": \"Müştəri imtina etdi\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Müraciəti ləğv et (operator tərəfindən).\n\n⚠️ Application pending_expert və ya pending_approval statusunda olmalıdır.\n\nCancelled statusu terminaldır — müştəri yeni müraciət edə bilər."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Status is cancelled\", () => { const j = pm.response.json(); pm.expect(j.status).to.eq(\"cancelled\"); });",
+                  "pm.test(\"Rejection reason set\", () => { const j = pm.response.json(); pm.expect(j.rejection_reason).to.include(\"Cancelled\"); });",
+                  "pm.test(\"Response < 2000ms\", () => pm.expect(pm.response.responseTime).to.below(2000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Expert Cancel: terminal statusdan (approved)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/{{application_id}}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{application_id}}",
+                "status"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"cancelled\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Approved application-dən cancel etməyə çalış — 400 error gözlənilir.\n\nQayda: cancelled-a yalnız pending_expert və pending_approval-dan keçid mümkündür."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"Error contains 'cannot be cancelled'\", () => { const j = pm.response.json(); pm.expect(JSON.stringify(j)).to.include(\"cannot be cancelled\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "🔴 Expert Get: invalid id",
           "request": {
             "method": "GET",

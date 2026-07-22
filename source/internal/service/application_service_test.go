@@ -508,6 +508,135 @@ func TestUpdateStatus_InvalidID(t *testing.T) {
         }
 }
 
+// --- Cancel tests (PR #50) ---
+
+// TestUpdateStatus_CancelFromPendingExpert verifies that an operator can cancel
+// an application that is waiting for expert input.
+func TestUpdateStatus_CancelFromPendingExpert(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Status: model.StatusPendingExpert,
+                Amount: 300, ApprovedRate: 30,
+        }
+        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
+
+        app, err := svc.UpdateStatus(ctx, 1, &UpdateStatusRequest{
+                Status: model.StatusCancelled,
+                Reason: "Müştəri imtina etdi",
+        })
+        if err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+        if app.Status != model.StatusCancelled {
+                t.Errorf("status = %q, want cancelled", app.Status)
+        }
+
+        if len(store.decisionUpdates) != 1 {
+                t.Fatalf("expected 1 decision update, got %d", len(store.decisionUpdates))
+        }
+        du := store.decisionUpdates[0]
+        if du.Status != model.StatusCancelled {
+                t.Errorf("decision status = %q, want cancelled", du.Status)
+        }
+        if !contains(du.RejectionReason, "Cancelled by operator") {
+                t.Errorf("rejection reason = %q, want 'Cancelled by operator' prefix", du.RejectionReason)
+        }
+        if !contains(du.RejectionReason, "Müştəri imtina etdi") {
+                t.Errorf("rejection reason = %q, want reason included", du.RejectionReason)
+        }
+
+        // Credit level history must NOT be saved for cancelled applications.
+        if len(store.historySaves) != 0 {
+                t.Errorf("expected 0 history saves for cancel, got %d", len(store.historySaves))
+        }
+}
+
+// TestUpdateStatus_CancelFromPendingApproval verifies that an operator can
+// cancel an application that has passed automated checks and is awaiting
+// manual approval.
+func TestUpdateStatus_CancelFromPendingApproval(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Status: model.StatusPendingApproval,
+                Amount: 300, ApprovedRate: 30, CreditLevel: model.CreditLevelTrusted,
+        }
+        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
+
+        app, err := svc.UpdateStatus(ctx, 1, &UpdateStatusRequest{Status: model.StatusCancelled})
+        if err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+        if app.Status != model.StatusCancelled {
+                t.Errorf("status = %q, want cancelled", app.Status)
+        }
+
+        du := store.decisionUpdates[0]
+        if du.CreditLevel != model.CreditLevelTrusted {
+                t.Errorf("credit level = %q, want trusted (kept from existing)", du.CreditLevel)
+        }
+}
+
+// TestUpdateStatus_CancelFromTerminalStatus verifies that cancelling from a
+// terminal status (approved / rejected / cancelled) is rejected.
+func TestUpdateStatus_CancelFromTerminalStatus(t *testing.T) {
+        ctx := context.Background()
+
+        terminalStatuses := []string{
+                model.StatusApproved,
+                model.StatusRejected,
+                model.StatusCancelled,
+        }
+
+        for _, status := range terminalStatuses {
+                t.Run("from_"+status, func(t *testing.T) {
+                        store := newMockStore()
+                        store.appByID[1] = &model.LoanApplication{ID: 1, Status: status}
+                        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
+
+                        _, err := svc.UpdateStatus(ctx, 1, &UpdateStatusRequest{Status: model.StatusCancelled})
+                        if err == nil {
+                                t.Fatal("expected error, got nil")
+                        }
+                        if !contains(err.Error(), "cannot be cancelled") {
+                                t.Errorf("error = %q, want 'cannot be cancelled' message", err.Error())
+                        }
+                })
+        }
+}
+
+// TestUpdateStatus_CancelFromPendingOrChecking verifies that the engine-active
+// statuses (pending / checking) cannot be cancelled — the operator must wait
+// for the engine to finish.
+func TestUpdateStatus_CancelFromPendingOrChecking(t *testing.T) {
+        ctx := context.Background()
+
+        engineStatuses := []string{
+                model.StatusPending,
+                model.StatusChecking,
+                model.StatusPendingCustomer,
+        }
+
+        for _, status := range engineStatuses {
+                t.Run("from_"+status, func(t *testing.T) {
+                        store := newMockStore()
+                        store.appByID[1] = &model.LoanApplication{ID: 1, Status: status}
+                        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
+
+                        _, err := svc.UpdateStatus(ctx, 1, &UpdateStatusRequest{Status: model.StatusCancelled})
+                        if err == nil {
+                                t.Fatal("expected error, got nil")
+                        }
+                        if !contains(err.Error(), "cannot be cancelled") {
+                                t.Errorf("error = %q, want 'cannot be cancelled' message", err.Error())
+                        }
+                })
+        }
+}
+
 // --- Sanity test: lw.CustomerLoan sanity check ---
 
 // TestLWCustomerLoan_Serialization is a tiny smoke test ensuring our mock
