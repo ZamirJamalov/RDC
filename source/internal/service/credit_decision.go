@@ -5,6 +5,7 @@ import (
         "fmt"
         "log/slog"
         "math"
+        "strings"
 
         "rdc-source/internal/model"
         "rdc-source/internal/repository"
@@ -26,12 +27,15 @@ type decisionResult struct {
 // applies via applyDecisionTx.
 //
 // Decision order (first match wins):
-//  1. Blacklisted       → reject (T-1.5)
-//  2. Active loan       → reject
-//  3. Late payments     → reject
-//  4. No applicable rate → reject (with descriptive reason)
-//  5. Elite level       → approve (auto)
-//  6. Other levels      → pending_approval (manual review)
+//  1. Blacklisted            → reject (T-1.5)
+//  2. AKB stop factors       → reject (PR #51, rule 4)
+//  3. AKB score < 200        → reject (PR #51, rule 1)
+//  4. Age > 69               → reject (PR #51, rule 3)
+//  5. Active loan            → reject
+//  6. Late payments          → reject
+//  7. No applicable rate     → reject (with descriptive reason)
+//  8. Elite level            → approve (auto)
+//  9. Other levels           → pending_approval (manual review)
 //
 // This function does NOT write to the DB — it's a pure decision computation
 // so it's easy to test in isolation.
@@ -46,7 +50,40 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
                 }, nil
         }
 
-        // 2. Reject: active loans
+        // 2. Reject: AKB stop factors present (PR #51, rule 4)
+        if len(analytics.akbStopFactors) > 0 {
+                return &decisionResult{
+                        Status: model.StatusRejected,
+                        RejectionReason: fmt.Sprintf("AKB stop factor(s): %s",
+                                strings.Join(analytics.akbStopFactors, ", ")),
+                }, nil
+        }
+
+        // 3. Reject: AKB score below threshold (PR #51, rule 1)
+        // Note: a score of 0 means AKB didn't return a value (we fell back to the
+        // request-supplied akbScore, which may also be 0). We only reject on a
+        // genuine low score (> 0 and < 200) — a missing score is treated as
+        // "no information" and does not block the application.
+        if analytics.akbScore > 0 && analytics.akbScore < 200 {
+                return &decisionResult{
+                        Status: model.StatusRejected,
+                        RejectionReason: fmt.Sprintf("AKB score %d below minimum (200)",
+                                analytics.akbScore),
+                }, nil
+        }
+
+        // 4. Reject: customer age > 69 (PR #51, rule 3)
+        // Note: customerAge == 0 means GetPersonalInfo failed or didn't return DOB;
+        // we treat that as "unknown age" and do NOT reject (fail-soft).
+        if analytics.customerAge > 69 {
+                return &decisionResult{
+                        Status: model.StatusRejected,
+                        RejectionReason: fmt.Sprintf("Customer age %d exceeds maximum (69)",
+                                analytics.customerAge),
+                }, nil
+        }
+
+        // 5. Reject: active loans
         if analytics.hasActive {
                 return &decisionResult{
                         Status:          model.StatusRejected,
@@ -54,7 +91,7 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
                 }, nil
         }
 
-        // 3. Reject: late payments in history
+        // 6. Reject: late payments in history
         if analytics.completedCount > 0 && !analytics.allOnTime {
                 return &decisionResult{
                         Status:          model.StatusRejected,
@@ -62,7 +99,7 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
                 }, nil
         }
 
-        // 4. Look up the rate for this credit level, amount, term, and unlock phase
+        // 7. Look up the rate for this credit level, amount, term, and unlock phase
         rate, err := e.appRepo.GetCreditLevelRate(context.Background(), creditLevel, app.Amount, app.TermMonths, unlockPhase)
         if err != nil {
                 reason := fmt.Sprintf("No applicable rate: %v", err)
@@ -76,7 +113,7 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
                 }, nil
         }
 
-        // 5. Elite: auto-approve; 6. Others: pending_approval (manual review)
+        // 8. Elite: auto-approve; 9. Others: pending_approval (manual review)
         // Calculate total amount sent to LW = Principal + Interest, where
         // Interest = (Rate / (100 - Rate)) × 100.
         // Example: 300 + (30/70)*100 = 300 + 42.86 = 342.86 AZN

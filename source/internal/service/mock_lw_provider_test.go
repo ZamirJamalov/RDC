@@ -30,6 +30,10 @@ type mockLWProvider struct {
         akbScore    *lw.AkbScoreResponse
         akbScoreErr error
 
+        // GetPersonalInfo
+        personalInfo    *lw.PersonalInfoResponse
+        personalInfoErr error
+
         // ApproveLoan (T-1.1)
         approveLoanResp    *lw.ApproveLoanResponse
         approveLoanErr     error
@@ -70,8 +74,20 @@ func (m *mockLWProvider) GetAkbScore(_ context.Context, fin, _ string) (*lw.AkbS
 // --- Stubs for unused router methods (return errors to make it obvious if a test
 // accidentally exercises them without configuring a return value) ---
 
-func (m *mockLWProvider) GetPersonalInfo(_ context.Context, _, _ string) (*lw.PersonalInfoResponse, error) {
-        return nil, errMockNotConfigured
+func (m *mockLWProvider) GetPersonalInfo(_ context.Context, fin, _ string) (*lw.PersonalInfoResponse, error) {
+        if m.personalInfoErr != nil {
+                return nil, m.personalInfoErr
+        }
+        if m.personalInfo == nil {
+                // Default: return a 30-year-old customer (born 1996-01-01) so age check passes.
+                // Tests that need a different age should set m.personalInfo explicitly.
+                return &lw.PersonalInfoResponse{
+                        Fin:         fin,
+                        FullName:    "Mock Customer",
+                        DateOfBirth: "1996-01-01",
+                }, nil
+        }
+        return m.personalInfo, nil
 }
 
 func (m *mockLWProvider) GetAkbHistory(_ context.Context, _, _ string) (*lw.AkbHistoryResponse, error) {
