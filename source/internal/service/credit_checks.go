@@ -150,7 +150,79 @@ func (e *CreditEngine) runChecks(analytics *loanAnalytics, app *model.LoanApplic
         }
         checks = append(checks, ageCheck)
 
+        // Checks 8–14: AKB History-based checks (PR #52).
+        // All 7 are gated on akbHistoryAvailable — when AKB is unreachable, each
+        // check is recorded with passed status + "fail-soft" note so the operator
+        // can see in the UI that AKB history was not consulted.
+        if !analytics.akbHistoryAvailable {
+                failSoftNote := "AKB history unavailable (LW error) — fail-soft"
+                checks = append(checks,
+                        akbHistoryCheck("delay_ratio_check", model.CheckStatusPassed, failSoftNote),
+                        akbHistoryCheck("active_delay_check", model.CheckStatusPassed, failSoftNote),
+                        akbHistoryCheck("delay_history_3m_check", model.CheckStatusPassed, failSoftNote),
+                        akbHistoryCheck("delay_history_6m_check", model.CheckStatusPassed, failSoftNote),
+                        akbHistoryCheck("delay_history_12m_check", model.CheckStatusPassed, failSoftNote),
+                        akbHistoryCheck("delay_history_18m_check", model.CheckStatusPassed, failSoftNote),
+                        akbHistoryCheck("monthly_payments_check", model.CheckStatusPassed, failSoftNote),
+                )
+                return checks
+        }
+
+        // Check 8: Delay ratio over last 24 months (rule 2)
+        checks = append(checks, akbHistoryCheck("delay_ratio_check",
+                thresholdStatus(analytics.delayRatio > 6),
+                fmt.Sprintf("Delay ratio %.2f days/month over last 24 months (max 6)", analytics.delayRatio)))
+
+        // Check 9: Active liability current delay (rule 6)
+        checks = append(checks, akbHistoryCheck("active_delay_check",
+                thresholdStatus(analytics.activeMaxDelayDays > 5),
+                fmt.Sprintf("Active loan max current delay %d days (max 5)", analytics.activeMaxDelayDays)))
+
+        // Check 10: Last 3 months max delay (rule 7)
+        checks = append(checks, akbHistoryCheck("delay_history_3m_check",
+                thresholdStatus(analytics.maxDelayLast3Months >= 20),
+                fmt.Sprintf("Max delay %d days in last 3 months (threshold 20)", analytics.maxDelayLast3Months)))
+
+        // Check 11: Last 6 months max delay (rule 8)
+        checks = append(checks, akbHistoryCheck("delay_history_6m_check",
+                thresholdStatus(analytics.maxDelayLast6Months >= 30),
+                fmt.Sprintf("Max delay %d days in last 6 months (threshold 30)", analytics.maxDelayLast6Months)))
+
+        // Check 12: Last 12 months max delay (rule 9)
+        checks = append(checks, akbHistoryCheck("delay_history_12m_check",
+                thresholdStatus(analytics.maxDelayLast12Months >= 45),
+                fmt.Sprintf("Max delay %d days in last 12 months (threshold 45)", analytics.maxDelayLast12Months)))
+
+        // Check 13: Last 18 months max delay (rule 10)
+        checks = append(checks, akbHistoryCheck("delay_history_18m_check",
+                thresholdStatus(analytics.maxDelayLast18Months >= 60),
+                fmt.Sprintf("Max delay %d days in last 18 months (threshold 60)", analytics.maxDelayLast18Months)))
+
+        // Check 14: Total monthly payments on active liabilities (rule 12)
+        checks = append(checks, akbHistoryCheck("monthly_payments_check",
+                thresholdStatus(analytics.totalMonthlyPayments > 2000),
+                fmt.Sprintf("Total monthly payments %.2f AZN (max 2000)", analytics.totalMonthlyPayments)))
+
         return checks
+}
+
+// akbHistoryCheck builds an ApplicationCheckResult for an AKB-History-derived
+// check with the given type, status, and detail.
+func akbHistoryCheck(checkType, status, detail string) model.ApplicationCheckResult {
+        return model.ApplicationCheckResult{
+                CheckType: checkType,
+                Status:    status,
+                Detail:    detail,
+                CheckedAt: time.Now().Format(time.RFC3339),
+        }
+}
+
+// thresholdStatus returns failed if the condition is true, else passed.
+func thresholdStatus(failed bool) string {
+        if failed {
+                return model.CheckStatusFailed
+        }
+        return model.CheckStatusPassed
 }
 
 // resolveUnlockPhase returns 2 if the customer already has 1+ approved application at

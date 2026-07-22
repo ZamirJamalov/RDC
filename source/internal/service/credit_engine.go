@@ -4,6 +4,8 @@ import (
         "context"
         "fmt"
         "log/slog"
+        "math"
+        "strings"
         "time"
 
         "rdc-source/internal/model"
@@ -155,6 +157,115 @@ func (e *CreditEngine) resolveCustomerAge(ctx context.Context, customerPIN, seri
         return age
 }
 
+// resolveAkbHistory fetches the customer's full AKB credit history and computes
+// the metrics required by PR #52 rejection rules.
+//
+// Populates the following loanAnalytics fields:
+//   - delayRatio:            sum(OverdueDays in last 24 months) / active months
+//   - activeMaxDelayDays:    max(DaysMainSumOverdue) across active liabilities
+//   - maxDelayLast3Months:   max OverdueDays in last 3 months (>= 20 → reject)
+//   - maxDelayLast6Months:   max OverdueDays in last 6 months (>= 30 → reject)
+//   - maxDelayLast12Months:  max OverdueDays in last 12 months (>= 45 → reject)
+//   - maxDelayLast18Months:  max OverdueDays in last 18 months (>= 60 → reject)
+//   - totalMonthlyPayments:  sum(MonthlyPaymentAmount) across active liabilities
+//   - akbHistoryAvailable:   true if AKB returned usable data
+//
+// Fail-soft: on LW error or nil response, akbHistoryAvailable is set to false
+// and all derived fields are left at zero — the caller (computeDecision) skips
+// AKB-History-based rules when akbHistoryAvailable is false.
+//
+// Time windows are computed from time.Now() (application date) going backwards,
+// per business requirement: "kredit müraciəti etdiyi tarixden geri sayılır".
+func (e *CreditEngine) resolveAkbHistory(ctx context.Context, customerPIN, serial string, analytics *loanAnalytics) {
+        resp, err := e.lwProvider.GetAkbHistory(ctx, customerPIN, serial)
+        if err != nil {
+                slog.Warn("failed to fetch AKB history from LW — skipping AKB-history rules (fail-soft)",
+                        "customer_pin", customerPIN,
+                        "error", err)
+                analytics.akbHistoryAvailable = false
+                return
+        }
+        if resp == nil || len(resp.Liabilities) == 0 {
+                // No liabilities = no history to evaluate. Treat as "available but empty"
+                // so the caller knows the call succeeded. All metrics remain 0.
+                analytics.akbHistoryAvailable = true
+                return
+        }
+
+        now := time.Now()
+        window3m := now.AddDate(0, -3, 0)
+        window6m := now.AddDate(0, -6, 0)
+        window12m := now.AddDate(0, -12, 0)
+        window18m := now.AddDate(0, -18, 0)
+        window24m := now.AddDate(0, -24, 0)
+
+        var (
+                totalDelay24m int
+                activeMonths  int
+                max3, max6, max12, max18 int
+                totalMonthly   float64
+                maxActiveDelay int
+        )
+
+        for _, lib := range resp.Liabilities {
+                // Active liability metrics (rules 6 + 12)
+                isActive := isAkbLiabilityActive(lib.CreditStatus)
+                if isActive {
+                        if lib.DaysMainSumOverdue > maxActiveDelay {
+                                maxActiveDelay = lib.DaysMainSumOverdue
+                        }
+                        totalMonthly += lib.MonthlyPaymentAmount
+                }
+
+                // Per-month history metrics (rules 2, 7, 8, 9, 10)
+                for _, h := range lib.History {
+                        period, err := time.Parse("2006-01", h.ReportingPeriod)
+                        if err != nil {
+                                // Unparseable period — skip this entry rather than failing the whole call.
+                                continue
+                        }
+                        // Active month = any month the liability had a reporting entry within last 24m.
+                        if period.After(window24m) {
+                                activeMonths++
+                                totalDelay24m += h.OverdueDays
+                        }
+                        if period.After(window3m) && h.OverdueDays > max3 {
+                                max3 = h.OverdueDays
+                        }
+                        if period.After(window6m) && h.OverdueDays > max6 {
+                                max6 = h.OverdueDays
+                        }
+                        if period.After(window12m) && h.OverdueDays > max12 {
+                                max12 = h.OverdueDays
+                        }
+                        if period.After(window18m) && h.OverdueDays > max18 {
+                                max18 = h.OverdueDays
+                        }
+                }
+        }
+
+        if activeMonths > 0 {
+                // Round to 2 decimals to avoid floating-point noise.
+                ratio := float64(totalDelay24m) / float64(activeMonths)
+                analytics.delayRatio = math.Round(ratio*100) / 100
+        }
+        analytics.activeMaxDelayDays = maxActiveDelay
+        analytics.maxDelayLast3Months = max3
+        analytics.maxDelayLast6Months = max6
+        analytics.maxDelayLast12Months = max12
+        analytics.maxDelayLast18Months = max18
+        analytics.totalMonthlyPayments = math.Round(totalMonthly*100) / 100
+        analytics.akbHistoryAvailable = true
+}
+
+// isAkbLiabilityActive returns true if the liability's credit status indicates
+// the loan is currently active (not closed / written off / sold).
+// AKB CreditStatus values: "active", "closed", "written_off", "sold",
+// "court", "expired". We treat only "active" as active.
+func isAkbLiabilityActive(status string) bool {
+        return strings.EqualFold(status, "active")
+}
+
 // ProcessApplication runs the full credit decision pipeline for a loan application.
 //
 // Pipeline (DB writes wrapped in a single transaction — T-1.3):
@@ -196,6 +307,9 @@ func (e *CreditEngine) ProcessApplication(ctx context.Context, appID int) error 
 
         // Step 5b: Resolve customer age from LW PersonalInfo (PR #51, rule 3)
         analytics.customerAge = e.resolveCustomerAge(ctx, app.CustomerPIN, app.CustomerSerial)
+
+        // Step 5c: Resolve AKB credit history metrics (PR #52, rules 2/6/7/8/9/10/12)
+        e.resolveAkbHistory(ctx, app.CustomerPIN, app.CustomerSerial, analytics)
 
         // Step 6: Blacklist check (T-1.5, fail-open)
         blacklisted, blacklistErr := e.lwProvider.CheckBlacklist(ctx, app.CustomerPIN)

@@ -818,3 +818,360 @@ func TestProcessApplication_PersonalInfoFailsNoAgeRejection(t *testing.T) {
                 t.Errorf("age_check status = %q, want passed (fail-soft on unknown age)", ageCheck.Status)
         }
 }
+
+// --- PR #52 tests: AKB History-based rejection rules ---
+
+// helper: build an AKB liability with a monthly history of overdue days.
+// `history` is a map of "YYYY-MM" -> overdueDays. The current liability state
+// (DaysMainSumOverdue, MonthlyPaymentAmount, CreditStatus) is set from the
+// other arguments.
+func akbLiabilityWithHistory(id, status string, currentOverdue int, monthly float64, history map[string]int) lw.AkbLiability {
+        lib := lw.AkbLiability{
+                ID:                  id,
+                CreditStatus:        status,
+                DaysMainSumOverdue:  currentOverdue,
+                MonthlyPaymentAmount: monthly,
+        }
+        for period, days := range history {
+                lib.History = append(lib.History, lw.AkbLiabilityHistory{
+                        ReportingPeriod: period,
+                        OverdueDays:     days,
+                })
+        }
+        return lib
+}
+
+// TestProcessApplication_DelayRatioAbove6 verifies rule 2: a delay ratio > 6
+// (sum of overdue days in last 24 months / active months) triggers rejection.
+//
+// Setup: 12 active months, 90 overdue days → ratio 7.5 → reject.
+func TestProcessApplication_DelayRatioAbove6(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
+        }
+        store.rate = 30.0
+
+        provider := newMockLWProvider()
+        // Build 12 reporting periods (last 12 months) with total 90 overdue days.
+        // 90 / 12 = 7.5 > 6 → reject.
+        history := map[string]int{}
+        now := time.Now()
+        for i := 0; i < 12; i++ {
+                period := now.AddDate(0, -i, 0).Format("2006-01")
+                history[period] = 7 // 7 days each → 84 total, ~7.0 ratio
+        }
+        history[now.AddDate(0, -1, 0).Format("2006-01")] = 13 // bump last month to 13 → total 90, ratio 7.5
+
+        provider.akbHistory = &lw.AkbHistoryResponse{
+                ReportID:      "MOCK",
+                ReportingDate: "2026-01-01",
+                Liabilities:   []lw.AkbLiability{akbLiabilityWithHistory("L1", "closed", 0, 0, history)},
+        }
+
+        engine := NewCreditEngine(provider, store)
+        if err := engine.ProcessApplication(ctx, 1); err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+
+        if len(store.decisionUpdates) != 1 {
+                t.Fatalf("expected 1 decision, got %d", len(store.decisionUpdates))
+        }
+        du := store.decisionUpdates[0]
+        if du.Status != model.StatusRejected {
+                t.Errorf("status = %q, want rejected (delay ratio > 6)", du.Status)
+        }
+        if !contains(du.RejectionReason, "Delay ratio") || !contains(du.RejectionReason, "exceeds maximum") {
+                t.Errorf("rejection reason = %q, want delay ratio exceeds maximum", du.RejectionReason)
+        }
+}
+
+// TestProcessApplication_ActiveLoanCurrentDelayAbove5 verifies rule 6: an
+// active liability with DaysMainSumOverdue > 5 triggers rejection.
+func TestProcessApplication_ActiveLoanCurrentDelayAbove5(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
+        }
+        store.rate = 30.0
+
+        provider := newMockLWProvider()
+        provider.akbHistory = &lw.AkbHistoryResponse{
+                Liabilities: []lw.AkbLiability{
+                        akbLiabilityWithHistory("L1", "active", 10, 200, nil), // 10 > 5 → reject
+                },
+        }
+
+        engine := NewCreditEngine(provider, store)
+        if err := engine.ProcessApplication(ctx, 1); err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+
+        du := store.decisionUpdates[0]
+        if du.Status != model.StatusRejected {
+                t.Errorf("status = %q, want rejected (active delay > 5)", du.Status)
+        }
+        if !contains(du.RejectionReason, "Active loan has 10 days") {
+                t.Errorf("rejection reason = %q, want active loan 10 days overdue", du.RejectionReason)
+        }
+}
+
+// TestProcessApplication_Delay3MonthsAbove20 verifies rule 7: any single
+// reporting period in the last 3 months with OverdueDays >= 20 triggers rejection.
+func TestProcessApplication_Delay3MonthsAbove20(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
+        }
+        store.rate = 30.0
+
+        provider := newMockLWProvider()
+        // One month ago, 25 days overdue — within 3-month window, ≥ 20 → reject.
+        lastMonth := time.Now().AddDate(0, -1, 0).Format("2006-01")
+        history := map[string]int{lastMonth: 25}
+        provider.akbHistory = &lw.AkbHistoryResponse{
+                Liabilities: []lw.AkbLiability{akbLiabilityWithHistory("L1", "closed", 0, 0, history)},
+        }
+
+        engine := NewCreditEngine(provider, store)
+        if err := engine.ProcessApplication(ctx, 1); err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+
+        du := store.decisionUpdates[0]
+        if du.Status != model.StatusRejected {
+                t.Errorf("status = %q, want rejected (3-month delay ≥ 20)", du.Status)
+        }
+        if !contains(du.RejectionReason, "last 3 months") {
+                t.Errorf("rejection reason = %q, want last 3 months", du.RejectionReason)
+        }
+}
+
+// TestProcessApplication_Delay6MonthsAbove30 verifies rule 8.
+func TestProcessApplication_Delay6MonthsAbove30(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
+        }
+        store.rate = 30.0
+
+        provider := newMockLWProvider()
+        // 4 months ago, 35 days overdue — within 6-month window (but outside 3-month),
+        // ≥ 30 → reject on 6-month rule.
+        fourMonthsAgo := time.Now().AddDate(0, -4, 0).Format("2006-01")
+        history := map[string]int{fourMonthsAgo: 35}
+        provider.akbHistory = &lw.AkbHistoryResponse{
+                Liabilities: []lw.AkbLiability{akbLiabilityWithHistory("L1", "closed", 0, 0, history)},
+        }
+
+        engine := NewCreditEngine(provider, store)
+        if err := engine.ProcessApplication(ctx, 1); err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+
+        du := store.decisionUpdates[0]
+        if du.Status != model.StatusRejected {
+                t.Errorf("status = %q, want rejected (6-month delay ≥ 30)", du.Status)
+        }
+        if !contains(du.RejectionReason, "last 6 months") {
+                t.Errorf("rejection reason = %q, want last 6 months", du.RejectionReason)
+        }
+}
+
+// TestProcessApplication_Delay12MonthsAbove45 verifies rule 9.
+func TestProcessApplication_Delay12MonthsAbove45(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
+        }
+        store.rate = 30.0
+
+        provider := newMockLWProvider()
+        // 8 months ago, 50 days overdue — within 12-month window, ≥ 45 → reject.
+        eightMonthsAgo := time.Now().AddDate(0, -8, 0).Format("2006-01")
+        history := map[string]int{eightMonthsAgo: 50}
+        provider.akbHistory = &lw.AkbHistoryResponse{
+                Liabilities: []lw.AkbLiability{akbLiabilityWithHistory("L1", "closed", 0, 0, history)},
+        }
+
+        engine := NewCreditEngine(provider, store)
+        if err := engine.ProcessApplication(ctx, 1); err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+
+        du := store.decisionUpdates[0]
+        if du.Status != model.StatusRejected {
+                t.Errorf("status = %q, want rejected (12-month delay ≥ 45)", du.Status)
+        }
+        if !contains(du.RejectionReason, "last 12 months") {
+                t.Errorf("rejection reason = %q, want last 12 months", du.RejectionReason)
+        }
+}
+
+// TestProcessApplication_Delay18MonthsAbove60 verifies rule 10.
+func TestProcessApplication_Delay18MonthsAbove60(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
+        }
+        store.rate = 30.0
+
+        provider := newMockLWProvider()
+        // 14 months ago, 65 days overdue — within 18-month window (but outside 12-month),
+        // ≥ 60 → reject on 18-month rule.
+        fourteenMonthsAgo := time.Now().AddDate(0, -14, 0).Format("2006-01")
+        history := map[string]int{fourteenMonthsAgo: 65}
+        provider.akbHistory = &lw.AkbHistoryResponse{
+                Liabilities: []lw.AkbLiability{akbLiabilityWithHistory("L1", "closed", 0, 0, history)},
+        }
+
+        engine := NewCreditEngine(provider, store)
+        if err := engine.ProcessApplication(ctx, 1); err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+
+        du := store.decisionUpdates[0]
+        if du.Status != model.StatusRejected {
+                t.Errorf("status = %q, want rejected (18-month delay ≥ 60)", du.Status)
+        }
+        if !contains(du.RejectionReason, "last 18 months") {
+                t.Errorf("rejection reason = %q, want last 18 months", du.RejectionReason)
+        }
+}
+
+// TestProcessApplication_MonthlyPaymentsAbove2000 verifies rule 12: total
+// monthly payments on active liabilities > 2000 AZN triggers rejection.
+func TestProcessApplication_MonthlyPaymentsAbove2000(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
+        }
+        store.rate = 30.0
+
+        provider := newMockLWProvider()
+        // Two active liabilities: 1200 + 900 = 2100 > 2000 → reject.
+        provider.akbHistory = &lw.AkbHistoryResponse{
+                Liabilities: []lw.AkbLiability{
+                        akbLiabilityWithHistory("L1", "active", 0, 1200, nil),
+                        akbLiabilityWithHistory("L2", "active", 0, 900, nil),
+                },
+        }
+
+        engine := NewCreditEngine(provider, store)
+        if err := engine.ProcessApplication(ctx, 1); err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+
+        du := store.decisionUpdates[0]
+        if du.Status != model.StatusRejected {
+                t.Errorf("status = %q, want rejected (monthly payments > 2000)", du.Status)
+        }
+        if !contains(du.RejectionReason, "Total monthly payments") || !contains(du.RejectionReason, "2100") {
+                t.Errorf("rejection reason = %q, want total monthly payments 2100", du.RejectionReason)
+        }
+}
+
+// TestProcessApplication_AkbHistoryUnavailableFailSoft verifies that when
+// GetAkbHistory returns an error, the 7 AKB-History-based rules are all
+// skipped (fail-soft) and the application proceeds normally.
+func TestProcessApplication_AkbHistoryUnavailableFailSoft(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
+        }
+        store.rate = 30.0
+        store.approvedCount = 0
+        store.currentLevel = ""
+
+        provider := newMockLWProvider()
+        provider.akbHistoryErr = errors.New("LW unreachable")
+
+        engine := NewCreditEngine(provider, store)
+        if err := engine.ProcessApplication(ctx, 1); err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+
+        du := store.decisionUpdates[0]
+        // Should NOT reject on any AKB-History rule when history is unavailable.
+        if du.Status == model.StatusRejected {
+                t.Errorf("status = rejected (%q), want non-rejected (fail-soft on AKB history error)", du.RejectionReason)
+        }
+
+        // All 7 AKB-History checks should be saved with passed status + fail-soft note.
+        akbHistoryCheckTypes := []string{
+                "delay_ratio_check", "active_delay_check",
+                "delay_history_3m_check", "delay_history_6m_check",
+                "delay_history_12m_check", "delay_history_18m_check",
+                "monthly_payments_check",
+        }
+        for _, ct := range akbHistoryCheckTypes {
+                var found *model.ApplicationCheckResult
+                for i, cs := range store.checkSaves {
+                        if cs.CheckType == ct {
+                                found = &store.checkSaves[i]
+                                break
+                        }
+                }
+                if found == nil {
+                        t.Errorf("expected check %q to be saved (fail-soft), got none", ct)
+                        continue
+                }
+                if found.Status != model.CheckStatusPassed {
+                        t.Errorf("check %q status = %q, want passed (fail-soft)", ct, found.Status)
+                }
+                if !contains(found.Detail, "fail-soft") {
+                        t.Errorf("check %q detail = %q, want fail-soft note", ct, found.Detail)
+                }
+        }
+}
+
+// TestProcessApplication_AkbHistoryBelowThresholds verifies that an
+// application with AKB history present but all metrics below thresholds
+// does NOT get rejected on those rules.
+func TestProcessApplication_AkbHistoryBelowThresholds(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{
+                ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
+        }
+        store.rate = 30.0
+        store.approvedCount = 0
+        store.currentLevel = ""
+
+        provider := newMockLWProvider()
+        // Small delay (1 day) in last month, small monthly payment (500) — below all thresholds.
+        lastMonth := time.Now().AddDate(0, -1, 0).Format("2006-01")
+        history := map[string]int{lastMonth: 1}
+        provider.akbHistory = &lw.AkbHistoryResponse{
+                Liabilities: []lw.AkbLiability{
+                        akbLiabilityWithHistory("L1", "active", 1, 500, history),
+                },
+        }
+
+        engine := NewCreditEngine(provider, store)
+        if err := engine.ProcessApplication(ctx, 1); err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+
+        du := store.decisionUpdates[0]
+        if du.Status == model.StatusRejected && contains(du.RejectionReason, "AKB") {
+                t.Errorf("should not reject on AKB history when all metrics below thresholds, got: %q", du.RejectionReason)
+        }
+}
