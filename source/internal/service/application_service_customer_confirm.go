@@ -145,15 +145,19 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
         app.ActualAddress = req.ActualAddress
         app.CustomerConfirmedAt = time.Now().Format(time.RFC3339)
         app.CardOwnershipConfirmed = true
-        // Status stays pending_expert — the expert will later call CompleteApplication
-        // to add contact1/2/3_phone and trigger the credit engine.
+        // PR #63 (Variant B): transition to 'pending' so the credit engine can pick it up.
+        // Previously (Variant A), status stayed pending_expert and the expert had to call
+        // CompleteApplication to add contact phones and trigger the engine. Now the engine
+        // runs immediately at customer-confirm, and the expert's role is downstream
+        // (MyGov employment/pension verification, contact phone collection).
+        app.Status = model.StatusPending
 
         // 5. Save
         if err := s.repo.UpdateApplicationDetails(ctx, appID, app); err != nil {
                 return nil, fmt.Errorf("failed to save customer confirmation: %w", err)
         }
 
-        slog.Info("customer confirmed application",
+        slog.Info("customer confirmed application, triggering credit engine",
                 "application_id", appID,
                 "customer_pin", app.CustomerPIN,
                 "customer_full_name", app.CustomerFullName,
@@ -162,7 +166,57 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
                 "akb_score", app.AkbScore,
                 "credit_level", offer.CreditLevel)
 
-        return s.repo.GetApplicationByID(ctx, appID)
+        // 6. PR #63 (Variant B): trigger the credit engine immediately.
+        // The engine runs the 12 rejection rules (blacklist, AKB, AZMK, age, delay
+        // windows, monthly payments, etc.) and produces a final decision:
+        //   - rejected      → customer sees "Müraciətiniz rədd edildi" on apply.html
+        //   - pending_approval → application lands in RDC dashboard for expert review
+        //   - approved (elite) → downgraded to pending_approval per PR #63 (see below)
+        //
+        // The engine runs synchronously here so that the customer-confirm response
+        // already carries the final status. The customer's browser shows the result
+        // immediately (success or rejection).
+        if err := s.creditEngine.ProcessApplication(ctx, appID); err != nil {
+                slog.Error("customer-confirm: credit engine failed — leaving application in pending state",
+                        "application_id", appID,
+                        "error", err)
+                // Don't fail the whole request — the customer data was saved successfully.
+                // The engine failure is a backend issue; the application stays in 'pending'
+                // and the expert can manually trigger reprocessing from the dashboard.
+        }
+
+        // 7. PR #63 (Variant B): downgrade elite auto-approve to pending_approval.
+        // The customer-side flow must NOT end in 'approved' because the expert still
+        // needs to:
+        //   - call the customer to verify employment/pension status
+        //   - trigger MyGov employment or pension data request
+        //   - verify the 6-month work tenure rule or 1st-group disability rule
+        //   - collect 3 contact phone numbers
+        // If the engine approved the application (elite level), downgrade to
+        // pending_approval so it appears in the expert queue.
+        finalApp, err := s.repo.GetApplicationByID(ctx, appID)
+        if err != nil {
+                return nil, fmt.Errorf("failed to fetch application after engine: %w", err)
+        }
+        if finalApp.Status == model.StatusApproved {
+                slog.Info("customer-confirm: downgrading elite auto-approve to pending_approval (Variant B)",
+                        "application_id", appID,
+                        "customer_pin", app.CustomerPIN,
+                        "credit_level", finalApp.CreditLevel)
+                finalApp.Status = model.StatusPendingApproval
+                finalApp.RejectionReason = ""
+                if err := s.repo.UpdateApplicationDecision(ctx, appID,
+                        finalApp.Status, finalApp.CreditLevel, "",
+                        finalApp.ApprovedAmount, finalApp.ApprovedRate, finalApp.TotalAmount); err != nil {
+                        return nil, fmt.Errorf("failed to downgrade elite approval: %w", err)
+                }
+                finalApp, err = s.repo.GetApplicationByID(ctx, appID)
+                if err != nil {
+                        return nil, fmt.Errorf("failed to fetch application after downgrade: %w", err)
+                }
+        }
+
+        return finalApp, nil
 }
 
 // findRangeForAmount returns the first OfferRange whose [min_amount, max_amount]
