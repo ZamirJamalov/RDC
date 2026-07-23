@@ -152,7 +152,7 @@
         [x-cloak] { display: none !important; }
     </style>
 </head>
-<body x-data="applyApp()" x-cloak>
+<body x-data="applyApp()" x-init="init()" x-cloak>
 
 <div class="min-h-screen flex flex-col">
 
@@ -219,12 +219,21 @@
                            :disabled="otpSent">
                 </div>
 
-                <!-- Seriya -->
+                <!-- Seriya (PR #70: dropdown + text) -->
                 <div>
                     <label class="text-sm text-gray-400 mb-2 block">Seriya nömrəsi <span class="text-red-400">*</span></label>
-                    <input type="text" x-model="form.serial" placeholder="Məs: AA1234567"
-                           class="input-field w-full px-4 py-3.5 rounded-xl text-lg font-semibold"
-                           :disabled="otpSent">
+                    <div class="flex gap-2">
+                        <select x-model="form.serialPrefix" :disabled="otpSent"
+                                class="input-field w-24 px-3 py-3.5 rounded-xl text-lg font-semibold">
+                            <option value="AZE">AZE</option>
+                            <option value="AA">AA</option>
+                            <option value="AB">AB</option>
+                        </select>
+                        <input type="text" x-model="form.serialNumber" placeholder="1234567" maxlength="8"
+                               class="input-field flex-1 px-4 py-3.5 rounded-xl text-lg font-semibold"
+                               :disabled="otpSent"
+                               @input="form.serialNumber = form.serialNumber.replace(/[^0-9]/g, '')">
+                    </div>
                 </div>
 
                 <!-- Phone -->
@@ -253,7 +262,7 @@
                 <!-- Action buttons -->
                 <div class="pt-4">
                     <button x-show="!otpSent" @click="sendOtp"
-                            :disabled="loading || !form.fin || !form.serial || !form.phone"
+                            :disabled="loading || !form.fin || !form.serialPrefix || !form.serialNumber || !form.phone"
                             class="cta-btn w-full text-white font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
                         <span x-show="!loading">OTP Göndər →</span>
                         <span x-show="loading" class="flex items-center gap-2">
@@ -349,9 +358,9 @@
                 <!-- Card number -->
                 <div>
                     <label class="text-sm text-gray-400 mb-2 block">Kart nömrəsi (16 rəqəm) <span class="text-red-400">*</span></label>
-                    <input type="text" x-model="form.cardNumber" maxlength="16" placeholder="4169 7312 3456 7890"
+                    <input type="text" x-model="form.cardNumber" maxlength="19" placeholder="4169 7312 3456 7890"
                            class="input-field w-full px-4 py-3.5 rounded-xl text-lg font-mono tracking-wider"
-                           @input="form.cardNumber = form.cardNumber.replace(/[^0-9]/g, '')">
+                           @input="formatCardNumber()">
                 </div>
 
                 <!-- Card ownership checkbox -->
@@ -490,7 +499,8 @@ function applyApp() {
         // Form fields
         form: {
             fin: '',
-            serial: '',
+            serialPrefix: 'AZE',
+            serialNumber: '',
             phone: '',
             otp: '',
             amount: 0,
@@ -534,6 +544,93 @@ function applyApp() {
 
         // --- Actions ---
 
+        init() {
+            // PR #70: Restore state from localStorage on page load
+            this.restoreState();
+        },
+
+        // PR #70: Save current state to localStorage
+        saveState() {
+            try {
+                localStorage.setItem('alpul_apply_step', String(this.currentStep));
+                localStorage.setItem('alpul_apply_app_id', String(this.applicationId || ''));
+                localStorage.setItem('alpul_apply_otp_sent', String(this.otpSent));
+                if (this.offer) {
+                    localStorage.setItem('alpul_apply_offer', JSON.stringify(this.offer));
+                }
+                if (this.selectedRange) {
+                    localStorage.setItem('alpul_apply_range', JSON.stringify(this.selectedRange));
+                }
+                localStorage.setItem('alpul_apply_amount', String(this.form.amount));
+                localStorage.setItem('alpul_apply_form', JSON.stringify({
+                    fin: this.form.fin,
+                    serialPrefix: this.form.serialPrefix,
+                    serialNumber: this.form.serialNumber,
+                    phone: this.form.phone,
+                }));
+            } catch(e) { /* localStorage not available — ignore */ }
+        },
+
+        // PR #70: Restore state from localStorage
+        restoreState() {
+            try {
+                const savedStep = localStorage.getItem('alpul_apply_step');
+                if (savedStep !== null) {
+                    this.currentStep = parseInt(savedStep);
+                }
+                const savedAppId = localStorage.getItem('alpul_apply_app_id');
+                if (savedAppId && savedAppId !== 'null') {
+                    this.applicationId = parseInt(savedAppId);
+                }
+                const savedOtp = localStorage.getItem('alpul_apply_otp_sent');
+                if (savedOtp === 'true') {
+                    this.otpSent = true;
+                }
+                const savedOffer = localStorage.getItem('alpul_apply_offer');
+                if (savedOffer) {
+                    this.offer = JSON.parse(savedOffer);
+                }
+                const savedRange = localStorage.getItem('alpul_apply_range');
+                if (savedRange) {
+                    this.selectedRange = JSON.parse(savedRange);
+                }
+                const savedAmount = localStorage.getItem('alpul_apply_amount');
+                if (savedAmount) {
+                    this.form.amount = parseFloat(savedAmount);
+                }
+                const savedForm = localStorage.getItem('alpul_apply_form');
+                if (savedForm) {
+                    const f = JSON.parse(savedForm);
+                    this.form.fin = f.fin || '';
+                    this.form.serialPrefix = f.serialPrefix || 'AZE';
+                    this.form.serialNumber = f.serialNumber || '';
+                    this.form.phone = f.phone || '';
+                }
+            } catch(e) { /* parse error — ignore, start fresh */ }
+        },
+
+        // PR #70: Clear localStorage (called on success or manual reset)
+        clearState() {
+            localStorage.removeItem('alpul_apply_step');
+            localStorage.removeItem('alpul_apply_app_id');
+            localStorage.removeItem('alpul_apply_otp_sent');
+            localStorage.removeItem('alpul_apply_offer');
+            localStorage.removeItem('alpul_apply_range');
+            localStorage.removeItem('alpul_apply_amount');
+            localStorage.removeItem('alpul_apply_form');
+        },
+
+        // PR #70: Format card number with space every 4 digits
+        formatCardNumber() {
+            let digits = this.form.cardNumber.replace(/\s/g, '').replace(/[^0-9]/g, '');
+            this.form.cardNumber = digits.replace(/(\d{4})(?=\d)/g, '$1 ');
+        },
+
+        // PR #70: Get combined serial (prefix + number)
+        get fullSerial() {
+            return this.form.serialPrefix + this.form.serialNumber;
+        },
+
         async sendOtp() {
             this.error = '';
             this.loading = true;
@@ -543,7 +640,7 @@ function applyApp() {
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         customer_pin: this.form.fin,
-                        customer_serial: this.form.serial,
+                        customer_serial: this.fullSerial,
                         customer_phone: '+994' + this.form.phone,
                     }),
                 });
@@ -552,6 +649,7 @@ function applyApp() {
 
                 this.applicationId = data.id;
                 this.otpSent = true;
+                this.saveState();
             } catch (e) {
                 this.error = e.message;
             } finally {
@@ -594,9 +692,11 @@ function applyApp() {
 
                 // 4. Move to offer step
                 this.currentStep = 2;
+                this.saveState();
             } catch (e) {
                 this.error = e.message;
                 this.currentStep = 0; // back to init on error
+                this.saveState();
             } finally {
                 this.loading = false;
             }
@@ -606,6 +706,7 @@ function applyApp() {
             this.otpSent = false;
             this.form.otp = '';
             this.error = '';
+            this.saveState();
         },
 
         async confirmApplication() {
@@ -626,7 +727,7 @@ function applyApp() {
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         amount: this.form.amount,
-                        card_number: this.form.cardNumber,
+                        card_number: this.form.cardNumber.replace(/\s/g, ''), // PR #70: strip spaces
                         actual_address: this.form.address,
                         card_ownership_confirmed: this.form.cardConfirmed,
                     }),
@@ -642,6 +743,7 @@ function applyApp() {
 
                 // 5. Show result screen (success OR rejection based on engine outcome)
                 this.currentStep = 3;
+                this.clearState(); // PR #70: clear localStorage on final result
             } catch (e) {
                 this.error = e.message;
             } finally {

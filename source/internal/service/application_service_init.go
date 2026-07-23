@@ -29,6 +29,16 @@ func (s *ApplicationService) InitApplication(ctx context.Context, req *InitAppli
                 return nil, fmt.Errorf("customer_phone is required")
         }
 
+        // PR #70: Check for duplicate — customer must not have an existing non-final application.
+        // This blocks new applications while a previous one is still being processed.
+        existingID, existingStatus, err := s.repo.HasPendingApplication(ctx, req.CustomerPIN)
+        if err != nil {
+                return nil, fmt.Errorf("failed to check existing applications: %w", err)
+        }
+        if existingID > 0 {
+                return nil, fmt.Errorf("Sizin artıq işlənməkdə olan müraciətiniz var (№%d, status: %s). Bu müraciət həll olunana qədər yeni müraciət edə bilməzsiniz", existingID, existingStatus)
+        }
+
         app := &model.LoanApplication{
                 CustomerPIN:    req.CustomerPIN,
                 CustomerSerial: req.CustomerSerial,
