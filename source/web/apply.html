@@ -381,7 +381,7 @@
 
                 <!-- Confirm button -->
                 <button @click="confirmApplication"
-                        :disabled="loading || !form.amount || form.cardNumber.length !== 16 || !form.cardConfirmed || !form.address"
+                        :disabled="loading || !form.amount || form.cardNumber.replace(/\s/g, '').length !== 16 || !form.cardConfirmed || !form.address"
                         class="cta-btn w-full text-white font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
                     <span x-show="!loading">Təsdiq edirəm →</span>
                     <span x-show="loading" class="flex items-center gap-2">
