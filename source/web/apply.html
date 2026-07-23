@@ -545,8 +545,17 @@ function applyApp() {
         // --- Actions ---
 
         init() {
-            // PR #70: Restore state from localStorage on page load
-            this.restoreState();
+            // PR #74: If navigated from landing page (?from=landing), clear
+            // localStorage so the form starts fresh from step 0.
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('from') === 'landing') {
+                this.clearState();
+                // Clean the URL so refresh doesn't keep clearing
+                window.history.replaceState({}, document.title, window.location.pathname);
+            } else {
+                // PR #70: Restore state from localStorage on page load
+                this.restoreState();
+            }
         },
 
         // PR #70: Save current state to localStorage
