@@ -554,6 +554,91 @@ If you want to test late payment rejection:
 
 ---
 
+## LW Stub Scenarios (PR #61) — NEW
+
+When the real LW router is not yet available, you can start the RDC server in
+**stub mode** — an in-process stub HTTP server mimics the real LW router
+responses, so you can exercise the full HTTP provider code path.
+
+### Setting up stub mode
+
+1. In `.env` (or your shell environment), set:
+   ```
+   LW_USE_MOCK=false
+   LW_USE_STUB=true
+   LW_STUB_PORT=8090
+   ```
+2. Restart the RDC server: `go run .`
+3. You should see in the log:
+   ```
+   INFO LW stub server starting (development only) addr=:8090
+   INFO using HTTP LW provider pointed at in-process stub base_url=http://localhost:8090
+   ```
+
+### Verifying the stub is up
+
+- **Postman folder:** `10. LW Stub Scenarios (PR #61)`
+- **Request:** `🟢 Stub Health Check`
+- **URL:** `{{stub_url}}/stub/health` → resolves to `http://localhost:8090/stub/health`
+- **Expected:** `{"status":"ok","service":"lw-stub"}`
+
+If you see `ECONNREFUSED`, the stub server is not running — check `.env` and
+restart the RDC server.
+
+### Available scenarios
+
+Every stub endpoint accepts a `?scenario=xxx` query parameter that controls
+which canned response is returned. The Postman folder has one request per
+scenario so you can run them individually:
+
+| Group | Scenarios |
+|---|---|
+| AKB Score | default (Point=650), stop_factor (Point=1, AB), low_score (150), high_score (750), no_data (0), error (502) |
+| AKB History | empty, delay_ratio_high (rule 2), active_delay_high (rule 6), delay_3m (rule 7), delay_6m (rule 8), delay_12m (rule 9), delay_18m (rule 10), high_monthly_payments (rule 12), error |
+| PersonalInfo | default (35yo), old_customer (rule 3), young_customer (24yo), error |
+| AZMK Blacklist | not blacklisted, blacklisted (rule 5), error |
+| LW Blacklist | not blacklisted, blacklisted (T-1.5), error |
+| ASAN Finance | default (500), low_income (200), high_income (1500), error |
+| LW Loans | default (no loans), trusted (2 completed), active_loan, late_payment, error |
+| LW Approve | default (signed+completed), contract_failed, error |
+
+### Why this matters
+
+The stub responses match the **exact format** that the real LW router will
+return — including the SOAP-derived JSON for AKB Score
+(`{return: {response, point}}`, PR #55). This means:
+
+- The HTTPProvider's JSON parsing is exercised against realistic payloads
+- Timeouts and error handling are tested (502 responses)
+- When the real LW router is ready, switching is just config:
+  ```
+  LW_USE_STUB=false
+  LW_BASE_URL=https://real-lw-router.example.com
+  LW_API_KEY=real-api-key
+  ```
+- **No code changes needed** — the HTTPProvider already parses the same
+  format the stub was serving.
+
+### Testing rejection rules end-to-end
+
+You can combine stub scenarios with the application flow to test each
+rejection rule. Example for AKB stop factor (rule 4):
+
+1. Start server in stub mode
+2. Run a request to set the stub scenario:
+   - `GET http://localhost:8090/api/router/akb-score?fin=PIN1&scenario=stop_factor`
+   - (The stub is stateless — it returns the scenario response every time)
+3. Submit an application through the RDC API
+4. The credit engine will call the stub via HTTPProvider, get `Point=1, Response=AB`
+5. Application will be rejected with reason: `AKB stop factor: AB (score=1)`
+
+**Note:** Because the stub is stateless, all customers will get the same
+scenario response. To test different customers with different scenarios,
+you'd need to modify the stub code or run multiple stub instances on
+different ports.
+
+---
+
 ## Done
 
 You now know how to test the RDC API step by step.

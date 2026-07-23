@@ -50,6 +50,12 @@
       "value": "",
       "enabled": true,
       "description": "Auto-set from POST /api/router/sima/init"
+    },
+    {
+      "key": "stub_url",
+      "value": "http://localhost:8090",
+      "enabled": true,
+      "description": "PR #61: In-process LW stub server URL. Used by '10. LW Stub Scenarios' folder. Only available when LW_USE_STUB=true (server starts on port 8090 by default)."
     }
   ],
   "_postman_variable_scope": "environment"
