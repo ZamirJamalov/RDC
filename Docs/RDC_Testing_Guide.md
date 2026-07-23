@@ -469,7 +469,7 @@ After this step, the application is approved.
 | 12c | 8. Expert Panel | Expert Approve | approved |
 | 13 | 7. Status & Decision | Get Status | **approved** ✅ |
 
-**New flow (PR #58, recommended for production):** Steps 1 → 2 → 3 → 4 → 5 → 6.5a → 6.5c → 8a
+**New flow (PR #58 + PR #63 Variant B, recommended for production):** Steps 1 → 2 → 3 → 4 → 5 → 6.5a → 6.5c → 8a → MyGov verify
 **Legacy flow (still works for direct API testing):** Steps 1 → 2 → 3 → 4 → 5 → 7 → 8a
 
 ---
@@ -636,6 +636,187 @@ rejection rule. Example for AKB stop factor (rule 4):
 scenario response. To test different customers with different scenarios,
 you'd need to modify the stub code or run multiple stub instances on
 different ports.
+
+---
+
+## MyGov Employment + Pension Verification (PR #65-#66) — NEW
+
+When an application passes the credit engine (status = `pending_approval`), the
+expert must verify the customer's employment or pension status via MyGov before
+final approval.
+
+### Prerequisites
+
+- Application must be in `pending_approval` status (engine passed all 12 rules)
+- Server must be in stub mode (`LW_USE_STUB=true`) for testing without real MyGov
+- The customer's phone must be OTP-verified (so SMS can be sent)
+
+### Step 1: Send Employment or Pension Request
+
+The expert calls the customer, asks about their employment/pension status, then
+triggers the appropriate MyGov permission request.
+
+**Postman folder:** `5. MyGov`
+
+**Request:** `🟢 Employment Request: MyGov link + SMS (PR #65)`
+
+```
+POST /api/applications/{{application_id}}/mygov-employment-request
+```
+
+**What happens:**
+1. Backend generates a MyGov permission link
+2. SMS is sent to the customer's phone with the link
+3. Customer opens the link and grants permission in MyGov app
+
+**Expected response:**
+```json
+{
+  "application_id": 1,
+  "url": "https://mygov.example.com/permit/...",
+  "expires_at": "2026-07-23T10:05:00Z"
+}
+```
+
+For pension verification, use `🟢 Pension Request: MyGov link + SMS (PR #65)` instead.
+
+### Step 2: Verify the Data
+
+After the customer grants permission in MyGov, the expert clicks "Verify".
+
+**Request:** `🟢 Employment Verify: staj check + auto-reject (PR #65)`
+
+```
+POST /api/applications/{{application_id}}/mygov-employment-verify
+```
+
+**What happens:**
+1. Backend fetches MyGov data (employment history)
+2. Backend runs the 6-month tenure rule:
+   - Current job tenure ≥ 6 months → PASS
+   - Else if previous job + gap < 29 days → combined tenure ≥ 6 months → PASS
+   - Else → FAIL → **auto-reject**
+3. If FAIL, application status changes to `rejected` with a descriptive reason
+
+**Expected response (pass):**
+```json
+{
+  "application_id": 1,
+  "verified": true,
+  "status": "passed",
+  "reason": "Cari iş yerində staj 8.0 ay (≥ 6 ay) — uyğundur",
+  "check_type": "employment"
+}
+```
+
+**Expected response (fail):**
+```json
+{
+  "application_id": 1,
+  "verified": false,
+  "status": "rejected",
+  "reason": "Cari staj 2.0 ay (< 6 ay) və əvvəlki iş yeri yoxdur — imtina",
+  "check_type": "employment"
+}
+```
+
+When `status = "rejected"`, the application is automatically rejected. Check with:
+```
+GET /api/applications/{{application_id}}/status
+```
+→ `status: "rejected"`, `rejection_reason: "Cari staj 2.0 ay..."`
+
+### Step 3: Pension Verification (if applicable)
+
+If the customer is a pensioner, use the pension verification flow instead:
+
+**Request:** `🟢 Pension Verify: disability check + auto-reject (PR #65)`
+
+```
+POST /api/applications/{{application_id}}/mygov-pension-verify
+```
+
+**What happens:**
+1. Backend fetches MyGov data (pension/disability info)
+2. Backend checks `DisabilityGroup`:
+   - `DisabilityGroup == 1` → **auto-reject** (1st group disability)
+   - `DisabilityGroup == 0, 2, or 3` → PASS
+
+**Expected response (pass):**
+```json
+{
+  "application_id": 1,
+  "verified": true,
+  "status": "passed",
+  "reason": "No 1st-group disability found",
+  "check_type": "pension"
+}
+```
+
+**Expected response (fail — 1st group disability):**
+```json
+{
+  "application_id": 1,
+  "verified": false,
+  "status": "rejected",
+  "reason": "1ci qrup əlilliyi aşkarlandı — pensiya sorgusu əsasında avtomatik imtina",
+  "check_type": "pension"
+}
+```
+
+### Testing with Stub Scenarios
+
+The stub server (PR #61) provides 8 MyGov scenarios for testing different
+verification outcomes. These are in the `10. LW Stub Scenarios` folder.
+
+| Stub Scenario | Description | Expected Verify Result |
+|---|---|---|
+| `employment_ok` | 8 months at current job | passed |
+| `employment_short_tenure` | 3mo current + 4mo previous, gap 10d | passed (combined 7mo) |
+| `employment_short_tenure_long_gap` | 3mo + 4mo, gap 60d | rejected (gap ≥ 29d) |
+| `employment_insufficient_tenure` | 2mo, no previous | rejected |
+| `pension_disability_group1` | 1st group disability | rejected (auto-reject) |
+| `pension_disability_group2` | 2nd group disability | passed |
+| `pension_age` | Age pensioner, no disability | passed |
+| `error` | Service error | 502 |
+
+To test a specific scenario, call the stub directly:
+```
+GET http://localhost:8090/api/mygov/permission/data?token=T1&scenario=employment_insufficient_tenure
+```
+
+Then call the verify endpoint — the backend will fetch this data from the stub
+and run the appropriate check.
+
+### Dashboard UI
+
+The RDC dashboard (`detail.html`) now shows a "MyGov Təsdiqi" section when the
+application is in `pending_approval` status. The section contains:
+
+- **İş Yeri Sorgusu** card with 2 buttons:
+  - "İş Yeri Sorgusu Göndər" → triggers employment-request
+  - "Məlumatı Yoxla" → triggers employment-verify
+  - Result badge: green "✓ Keçdi" or red "✗ İmtina"
+
+- **Pensiya Sorgusu** card with 2 buttons:
+  - "Pensiya Sorgusu Göndər" → triggers pension-request
+  - "Məlumatı Yoxla" → triggers pension-verify
+  - Result badge + reason message
+
+- **Auto-reject warning**: red box with "⚠ Müraciət Avtomatik İmtina Edildi"
+  + rejection reason, shown when verification fails
+
+### Important Notes
+
+- The expert should call the customer FIRST and ask about their employment
+  status before triggering the MyGov request. This avoids unnecessary MyGov
+  permission requests for customers who don't have official income.
+- Only ONE verification type is needed: employment OR pension, not both.
+  The expert decides which based on the customer's situation.
+- If employment verification passes, the expert can proceed to collect contact
+  phones and approve the application via `PUT /api/applications/{id}/complete`.
+- If either verification fails (auto-reject), the application cannot be
+  recovered — the customer must file a new application.
 
 ---
 
