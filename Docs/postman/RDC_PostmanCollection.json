@@ -3843,6 +3843,230 @@
               }
             }
           ]
+        },
+        {
+          "name": "🟢 Employment Request: MyGov link + SMS (PR #65)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/{{application_id}}/mygov-employment-request",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{application_id}}",
+                "mygov-employment-request"
+              ]
+            },
+            "description": "PR #65 — İş yeri sorgusu üçün MyGov icazə linki yaradır və müştəriyə SMS göndərir.\n\nMüştəri MyGov app-a daxil olub icazə verməlidir. Sonra ekspert 'Employment Verify' endpoint-ini çağıraraq staj yoxlanışını işə sala bilər.\n\nResponse: {application_id, url, expires_at}\n\nWorkflow:\n1. Bu endpoint-i çağır → SMS göndərilir\n2. Müştəri MyGov app-da icazə verir\n3. '🟢 Employment Verify' endpoint-i ilə yoxla"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has url\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"url\"); });",
+                  "pm.test(\"Response < 3000ms\", () => pm.expect(pm.response.responseTime).to.below(3000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Employment Verify: staj check + auto-reject (PR #65)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/{{application_id}}/mygov-employment-verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{application_id}}",
+                "mygov-employment-verify"
+              ]
+            },
+            "description": "PR #65 — MyGov-dan iş yeri məlumatlarını çəkir və 6-month tenure qaydasını yoxlayır.\n\nStaj qaydası:\n  - Cari iş ≥ 6 ay → KEÇ\n  - Əks halda əvvəlki iş yeri + fasilə < 29 gün → toplam ≥ 6 ay → KEÇ\n  - Əks halda → İMTİNA (auto-reject)\n\nResponse: {application_id, verified, status, reason, check_type: 'employment'}\n  - status='passed' → verification uğurlu\n  - status='rejected' → auto-reject tətbiq olundu, application status='rejected' oldu"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has status\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"status\"); });",
+                  "pm.test(\"Has reason\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"reason\"); });",
+                  "pm.test(\"check_type=employment\", () => { const j = pm.response.json(); pm.expect(j.check_type).to.eq(\"employment\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Pension Request: MyGov link + SMS (PR #65)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/{{application_id}}/mygov-pension-request",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{application_id}}",
+                "mygov-pension-request"
+              ]
+            },
+            "description": "PR #65 — Pensiya sorgusu üçün MyGov icazə linki yaradır və müştəriyə SMS göndərir.\n\nResponse: {application_id, url, expires_at}\n\nWorkflow:\n1. Bu endpoint-i çağır → SMS göndərilir\n2. Müştəri MyGov app-da icazə verir\n3. '🟢 Pension Verify' endpoint-i ilə yoxla"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has url\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"url\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 Pension Verify: disability check + auto-reject (PR #65)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/{{application_id}}/mygov-pension-verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "{{application_id}}",
+                "mygov-pension-verify"
+              ]
+            },
+            "description": "PR #65 — MyGov-dan pensiya məlumatlarını çəkir və 1ci qrup əlilliyi yoxlayır.\n\nQayda:\n  - DisabilityGroup == 1 → İMTİNA (auto-reject)\n  - Əks halda → KEÇ (2ci/3cü qrup və ya əlillik yoxdur)\n\nResponse: {application_id, verified, status, reason, check_type: 'pension'}\n  - status='passed' → 1ci qrup əlillik yoxdur\n  - status='rejected' → 1ci qrup əlilliyi aşkarlandı, auto-reject"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has status\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"status\"); });",
+                  "pm.test(\"check_type=pension\", () => { const j = pm.response.json(); pm.expect(j.check_type).to.eq(\"pension\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Employment Verify: app tapılmadı",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/99999/mygov-employment-verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "99999",
+                "mygov-employment-verify"
+              ]
+            },
+            "description": "Application tapılmadı → 400 error gözlənilir."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 Pension Verify: app tapılmadı",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/applications/99999/mygov-pension-verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "applications",
+                "99999",
+                "mygov-pension-verify"
+              ]
+            },
+            "description": "Application tapılmadı → 400 error gözlənilir."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -6493,6 +6717,338 @@
                 }
               }
             }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 502\", () => pm.response.to.have.status(502));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 MyGov Generate Link (stub)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/mygov/permission/generate?fin=PIN1",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "mygov",
+                "permission",
+                "generate?fin=PIN1"
+              ]
+            },
+            "description": "PR #64 stub: MyGov icazə linki yaratmaq üçün.\n\nURL stub server-ə birbaşa gedir (port 8090)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has token\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"token\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 MyGov Data: employment_ok (stub)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/mygov/permission/data?token=T1&scenario=employment_ok",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "mygov",
+                "permission",
+                "data?token=T1&scenario=employment_ok"
+              ]
+            },
+            "description": "8 ay işləyir → staj qaydasını keçir."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has work_history\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"work_history\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 MyGov Data: employment_short_tenure (stub)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/mygov/permission/data?token=T1&scenario=employment_short_tenure",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "mygov",
+                "permission",
+                "data?token=T1&scenario=employment_short_tenure"
+              ]
+            },
+            "description": "Cari 3 ay + əvvəlki 4 ay, fasilə 10 gün → toplam 7 ay → keçir (29 gün qaydası)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"2 work_history entries\", () => { const j = pm.response.json(); pm.expect(j.work_history.length).to.eq(2); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 MyGov Data: employment_short_tenure_long_gap (stub)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/mygov/permission/data?token=T1&scenario=employment_short_tenure_long_gap",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "mygov",
+                "permission",
+                "data?token=T1&scenario=employment_short_tenure_long_gap"
+              ]
+            },
+            "description": "Cari 3 ay + əvvəlki 4 ay, fasilə 60 gün → fasilə >= 29 gün → əvvəlki iş sayılmır → imtina."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 MyGov Data: employment_insufficient_tenure (stub)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/mygov/permission/data?token=T1&scenario=employment_insufficient_tenure",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "mygov",
+                "permission",
+                "data?token=T1&scenario=employment_insufficient_tenure"
+              ]
+            },
+            "description": "Cari 2 ay, əvvəlki iş yoxdur → imtina (staj < 6 ay)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 MyGov Data: pension_disability_group1 (stub)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/mygov/permission/data?token=T1&scenario=pension_disability_group1",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "mygov",
+                "permission",
+                "data?token=T1&scenario=pension_disability_group1"
+              ]
+            },
+            "description": "1ci qrup əlillik → auto-reject."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"disability_group=1\", () => { const j = pm.response.json(); pm.expect(j.disability_group).to.eq(1); });",
+                  "pm.test(\"is_pensioner=true\", () => { const j = pm.response.json(); pm.expect(j.is_pensioner).to.eq(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 MyGov Data: pension_disability_group2 (stub)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/mygov/permission/data?token=T1&scenario=pension_disability_group2",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "mygov",
+                "permission",
+                "data?token=T1&scenario=pension_disability_group2"
+              ]
+            },
+            "description": "2ci qrup əlillik → auto-reject YOX (yalnız 1ci qrup reject edir)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"disability_group=2\", () => { const j = pm.response.json(); pm.expect(j.disability_group).to.eq(2); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 MyGov Data: pension_age (stub)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/mygov/permission/data?token=T1&scenario=pension_age",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "mygov",
+                "permission",
+                "data?token=T1&scenario=pension_age"
+              ]
+            },
+            "description": "Yaş pensiyaçısı, əlillik yoxdur → auto-reject yox."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"disability_group=0\", () => { const j = pm.response.json(); pm.expect(j.disability_group).to.eq(0); });",
+                  "pm.test(\"is_pensioner=true\", () => { const j = pm.response.json(); pm.expect(j.is_pensioner).to.eq(true); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 MyGov Data: error (stub)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/mygov/permission/data?token=T1&scenario=error",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "mygov",
+                "permission",
+                "data?token=T1&scenario=error"
+              ]
+            },
+            "description": "Simulated MyGov service error → 502."
           },
           "event": [
             {
