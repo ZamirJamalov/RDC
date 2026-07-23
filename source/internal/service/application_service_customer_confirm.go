@@ -216,7 +216,55 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
                 }
         }
 
+        // 8. PR #69: If the application passed the engine (pending_approval),
+        // trigger SIMA KYC and send the KYC link via SMS to the customer.
+        // This starts the identity verification process immediately — the customer
+        // receives an SMS with a KYC link while the expert reviews the application.
+        if finalApp.Status == model.StatusPendingApproval && s.simaService != nil {
+                s.triggerKycSms(ctx, appID, app.CustomerPIN, app.CustomerPhone)
+        }
+
         return finalApp, nil
+}
+
+// triggerKycSms initializes a SIMA KYC session and sends the KYC link via SMS
+// to the customer's phone. Errors are logged but do not fail the customer-confirm
+// request — the expert can manually trigger KYC from the dashboard if needed.
+func (s *ApplicationService) triggerKycSms(ctx context.Context, appID int, customerPIN, customerPhone string) {
+        slog.Info("triggering SIMA KYC SMS after customer-confirm",
+                "application_id", appID,
+                "customer_pin", customerPIN)
+
+        // 1. Initialize SIMA KYC session
+        simaResp, err := s.simaService.InitKyc(ctx, appID, customerPIN)
+        if err != nil {
+                slog.Error("customer-confirm: SIMA InitKyc failed — KYC SMS not sent (expert can trigger manually)",
+                        "application_id", appID,
+                        "error", err)
+                return
+        }
+
+        // 2. Send SMS with KYC link to customer's phone
+        if customerPhone == "" {
+                slog.Error("customer-confirm: customer_phone empty — cannot send KYC SMS",
+                        "application_id", appID)
+                return
+        }
+
+        kycMessage := fmt.Sprintf("Kimliyi tesdiq etmek ucun linki acin: %s", simaResp.URL)
+        if err := s.otpService.provider.Send(ctx, customerPhone, kycMessage); err != nil {
+                slog.Error("customer-confirm: failed to send KYC SMS (expert can trigger manually)",
+                        "application_id", appID,
+                        "phone", customerPhone,
+                        "error", err)
+                return
+        }
+
+        slog.Info("KYC SMS sent to customer after confirm",
+                "application_id", appID,
+                "customer_pin", customerPIN,
+                "phone", customerPhone,
+                "session_id", simaResp.SessionID)
 }
 
 // findRangeForAmount returns the first OfferRange whose [min_amount, max_amount]
