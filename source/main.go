@@ -3,6 +3,7 @@ package main
 import (
         "context"
         "database/sql"
+        "fmt"
         "io/fs"
         "log/slog"
         "net/http"
@@ -18,6 +19,7 @@ import (
         "rdc-source/internal/repository"
         "rdc-source/internal/service"
         "rdc-source/pkg/lw"
+        "rdc-source/pkg/stub"
 
         _ "github.com/microsoft/go-mssqldb"
 )
@@ -73,14 +75,14 @@ func main() {
         // In real mode: makes HTTP calls to LWBaseURL with LWApiKey.
         lwProvider := newLWProvider(cfg, db)
 
-	// --- OTP Provider + Service (T-3.1 to T-3.7) ---
-	otpProvider := newOTPProvider(cfg, db)
-	otpRepo := repository.NewOTPRepo(db)
-	otpService := service.NewOTPService(otpProvider, otpRepo)
+        // --- OTP Provider + Service (T-3.1 to T-3.7) ---
+        otpProvider := newOTPProvider(cfg, db)
+        otpRepo := repository.NewOTPRepo(db)
+        otpService := service.NewOTPService(otpProvider, otpRepo)
 
         // --- Service layer ---
         creditEngine := service.NewCreditEngine(lwProvider, appRepo)
-	appService := service.NewApplicationService(appRepo, creditEngine, customerRepo, otpService)
+        appService := service.NewApplicationService(appRepo, creditEngine, customerRepo, otpService)
 
 
         // --- SIMA Provider + Service (T-4.1 to T-4.5) ---
@@ -156,6 +158,24 @@ func newLWProvider(cfg *config.Config, db *sql.DB) lw.Provider {
                 slog.Info("using mock LW provider (dev/test mode)")
                 return lw.NewMockProvider(db)
         }
+
+        // PR #61: stub server mode — start in-process stub and point HTTPProvider at it.
+        // This mode lets you exercise the full HTTP provider code path (timeouts,
+        // error handling, ?scenario= param) without the real LW router being available.
+        if cfg.UseStubLW {
+                slog.Info("starting in-process LW stub server (development only)", "port", cfg.StubLWPort)
+                go stub.StartInBackground(cfg.StubLWPort)
+                stubURL := fmt.Sprintf("http://localhost:%d", cfg.StubLWPort)
+                slog.Info("using HTTP LW provider pointed at in-process stub", "base_url", stubURL, "timeout_s", cfg.LWTimeoutS)
+                // Give the stub a moment to bind to the port.
+                time.Sleep(100 * time.Millisecond)
+                return lw.NewHTTPProvider(
+                        stubURL,
+                        "stub-mode-no-auth-needed",
+                        time.Duration(cfg.LWTimeoutS)*time.Second,
+                )
+        }
+
         slog.Info("using HTTP LW provider", "base_url", cfg.LWBaseURL, "timeout_s", cfg.LWTimeoutS)
         return lw.NewHTTPProvider(
                 cfg.LWBaseURL,

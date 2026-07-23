@@ -31,10 +31,24 @@ type Config struct {
         // When UseMockLW is true, the LW provider reads from the local DB (mock_lms_loans
         // table) and returns canned responses for router endpoints. When false, the
         // HTTPProvider makes real HTTP calls to LWBaseURL with LWApiKey.
-        LWBaseURL  string
-        LWApiKey   string
-        UseMockLW  bool
-        LWTimeoutS int // HTTP timeout for LW calls, in seconds
+        //
+        // PR #61: When UseStubLW is true, an in-process stub HTTP server is started
+        // (pkg/stub) that mimics the real LW router responses. The HTTPProvider
+        // points to it (LWBaseURL is overridden to http://localhost:{StubLWPort}).
+        // Use this when the real LW router is not yet available but you want to
+        // exercise the full HTTP provider code path (timeouts, error handling,
+        // scenario-based responses via ?scenario= query param).
+        //
+        // Mode matrix:
+        //   UseMockLW=true  UseStubLW=false → MockProvider (local DB, no HTTP)
+        //   UseMockLW=false UseStubLW=true  → HTTPProvider + in-process stub server
+        //   UseMockLW=false UseStubLW=false → HTTPProvider + real LW router
+        LWBaseURL   string
+        LWApiKey    string
+        UseMockLW   bool
+        LWTimeoutS  int // HTTP timeout for LW calls, in seconds
+        UseStubLW   bool
+        StubLWPort  int // port for the in-process stub server (default 8090)
 
         // OTP Provider configuration (T-3.1 to T-3.3)
         // When OTPUseMock is true, the OTP provider logs codes instead of sending SMS.
@@ -83,6 +97,8 @@ func Load() *Config {
                 LWApiKey:               getEnv("LW_API_KEY", ""),
                 UseMockLW:              getEnvBool("LW_USE_MOCK", true),
                 LWTimeoutS:             getEnvInt("LW_TIMEOUT_S", 30),
+                UseStubLW:              getEnvBool("LW_USE_STUB", false),
+                StubLWPort:             getEnvInt("LW_STUB_PORT", 8090),
                 OTPBaseURL:             getEnv("OTP_BASE_URL", "http://localhost:8081"),
                 OTPApiKey:              getEnv("OTP_API_KEY", ""),
                 OTPSender:              getEnv("OTP_SENDER", "RDC"),
@@ -107,8 +123,12 @@ func Load() *Config {
                         "Set MIGRATIONS_DROP_RECREATE=false in production!")
         }
 
-        if !cfg.UseMockLW && cfg.LWApiKey == "" {
-                slog.Warn("LW_USE_MOCK is false but LW_API_KEY is empty — real LW calls will fail authentication")
+        if !cfg.UseMockLW && cfg.LWApiKey == "" && !cfg.UseStubLW {
+                slog.Warn("LW_USE_MOCK is false and LW_USE_STUB is false but LW_API_KEY is empty — real LW calls will fail authentication")
+        }
+
+        if cfg.UseMockLW && cfg.UseStubLW {
+                slog.Warn("Both LW_USE_MOCK and LW_USE_STUB are true — LW_USE_MOCK wins (stub server will not be started)")
         }
 
         return cfg
