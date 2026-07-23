@@ -5108,6 +5108,1405 @@
           ]
         }
       ]
+    },
+    {
+      "name": "10. LW Stub Scenarios (PR #61)",
+      "item": [
+        {
+          "name": "🟢 Stub Health Check",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/stub/health",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "stub",
+                "health"
+              ]
+            },
+            "description": "Verify the in-process LW stub server (PR #61) is running.\n\nExpected: {\"status\":\"ok\",\"service\":\"lw-stub\"}\n\nNote: only available when LW_USE_STUB=true. Set {{stub_url}} to http://localhost:8090 in your Postman environment."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Status ok\", () => { const j = pm.response.json(); pm.expect(j.status).to.eq(\"ok\"); });",
+                  "pm.test(\"Service lw-stub\", () => { const j = pm.response.json(); pm.expect(j.service).to.eq(\"lw-stub\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 AKB Score: default (Point=650)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/akb-score?fin=PIN1&scenario=default",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-score?fin=PIN1&scenario=default"
+              ]
+            },
+            "description": "PR #61 stub scenario 'default'.\n\nNormal AKB score 650 — no stop factor, real score returned.\n\nThis request goes directly to the in-process stub server (port 8090), bypassing the RDC app. Used to verify the stub returns the correct format that the HTTPProvider will parse."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status ok or 502\", () => { pm.expect([200,502]).to.include(pm.response.code); });",
+                  "pm.test(\"Point=650\", () => { const j = pm.response.json(); pm.expect(j.return.point).to.eq(650); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 AKB Score: stop_factor (Point=1, code=AB)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/akb-score?fin=PIN1&scenario=stop_factor",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-score?fin=PIN1&scenario=stop_factor"
+              ]
+            },
+            "description": "PR #61 stub scenario 'stop_factor'.\n\nStop factor present — Point=1, Response='AB'. Triggers rule 4 (PR #51).\n\nThis request goes directly to the in-process stub server (port 8090), bypassing the RDC app. Used to verify the stub returns the correct format that the HTTPProvider will parse."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status ok or 502\", () => { pm.expect([200,502]).to.include(pm.response.code); });",
+                  "pm.test(\"Point=1\", () => { const j = pm.response.json(); pm.expect(j.return.point).to.eq(1); }); pm.test(\"Response=AB\", () => { const j = pm.response.json(); pm.expect(j.return.response).to.eq(\"AB\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 AKB Score: low_score (Point=150)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/akb-score?fin=PIN1&scenario=low_score",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-score?fin=PIN1&scenario=low_score"
+              ]
+            },
+            "description": "PR #61 stub scenario 'low_score'.\n\nBelow 200 threshold (PR #51, rule 1).\n\nThis request goes directly to the in-process stub server (port 8090), bypassing the RDC app. Used to verify the stub returns the correct format that the HTTPProvider will parse."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status ok or 502\", () => { pm.expect([200,502]).to.include(pm.response.code); });",
+                  "pm.test(\"Point=150\", () => { const j = pm.response.json(); pm.expect(j.return.point).to.eq(150); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 AKB Score: high_score (Point=750)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/akb-score?fin=PIN1&scenario=high_score",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-score?fin=PIN1&scenario=high_score"
+              ]
+            },
+            "description": "PR #61 stub scenario 'high_score'.\n\nTriggers valuable override (AKB 700+).\n\nThis request goes directly to the in-process stub server (port 8090), bypassing the RDC app. Used to verify the stub returns the correct format that the HTTPProvider will parse."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status ok or 502\", () => { pm.expect([200,502]).to.include(pm.response.code); });",
+                  "pm.test(\"Point=750\", () => { const j = pm.response.json(); pm.expect(j.return.point).to.eq(750); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟡 AKB Score: no_data (Point=0)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/akb-score?fin=PIN1&scenario=no_data",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-score?fin=PIN1&scenario=no_data"
+              ]
+            },
+            "description": "PR #61 stub scenario 'no_data'.\n\nAKB returned no usable data. Fail-soft in credit engine.\n\nThis request goes directly to the in-process stub server (port 8090), bypassing the RDC app. Used to verify the stub returns the correct format that the HTTPProvider will parse."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status ok or 502\", () => { pm.expect([200,502]).to.include(pm.response.code); });",
+                  "pm.test(\"Point=0\", () => { const j = pm.response.json(); pm.expect(j.return.point).to.eq(0); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 AKB Score: error (502)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/akb-score?fin=PIN1&scenario=error",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-score?fin=PIN1&scenario=error"
+              ]
+            },
+            "description": "PR #61 stub scenario 'error'.\n\nSimulated AKB service error — returns 502.\n\nThis request goes directly to the in-process stub server (port 8090), bypassing the RDC app. Used to verify the stub returns the correct format that the HTTPProvider will parse."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status ok or 502\", () => { pm.expect([200,502]).to.include(pm.response.code); });",
+                  "pm.test(\"Status 502\", () => pm.response.to.have.status(502));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 AKB History: empty (clean customer)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/akb-history?fin=PIN1&scenario=empty",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-history?fin=PIN1&scenario=empty"
+              ]
+            },
+            "description": "PR #61 stub scenario 'empty'.\n\nNo liabilities — clean customer."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has liabilities\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"liabilities\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 AKB History: delay_ratio_high (rule 2)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/akb-history?fin=PIN1&scenario=delay_ratio_high",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-history?fin=PIN1&scenario=delay_ratio_high"
+              ]
+            },
+            "description": "PR #61 stub scenario 'delay_ratio_high'.\n\n12 months with 7 days overdue each → ratio 7.0 > 6. Triggers rule 2 (PR #52)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has liabilities\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"liabilities\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 AKB History: active_delay_high (rule 6)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/akb-history?fin=PIN1&scenario=active_delay_high",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-history?fin=PIN1&scenario=active_delay_high"
+              ]
+            },
+            "description": "PR #61 stub scenario 'active_delay_high'.\n\nActive liability with 10 days overdue > 5. Triggers rule 6 (PR #52)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has liabilities\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"liabilities\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 AKB History: delay_3m (rule 7)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/akb-history?fin=PIN1&scenario=delay_3m",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-history?fin=PIN1&scenario=delay_3m"
+              ]
+            },
+            "description": "PR #61 stub scenario 'delay_3m'.\n\n25 days overdue 1 month ago. Triggers rule 7 (>=20 in 3 months, PR #52)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has liabilities\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"liabilities\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 AKB History: delay_6m (rule 8)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/akb-history?fin=PIN1&scenario=delay_6m",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-history?fin=PIN1&scenario=delay_6m"
+              ]
+            },
+            "description": "PR #61 stub scenario 'delay_6m'.\n\n35 days overdue 4 months ago. Triggers rule 8 (>=30 in 6 months)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has liabilities\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"liabilities\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 AKB History: delay_12m (rule 9)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/akb-history?fin=PIN1&scenario=delay_12m",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-history?fin=PIN1&scenario=delay_12m"
+              ]
+            },
+            "description": "PR #61 stub scenario 'delay_12m'.\n\n50 days overdue 8 months ago. Triggers rule 9 (>=45 in 12 months)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has liabilities\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"liabilities\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 AKB History: delay_18m (rule 10)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/akb-history?fin=PIN1&scenario=delay_18m",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-history?fin=PIN1&scenario=delay_18m"
+              ]
+            },
+            "description": "PR #61 stub scenario 'delay_18m'.\n\n65 days overdue 14 months ago. Triggers rule 10 (>=60 in 18 months)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has liabilities\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"liabilities\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 AKB History: high_monthly_payments (rule 12)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/akb-history?fin=PIN1&scenario=high_monthly_payments",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-history?fin=PIN1&scenario=high_monthly_payments"
+              ]
+            },
+            "description": "PR #61 stub scenario 'high_monthly_payments'.\n\nTwo active liabilities: 1200+900=2100 > 2000. Triggers rule 12."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has liabilities\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"liabilities\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 AKB History: error (502)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/akb-history?fin=PIN1&scenario=error",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "akb-history?fin=PIN1&scenario=error"
+              ]
+            },
+            "description": "PR #61 stub scenario 'error'.\n\nSimulated AKB history service error."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 502\", () => pm.response.to.have.status(502));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 PersonalInfo: default (35 years old)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/personal-info?fin=PIN1&scenario=default",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "personal-info?fin=PIN1&scenario=default"
+              ]
+            },
+            "description": "PR #61 stub scenario 'default'.\n\nBorn 1991-03-10 — age ~35, no rejection."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has full_name\", () => { const j = pm.response.json(); pm.expect(j.full_name).to.not.be.empty; });",
+                  "pm.test(\"Has date_of_birth\", () => { const j = pm.response.json(); pm.expect(j.date_of_birth).to.not.be.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 PersonalInfo: old_customer (rule 3)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/personal-info?fin=PIN1&scenario=old_customer",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "personal-info?fin=PIN1&scenario=old_customer"
+              ]
+            },
+            "description": "PR #61 stub scenario 'old_customer'.\n\nBorn 1950-01-15 — age ~76 > 69. Triggers rule 3 (PR #51)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has full_name\", () => { const j = pm.response.json(); pm.expect(j.full_name).to.not.be.empty; });",
+                  "pm.test(\"Has date_of_birth\", () => { const j = pm.response.json(); pm.expect(j.date_of_birth).to.not.be.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 PersonalInfo: young_customer (24 years)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/personal-info?fin=PIN1&scenario=young_customer",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "personal-info?fin=PIN1&scenario=young_customer"
+              ]
+            },
+            "description": "PR #61 stub scenario 'young_customer'.\n\nBorn 2000-05-20 — age ~24."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has full_name\", () => { const j = pm.response.json(); pm.expect(j.full_name).to.not.be.empty; });",
+                  "pm.test(\"Has date_of_birth\", () => { const j = pm.response.json(); pm.expect(j.date_of_birth).to.not.be.empty; });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 PersonalInfo: error (502)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/personal-info?fin=PIN1&scenario=error",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "personal-info?fin=PIN1&scenario=error"
+              ]
+            },
+            "description": "PR #61 stub scenario 'error'.\n\nSimulated DIN service error."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 502\", () => pm.response.to.have.status(502));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 AZMK Blacklist: not blacklisted",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/azmk-blacklist?fin=PIN1&scenario=default",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "azmk-blacklist?fin=PIN1&scenario=default"
+              ]
+            },
+            "description": "PR #61 stub scenario 'default'.\n\nDefault — customer not on AZMK blacklist."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has is_blacklisted\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"is_blacklisted\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 AZMK Blacklist: blacklisted (rule 5)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/azmk-blacklist?fin=PIN1&scenario=blacklisted",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "azmk-blacklist?fin=PIN1&scenario=blacklisted"
+              ]
+            },
+            "description": "PR #61 stub scenario 'blacklisted'.\n\nCustomer IS on AZMK blacklist. Triggers rule 5 (PR #53)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has is_blacklisted\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"is_blacklisted\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 AZMK Blacklist: error (502)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/azmk-blacklist?fin=PIN1&scenario=error",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "azmk-blacklist?fin=PIN1&scenario=error"
+              ]
+            },
+            "description": "PR #61 stub scenario 'error'.\n\nSimulated AZMK service error — fail-soft in credit engine."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 502\", () => pm.response.to.have.status(502));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 LW Blacklist: not blacklisted",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/lw/blacklist?fin=PIN1&scenario=default",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "lw",
+                "blacklist?fin=PIN1&scenario=default"
+              ]
+            },
+            "description": "PR #61 stub scenario 'default'.\n\nDefault — customer not on LW own blacklist (T-1.5)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has is_blacklisted\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"is_blacklisted\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 LW Blacklist: blacklisted (T-1.5)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/lw/blacklist?fin=PIN1&scenario=blacklisted",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "lw",
+                "blacklist?fin=PIN1&scenario=blacklisted"
+              ]
+            },
+            "description": "PR #61 stub scenario 'blacklisted'.\n\nCustomer IS on LW blacklist. Triggers T-1.5 rejection."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has is_blacklisted\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"is_blacklisted\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 LW Blacklist: error (502)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/lw/blacklist?fin=PIN1&scenario=error",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "lw",
+                "blacklist?fin=PIN1&scenario=error"
+              ]
+            },
+            "description": "PR #61 stub scenario 'error'.\n\nSimulated LW blacklist service error — fail-soft."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 502\", () => pm.response.to.have.status(502));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 ASAN Finance: default (income 500)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/asan-finance?fin=PIN1&scenario=default",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "asan-finance?fin=PIN1&scenario=default"
+              ]
+            },
+            "description": "PR #61 stub scenario 'default'.\n\nDefault income 500 AZN."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has official_income\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"official_income\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 ASAN Finance: low_income (200 AZN)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/asan-finance?fin=PIN1&scenario=low_income",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "asan-finance?fin=PIN1&scenario=low_income"
+              ]
+            },
+            "description": "PR #61 stub scenario 'low_income'.\n\nBelow minimum income threshold."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has official_income\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"official_income\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 ASAN Finance: high_income (1500 AZN)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/asan-finance?fin=PIN1&scenario=high_income",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "asan-finance?fin=PIN1&scenario=high_income"
+              ]
+            },
+            "description": "PR #61 stub scenario 'high_income'.\n\nHigh official income."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has official_income\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"official_income\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 ASAN Finance: error (502)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/router/asan-finance?fin=PIN1&scenario=error",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "router",
+                "asan-finance?fin=PIN1&scenario=error"
+              ]
+            },
+            "description": "PR #61 stub scenario 'error'.\n\nSimulated ASAN Finance service error."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 502\", () => pm.response.to.have.status(502));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 LW Loans: default (no loans)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/lw/loans?pin=PIN1&scenario=default",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "lw",
+                "loans?pin=PIN1&scenario=default"
+              ]
+            },
+            "description": "PR #61 stub scenario 'default'.\n\nDefault — new customer, no loans."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has loans\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"loans\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 LW Loans: trusted (2 completed, on time)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/lw/loans?pin=PIN1&scenario=trusted",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "lw",
+                "loans?pin=PIN1&scenario=trusted"
+              ]
+            },
+            "description": "PR #61 stub scenario 'trusted'.\n\n2 completed loans at 'new' level, 0 delay → promotes to trusted."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has loans\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"loans\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 LW Loans: active_loan",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/lw/loans?pin=PIN1&scenario=active_loan",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "lw",
+                "loans?pin=PIN1&scenario=active_loan"
+              ]
+            },
+            "description": "PR #61 stub scenario 'active_loan'.\n\n1 active loan → triggers 'has active loan' rejection."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has loans\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"loans\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 LW Loans: late_payment",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/lw/loans?pin=PIN1&scenario=late_payment",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "lw",
+                "loans?pin=PIN1&scenario=late_payment"
+              ]
+            },
+            "description": "PR #61 stub scenario 'late_payment'.\n\n1 completed loan with 5 days delay → 'late payment' rejection."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has loans\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"loans\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 LW Loans: error (502)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/lw/loans?pin=PIN1&scenario=error",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "lw",
+                "loans?pin=PIN1&scenario=error"
+              ]
+            },
+            "description": "PR #61 stub scenario 'error'.\n\nSimulated LW loans service error."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 502\", () => pm.response.to.have.status(502));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🟢 LW Approve: default (signed + completed)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/lw/loans/approve?scenario=default",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "lw",
+                "loans",
+                "approve?scenario=default"
+              ]
+            },
+            "description": "PR #61 stub scenario 'default'.\n\nDefault — contract signed, transfer completed.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": 1,\n  \"amount\": 300,\n  \"card_number\": \"4169731234567890\",\n  \"credit_level\": \"new\",\n  \"term_months\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has contract_status\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"contract_status\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 LW Approve: contract_failed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/lw/loans/approve?scenario=contract_failed",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "lw",
+                "loans",
+                "approve?scenario=contract_failed"
+              ]
+            },
+            "description": "PR #61 stub scenario 'contract_failed'.\n\nContract signing failed. Engine will downgrade to rejected.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": 1,\n  \"amount\": 300,\n  \"card_number\": \"4169731234567890\",\n  \"credit_level\": \"new\",\n  \"term_months\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Has contract_status\", () => { const j = pm.response.json(); pm.expect(j).to.have.property(\"contract_status\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "🔴 LW Approve: error (502)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{stub_url}}/api/lw/loans/approve?scenario=error",
+              "host": [
+                "{{stub_url}}"
+              ],
+              "path": [
+                "api",
+                "lw",
+                "loans",
+                "approve?scenario=error"
+              ]
+            },
+            "description": "PR #61 stub scenario 'error'.\n\nSimulated LW approve service error.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"application_id\": 1,\n  \"amount\": 300,\n  \"card_number\": \"4169731234567890\",\n  \"credit_level\": \"new\",\n  \"term_months\": 3\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status 502\", () => pm.response.to.have.status(502));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }
