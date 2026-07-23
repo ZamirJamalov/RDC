@@ -75,6 +75,12 @@ func NewRouter(
         mux.HandleFunc("POST /api/mygov/permission-link", mygovHandler.PermissionLink)
         mux.HandleFunc("POST /api/mygov/fetch-data", mygovHandler.FetchData)
 
+        // PR #65: Employment + Pension verification endpoints
+        mux.HandleFunc("POST /api/applications/{id}/mygov-employment-request", mygovHandler.RequestEmployment)
+        mux.HandleFunc("POST /api/applications/{id}/mygov-employment-verify", mygovHandler.VerifyEmployment)
+        mux.HandleFunc("POST /api/applications/{id}/mygov-pension-request", mygovHandler.RequestPension)
+        mux.HandleFunc("POST /api/applications/{id}/mygov-pension-verify", mygovHandler.VerifyPension)
+
         // Expert (operator) endpoints (T-5.7)
         mux.HandleFunc("GET /api/expert/queue", expertHandler.Queue)
         mux.HandleFunc("GET /api/expert/{id}", expertHandler.GetApplication)
