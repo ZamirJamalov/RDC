@@ -387,37 +387,84 @@
             </div>
         </div>
 
-        <!-- STEP 4: Success -->
+        <!-- STEP 4: Result (success / rejection / pending) — PR #63 Variant B -->
         <div x-show="currentStep === 3" x-transition class="card-glow rounded-3xl p-12 text-center">
-            <div class="w-20 h-20 mx-auto mb-6 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
-                <svg class="w-12 h-12 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
-                </svg>
+
+            <!-- REJECTED -->
+            <div x-show="engineStatus === 'rejected'">
+                <div class="w-20 h-20 mx-auto mb-6 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center">
+                    <svg class="w-12 h-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/>
+                    </svg>
+                </div>
+                <h2 class="text-3xl font-bold mb-3">Müraciətiniz rədd edildi</h2>
+                <p class="text-gray-400 max-w-md mx-auto mb-6">
+                    Təəssüf ki, müraciətiniz bizim kəsim nöqtələrimizdən keçə bilmədi.
+                </p>
+                <div x-show="engineRejectionReason" class="bg-red-500/10 border border-red-500/30 rounded-xl p-4 max-w-md mx-auto mb-6 text-left">
+                    <div class="text-xs text-red-300 mb-1">Səbəb:</div>
+                    <div class="text-sm text-red-200" x-text="engineRejectionReason"></div>
+                </div>
+                <p class="text-sm text-gray-500 mb-6">
+                    Müraciət nömrəniz: <span class="font-mono font-semibold text-white" x-text="applicationId"></span>
+                </p>
+                <a href="/landing.html" class="inline-block mt-4 text-violet-400 hover:text-violet-300 text-sm transition">
+                    ← Ana səhifəyə qayıt
+                </a>
             </div>
-            <h2 class="text-3xl font-bold mb-3">Müraciətiniz qəbul olundu!</h2>
-            <p class="text-gray-400 max-w-md mx-auto mb-8">
-                Müraciət nömrəniz: <span class="font-mono font-semibold text-white" x-text="applicationId"></span>
-            </p>
-            <div class="bg-black/30 border border-white/5 rounded-xl p-5 max-w-sm mx-auto text-left">
-                <div class="flex justify-between py-2 border-b border-white/5">
-                    <span class="text-gray-400 text-sm">Məbləğ</span>
-                    <span class="font-semibold"><span x-text="confirmedAmount"></span> AZN</span>
+
+            <!-- SUCCESS (pending_approval) -->
+            <div x-show="engineStatus === 'pending_approval'">
+                <div class="w-20 h-20 mx-auto mb-6 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
+                    <svg class="w-12 h-12 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+                    </svg>
                 </div>
-                <div class="flex justify-between py-2 border-b border-white/5">
-                    <span class="text-gray-400 text-sm">Müddət</span>
-                    <span class="font-semibold"><span x-text="confirmedTerm"></span> ay</span>
+                <h2 class="text-3xl font-bold mb-3">Müraciətiniz qəbul olundu!</h2>
+                <p class="text-gray-400 max-w-md mx-auto mb-8">
+                    Müraciət nömrəniz: <span class="font-mono font-semibold text-white" x-text="applicationId"></span>
+                </p>
+                <div class="bg-black/30 border border-white/5 rounded-xl p-5 max-w-sm mx-auto text-left">
+                    <div class="flex justify-between py-2 border-b border-white/5">
+                        <span class="text-gray-400 text-sm">Məbləğ</span>
+                        <span class="font-semibold"><span x-text="confirmedAmount"></span> AZN</span>
+                    </div>
+                    <div class="flex justify-between py-2 border-b border-white/5">
+                        <span class="text-gray-400 text-sm">Müddət</span>
+                        <span class="font-semibold"><span x-text="confirmedTerm"></span> ay</span>
+                    </div>
+                    <div class="flex justify-between py-2">
+                        <span class="text-gray-400 text-sm">Status</span>
+                        <span class="font-semibold text-emerald-400">Ekspert gözləməsində</span>
+                    </div>
                 </div>
-                <div class="flex justify-between py-2">
-                    <span class="text-gray-400 text-sm">Status</span>
-                    <span class="font-semibold text-emerald-400">Gözləmədə</span>
-                </div>
+                <p class="text-sm text-gray-500 mt-8">
+                    Ekspertimiz sizinlə əlaqə saxlayacaq.
+                </p>
+                <a href="/landing.html" class="inline-block mt-6 text-violet-400 hover:text-violet-300 text-sm transition">
+                    ← Ana səhifəyə qayıt
+                </a>
             </div>
-            <p class="text-sm text-gray-500 mt-8">
-                Ekspertimiz sizinlə əlaqə saxlayacaq.
-            </p>
-            <a href="/landing.html" class="inline-block mt-6 text-violet-400 hover:text-violet-300 text-sm transition">
-                ← Ana səhifəyə qayıt
-            </a>
+
+            <!-- PENDING (engine didn't finish or failed) -->
+            <div x-show="engineStatus === 'pending' || engineStatus === 'checking'">
+                <div class="w-20 h-20 mx-auto mb-6 rounded-full bg-amber-500/20 border border-amber-500/40 flex items-center justify-center">
+                    <svg class="w-12 h-12 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <h2 class="text-3xl font-bold mb-3">Müraciətiniz qeydə alındı</h2>
+                <p class="text-gray-400 max-w-md mx-auto mb-8">
+                    Müraciət nömrəniz: <span class="font-mono font-semibold text-white" x-text="applicationId"></span>
+                </p>
+                <p class="text-sm text-gray-500 max-w-md mx-auto">
+                    Sistem müraciətinizi yoxlayır. Ekspertimiz qısa müddətdə sizinlə əlaqə saxlayacaq.
+                </p>
+                <a href="/landing.html" class="inline-block mt-6 text-violet-400 hover:text-violet-300 text-sm transition">
+                    ← Ana səhifəyə qayıt
+                </a>
+            </div>
+
         </div>
 
     </main>
@@ -462,6 +509,10 @@ function applyApp() {
         // Confirmed values for success screen
         confirmedAmount: 0,
         confirmedTerm: 0,
+        // PR #63 (Variant B): engine outcome — 'rejected' shows rejection screen,
+        // 'pending_approval' shows success screen, 'pending' shows generic waiting
+        engineStatus: '',
+        engineRejectionReason: '',
 
         // Computed: min/max for the slider (first range in the offer)
         get rangeMin() {
@@ -583,11 +634,13 @@ function applyApp() {
                 const data = await resp.json();
                 if (!resp.ok) throw new Error(data.error || 'Təsdiq zamanı xəta baş verdi');
 
-                // Save confirmed values for success screen
+                // Save confirmed values + final engine status for result screen
                 this.confirmedAmount = data.amount || this.form.amount;
                 this.confirmedTerm = data.term_months || this.selectedRange.term_months;
+                this.engineStatus = data.status || 'pending';
+                this.engineRejectionReason = data.rejection_reason || '';
 
-                // 5. Show success
+                // 5. Show result screen (success OR rejection based on engine outcome)
                 this.currentStep = 3;
             } catch (e) {
                 this.error = e.message;
