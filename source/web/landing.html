@@ -25,8 +25,8 @@
             --alpul-border: #26263A;
             --alpul-text: #F5F5F7;
             --alpul-text-soft: #9CA3AF;
-            --alpul-accent: #7C3AED;
-            --alpul-accent-2: #EC4899;
+            --alpul-accent: #3FB0A7;
+            --alpul-accent-2: #6163A4;
             --alpul-success: #10B981;
             --alpul-gold: #F59E0B;
         }
@@ -49,7 +49,7 @@
             top: -20%; left: 50%;
             transform: translateX(-50%);
             width: 900px; height: 900px;
-            background: radial-gradient(circle, rgba(124, 58, 237, 0.25) 0%, rgba(236, 72, 153, 0.15) 40%, transparent 70%);
+            background: radial-gradient(circle, rgba(63, 176, 167, 0.25) 0%, rgba(236, 72, 153, 0.15) 40%, transparent 70%);
             filter: blur(80px);
             z-index: 0;
             pointer-events: none;
@@ -62,18 +62,18 @@
         }
 
         .gradient-text {
-            background: linear-gradient(135deg, #FFFFFF 0%, #C4B5FD 50%, #F9A8D4 100%);
+            background: linear-gradient(135deg, #FFFFFF 0%, #3FB0A7 50%, #6163A4 100%);
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
         .gradient-accent {
-            background: linear-gradient(135deg, #7C3AED 0%, #EC4899 100%);
+            background: linear-gradient(135deg, #3FB0A7 0%, #6163A4 100%);
         }
 
         .gradient-accent-text {
-            background: linear-gradient(135deg, #A78BFA 0%, #F472B6 100%);
+            background: linear-gradient(135deg, #3FB0A7 0%, #6163A4 100%);
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -82,12 +82,12 @@
         .card-glow {
             background: var(--alpul-card);
             border: 1px solid var(--alpul-border);
-            box-shadow: 0 20px 60px -20px rgba(124, 58, 237, 0.15);
+            box-shadow: 0 20px 60px -20px rgba(63, 176, 167, 0.15);
         }
 
         .card-glow:hover {
-            border-color: rgba(124, 58, 237, 0.4);
-            box-shadow: 0 25px 70px -20px rgba(124, 58, 237, 0.3);
+            border-color: rgba(63, 176, 167, 0.4);
+            box-shadow: 0 25px 70px -20px rgba(63, 176, 167, 0.3);
             transition: all 0.25s ease-out;
         }
 
@@ -132,7 +132,7 @@
         .calc-input:focus {
             outline: none;
             border-color: var(--alpul-accent);
-            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+            box-shadow: 0 0 0 3px rgba(63, 176, 167, 0.15);
         }
 
         /* Slider */
@@ -153,8 +153,8 @@
             height: 18px; width: 18px;
             margin-top: -7px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #7C3AED, #EC4899);
-            box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.2);
+            background: linear-gradient(135deg, #3FB0A7, #6163A4);
+            box-shadow: 0 0 0 4px rgba(63, 176, 167, 0.2);
         }
         input[type="range"]::-moz-range-track {
             height: 4px;
@@ -165,7 +165,7 @@
             height: 18px; width: 18px;
             border: none;
             border-radius: 50%;
-            background: linear-gradient(135deg, #7C3AED, #EC4899);
+            background: linear-gradient(135deg, #3FB0A7, #6163A4);
         }
 
         /* Animated number reveal */
@@ -174,27 +174,27 @@
         }
 
         .cta-btn {
-            background: linear-gradient(135deg, #7C3AED 0%, #EC4899 100%);
+            background: linear-gradient(135deg, #3FB0A7 0%, #6163A4 100%);
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
         .cta-btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 15px 40px -10px rgba(124, 58, 237, 0.5);
+            box-shadow: 0 15px 40px -10px rgba(63, 176, 167, 0.5);
         }
         .cta-btn:active { transform: translateY(0); }
 
         /* Step number badge */
         .step-num {
-            background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(236, 72, 153, 0.2));
-            border: 1px solid rgba(124, 58, 237, 0.3);
-            color: #C4B5FD;
+            background: linear-gradient(135deg, rgba(63, 176, 167, 0.2), rgba(236, 72, 153, 0.2));
+            border: 1px solid rgba(63, 176, 167, 0.3);
+            color: #3FB0A7;
         }
 
         /* Decorative grid */
         .grid-deco {
             background-image:
-                linear-gradient(rgba(124, 58, 237, 0.04) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(124, 58, 237, 0.04) 1px, transparent 1px);
+                linear-gradient(rgba(63, 176, 167, 0.04) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(63, 176, 167, 0.04) 1px, transparent 1px);
             background-size: 60px 60px;
         }
 
@@ -296,7 +296,7 @@
         <div id="calc" class="card-glow rounded-3xl p-8">
             <div class="flex items-center justify-between mb-6">
                 <div>
-                    <div class="text-xs uppercase tracking-widest text-violet-400 font-semibold mb-1">Səviyyə Kalkulyatoru</div>
+                    <div class="text-xs uppercase tracking-widest text-teal-400 font-semibold mb-1">Səviyyə Kalkulyatoru</div>
                     <h3 class="text-2xl font-bold">Ne qədər qənaət edə bilərsən?</h3>
                 </div>
                 <div class="text-right">
@@ -353,7 +353,7 @@
             </div>
 
             <!-- Summary -->
-            <div class="rounded-2xl bg-gradient-to-br from-violet-500/10 to-pink-500/10 border border-violet-500/20 p-4 mb-5">
+            <div class="rounded-2xl bg-gradient-to-br from-teal-500/10 to-indigo-500/10 border border-teal-500/20 p-4 mb-5">
                 <div class="flex items-center justify-between">
                     <div>
                         <div class="text-xs text-gray-400 mb-0.5">Elite-də qənaət</div>
@@ -384,7 +384,7 @@
 <section id="how" class="py-24 px-6 border-t border-white/5">
     <div class="max-w-7xl mx-auto">
         <div class="text-center mb-16">
-            <div class="text-xs uppercase tracking-widest text-violet-400 font-semibold mb-3">Necə işləyir</div>
+            <div class="text-xs uppercase tracking-widest text-teal-400 font-semibold mb-3">Necə işləyir</div>
             <h2 class="text-4xl md:text-5xl font-bold tracking-tight mb-4">3 addımda ucuzlaşan kredit</h2>
             <p class="text-gray-400 max-w-xl mx-auto">ALPUL sadə bir prinsiplə işləyir: nə qədər düzgün ödəsən, bir sonrakı kredit o qədər ucuz olur.</p>
         </div>
@@ -424,10 +424,10 @@
 </section>
 
 <!-- ============ LEVELS LADDER ============ -->
-<section id="levels" class="py-24 px-6 bg-gradient-to-b from-transparent to-violet-950/10 border-t border-white/5">
+<section id="levels" class="py-24 px-6 bg-gradient-to-b from-transparent to-teal-950/10 border-t border-white/5">
     <div class="max-w-7xl mx-auto">
         <div class="text-center mb-16">
-            <div class="text-xs uppercase tracking-widest text-violet-400 font-semibold mb-3">Səviyyələr</div>
+            <div class="text-xs uppercase tracking-widest text-teal-400 font-semibold mb-3">Səviyyələr</div>
             <h2 class="text-4xl md:text-5xl font-bold tracking-tight mb-4">Pilləkən yuxarı</h2>
             <p class="text-gray-400 max-w-xl mx-auto">Hər pillədə faiz düşür, qənaət artır.</p>
         </div>
@@ -521,7 +521,7 @@
         <!-- Testimonial -->
         <div class="mt-16 max-w-3xl mx-auto card-glow rounded-2xl p-8">
             <div class="flex items-start gap-4">
-                <div class="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-pink-500 flex items-center justify-center font-bold text-white text-lg flex-shrink-0">E</div>
+                <div class="w-12 h-12 rounded-full bg-gradient-to-br from-teal-500 to-indigo-500 flex items-center justify-center font-bold text-white text-lg flex-shrink-0">E</div>
                 <div>
                     <div class="flex items-center gap-2 mb-2">
                         <span class="font-semibold">Eli M.</span>
@@ -539,7 +539,7 @@
 <section id="faq" class="py-24 px-6 border-t border-white/5">
     <div class="max-w-3xl mx-auto">
         <div class="text-center mb-12">
-            <div class="text-xs uppercase tracking-widest text-violet-400 font-semibold mb-3">SSS</div>
+            <div class="text-xs uppercase tracking-widest text-teal-400 font-semibold mb-3">SSS</div>
             <h2 class="text-4xl font-bold tracking-tight">Sualların cavabları</h2>
         </div>
 
