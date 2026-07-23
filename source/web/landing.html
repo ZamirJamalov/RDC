@@ -237,7 +237,7 @@
             <a href="#calc" class="hover:text-white transition">Kalkulyator</a>
             <a href="#faq" class="hover:text-white transition">SSS</a>
         </div>
-        <a href="#apply" class="cta-btn text-white text-sm font-semibold px-5 py-2.5 rounded-xl">
+        <a href="/apply.html" class="cta-btn text-white text-sm font-semibold px-5 py-2.5 rounded-xl">
             Müraciət et
         </a>
     </div>
@@ -267,7 +267,7 @@
             </p>
 
             <div class="flex flex-wrap items-center gap-4">
-                <a href="#apply" class="cta-btn text-white font-semibold px-7 py-3.5 rounded-xl text-base">
+                <a href="/apply.html" class="cta-btn text-white font-semibold px-7 py-3.5 rounded-xl text-base">
                     İndi başla →
                 </a>
                 <a href="#calc" class="text-gray-300 font-medium px-5 py-3.5 rounded-xl border border-white/10 hover:bg-white/5 transition text-base">
@@ -292,46 +292,59 @@
             </div>
         </div>
 
-        <!-- Right: Live Calculator -->
+        <!-- Right: Live Calculator (PR #73 v2) -->
         <div id="calc" class="card-glow rounded-3xl p-8">
             <div class="flex items-center justify-between mb-6">
                 <div>
                     <div class="text-xs uppercase tracking-widest text-teal-400 font-semibold mb-1">Səviyyə Kalkulyatoru</div>
                     <h3 class="text-2xl font-bold">Ne qədər qənaət edə bilərsən?</h3>
                 </div>
-                <div class="text-right">
-                    <div class="text-xs text-gray-500">Cari səviyyə</div>
-                    <div class="text-sm font-semibold text-emerald-400">🎯 Elite</div>
+            </div>
+
+            <!-- Amount slider -->
+            <div class="mb-6">
+                <div class="flex justify-between items-baseline mb-3">
+                    <label class="text-xs text-gray-400">Kredit məbləği</label>
+                    <div class="text-3xl font-extrabold">
+                        <span x-text="amount"></span>
+                        <span class="text-base text-gray-400">AZN</span>
+                    </div>
+                </div>
+                <input type="range" x-model.number="amount" min="50" max="3000" step="50"
+                       class="w-full mt-2"
+                       :style="`--range-fill: ${((amount - 50) / (3000 - 50)) * 100}%`">
+                <div class="flex justify-between text-xs text-gray-500 mt-2">
+                    <span>50 AZN</span>
+                    <span>3000 AZN</span>
                 </div>
             </div>
 
-            <!-- Inputs -->
-            <div class="grid grid-cols-2 gap-4 mb-6">
-                <div>
-                    <label class="text-xs text-gray-400 mb-2 block">Kredit məbləği</label>
-                    <div class="relative">
-                        <input type="number" x-model.number="amount" min="100" max="5000" step="50"
-                               class="calc-input w-full px-4 py-3 rounded-xl text-lg font-semibold pr-10">
-                        <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₼</span>
-                    </div>
-                    <input type="range" x-model.number="amount" min="100" max="5000" step="50" class="w-full mt-3">
+            <!-- Term selection (clickable buttons) -->
+            <div class="mb-6">
+                <label class="text-xs text-gray-400 mb-2 block">Müddət</label>
+                <div class="flex gap-2 flex-wrap">
+                    <template x-for="t in [3, 6, 9, 12]" :key="t">
+                        <button @click="term = t"
+                                :disabled="!isTermAvailable(t)"
+                                :class="term === t ? 'gradient-accent text-white' : 'bg-black/30 text-gray-400 border border-white/10'"
+                                class="px-5 py-2.5 rounded-xl text-sm font-semibold transition disabled:opacity-30 disabled:cursor-not-allowed"
+                                x-text="t + ' ay'">
+                        </button>
+                    </template>
                 </div>
-                <div>
-                    <label class="text-xs text-gray-400 mb-2 block">Müddət</label>
-                    <div class="relative">
-                        <input type="number" x-model.number="term" min="1" max="24" step="1"
-                               class="calc-input w-full px-4 py-3 rounded-xl text-lg font-semibold pr-10">
-                        <span class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">ay</span>
-                    </div>
-                    <input type="range" x-model.number="term" min="1" max="24" step="1" class="w-full mt-3">
-                </div>
+                <p x-show="!isTermAvailable(term)" class="text-xs text-amber-400 mt-2">
+                    Seçilən müddət bu məbləğ üçün mövcud deyil — başqa müddət seçin.
+                </p>
             </div>
 
             <!-- Level rows -->
             <div class="space-y-2.5 mb-5">
                 <template x-for="lvl in levels" :key="lvl.name">
-                    <div class="flex items-center justify-between p-3 rounded-xl bg-black/30 border border-white/5"
-                         :class="lvl.name === 'ELITE' ? 'ring-1 ring-emerald-500/40' : ''">
+                    <div class="flex items-center justify-between p-3 rounded-xl bg-black/30 border border-white/5 transition"
+                         :class="{
+                            'opacity-30 cursor-not-allowed': !isLevelAvailable(lvl),
+                            'ring-1 ring-emerald-500/40': lvl.name === 'ELITE' && isLevelAvailable(lvl)
+                         }">
                         <div class="flex items-center gap-3">
                             <span class="text-xl" x-text="lvl.icon"></span>
                             <div>
@@ -339,14 +352,20 @@
                                 <div class="text-xs text-gray-500" x-text="lvl.subtitle"></div>
                             </div>
                         </div>
-                        <div class="text-right">
-                            <div class="font-bold text-lg num-shift" :class="lvl.textClass" x-text="formatMoney(totalFor(lvl.rate)) + ' ₼'"></div>
+                        <div class="text-right" x-show="isLevelAvailable(lvl)">
+                            <div class="font-bold text-lg" :class="lvl.textClass">
+                                <span x-text="formatMoney(totalFor(getRate(lvl)))"></span> ₼
+                            </div>
                             <div class="text-xs text-gray-500">
-                                <span x-text="lvl.rate.toFixed(0)"></span>% faiz
-                                <span x-show="savingsFor(lvl.rate) > 0" class="text-emerald-400 ml-1">
-                                    ↓ <span x-text="formatMoney(savingsFor(lvl.rate))"></span>₼
+                                <span x-text="getRate(lvl).toFixed(0)"></span>% faiz
+                                · Aylıq: <span x-text="formatMoney(totalFor(getRate(lvl)) / term)"></span>₼
+                                <span x-show="savingsFor(lvl) > 0" class="text-emerald-400 ml-1">
+                                    ↓ <span x-text="formatMoney(savingsFor(lvl))"></span>₼
                                 </span>
                             </div>
+                        </div>
+                        <div class="text-right" x-show="!isLevelAvailable(lvl)">
+                            <div class="text-xs text-gray-600">Maks. <span x-text="lvl.maxAmount"></span>₼</div>
                         </div>
                     </div>
                 </template>
@@ -362,14 +381,14 @@
                         </div>
                     </div>
                     <div class="text-right">
-                        <div class="text-xs text-gray-400 mb-0.5">Adi bankla müqayisədə</div>
-                        <div class="text-sm font-semibold text-gray-300">NEW → ELITE</div>
+                        <div class="text-xs text-gray-400 mb-0.5">NEW ilə müqayisədə</div>
+                        <div class="text-sm font-semibold text-gray-300" x-text="term + ' ay müddətə'"></div>
                     </div>
                 </div>
             </div>
 
-            <a href="#apply" class="cta-btn block text-center text-white font-semibold py-3.5 rounded-xl">
-                Bu şərtlə müraciət et →
+            <a href="/apply.html" class="cta-btn block text-center text-white font-semibold py-3.5 rounded-xl">
+                Müraciət et →
             </a>
 
             <p class="text-xs text-gray-500 text-center mt-3">
@@ -663,12 +682,90 @@ function alpulLanding() {
     return {
         amount: 300,
         term: 3,
+
+        // Level definitions with max amounts and available terms
         levels: [
-            { name: 'NEW',      subtitle: 'Başlanğıc səviyyə',  icon: '🥉', rate: 30, textClass: 'text-slate-300' },
-            { name: 'TRUSTED',  subtitle: '1 ödənişdən sonra',  icon: '🥈', rate: 27, textClass: 'text-slate-400' },
-            { name: 'VALUABLE', subtitle: '3 ödənişdən sonra',  icon: '🥇', rate: 24, textClass: 'text-amber-500' },
-            { name: 'ELITE',    subtitle: 'Maksimum etimad',    icon: '💎', rate: 20, textClass: 'text-emerald-400' },
+            { name: 'NEW',      subtitle: 'Başlanğıc səviyyə',  icon: '🥉', maxAmount: 500,  terms: [3],         textClass: 'text-slate-300' },
+            { name: 'TRUSTED',  subtitle: '1 ödənişdən sonra',  icon: '🥈', maxAmount: 900,  terms: [3, 6],      textClass: 'text-slate-400' },
+            { name: 'VALUABLE', subtitle: '3 ödənişdən sonra',  icon: '🥇', maxAmount: 1300, terms: [3, 6, 9],   textClass: 'text-amber-500' },
+            { name: 'ELITE',    subtitle: 'Maksimum etimad',    icon: '💎', maxAmount: 3000, terms: [3, 6, 9, 12], textClass: 'text-emerald-400' },
         ],
+
+        // Rate lookup table — derived from migration 001_init.sql credit_levels seed data.
+        // Key format: "level-amountRange-term" → rate
+        // amountRange: "100-300", "301-500", "501-700", "701-900", "901-1100", "1101-1300", "1301-1500", "1501-2000", "2001-2500", "2501-3000"
+        rateTable: {
+            'new-100-300-3': 30,
+            'new-301-500-3': 30,
+            'trusted-100-300-3': 29,
+            'trusted-301-500-3': 28,
+            'trusted-501-700-3': 27,
+            'trusted-501-700-6': 29,
+            'trusted-701-900-3': 27,
+            'trusted-701-900-6': 29,
+            'valuable-100-300-3': 28,
+            'valuable-301-500-3': 27,
+            'valuable-501-700-3': 26,
+            'valuable-501-700-6': 28,
+            'valuable-701-900-3': 26,
+            'valuable-701-900-6': 28,
+            'valuable-901-1100-6': 26,
+            'valuable-901-1100-9': 28,
+            'valuable-1101-1300-6': 25,
+            'valuable-1101-1300-9': 27,
+            'elite-100-300-3': 27,
+            'elite-301-500-3': 26,
+            'elite-501-700-3': 25,
+            'elite-501-700-6': 27,
+            'elite-701-900-3': 25,
+            'elite-701-900-6': 27,
+            'elite-901-1100-6': 25,
+            'elite-901-1100-9': 27,
+            'elite-1101-1300-6': 24,
+            'elite-1101-1300-9': 26,
+            'elite-1301-1500-6': 22,
+            'elite-1301-1500-9': 24,
+            'elite-1301-1500-12': 26,
+            'elite-1501-2000-6': 21,
+            'elite-1501-2000-9': 23,
+            'elite-1501-2000-12': 25,
+            'elite-2001-2500-6': 20,
+            'elite-2001-2500-9': 22,
+            'elite-2001-2500-12': 24,
+            'elite-2501-3000-9': 22,
+            'elite-2501-3000-12': 21,
+        },
+
+        // Get the amount range bucket for current amount
+        getAmountRange() {
+            if (this.amount <= 300) return '100-300';
+            if (this.amount <= 500) return '301-500';
+            if (this.amount <= 700) return '501-700';
+            if (this.amount <= 900) return '701-900';
+            if (this.amount <= 1100) return '901-1100';
+            if (this.amount <= 1300) return '1101-1300';
+            if (this.amount <= 1500) return '1301-1500';
+            if (this.amount <= 2000) return '1501-2000';
+            if (this.amount <= 2500) return '2001-2500';
+            return '2501-3000';
+        },
+
+        // Get rate for a level at current amount + term
+        getRate(lvl) {
+            const range = this.getAmountRange();
+            const key = `${lvl.name.toLowerCase()}-${range}-${this.term}`;
+            return this.rateTable[key] || 30; // fallback to 30%
+        },
+
+        // Check if a level is available for the current amount
+        isLevelAvailable(lvl) {
+            return this.amount <= lvl.maxAmount;
+        },
+
+        // Check if a term is available for any active level at current amount
+        isTermAvailable(t) {
+            return this.levels.some(lvl => this.isLevelAvailable(lvl) && lvl.terms.includes(t));
+        },
 
         // Total = Principal + (Rate / (100 - Rate)) × 100
         totalFor(rate) {
@@ -678,15 +775,23 @@ function alpulLanding() {
             return Math.round(total * 100) / 100;
         },
 
-        // Savings vs NEW level (30%)
-        savingsFor(rate) {
-            const base = this.totalFor(30);
-            const cur  = this.totalFor(rate);
-            return Math.round((base - cur) * 100) / 100;
+        // Savings vs NEW level rate
+        savingsFor(lvl) {
+            if (!this.isLevelAvailable(lvl)) return 0;
+            const newLvl = this.levels[0]; // NEW is always first
+            if (!this.isLevelAvailable(newLvl)) {
+                // NEW not available (amount > 500) — use TRUSTED as base
+                const baseRate = this.getRate(this.levels[1]);
+                return Math.round((this.totalFor(baseRate) - this.totalFor(this.getRate(lvl))) * 100) / 100;
+            }
+            const baseRate = this.getRate(newLvl);
+            return Math.round((this.totalFor(baseRate) - this.totalFor(this.getRate(lvl))) * 100) / 100;
         },
 
         get eliteSavings() {
-            return this.savingsFor(20);
+            const elite = this.levels[3];
+            if (!this.isLevelAvailable(elite)) return 0;
+            return this.savingsFor(elite);
         },
 
         formatMoney(v) {
