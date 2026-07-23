@@ -126,6 +126,84 @@
                     </div>
                 </div>
 
+                <!-- PR #66: MyGov Employment + Pension Verification -->
+                <div x-show="app.status === 'pending_approval'" class="bg-blue-50 border border-blue-200 rounded-lg p-5">
+                    <h2 class="text-lg font-semibold text-gray-700 mb-1">MyGov Təsdiqi (PR #65-#66)</h2>
+                    <p class="text-sm text-gray-500 mb-4">Müştəri ilə dialoq qurun, rəsmi gəlir/pensiya statusunu yoxlayın.</p>
+
+                    <!-- Employment verification -->
+                    <div class="bg-white border border-gray-200 rounded p-4 mb-3">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-medium text-gray-700">İş Yeri Sorgusu</h3>
+                            <span x-show="employmentResult" class="text-xs font-medium px-2 py-1 rounded-full"
+                                  :class="{
+                                      'bg-green-100 text-green-700': employmentResult === 'passed',
+                                      'bg-red-100 text-red-700': employmentResult === 'rejected'
+                                  }"
+                                  x-text="employmentResult === 'passed' ? '✓ Keçdi' : (employmentResult === 'rejected' ? '✗ İmtina' : '')">
+                            </span>
+                        </div>
+                        <p class="text-xs text-gray-500 mb-3">Əmək stajı ≥ 6 ay qaydası yoxlanılır. Əgər cari iş &lt; 6 aydırsa, əvvəlki iş yeri nəzərə alınır (fasilə &lt; 29 gün).</p>
+                        <div class="flex gap-2">
+                            <button @click="employmentRequest()"
+                                    :disabled="employmentLoading"
+                                    class="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50">
+                                <span x-show="!employmentLoading">📤 İş Yeri Sorgusu Göndər</span>
+                                <span x-show="employmentLoading">Göndərilir...</span>
+                            </button>
+                            <button @click="employmentVerify()"
+                                    :disabled="employmentVerifying"
+                                    class="flex-1 bg-indigo-600 text-white px-3 py-2 rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
+                                <span x-show="!employmentVerifying">✓ Məlumatı Yoxla</span>
+                                <span x-show="employmentVerifying">Yoxlanılır...</span>
+                            </button>
+                        </div>
+                        <div x-show="employmentMessage" class="mt-2 text-xs px-3 py-2 rounded"
+                             :class="employmentResult === 'rejected' ? 'bg-red-50 text-red-700' : 'bg-gray-50 text-gray-600'"
+                             x-text="employmentMessage">
+                        </div>
+                    </div>
+
+                    <!-- Pension verification -->
+                    <div class="bg-white border border-gray-200 rounded p-4">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-medium text-gray-700">Pensiya Sorgusu</h3>
+                            <span x-show="pensionResult" class="text-xs font-medium px-2 py-1 rounded-full"
+                                  :class="{
+                                      'bg-green-100 text-green-700': pensionResult === 'passed',
+                                      'bg-red-100 text-red-700': pensionResult === 'rejected'
+                                  }"
+                                  x-text="pensionResult === 'passed' ? '✓ Keçdi' : (pensionResult === 'rejected' ? '✗ İmtina' : '')">
+                            </span>
+                        </div>
+                        <p class="text-xs text-gray-500 mb-3">1ci qrup əlilliyi olan müştərilər avtomatik imtina olunur. Digər qruplar/yaş pensiyaçısı keçir.</p>
+                        <div class="flex gap-2">
+                            <button @click="pensionRequest()"
+                                    :disabled="pensionLoading"
+                                    class="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 disabled:opacity-50">
+                                <span x-show="!pensionLoading">📤 Pensiya Sorgusu Göndər</span>
+                                <span x-show="pensionLoading">Göndərilir...</span>
+                            </button>
+                            <button @click="pensionVerify()"
+                                    :disabled="pensionVerifying"
+                                    class="flex-1 bg-indigo-600 text-white px-3 py-2 rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
+                                <span x-show="!pensionVerifying">✓ Məlumatı Yoxla</span>
+                                <span x-show="pensionVerifying">Yoxlanılır...</span>
+                            </button>
+                        </div>
+                        <div x-show="pensionMessage" class="mt-2 text-xs px-3 py-2 rounded"
+                             :class="pensionResult === 'rejected' ? 'bg-red-50 text-red-700' : 'bg-gray-50 text-gray-600'"
+                             x-text="pensionMessage">
+                        </div>
+                    </div>
+
+                    <!-- Auto-reject warning -->
+                    <div x-show="app.status === 'rejected' && app.rejection_reason" class="mt-3 bg-red-100 border border-red-300 rounded p-3">
+                        <div class="text-sm font-semibold text-red-700 mb-1">⚠ Müraciət Avtomatik İmtina Edildi</div>
+                        <div class="text-sm text-red-600" x-text="app.rejection_reason"></div>
+                    </div>
+                </div>
+
                 <!-- Action Buttons -->
                 <div x-show="app.status === 'pending_approval'" class="flex gap-4 pt-4 border-t">
                     <div class="flex-1">
@@ -178,6 +256,16 @@
                 mygovLoading: false,
                 mygovFetching: false,
                 mygovResult: '',
+
+                // PR #66: Employment + Pension verification state
+                employmentLoading: false,
+                employmentVerifying: false,
+                employmentResult: '',
+                employmentMessage: '',
+                pensionLoading: false,
+                pensionVerifying: false,
+                pensionResult: '',
+                pensionMessage: '',
 
                 get id() {
                     return new URLSearchParams(window.location.search).get('id');
@@ -287,6 +375,92 @@
                         this.mygovResult = 'Xeta: ' + e.message;
                     } finally {
                         this.mygovFetching = false;
+                    }
+                },
+
+                // PR #66: Employment verification methods
+
+                async employmentRequest() {
+                    this.employmentLoading = true;
+                    this.employmentMessage = '';
+                    try {
+                        const resp = await fetch('/api/applications/' + this.id + '/mygov-employment-request', {
+                            method: 'POST'
+                        });
+                        const data = await resp.json();
+                        if (!resp.ok) throw new Error(data.error || 'Sorgu gonderilmedi');
+                        this.employmentMessage = 'SMS gonderildi! Müştəri MyGov app-a daxil olub icazə verməlidir.';
+                        this.employmentResult = '';
+                    } catch (e) {
+                        this.employmentMessage = 'Xeta: ' + e.message;
+                        this.employmentResult = '';
+                    } finally {
+                        this.employmentLoading = false;
+                    }
+                },
+
+                async employmentVerify() {
+                    this.employmentVerifying = true;
+                    this.employmentMessage = '';
+                    try {
+                        const resp = await fetch('/api/applications/' + this.id + '/mygov-employment-verify', {
+                            method: 'POST'
+                        });
+                        const data = await resp.json();
+                        if (!resp.ok) throw new Error(data.error || 'Yoxlama ugursuz');
+                        this.employmentResult = data.status; // 'passed' or 'rejected'
+                        this.employmentMessage = data.reason;
+                        if (data.status === 'rejected') {
+                            await this.load(); // refresh to show rejected status
+                        }
+                    } catch (e) {
+                        this.employmentMessage = 'Xeta: ' + e.message;
+                        this.employmentResult = '';
+                    } finally {
+                        this.employmentVerifying = false;
+                    }
+                },
+
+                // PR #66: Pension verification methods
+
+                async pensionRequest() {
+                    this.pensionLoading = true;
+                    this.pensionMessage = '';
+                    try {
+                        const resp = await fetch('/api/applications/' + this.id + '/mygov-pension-request', {
+                            method: 'POST'
+                        });
+                        const data = await resp.json();
+                        if (!resp.ok) throw new Error(data.error || 'Sorgu gonderilmedi');
+                        this.pensionMessage = 'SMS gonderildi! Müştəri MyGov app-a daxil olub icazə verməlidir.';
+                        this.pensionResult = '';
+                    } catch (e) {
+                        this.pensionMessage = 'Xeta: ' + e.message;
+                        this.pensionResult = '';
+                    } finally {
+                        this.pensionLoading = false;
+                    }
+                },
+
+                async pensionVerify() {
+                    this.pensionVerifying = true;
+                    this.pensionMessage = '';
+                    try {
+                        const resp = await fetch('/api/applications/' + this.id + '/mygov-pension-verify', {
+                            method: 'POST'
+                        });
+                        const data = await resp.json();
+                        if (!resp.ok) throw new Error(data.error || 'Yoxlama ugursuz');
+                        this.pensionResult = data.status;
+                        this.pensionMessage = data.reason;
+                        if (data.status === 'rejected') {
+                            await this.load(); // refresh to show rejected status
+                        }
+                    } catch (e) {
+                        this.pensionMessage = 'Xeta: ' + e.message;
+                        this.pensionResult = '';
+                    } finally {
+                        this.pensionVerifying = false;
                     }
                 }
             }
