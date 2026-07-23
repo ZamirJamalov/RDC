@@ -311,6 +311,7 @@
                 </div>
                 <input type="range" x-model.number="amount" min="50" max="3000" step="50"
                        class="w-full mt-2"
+                       @input="ensureValidTerm()"
                        :style="`--range-fill: ${((amount - 50) / (3000 - 50)) * 100}%`">
                 <div class="flex justify-between text-xs text-gray-500 mt-2">
                     <span>50 AZN</span>
@@ -736,7 +737,7 @@ function alpulLanding() {
         getRate(lvl) {
             const range = this.getAmountRange();
             const key = `${lvl.name.toLowerCase()}-${range}-${this.term}`;
-            return this.rateTable[key] || 30; // fallback to 30%
+            return this.rateTable[key] || null; // null = not available
         },
 
         // Check if a level is available for the current amount
@@ -744,14 +745,38 @@ function alpulLanding() {
             return this.amount <= lvl.maxAmount;
         },
 
-        // Check if a term is available for any active level at current amount
+        // PR #75: Check if a specific term is available at the current amount
+        // by looking up the rateTable — not just the level's terms array.
+        // This correctly handles cases where 1200 AZN has no 3-month option.
         isTermAvailable(t) {
-            return this.levels.some(lvl => this.isLevelAvailable(lvl) && lvl.terms.includes(t));
+            const range = this.getAmountRange();
+            return this.levels.some(lvl => {
+                if (!this.isLevelAvailable(lvl)) return false;
+                const key = `${lvl.name.toLowerCase()}-${range}-${t}`;
+                return this.rateTable[key] !== undefined;
+            });
         },
 
-        // PR #74: Check if a term is available for a SPECIFIC level
+        // PR #75: Check if a term is available for a SPECIFIC level at current amount
         isTermAvailableForLevel(lvl, t) {
-            return this.isLevelAvailable(lvl) && lvl.terms.includes(t);
+            if (!this.isLevelAvailable(lvl)) return false;
+            const range = this.getAmountRange();
+            const key = `${lvl.name.toLowerCase()}-${range}-${t}`;
+            return this.rateTable[key] !== undefined;
+        },
+
+        // PR #75: Get all available terms at the current amount (across all levels)
+        get availableTerms() {
+            return [3, 6, 9, 12].filter(t => this.isTermAvailable(t));
+        },
+
+        // PR #75: Auto-select first available term when amount changes
+        // Called via x-effect or watcher on amount
+        ensureValidTerm() {
+            if (!this.isTermAvailable(this.term)) {
+                const first = this.availableTerms[0];
+                if (first) this.term = first;
+            }
         },
 
         // Total = Principal + (Rate / (100 - Rate)) × 100
@@ -765,14 +790,18 @@ function alpulLanding() {
         // Savings vs NEW level rate
         savingsFor(lvl) {
             if (!this.isLevelAvailable(lvl)) return 0;
+            const rate = this.getRate(lvl);
+            if (rate === null) return 0;
             const newLvl = this.levels[0]; // NEW is always first
-            if (!this.isLevelAvailable(newLvl)) {
+            let baseRate;
+            if (this.isLevelAvailable(newLvl)) {
+                baseRate = this.getRate(newLvl);
+            } else {
                 // NEW not available (amount > 500) — use TRUSTED as base
-                const baseRate = this.getRate(this.levels[1]);
-                return Math.round((this.totalFor(baseRate) - this.totalFor(this.getRate(lvl))) * 100) / 100;
+                baseRate = this.getRate(this.levels[1]);
             }
-            const baseRate = this.getRate(newLvl);
-            return Math.round((this.totalFor(baseRate) - this.totalFor(this.getRate(lvl))) * 100) / 100;
+            if (baseRate === null) return 0;
+            return Math.round((this.totalFor(baseRate) - this.totalFor(rate)) * 100) / 100;
         },
 
         get eliteSavings() {
