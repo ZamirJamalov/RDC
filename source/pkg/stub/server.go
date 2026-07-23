@@ -23,63 +23,69 @@
 package stub
 
 import (
-	"encoding/json"
-	"fmt"
-	"log/slog"
-	"net/http"
-	"strconv"
-	"time"
+        "encoding/json"
+        "fmt"
+        "log/slog"
+        "net/http"
+        "strconv"
+        "time"
 )
 
 // Server is the LW router stub. Construct with New(), then call Start() to
 // launch it in a goroutine.
 type Server struct {
-	addr string
-	srv  *http.Server
+        addr string
+        srv  *http.Server
 }
 
 // New creates a stub server listening on the given port.
 func New(port int) *Server {
-	addr := fmt.Sprintf(":%d", port)
-	s := &Server{addr: addr}
-	mux := http.NewServeMux()
-	s.registerRoutes(mux)
-	s.srv = &http.Server{
-		Addr:         addr,
-		Handler:      mux,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 10 * time.Second,
-	}
-	return s
+        addr := fmt.Sprintf(":%d", port)
+        s := &Server{addr: addr}
+        mux := http.NewServeMux()
+        s.registerRoutes(mux)
+        s.srv = &http.Server{
+                Addr:         addr,
+                Handler:      mux,
+                ReadTimeout:  10 * time.Second,
+                WriteTimeout: 10 * time.Second,
+        }
+        return s
 }
 
 // Start launches the stub server in the current goroutine (blocks). Typically
 // called as `go stub.Start(port)` from main.go.
 func (s *Server) Start() {
-	slog.Info("LW stub server starting (development only)", "addr", s.addr)
-	if err := s.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		slog.Error("LW stub server failed", "error", err)
-	}
+        slog.Info("LW stub server starting (development only)", "addr", s.addr)
+        if err := s.srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+                slog.Error("LW stub server failed", "error", err)
+        }
 }
 
 // registerRoutes wires every endpoint to its handler.
 func (s *Server) registerRoutes(mux *http.ServeMux) {
-	// External router endpoints (forwarded to AKB/AZMK/DIN/ASAN by real LW)
-	mux.HandleFunc("/api/router/personal-info", s.handlePersonalInfo)
-	mux.HandleFunc("/api/router/akb-score", s.handleAkbScore)
-	mux.HandleFunc("/api/router/akb-history", s.handleAkbHistory)
-	mux.HandleFunc("/api/router/azmk-blacklist", s.handleAzmkBlacklist)
-	mux.HandleFunc("/api/router/asan-finance", s.handleAsanFinance)
+        // External router endpoints (forwarded to AKB/AZMK/DIN/ASAN by real LW)
+        mux.HandleFunc("/api/router/personal-info", s.handlePersonalInfo)
+        mux.HandleFunc("/api/router/akb-score", s.handleAkbScore)
+        mux.HandleFunc("/api/router/akb-history", s.handleAkbHistory)
+        mux.HandleFunc("/api/router/azmk-blacklist", s.handleAzmkBlacklist)
+        mux.HandleFunc("/api/router/asan-finance", s.handleAsanFinance)
 
-	// LW own operations
-	mux.HandleFunc("/api/lw/blacklist", s.handleLwBlacklist)
-	mux.HandleFunc("/api/lw/loans", s.handleLwLoans)           // GET ?pin=...
-	mux.HandleFunc("/api/lw/loans/approve", s.handleLwApprove) // POST
+        // LW own operations
+        mux.HandleFunc("/api/lw/blacklist", s.handleLwBlacklist)
+        mux.HandleFunc("/api/lw/loans", s.handleLwLoans)           // GET ?pin=...
+        mux.HandleFunc("/api/lw/loans/approve", s.handleLwApprove) // POST
 
-	// Health check
-	mux.HandleFunc("/stub/health", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "service": "lw-stub"})
-	})
+        // PR #64: MyGov endpoints (employment + pension data)
+        // Real MyGov is a separate service, but for stub mode we serve it here
+        // so the MyGov HTTPProvider can be pointed at the same stub URL.
+        mux.HandleFunc("/api/mygov/permission/generate", s.handleMyGovGenerateLink) // POST
+        mux.HandleFunc("/api/mygov/permission/data", s.handleMyGovFetchData)       // GET ?token=...
+
+        // Health check
+        mux.HandleFunc("/stub/health", func(w http.ResponseWriter, _ *http.Request) {
+                writeJSON(w, http.StatusOK, map[string]any{"status": "ok", "service": "lw-stub"})
+        })
 }
 
 // =====================================================================
@@ -87,18 +93,18 @@ func (s *Server) registerRoutes(mux *http.ServeMux) {
 // =====================================================================
 
 func writeJSON(w http.ResponseWriter, status int, body any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(body)
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(status)
+        _ = json.NewEncoder(w).Encode(body)
 }
 
 func writeError(w http.ResponseWriter, status int, msg string) {
-	writeJSON(w, status, map[string]string{"error": msg})
+        writeJSON(w, status, map[string]string{"error": msg})
 }
 
 // scenario extracts the ?scenario= query parameter (empty when not set).
 func scenario(r *http.Request) string {
-	return r.URL.Query().Get("scenario")
+        return r.URL.Query().Get("scenario")
 }
 
 // =====================================================================
@@ -106,45 +112,45 @@ func scenario(r *http.Request) string {
 // =====================================================================
 
 func (s *Server) handlePersonalInfo(w http.ResponseWriter, r *http.Request) {
-	fin := r.URL.Query().Get("fin")
-	if fin == "" {
-		writeError(w, http.StatusBadRequest, "fin query parameter is required")
-		return
-	}
+        fin := r.URL.Query().Get("fin")
+        if fin == "" {
+                writeError(w, http.StatusBadRequest, "fin query parameter is required")
+                return
+        }
 
-	sc := scenario(r)
-	switch sc {
-	case "old_customer":
-		// Born 1950 → age ~76 → triggers rule 3 (age > 69)
-		writeJSON(w, http.StatusOK, map[string]any{
-			"fin":            fin,
-			"full_name":      "Yaşlı Müştəri",
-			"date_of_birth":  "1950-01-15",
-			"place_of_birth": "Bakı, Azərbaycan",
-			"address":        "Bakı, Nizami r.",
-		})
-	case "young_customer":
-		writeJSON(w, http.StatusOK, map[string]any{
-			"fin":            fin,
-			"full_name":      "Gənc Müştəri",
-			"date_of_birth":  "2000-05-20",
-			"place_of_birth": "Gəncə, Azərbaycan",
-			"address":        "Gəncə,",
-		})
-	case "error":
-		writeError(w, http.StatusBadGateway, "stub: simulated DIN service error")
-	case "":
-		// Default: 35-year-old customer
-		writeJSON(w, http.StatusOK, map[string]any{
-			"fin":            fin,
-			"full_name":      "Test Müştəri",
-			"date_of_birth":  "1991-03-10",
-			"place_of_birth": "Bakı, Azərbaycan",
-			"address":        "Bakı, Səbail r., 28 May 12",
-		})
-	default:
-		writeError(w, http.StatusBadRequest, "stub: unknown scenario '"+sc+"' for personal-info")
-	}
+        sc := scenario(r)
+        switch sc {
+        case "old_customer":
+                // Born 1950 → age ~76 → triggers rule 3 (age > 69)
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin":            fin,
+                        "full_name":      "Yaşlı Müştəri",
+                        "date_of_birth":  "1950-01-15",
+                        "place_of_birth": "Bakı, Azərbaycan",
+                        "address":        "Bakı, Nizami r.",
+                })
+        case "young_customer":
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin":            fin,
+                        "full_name":      "Gənc Müştəri",
+                        "date_of_birth":  "2000-05-20",
+                        "place_of_birth": "Gəncə, Azərbaycan",
+                        "address":        "Gəncə,",
+                })
+        case "error":
+                writeError(w, http.StatusBadGateway, "stub: simulated DIN service error")
+        case "":
+                // Default: 35-year-old customer
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin":            fin,
+                        "full_name":      "Test Müştəri",
+                        "date_of_birth":  "1991-03-10",
+                        "place_of_birth": "Bakı, Azərbaycan",
+                        "address":        "Bakı, Səbail r., 28 May 12",
+                })
+        default:
+                writeError(w, http.StatusBadRequest, "stub: unknown scenario '"+sc+"' for personal-info")
+        }
 }
 
 // =====================================================================
@@ -152,64 +158,64 @@ func (s *Server) handlePersonalInfo(w http.ResponseWriter, r *http.Request) {
 // =====================================================================
 
 func (s *Server) handleAkbScore(w http.ResponseWriter, r *http.Request) {
-	fin := r.URL.Query().Get("fin")
-	if fin == "" {
-		writeError(w, http.StatusBadRequest, "fin query parameter is required")
-		return
-	}
+        fin := r.URL.Query().Get("fin")
+        if fin == "" {
+                writeError(w, http.StatusBadRequest, "fin query parameter is required")
+                return
+        }
 
-	sc := scenario(r)
-	switch sc {
-	case "stop_factor":
-		// Point=1 → stop factor present, Response=2-letter code
-		writeJSON(w, http.StatusOK, map[string]any{
-			"fin": fin,
-			"return": map[string]any{
-				"response": "AB",
-				"point":    1,
-			},
-		})
-	case "low_score":
-		// Point=150 → below 200 threshold (rule 1)
-		writeJSON(w, http.StatusOK, map[string]any{
-			"fin": fin,
-			"return": map[string]any{
-				"response": "",
-				"point":    150,
-			},
-		})
-	case "high_score":
-		// Point=750 → triggers valuable override (AKB 700+)
-		writeJSON(w, http.StatusOK, map[string]any{
-			"fin": fin,
-			"return": map[string]any{
-				"response": "",
-				"point":    750,
-			},
-		})
-	case "no_data":
-		// Point=0 → AKB returned no usable data
-		writeJSON(w, http.StatusOK, map[string]any{
-			"fin": fin,
-			"return": map[string]any{
-				"response": "",
-				"point":    0,
-			},
-		})
-	case "error":
-		writeError(w, http.StatusBadGateway, "stub: simulated AKB service error")
-	case "":
-		// Default: normal score 650
-		writeJSON(w, http.StatusOK, map[string]any{
-			"fin": fin,
-			"return": map[string]any{
-				"response": "",
-				"point":    650,
-			},
-		})
-	default:
-		writeError(w, http.StatusBadRequest, "stub: unknown scenario '"+sc+"' for akb-score")
-	}
+        sc := scenario(r)
+        switch sc {
+        case "stop_factor":
+                // Point=1 → stop factor present, Response=2-letter code
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin": fin,
+                        "return": map[string]any{
+                                "response": "AB",
+                                "point":    1,
+                        },
+                })
+        case "low_score":
+                // Point=150 → below 200 threshold (rule 1)
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin": fin,
+                        "return": map[string]any{
+                                "response": "",
+                                "point":    150,
+                        },
+                })
+        case "high_score":
+                // Point=750 → triggers valuable override (AKB 700+)
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin": fin,
+                        "return": map[string]any{
+                                "response": "",
+                                "point":    750,
+                        },
+                })
+        case "no_data":
+                // Point=0 → AKB returned no usable data
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin": fin,
+                        "return": map[string]any{
+                                "response": "",
+                                "point":    0,
+                        },
+                })
+        case "error":
+                writeError(w, http.StatusBadGateway, "stub: simulated AKB service error")
+        case "":
+                // Default: normal score 650
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin": fin,
+                        "return": map[string]any{
+                                "response": "",
+                                "point":    650,
+                        },
+                })
+        default:
+                writeError(w, http.StatusBadRequest, "stub: unknown scenario '"+sc+"' for akb-score")
+        }
 }
 
 // =====================================================================
@@ -217,204 +223,204 @@ func (s *Server) handleAkbScore(w http.ResponseWriter, r *http.Request) {
 // =====================================================================
 
 func (s *Server) handleAkbHistory(w http.ResponseWriter, r *http.Request) {
-	fin := r.URL.Query().Get("fin")
-	if fin == "" {
-		writeError(w, http.StatusBadRequest, "fin query parameter is required")
-		return
-	}
+        fin := r.URL.Query().Get("fin")
+        if fin == "" {
+                writeError(w, http.StatusBadRequest, "fin query parameter is required")
+                return
+        }
 
-	now := time.Now()
-	formatPeriod := func(monthsAgo int) string {
-		return now.AddDate(0, -monthsAgo, 0).Format("2006-01")
-	}
+        now := time.Now()
+        formatPeriod := func(monthsAgo int) string {
+                return now.AddDate(0, -monthsAgo, 0).Format("2006-01")
+        }
 
-	sc := scenario(r)
-	switch sc {
-	case "delay_ratio_high":
-		// 12 months with 7 days overdue each → ratio = 84/12 = 7.0 > 6 (rule 2)
-		history := []map[string]any{}
-		for i := 0; i < 12; i++ {
-			history = append(history, map[string]any{
-				"reporting_period": formatPeriod(i),
-				"overdue_days":     7,
-				"credit_status":    "active",
-			})
-		}
-		writeJSON(w, http.StatusOK, map[string]any{
-			"report_id":      "MOCK-DELAY-RATIO",
-			"reporting_date": "2026-07-01",
-			"borrower": map[string]any{
-				"fin":    fin,
-				"name":   "Delay Ratio Customer",
-				"status": "active",
-			},
-			"liabilities": []map[string]any{
-				{
-					"id":                     "L-DELAY",
-					"credit_status":          "closed",
-					"days_main_sum_overdue":  0,
-					"monthly_payment_amount": 0,
-					"history":                history,
-				},
-			},
-			"inquiry_history": []map[string]any{},
-			"balance":         0,
-		})
+        sc := scenario(r)
+        switch sc {
+        case "delay_ratio_high":
+                // 12 months with 7 days overdue each → ratio = 84/12 = 7.0 > 6 (rule 2)
+                history := []map[string]any{}
+                for i := 0; i < 12; i++ {
+                        history = append(history, map[string]any{
+                                "reporting_period": formatPeriod(i),
+                                "overdue_days":     7,
+                                "credit_status":    "active",
+                        })
+                }
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "report_id":      "MOCK-DELAY-RATIO",
+                        "reporting_date": "2026-07-01",
+                        "borrower": map[string]any{
+                                "fin":    fin,
+                                "name":   "Delay Ratio Customer",
+                                "status": "active",
+                        },
+                        "liabilities": []map[string]any{
+                                {
+                                        "id":                     "L-DELAY",
+                                        "credit_status":          "closed",
+                                        "days_main_sum_overdue":  0,
+                                        "monthly_payment_amount": 0,
+                                        "history":                history,
+                                },
+                        },
+                        "inquiry_history": []map[string]any{},
+                        "balance":         0,
+                })
 
-	case "active_delay_high":
-		// Active liability with 10 days overdue → rule 6 (>5 days)
-		writeJSON(w, http.StatusOK, map[string]any{
-			"report_id":      "MOCK-ACTIVE-DELAY",
-			"reporting_date": "2026-07-01",
-			"borrower": map[string]any{
-				"fin":    fin,
-				"name":   "Active Delay Customer",
-				"status": "active",
-			},
-			"liabilities": []map[string]any{
-				{
-					"id":                     "L-ACTIVE",
-					"credit_status":          "active",
-					"days_main_sum_overdue":  10,
-					"monthly_payment_amount": 200,
-					"history":                []map[string]any{},
-				},
-			},
-			"inquiry_history": []map[string]any{},
-			"balance":         200,
-		})
+        case "active_delay_high":
+                // Active liability with 10 days overdue → rule 6 (>5 days)
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "report_id":      "MOCK-ACTIVE-DELAY",
+                        "reporting_date": "2026-07-01",
+                        "borrower": map[string]any{
+                                "fin":    fin,
+                                "name":   "Active Delay Customer",
+                                "status": "active",
+                        },
+                        "liabilities": []map[string]any{
+                                {
+                                        "id":                     "L-ACTIVE",
+                                        "credit_status":          "active",
+                                        "days_main_sum_overdue":  10,
+                                        "monthly_payment_amount": 200,
+                                        "history":                []map[string]any{},
+                                },
+                        },
+                        "inquiry_history": []map[string]any{},
+                        "balance":         200,
+                })
 
-	case "delay_3m":
-		// 25 days overdue 1 month ago → rule 7 (>=20 in 3 months)
-		writeJSON(w, http.StatusOK, map[string]any{
-			"report_id":      "MOCK-DELAY-3M",
-			"reporting_date": "2026-07-01",
-			"borrower":       map[string]any{"fin": fin, "name": "Delay 3M Customer", "status": "active"},
-			"liabilities": []map[string]any{
-				{
-					"id":                     "L-3M",
-					"credit_status":          "closed",
-					"days_main_sum_overdue":  0,
-					"monthly_payment_amount": 0,
-					"history": []map[string]any{
-						{"reporting_period": formatPeriod(1), "overdue_days": 25, "credit_status": "active"},
-					},
-				},
-			},
-			"inquiry_history": []map[string]any{},
-			"balance":         0,
-		})
+        case "delay_3m":
+                // 25 days overdue 1 month ago → rule 7 (>=20 in 3 months)
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "report_id":      "MOCK-DELAY-3M",
+                        "reporting_date": "2026-07-01",
+                        "borrower":       map[string]any{"fin": fin, "name": "Delay 3M Customer", "status": "active"},
+                        "liabilities": []map[string]any{
+                                {
+                                        "id":                     "L-3M",
+                                        "credit_status":          "closed",
+                                        "days_main_sum_overdue":  0,
+                                        "monthly_payment_amount": 0,
+                                        "history": []map[string]any{
+                                                {"reporting_period": formatPeriod(1), "overdue_days": 25, "credit_status": "active"},
+                                        },
+                                },
+                        },
+                        "inquiry_history": []map[string]any{},
+                        "balance":         0,
+                })
 
-	case "delay_6m":
-		// 35 days overdue 4 months ago → rule 8 (>=30 in 6 months)
-		writeJSON(w, http.StatusOK, map[string]any{
-			"report_id":      "MOCK-DELAY-6M",
-			"reporting_date": "2026-07-01",
-			"borrower":       map[string]any{"fin": fin, "name": "Delay 6M Customer", "status": "active"},
-			"liabilities": []map[string]any{
-				{
-					"id":                     "L-6M",
-					"credit_status":          "closed",
-					"days_main_sum_overdue":  0,
-					"monthly_payment_amount": 0,
-					"history": []map[string]any{
-						{"reporting_period": formatPeriod(4), "overdue_days": 35, "credit_status": "active"},
-					},
-				},
-			},
-			"inquiry_history": []map[string]any{},
-			"balance":         0,
-		})
+        case "delay_6m":
+                // 35 days overdue 4 months ago → rule 8 (>=30 in 6 months)
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "report_id":      "MOCK-DELAY-6M",
+                        "reporting_date": "2026-07-01",
+                        "borrower":       map[string]any{"fin": fin, "name": "Delay 6M Customer", "status": "active"},
+                        "liabilities": []map[string]any{
+                                {
+                                        "id":                     "L-6M",
+                                        "credit_status":          "closed",
+                                        "days_main_sum_overdue":  0,
+                                        "monthly_payment_amount": 0,
+                                        "history": []map[string]any{
+                                                {"reporting_period": formatPeriod(4), "overdue_days": 35, "credit_status": "active"},
+                                        },
+                                },
+                        },
+                        "inquiry_history": []map[string]any{},
+                        "balance":         0,
+                })
 
-	case "delay_12m":
-		// 50 days overdue 8 months ago → rule 9 (>=45 in 12 months)
-		writeJSON(w, http.StatusOK, map[string]any{
-			"report_id":      "MOCK-DELAY-12M",
-			"reporting_date": "2026-07-01",
-			"borrower":       map[string]any{"fin": fin, "name": "Delay 12M Customer", "status": "active"},
-			"liabilities": []map[string]any{
-				{
-					"id":                     "L-12M",
-					"credit_status":          "closed",
-					"days_main_sum_overdue":  0,
-					"monthly_payment_amount": 0,
-					"history": []map[string]any{
-						{"reporting_period": formatPeriod(8), "overdue_days": 50, "credit_status": "active"},
-					},
-				},
-			},
-			"inquiry_history": []map[string]any{},
-			"balance":         0,
-		})
+        case "delay_12m":
+                // 50 days overdue 8 months ago → rule 9 (>=45 in 12 months)
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "report_id":      "MOCK-DELAY-12M",
+                        "reporting_date": "2026-07-01",
+                        "borrower":       map[string]any{"fin": fin, "name": "Delay 12M Customer", "status": "active"},
+                        "liabilities": []map[string]any{
+                                {
+                                        "id":                     "L-12M",
+                                        "credit_status":          "closed",
+                                        "days_main_sum_overdue":  0,
+                                        "monthly_payment_amount": 0,
+                                        "history": []map[string]any{
+                                                {"reporting_period": formatPeriod(8), "overdue_days": 50, "credit_status": "active"},
+                                        },
+                                },
+                        },
+                        "inquiry_history": []map[string]any{},
+                        "balance":         0,
+                })
 
-	case "delay_18m":
-		// 65 days overdue 14 months ago → rule 10 (>=60 in 18 months)
-		writeJSON(w, http.StatusOK, map[string]any{
-			"report_id":      "MOCK-DELAY-18M",
-			"reporting_date": "2026-07-01",
-			"borrower":       map[string]any{"fin": fin, "name": "Delay 18M Customer", "status": "active"},
-			"liabilities": []map[string]any{
-				{
-					"id":                     "L-18M",
-					"credit_status":          "closed",
-					"days_main_sum_overdue":  0,
-					"monthly_payment_amount": 0,
-					"history": []map[string]any{
-						{"reporting_period": formatPeriod(14), "overdue_days": 65, "credit_status": "active"},
-					},
-				},
-			},
-			"inquiry_history": []map[string]any{},
-			"balance":         0,
-		})
+        case "delay_18m":
+                // 65 days overdue 14 months ago → rule 10 (>=60 in 18 months)
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "report_id":      "MOCK-DELAY-18M",
+                        "reporting_date": "2026-07-01",
+                        "borrower":       map[string]any{"fin": fin, "name": "Delay 18M Customer", "status": "active"},
+                        "liabilities": []map[string]any{
+                                {
+                                        "id":                     "L-18M",
+                                        "credit_status":          "closed",
+                                        "days_main_sum_overdue":  0,
+                                        "monthly_payment_amount": 0,
+                                        "history": []map[string]any{
+                                                {"reporting_period": formatPeriod(14), "overdue_days": 65, "credit_status": "active"},
+                                        },
+                                },
+                        },
+                        "inquiry_history": []map[string]any{},
+                        "balance":         0,
+                })
 
-	case "high_monthly_payments":
-		// Two active liabilities: 1200 + 900 = 2100 > 2000 → rule 12
-		writeJSON(w, http.StatusOK, map[string]any{
-			"report_id":      "MOCK-HIGH-PAYMENTS",
-			"reporting_date": "2026-07-01",
-			"borrower":       map[string]any{"fin": fin, "name": "High Payments Customer", "status": "active"},
-			"liabilities": []map[string]any{
-				{
-					"id":                     "L-PAY1",
-					"credit_status":          "active",
-					"days_main_sum_overdue":  0,
-					"monthly_payment_amount": 1200,
-					"history":                []map[string]any{},
-				},
-				{
-					"id":                     "L-PAY2",
-					"credit_status":          "active",
-					"days_main_sum_overdue":  0,
-					"monthly_payment_amount": 900,
-					"history":                []map[string]any{},
-				},
-			},
-			"inquiry_history": []map[string]any{},
-			"balance":         2100,
-		})
+        case "high_monthly_payments":
+                // Two active liabilities: 1200 + 900 = 2100 > 2000 → rule 12
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "report_id":      "MOCK-HIGH-PAYMENTS",
+                        "reporting_date": "2026-07-01",
+                        "borrower":       map[string]any{"fin": fin, "name": "High Payments Customer", "status": "active"},
+                        "liabilities": []map[string]any{
+                                {
+                                        "id":                     "L-PAY1",
+                                        "credit_status":          "active",
+                                        "days_main_sum_overdue":  0,
+                                        "monthly_payment_amount": 1200,
+                                        "history":                []map[string]any{},
+                                },
+                                {
+                                        "id":                     "L-PAY2",
+                                        "credit_status":          "active",
+                                        "days_main_sum_overdue":  0,
+                                        "monthly_payment_amount": 900,
+                                        "history":                []map[string]any{},
+                                },
+                        },
+                        "inquiry_history": []map[string]any{},
+                        "balance":         2100,
+                })
 
-	case "error":
-		writeError(w, http.StatusBadGateway, "stub: simulated AKB history service error")
+        case "error":
+                writeError(w, http.StatusBadGateway, "stub: simulated AKB history service error")
 
-	case "", "empty":
-		// Default: no liabilities (clean customer)
-		writeJSON(w, http.StatusOK, map[string]any{
-			"report_id":      "MOCK-CLEAN",
-			"reporting_date": "2026-07-01",
-			"borrower": map[string]any{
-				"fin":    fin,
-				"name":   "Clean Customer",
-				"status": "active",
-			},
-			"liabilities":     []map[string]any{},
-			"inquiry_history": []map[string]any{},
-			"balance":         0,
-		})
+        case "", "empty":
+                // Default: no liabilities (clean customer)
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "report_id":      "MOCK-CLEAN",
+                        "reporting_date": "2026-07-01",
+                        "borrower": map[string]any{
+                                "fin":    fin,
+                                "name":   "Clean Customer",
+                                "status": "active",
+                        },
+                        "liabilities":     []map[string]any{},
+                        "inquiry_history": []map[string]any{},
+                        "balance":         0,
+                })
 
-	default:
-		writeError(w, http.StatusBadRequest, "stub: unknown scenario '"+sc+"' for akb-history")
-	}
+        default:
+                writeError(w, http.StatusBadRequest, "stub: unknown scenario '"+sc+"' for akb-history")
+        }
 }
 
 // =====================================================================
@@ -422,27 +428,27 @@ func (s *Server) handleAkbHistory(w http.ResponseWriter, r *http.Request) {
 // =====================================================================
 
 func (s *Server) handleAzmkBlacklist(w http.ResponseWriter, r *http.Request) {
-	fin := r.URL.Query().Get("fin")
-	if fin == "" {
-		writeError(w, http.StatusBadRequest, "fin query parameter is required")
-		return
-	}
+        fin := r.URL.Query().Get("fin")
+        if fin == "" {
+                writeError(w, http.StatusBadRequest, "fin query parameter is required")
+                return
+        }
 
-	sc := scenario(r)
-	switch sc {
-	case "blacklisted":
-		writeJSON(w, http.StatusOK, map[string]any{
-			"fin":            fin,
-			"is_blacklisted": true,
-		})
-	case "error":
-		writeError(w, http.StatusBadGateway, "stub: simulated AZMK service error")
-	default:
-		writeJSON(w, http.StatusOK, map[string]any{
-			"fin":            fin,
-			"is_blacklisted": false,
-		})
-	}
+        sc := scenario(r)
+        switch sc {
+        case "blacklisted":
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin":            fin,
+                        "is_blacklisted": true,
+                })
+        case "error":
+                writeError(w, http.StatusBadGateway, "stub: simulated AZMK service error")
+        default:
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin":            fin,
+                        "is_blacklisted": false,
+                })
+        }
 }
 
 // =====================================================================
@@ -450,27 +456,27 @@ func (s *Server) handleAzmkBlacklist(w http.ResponseWriter, r *http.Request) {
 // =====================================================================
 
 func (s *Server) handleLwBlacklist(w http.ResponseWriter, r *http.Request) {
-	fin := r.URL.Query().Get("fin")
-	if fin == "" {
-		writeError(w, http.StatusBadRequest, "fin query parameter is required")
-		return
-	}
+        fin := r.URL.Query().Get("fin")
+        if fin == "" {
+                writeError(w, http.StatusBadRequest, "fin query parameter is required")
+                return
+        }
 
-	sc := scenario(r)
-	switch sc {
-	case "blacklisted":
-		writeJSON(w, http.StatusOK, map[string]any{
-			"fin":            fin,
-			"is_blacklisted": true,
-		})
-	case "error":
-		writeError(w, http.StatusBadGateway, "stub: simulated LW blacklist service error")
-	default:
-		writeJSON(w, http.StatusOK, map[string]any{
-			"fin":            fin,
-			"is_blacklisted": false,
-		})
-	}
+        sc := scenario(r)
+        switch sc {
+        case "blacklisted":
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin":            fin,
+                        "is_blacklisted": true,
+                })
+        case "error":
+                writeError(w, http.StatusBadGateway, "stub: simulated LW blacklist service error")
+        default:
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin":            fin,
+                        "is_blacklisted": false,
+                })
+        }
 }
 
 // =====================================================================
@@ -478,41 +484,41 @@ func (s *Server) handleLwBlacklist(w http.ResponseWriter, r *http.Request) {
 // =====================================================================
 
 func (s *Server) handleAsanFinance(w http.ResponseWriter, r *http.Request) {
-	fin := r.URL.Query().Get("fin")
-	if fin == "" {
-		writeError(w, http.StatusBadRequest, "fin query parameter is required")
-		return
-	}
+        fin := r.URL.Query().Get("fin")
+        if fin == "" {
+                writeError(w, http.StatusBadRequest, "fin query parameter is required")
+                return
+        }
 
-	sc := scenario(r)
-	switch sc {
-	case "low_income":
-		writeJSON(w, http.StatusOK, map[string]any{
-			"fin":             fin,
-			"official_income": 200,
-			"currency":        "AZN",
-			"employer_name":   "Mock Employer",
-			"query_date":      "2026-07-01",
-		})
-	case "high_income":
-		writeJSON(w, http.StatusOK, map[string]any{
-			"fin":             fin,
-			"official_income": 1500,
-			"currency":        "AZN",
-			"employer_name":   "Mock Employer",
-			"query_date":      "2026-07-01",
-		})
-	case "error":
-		writeError(w, http.StatusBadGateway, "stub: simulated ASAN Finance service error")
-	default:
-		writeJSON(w, http.StatusOK, map[string]any{
-			"fin":             fin,
-			"official_income": 500,
-			"currency":        "AZN",
-			"employer_name":   "Mock Employer",
-			"query_date":      "2026-07-01",
-		})
-	}
+        sc := scenario(r)
+        switch sc {
+        case "low_income":
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin":             fin,
+                        "official_income": 200,
+                        "currency":        "AZN",
+                        "employer_name":   "Mock Employer",
+                        "query_date":      "2026-07-01",
+                })
+        case "high_income":
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin":             fin,
+                        "official_income": 1500,
+                        "currency":        "AZN",
+                        "employer_name":   "Mock Employer",
+                        "query_date":      "2026-07-01",
+                })
+        case "error":
+                writeError(w, http.StatusBadGateway, "stub: simulated ASAN Finance service error")
+        default:
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin":             fin,
+                        "official_income": 500,
+                        "currency":        "AZN",
+                        "employer_name":   "Mock Employer",
+                        "query_date":      "2026-07-01",
+                })
+        }
 }
 
 // =====================================================================
@@ -520,80 +526,80 @@ func (s *Server) handleAsanFinance(w http.ResponseWriter, r *http.Request) {
 // =====================================================================
 
 func (s *Server) handleLwLoans(w http.ResponseWriter, r *http.Request) {
-	pin := r.URL.Query().Get("pin")
-	if pin == "" {
-		writeError(w, http.StatusBadRequest, "pin query parameter is required")
-		return
-	}
+        pin := r.URL.Query().Get("pin")
+        if pin == "" {
+                writeError(w, http.StatusBadRequest, "pin query parameter is required")
+                return
+        }
 
-	sc := scenario(r)
-	switch sc {
-	case "trusted":
-		// 2 completed loans at "new" level, 0 delay, 3-month term → promotes to trusted
-		writeJSON(w, http.StatusOK, map[string]any{
-			"customer_pin":       pin,
-			"has_existing_loans": true,
-			"loan_count":         2,
-			"loans": []map[string]any{
-				{
-					"id": 1, "customer_pin": pin, "lms_loan_id": "L1", "loan_type": "consumer",
-					"amount": 200, "term_months": 3, "start_date": "2024-01-01", "end_date": "2024-04-01",
-					"status": "completed", "remaining_amount": 0, "was_on_time": true,
-					"early_completion": false, "delay_days": 0, "level_at_close": "new", "closed_at": "2024-04-01",
-				},
-				{
-					"id": 2, "customer_pin": pin, "lms_loan_id": "L2", "loan_type": "consumer",
-					"amount": 250, "term_months": 3, "start_date": "2024-05-01", "end_date": "2024-08-01",
-					"status": "completed", "remaining_amount": 0, "was_on_time": true,
-					"early_completion": false, "delay_days": 0, "level_at_close": "new", "closed_at": "2024-08-01",
-				},
-			},
-		})
+        sc := scenario(r)
+        switch sc {
+        case "trusted":
+                // 2 completed loans at "new" level, 0 delay, 3-month term → promotes to trusted
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "customer_pin":       pin,
+                        "has_existing_loans": true,
+                        "loan_count":         2,
+                        "loans": []map[string]any{
+                                {
+                                        "id": 1, "customer_pin": pin, "lms_loan_id": "L1", "loan_type": "consumer",
+                                        "amount": 200, "term_months": 3, "start_date": "2024-01-01", "end_date": "2024-04-01",
+                                        "status": "completed", "remaining_amount": 0, "was_on_time": true,
+                                        "early_completion": false, "delay_days": 0, "level_at_close": "new", "closed_at": "2024-04-01",
+                                },
+                                {
+                                        "id": 2, "customer_pin": pin, "lms_loan_id": "L2", "loan_type": "consumer",
+                                        "amount": 250, "term_months": 3, "start_date": "2024-05-01", "end_date": "2024-08-01",
+                                        "status": "completed", "remaining_amount": 0, "was_on_time": true,
+                                        "early_completion": false, "delay_days": 0, "level_at_close": "new", "closed_at": "2024-08-01",
+                                },
+                        },
+                })
 
-	case "active_loan":
-		// 1 active loan → triggers "has active loan" rejection
-		writeJSON(w, http.StatusOK, map[string]any{
-			"customer_pin":       pin,
-			"has_existing_loans": true,
-			"loan_count":         1,
-			"loans": []map[string]any{
-				{
-					"id": 1, "customer_pin": pin, "lms_loan_id": "L-ACTIVE", "loan_type": "consumer",
-					"amount": 1000, "term_months": 6, "start_date": "2026-01-01", "end_date": "2026-07-01",
-					"status": "active", "remaining_amount": 500, "was_on_time": true,
-					"early_completion": false, "delay_days": 0, "level_at_close": "", "closed_at": "",
-				},
-			},
-		})
+        case "active_loan":
+                // 1 active loan → triggers "has active loan" rejection
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "customer_pin":       pin,
+                        "has_existing_loans": true,
+                        "loan_count":         1,
+                        "loans": []map[string]any{
+                                {
+                                        "id": 1, "customer_pin": pin, "lms_loan_id": "L-ACTIVE", "loan_type": "consumer",
+                                        "amount": 1000, "term_months": 6, "start_date": "2026-01-01", "end_date": "2026-07-01",
+                                        "status": "active", "remaining_amount": 500, "was_on_time": true,
+                                        "early_completion": false, "delay_days": 0, "level_at_close": "", "closed_at": "",
+                                },
+                        },
+                })
 
-	case "late_payment":
-		// 1 completed loan with 5 days delay → triggers "late payment" rejection
-		writeJSON(w, http.StatusOK, map[string]any{
-			"customer_pin":       pin,
-			"has_existing_loans": true,
-			"loan_count":         1,
-			"loans": []map[string]any{
-				{
-					"id": 1, "customer_pin": pin, "lms_loan_id": "L-LATE", "loan_type": "consumer",
-					"amount": 500, "term_months": 3, "start_date": "2024-01-01", "end_date": "2024-04-01",
-					"status": "completed", "remaining_amount": 0, "was_on_time": false,
-					"early_completion": false, "delay_days": 5, "level_at_close": "new", "closed_at": "2024-04-06",
-				},
-			},
-		})
+        case "late_payment":
+                // 1 completed loan with 5 days delay → triggers "late payment" rejection
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "customer_pin":       pin,
+                        "has_existing_loans": true,
+                        "loan_count":         1,
+                        "loans": []map[string]any{
+                                {
+                                        "id": 1, "customer_pin": pin, "lms_loan_id": "L-LATE", "loan_type": "consumer",
+                                        "amount": 500, "term_months": 3, "start_date": "2024-01-01", "end_date": "2024-04-01",
+                                        "status": "completed", "remaining_amount": 0, "was_on_time": false,
+                                        "early_completion": false, "delay_days": 5, "level_at_close": "new", "closed_at": "2024-04-06",
+                                },
+                        },
+                })
 
-	case "error":
-		writeError(w, http.StatusBadGateway, "stub: simulated LW loans service error")
+        case "error":
+                writeError(w, http.StatusBadGateway, "stub: simulated LW loans service error")
 
-	default:
-		// Default: no loans (new customer)
-		writeJSON(w, http.StatusOK, map[string]any{
-			"customer_pin":       pin,
-			"has_existing_loans": false,
-			"loan_count":         0,
-			"loans":              []map[string]any{},
-		})
-	}
+        default:
+                // Default: no loans (new customer)
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "customer_pin":       pin,
+                        "has_existing_loans": false,
+                        "loan_count":         0,
+                        "loans":              []map[string]any{},
+                })
+        }
 }
 
 // =====================================================================
@@ -601,51 +607,270 @@ func (s *Server) handleLwLoans(w http.ResponseWriter, r *http.Request) {
 // =====================================================================
 
 func (s *Server) handleLwApprove(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "POST required")
-		return
-	}
+        if r.Method != http.MethodPost {
+                writeError(w, http.StatusMethodNotAllowed, "POST required")
+                return
+        }
 
-	var body map[string]any
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid JSON body: "+err.Error())
-		return
-	}
+        var body map[string]any
+        if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+                writeError(w, http.StatusBadRequest, "invalid JSON body: "+err.Error())
+                return
+        }
 
-	appID, _ := body["application_id"].(float64)
+        appID, _ := body["application_id"].(float64)
 
-	sc := scenario(r)
-	switch sc {
-	case "contract_failed":
-		writeJSON(w, http.StatusOK, map[string]any{
-			"application_id":  int(appID),
-			"contract_status": "failed",
-			"transfer_status": "failed",
-			"lms_loan_id":     "",
-		})
-	case "error":
-		writeError(w, http.StatusBadGateway, "stub: simulated LW approve service error")
-	default:
-		writeJSON(w, http.StatusOK, map[string]any{
-			"application_id":  int(appID),
-			"contract_status": "signed",
-			"transfer_status": "completed",
-			"lms_loan_id":     fmt.Sprintf("STUB-LMS-%d", int(appID)),
-		})
-	}
+        sc := scenario(r)
+        switch sc {
+        case "contract_failed":
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "application_id":  int(appID),
+                        "contract_status": "failed",
+                        "transfer_status": "failed",
+                        "lms_loan_id":     "",
+                })
+        case "error":
+                writeError(w, http.StatusBadGateway, "stub: simulated LW approve service error")
+        default:
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "application_id":  int(appID),
+                        "contract_status": "signed",
+                        "transfer_status": "completed",
+                        "lms_loan_id":     fmt.Sprintf("STUB-LMS-%d", int(appID)),
+                })
+        }
+}
+
+// =====================================================================
+// /api/mygov/permission/generate — MyGov permission link (PR #64)
+// =====================================================================
+
+func (s *Server) handleMyGovGenerateLink(w http.ResponseWriter, r *http.Request) {
+        if r.Method != http.MethodPost {
+                writeError(w, http.StatusMethodNotAllowed, "POST required")
+                return
+        }
+        fin := r.URL.Query().Get("fin")
+        if fin == "" {
+                writeError(w, http.StatusBadRequest, "fin query parameter is required")
+                return
+        }
+
+        token := fmt.Sprintf("STUB-MYGOV-%s-%d", fin, time.Now().Unix())
+        writeJSON(w, http.StatusOK, map[string]any{
+                "token":     token,
+                "url":       fmt.Sprintf("https://stub-mygov.example.com/permit/%s", token),
+                "expires_at": time.Now().Add(30 * time.Minute).Format(time.RFC3339),
+        })
+}
+
+// =====================================================================
+// /api/mygov/permission/data — MyGov authorized data (PR #64)
+// =====================================================================
+
+func (s *Server) handleMyGovFetchData(w http.ResponseWriter, r *http.Request) {
+        token := r.URL.Query().Get("token")
+        if token == "" {
+                writeError(w, http.StatusBadRequest, "token query parameter is required")
+                return
+        }
+
+        now := time.Now()
+        sc := scenario(r)
+
+        switch sc {
+        case "employment_ok":
+                // Current job started 8 months ago → passes 6-month tenure rule
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin":             "PIN1",
+                        "full_name":       "Employed Customer",
+                        "official_income": 1500.0,
+                        "employer_name":   "ABC LLC",
+                        "address":         "Bakı",
+                        "fetched_at":      now.Format(time.RFC3339),
+                        "work_history": []map[string]any{
+                                {
+                                        "employer_name": "ABC LLC",
+                                        "start_date":    now.AddDate(0, -8, 0).Format("2006-01-02"),
+                                        "end_date":      nil,
+                                        "position":      "Engineer",
+                                },
+                        },
+                        "disability_group": 0,
+                        "is_pensioner":     false,
+                        "pension_type":     "",
+                })
+
+        case "employment_short_tenure":
+                // Current job 3 months + previous job 4 months, gap 10 days → combined 7 months → PASS
+                // (Tests the 29-day gap rule with previous employer)
+                prevEnd := now.AddDate(0, -3, -10)
+                prevStart := prevEnd.AddDate(0, -4, 0)
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin":             "PIN1",
+                        "full_name":       "Recent Hire Customer",
+                        "official_income": 1200.0,
+                        "employer_name":   "XYZ LLC",
+                        "address":         "Bakı",
+                        "fetched_at":      now.Format(time.RFC3339),
+                        "work_history": []map[string]any{
+                                {
+                                        "employer_name": "XYZ LLC",
+                                        "start_date":    now.AddDate(0, -3, 0).Format("2006-01-02"),
+                                        "end_date":      nil,
+                                        "position":      "Manager",
+                                },
+                                {
+                                        "employer_name": "Previous Corp",
+                                        "start_date":    prevStart.Format("2006-01-02"),
+                                        "end_date":      prevEnd.Format("2006-01-02"),
+                                        "position":      "Specialist",
+                                },
+                        },
+                        "disability_group": 0,
+                        "is_pensioner":     false,
+                        "pension_type":     "",
+                })
+
+        case "employment_short_tenure_long_gap":
+                // Current job 3 months + previous job 4 months, gap 60 days → combined would be 7 months
+                // BUT gap > 29 days → previous job NOT counted → reject
+                prevEnd := now.AddDate(0, -3, -60)
+                prevStart := prevEnd.AddDate(0, -4, 0)
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin":             "PIN1",
+                        "full_name":       "Long Gap Customer",
+                        "official_income": 1100.0,
+                        "employer_name":   "XYZ LLC",
+                        "address":         "Bakı",
+                        "fetched_at":      now.Format(time.RFC3339),
+                        "work_history": []map[string]any{
+                                {
+                                        "employer_name": "XYZ LLC",
+                                        "start_date":    now.AddDate(0, -3, 0).Format("2006-01-02"),
+                                        "end_date":      nil,
+                                        "position":      "Manager",
+                                },
+                                {
+                                        "employer_name": "Previous Corp",
+                                        "start_date":    prevStart.Format("2006-01-02"),
+                                        "end_date":      prevEnd.Format("2006-01-02"),
+                                        "position":      "Specialist",
+                                },
+                        },
+                        "disability_group": 0,
+                        "is_pensioner":     false,
+                        "pension_type":     "",
+                })
+
+        case "employment_insufficient_tenure":
+                // Current job 2 months, no previous job → reject (tenure < 6 months)
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin":             "PIN1",
+                        "full_name":       "New Employee Customer",
+                        "official_income": 1000.0,
+                        "employer_name":   "New Company",
+                        "address":         "Bakı",
+                        "fetched_at":      now.Format(time.RFC3339),
+                        "work_history": []map[string]any{
+                                {
+                                        "employer_name": "New Company",
+                                        "start_date":    now.AddDate(0, -2, 0).Format("2006-01-02"),
+                                        "end_date":      nil,
+                                        "position":      "Trainee",
+                                },
+                        },
+                        "disability_group": 0,
+                        "is_pensioner":     false,
+                        "pension_type":     "",
+                })
+
+        case "pension_disability_group1":
+                // Pensioner with 1st group disability → auto-reject per business rule
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin":             "PIN1",
+                        "full_name":       "Disabled Pensioner",
+                        "official_income": 300.0,
+                        "employer_name":   "",
+                        "address":         "Bakı",
+                        "fetched_at":      now.Format(time.RFC3339),
+                        "work_history":    []map[string]any{},
+                        "disability_group": 1,
+                        "is_pensioner":     true,
+                        "pension_type":     "disability",
+                })
+
+        case "pension_disability_group2":
+                // Pensioner with 2nd group disability → NOT auto-reject (only group 1 rejects)
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin":             "PIN1",
+                        "full_name":       "Pensioner Group 2",
+                        "official_income": 250.0,
+                        "employer_name":   "",
+                        "address":         "Bakı",
+                        "fetched_at":      now.Format(time.RFC3339),
+                        "work_history":    []map[string]any{},
+                        "disability_group": 2,
+                        "is_pensioner":     true,
+                        "pension_type":     "disability",
+                })
+
+        case "pension_age":
+                // Age pensioner, no disability → NOT auto-reject
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin":             "PIN1",
+                        "full_name":       "Age Pensioner",
+                        "official_income": 400.0,
+                        "employer_name":   "",
+                        "address":         "Bakı",
+                        "fetched_at":      now.Format(time.RFC3339),
+                        "work_history":    []map[string]any{},
+                        "disability_group": 0,
+                        "is_pensioner":     true,
+                        "pension_type":     "age",
+                })
+
+        case "error":
+                writeError(w, http.StatusBadGateway, "stub: simulated MyGov service error")
+
+        case "":
+                // Default: employment_ok scenario
+                writeJSON(w, http.StatusOK, map[string]any{
+                        "fin":             "PIN1",
+                        "full_name":       "Default Customer",
+                        "official_income": 1000.0,
+                        "employer_name":   "Default LLC",
+                        "address":         "Bakı",
+                        "fetched_at":      now.Format(time.RFC3339),
+                        "work_history": []map[string]any{
+                                {
+                                        "employer_name": "Default LLC",
+                                        "start_date":    now.AddDate(0, -12, 0).Format("2006-01-02"),
+                                        "end_date":      nil,
+                                        "position":      "Worker",
+                                },
+                        },
+                        "disability_group": 0,
+                        "is_pensioner":     false,
+                        "pension_type":     "",
+                })
+
+        default:
+                writeError(w, http.StatusBadRequest, "stub: unknown scenario '"+sc+"' for mygov/permission/data")
+        }
 }
 
 // StartInBackground launches the stub server in a goroutine and returns
 // immediately. Convenience wrapper for main.go usage.
 func StartInBackground(port int) {
-	New(port).Start()
+        New(port).Start()
 }
 
 // PortFromString parses a port string with a fallback.
 func PortFromString(s string, fallback int) int {
-	n, err := strconv.Atoi(s)
-	if err != nil || n <= 0 || n > 65535 {
-		return fallback
-	}
-	return n
+        n, err := strconv.Atoi(s)
+        if err != nil || n <= 0 || n > 65535 {
+                return fallback
+        }
+        return n
 }
