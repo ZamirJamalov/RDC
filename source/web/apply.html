@@ -301,85 +301,72 @@
 
         <!-- STEP 3: Offer + Customer Confirm -->
         <div x-show="currentStep === 2" x-transition class="card-glow rounded-3xl p-8">
-            <h2 class="text-3xl font-bold mb-2">Kredit təklifiniz</h2>
+            <h2 class="text-3xl font-bold mb-2">Təklif</h2>
             <p class="text-gray-400 mb-8">Sizin <span class="font-semibold text-white" x-text="levelNameAz(offer?.credit_level)"></span> kredit səviyyənizə uyğun təklif aşağıdadır.</p>
 
             <div x-show="offer" class="grid md:grid-cols-2 gap-6">
 
-                <!-- LEFT: Credit Summary Panel (PR #78 — backend-driven) -->
-                <div class="bg-black/30 border border-white/5 rounded-xl p-5 space-y-4">
+                <!-- LEFT: Credit Summary Panel (PR #81 redesigned) -->
+                <div class="bg-black/30 border border-white/5 rounded-xl p-5 space-y-3">
                     <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Kredit Xülasəsi</h3>
 
-                    <!-- Seçilmiş kredit məbləği -->
-                    <div class="flex justify-between items-baseline">
-                        <span class="text-sm text-gray-400">Seçilmiş məbləğ</span>
-                        <span class="text-lg font-semibold text-white">
-                            <span x-text="form.amount.toFixed(2)"></span> ₼
-                        </span>
+                    <!-- Aylıq ödəniş + Ümumi qaytarılacaq (yan-yana, böyük, fərqli rəng) -->
+                    <div class="grid grid-cols-2 gap-3 mb-3">
+                        <div class="bg-black/40 rounded-lg p-3 text-center">
+                            <div class="text-xs text-gray-400 mb-1">Aylıq ödəniş</div>
+                            <div class="text-2xl font-extrabold text-emerald-400">
+                                <span x-text="monthlyPayment"></span> ₼
+                            </div>
+                        </div>
+                        <div class="bg-black/40 rounded-lg p-3 text-center">
+                            <div class="text-xs text-gray-400 mb-1">Ümumi qaytarılacaq</div>
+                            <div class="text-2xl font-extrabold text-emerald-400 whitespace-nowrap">
+                                <span x-text="totalRepayment"></span> ₼
+                            </div>
+                        </div>
                     </div>
 
-                    <!-- Komissiya -->
-                    <div class="flex justify-between items-baseline">
-                        <span class="text-sm text-gray-400">Komissiya</span>
-                        <span class="text-lg font-semibold text-amber-400">
-                            <span x-text="commissionAmount"></span> ₼
-                        </span>
-                    </div>
+                    <!-- Ard-arda: Kredit məbləği, Komissiya, Köçürüləcək, İllik faiz (kiçik, eyni stil) -->
+                    <div class="space-y-2">
+                        <!-- Kredit məbləği -->
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-xs text-gray-400">Kredit məbləği</span>
+                            <span class="text-sm font-semibold text-gray-300">
+                                <span x-text="creditAmount"></span> ₼
+                            </span>
+                        </div>
 
-                    <!-- Kredit məbləği (seçilmiş + komissiya) -->
-                    <div class="flex justify-between items-baseline pt-3 border-t border-white/10">
-                        <span class="text-sm text-gray-300 font-medium">Kredit məbləği</span>
-                        <span class="text-xl font-bold text-white">
-                            <span x-text="creditAmount"></span> ₼
-                        </span>
-                    </div>
+                        <!-- Komissiya (faiz dərəcəsi ilə) -->
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-xs text-gray-400">Komissiya (<span x-text="selectedRange?.rate?.toFixed(0)"></span>%)</span>
+                            <span class="text-sm font-semibold text-gray-300">
+                                <span x-text="commissionAmount"></span> ₼
+                            </span>
+                        </div>
 
-                    <!-- Karta köçürüləcək məbləğ -->
-                    <div class="flex justify-between items-baseline">
-                        <span class="text-sm text-gray-400">Karta köçürüləcək</span>
-                        <span class="text-lg font-semibold text-emerald-400">
-                            <span x-text="form.amount.toFixed(2)"></span> ₼
-                        </span>
-                    </div>
+                        <!-- Köçürüləcək məbləğ -->
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-xs text-gray-400">Köçürüləcək məbləğ</span>
+                            <span class="text-sm font-semibold text-gray-300">
+                                <span x-text="form.amount.toFixed(2)"></span> ₼
+                            </span>
+                        </div>
 
-                    <!-- Müddət -->
-                    <div class="flex justify-between items-baseline">
-                        <span class="text-sm text-gray-400">Müddət</span>
-                        <span class="text-lg font-semibold text-white">
-                            <span x-text="selectedRange?.term_months || '—'"></span> ay
-                        </span>
-                    </div>
+                        <!-- İllik faiz dərəcəsi -->
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-xs text-gray-400">İllik faiz dərəcəsi</span>
+                            <span class="text-sm font-semibold text-gray-300">
+                                <span x-text="selectedRange?.annual_interest_rate?.toFixed(0) || '—'"></span>%
+                            </span>
+                        </div>
 
-                    <!-- İllik faiz dərəcəsi -->
-                    <div class="flex justify-between items-baseline">
-                        <span class="text-sm text-gray-400">İllik faiz dərəcəsi</span>
-                        <span class="text-lg font-semibold text-white">
-                            <span x-text="selectedRange?.annual_interest_rate?.toFixed(0) || '—'"></span>%
-                        </span>
-                    </div>
-
-                    <!-- Faiz məbləği -->
-                    <div class="flex justify-between items-baseline">
-                        <span class="text-sm text-gray-400">Faiz məbləği</span>
-                        <span class="text-lg font-semibold text-amber-400">
-                            <span x-text="interestAmount"></span> ₼
-                        </span>
-                    </div>
-
-                    <!-- Ümumi qaytarılacaq -->
-                    <div class="flex justify-between items-baseline pt-3 border-t border-white/10 gap-3">
-                        <span class="text-sm text-gray-300 font-medium whitespace-nowrap">Ümumi qaytarılacaq</span>
-                        <span class="text-xl font-extrabold text-emerald-400 whitespace-nowrap">
-                            <span x-text="totalRepayment"></span> ₼
-                        </span>
-                    </div>
-
-                    <!-- Aylıq ödəniş -->
-                    <div class="flex justify-between items-baseline">
-                        <span class="text-sm text-gray-400">Aylıq ödəniş</span>
-                        <span class="text-lg font-semibold text-white">
-                            <span x-text="monthlyPayment"></span> ₼
-                        </span>
+                        <!-- Müddət -->
+                        <div class="flex justify-between items-baseline">
+                            <span class="text-xs text-gray-400">Müddət</span>
+                            <span class="text-sm font-semibold text-gray-300">
+                                <span x-text="selectedRange?.term_months || '—'"></span> ay
+                            </span>
+                        </div>
                     </div>
                 </div>
 
@@ -388,7 +375,7 @@
                     <!-- Amount slider -->
                     <div>
                         <div class="flex justify-between items-baseline mb-3">
-                            <label class="text-sm text-gray-400">Kredit məbləği</label>
+                            <label class="text-sm text-gray-400">Köçürüləcək məbləği seçin</label>
                             <div class="text-3xl font-extrabold">
                                 <span x-text="form.amount"></span>
                                 <span class="text-base text-gray-400">AZN</span>
