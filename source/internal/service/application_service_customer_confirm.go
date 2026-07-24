@@ -101,7 +101,7 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
                         "application_id", appID,
                         "customer_pin", app.CustomerPIN)
                 app.Status = model.StatusRejected
-                app.RejectionReason = "AKB stop factor present (rejected at customer-confirm stage)"
+                app.RejectionReason = "AKB_STOP_FACTOR"
                 app.AkbScore = 0
                 app.Amount = req.Amount
                 app.CardNumber = req.CardNumber

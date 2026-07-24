@@ -53,16 +53,15 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
         if blacklisted {
                 return &decisionResult{
                         Status:          model.StatusRejected,
-                        RejectionReason: "Customer is blacklisted",
+                        RejectionReason: "LW_BLACKLIST",
                 }, nil
         }
 
         // 1b. Reject: AZMK blacklist (PR #53, rule 5)
-        // Skipped when GetAzmkBlacklist failed (fail-soft) — see analytics.azmkCheckAvailable.
         if analytics.azmkCheckAvailable && analytics.azmkBlacklisted {
                 return &decisionResult{
                         Status:          model.StatusRejected,
-                        RejectionReason: "Customer is on the AZMK (Central Credit Register) blacklist",
+                        RejectionReason: "AZMK_BLACKLIST",
                 }, nil
         }
 
@@ -76,8 +75,7 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
                 }
                 return &decisionResult{
                         Status: model.StatusRejected,
-                        RejectionReason: fmt.Sprintf("AKB stop factor: %s (score=1)",
-                                code),
+                        RejectionReason: fmt.Sprintf("AKB_STOP_FACTOR:%s", code),
                 }, nil
         }
 
@@ -89,9 +87,8 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
         // Score == 1 is already handled above as a stop factor.
         if analytics.akbScore > 0 && analytics.akbScore < 200 {
                 return &decisionResult{
-                        Status: model.StatusRejected,
-                        RejectionReason: fmt.Sprintf("AKB score %d below minimum (200)",
-                                analytics.akbScore),
+                        Status:          model.StatusRejected,
+                        RejectionReason: "AKB_SCORE_LOW",
                 }, nil
         }
 
@@ -100,9 +97,8 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
         // we treat that as "unknown age" and do NOT reject (fail-soft).
         if analytics.customerAge > 69 {
                 return &decisionResult{
-                        Status: model.StatusRejected,
-                        RejectionReason: fmt.Sprintf("Customer age %d exceeds maximum (69)",
-                                analytics.customerAge),
+                        Status:          model.StatusRejected,
+                        RejectionReason: "AGE_OVER_69",
                 }, nil
         }
 
@@ -115,8 +111,7 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
                 if analytics.delayRatio > 6 {
                         return &decisionResult{
                                 Status: model.StatusRejected,
-                                RejectionReason: fmt.Sprintf("Delay ratio %.2f exceeds maximum (6 days/month) over last 24 months",
-                                        analytics.delayRatio),
+                                RejectionReason: "DELAY_RATIO_HIGH",
                         }, nil
                 }
 
@@ -124,8 +119,7 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
                 if analytics.activeMaxDelayDays > 5 {
                         return &decisionResult{
                                 Status: model.StatusRejected,
-                                RejectionReason: fmt.Sprintf("Active loan has %d days current overdue (max allowed: 5)",
-                                        analytics.activeMaxDelayDays),
+                                RejectionReason: "ACTIVE_DELAY_HIGH",
                         }, nil
                 }
 
@@ -133,8 +127,7 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
                 if analytics.maxDelayLast3Months >= 20 {
                         return &decisionResult{
                                 Status: model.StatusRejected,
-                                RejectionReason: fmt.Sprintf("Max delay %d days in last 3 months (threshold: 20)",
-                                        analytics.maxDelayLast3Months),
+                                RejectionReason: "DELAY_3M",
                         }, nil
                 }
 
@@ -142,8 +135,7 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
                 if analytics.maxDelayLast6Months >= 30 {
                         return &decisionResult{
                                 Status: model.StatusRejected,
-                                RejectionReason: fmt.Sprintf("Max delay %d days in last 6 months (threshold: 30)",
-                                        analytics.maxDelayLast6Months),
+                                RejectionReason: "DELAY_6M",
                         }, nil
                 }
 
@@ -151,8 +143,7 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
                 if analytics.maxDelayLast12Months >= 45 {
                         return &decisionResult{
                                 Status: model.StatusRejected,
-                                RejectionReason: fmt.Sprintf("Max delay %d days in last 12 months (threshold: 45)",
-                                        analytics.maxDelayLast12Months),
+                                RejectionReason: "DELAY_12M",
                         }, nil
                 }
 
@@ -160,8 +151,7 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
                 if analytics.maxDelayLast18Months >= 60 {
                         return &decisionResult{
                                 Status: model.StatusRejected,
-                                RejectionReason: fmt.Sprintf("Max delay %d days in last 18 months (threshold: 60)",
-                                        analytics.maxDelayLast18Months),
+                                RejectionReason: "DELAY_18M",
                         }, nil
                 }
 
@@ -169,8 +159,7 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
                 if analytics.totalMonthlyPayments > 2000 {
                         return &decisionResult{
                                 Status: model.StatusRejected,
-                                RejectionReason: fmt.Sprintf("Total monthly payments %.2f AZN exceeds maximum (2000)",
-                                        analytics.totalMonthlyPayments),
+                                RejectionReason: "MONTHLY_PAYMENTS_HIGH",
                         }, nil
                 }
         }
@@ -179,7 +168,7 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
         if analytics.hasActive {
                 return &decisionResult{
                         Status:          model.StatusRejected,
-                        RejectionReason: "Customer has active loans",
+                        RejectionReason: "ACTIVE_LOAN",
                 }, nil
         }
 
@@ -187,14 +176,14 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
         if analytics.completedCount > 0 && !analytics.allOnTime {
                 return &decisionResult{
                         Status:          model.StatusRejected,
-                        RejectionReason: "Late payments found in loan history",
+                        RejectionReason: "LATE_PAYMENT",
                 }, nil
         }
 
         // 7. Look up the rate for this credit level, amount, term, and unlock phase
         rate, err := e.appRepo.GetCreditLevelRate(context.Background(), creditLevel, app.Amount, app.TermMonths, unlockPhase)
         if err != nil {
-                reason := fmt.Sprintf("No applicable rate: %v", err)
+                reason := "NO_COMMISSION_FOUND"
                 if ranges, rngErr := e.appRepo.GetLevelRanges(context.Background(), creditLevel, unlockPhase); rngErr == nil {
                         reason = fmt.Sprintf("mebleg %.0f AZN, %d ay '%s' level ucun kecerli deyil (phase %d). %s",
                                 app.Amount, app.TermMonths, creditLevel, unlockPhase, buildRangeSummary(ranges, unlockPhase))

@@ -84,7 +84,7 @@ func (s *MyGovService) VerifyEmployment(ctx context.Context, appID int) (*MyGovV
                 // Auto-reject the application
                 resp.Status = "rejected"
                 resp.Reason = reason
-                s.autoReject(ctx, appID, reason)
+                s.autoReject(ctx, appID, "EMPLOYMENT_TENURE")
         } else {
                 resp.Status = "passed"
                 resp.Reason = reason
@@ -113,7 +113,7 @@ func (s *MyGovService) VerifyPension(ctx context.Context, appID int) (*MyGovVeri
         if passed {
                 reason = "No 1st-group disability found"
         } else {
-                reason = "1ci qrup əlilliyi aşkarlandı — pensiya sorgusu əsasında avtomatik imtina"
+                reason = "DISABILITY_GROUP1"
         }
 
         resp := &MyGovVerifyResponse{
@@ -125,7 +125,7 @@ func (s *MyGovService) VerifyPension(ctx context.Context, appID int) (*MyGovVeri
         if !passed {
                 resp.Status = "rejected"
                 resp.Reason = reason
-                s.autoReject(ctx, appID, reason)
+                s.autoReject(ctx, appID, "DISABILITY_GROUP1")
         } else {
                 resp.Status = "passed"
                 resp.Reason = reason
