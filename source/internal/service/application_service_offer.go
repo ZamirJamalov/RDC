@@ -51,11 +51,12 @@ func (s *ApplicationService) GetOffer(ctx context.Context, customerPIN string, a
         ranges := make([]OfferRange, len(repoRanges))
         for i, r := range repoRanges {
                 ranges[i] = OfferRange{
-                        MinAmount:  r.MinAmount,
-                        MaxAmount:  r.MaxAmount,
-                        TermMonths: r.TermMonths,
-                        Rate:       r.Rate,
-                        Phase:      r.Phase,
+                        MinAmount:          r.MinAmount,
+                        MaxAmount:          r.MaxAmount,
+                        TermMonths:         r.TermMonths,
+                        Rate:               r.Rate,
+                        Phase:              r.Phase,
+                        AnnualInterestRate: r.AnnualInterestRate,
                 }
         }
 
@@ -78,10 +79,21 @@ type OfferResponse struct {
 }
 
 // OfferRange is a single amount/term/rate combination available to the customer.
+//
+// PR #78: Rate is the COMMISSION rate (from credit_levels.rate).
+// AnnualInterestRate is the real annual interest rate (55/52/48/45).
+// The frontend uses these to compute:
+//   commission_amount  = principal × (rate / (100 - rate)) × 100
+//   credit_amount      = principal + commission_amount
+//   transfer_amount    = principal  (only the principal is transferred to card)
+//   interest_amount    = principal × annual_interest_rate × (term_months / 12)
+//   total_repayment    = credit_amount + interest_amount
+//   monthly_payment    = total_repayment / term_months
 type OfferRange struct {
-        MinAmount  float64 `json:"min_amount"`
-        MaxAmount  float64 `json:"max_amount"`
-        TermMonths int     `json:"term_months"`
-        Rate       float64 `json:"rate"`
-        Phase      int     `json:"phase"`
+        MinAmount          float64 `json:"min_amount"`
+        MaxAmount          float64 `json:"max_amount"`
+        TermMonths         int     `json:"term_months"`
+        Rate               float64 `json:"rate"`                  // commission rate
+        Phase              int     `json:"phase"`
+        AnnualInterestRate float64 `json:"annual_interest_rate"`  // PR #78: 55/52/48/45
 }
