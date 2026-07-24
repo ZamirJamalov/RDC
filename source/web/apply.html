@@ -310,50 +310,106 @@
                     <div class="text-xs text-gray-400 mb-1">Sizin kredit səviyyəniz</div>
                     <div class="text-2xl font-bold gradient-accent-text" x-text="offer?.credit_level?.toUpperCase()"></div>
                 </div>
-                <div class="text-right">
-                    <div class="text-xs text-gray-400 mb-1">Faiz dərəcəsi</div>
-                    <div class="text-2xl font-bold text-emerald-400">
-                        <span x-text="selectedRange?.rate || '—'"></span>%
-                    </div>
-                </div>
             </div>
 
-            <div x-show="offer" class="space-y-6">
-                <!-- Amount slider -->
-                <div>
-                    <div class="flex justify-between items-baseline mb-3">
-                        <label class="text-sm text-gray-400">Kredit məbləği</label>
-                        <div class="text-3xl font-extrabold">
-                            <span x-text="form.amount"></span>
-                            <span class="text-base text-gray-400">AZN</span>
-                        </div>
+            <div x-show="offer" class="grid md:grid-cols-2 gap-6">
+
+                <!-- LEFT: Credit Summary Panel (PR #78 — backend-driven) -->
+                <div class="bg-black/30 border border-white/5 rounded-xl p-5 space-y-4">
+                    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Kredit Xülasəsi</h3>
+
+                    <!-- Seçilmiş kredit məbləği -->
+                    <div class="flex justify-between items-baseline">
+                        <span class="text-sm text-gray-400">Seçilmiş məbləğ</span>
+                        <span class="text-lg font-semibold text-white">
+                            <span x-text="form.amount.toFixed(2)"></span> ₼
+                        </span>
                     </div>
-                    <input type="range" :min="rangeMin" :max="rangeMax" step="10" x-model.number="form.amount"
-                           :style="`--range-fill: ${((form.amount - rangeMin) / (rangeMax - rangeMin)) * 100}%`">
-                    <div class="flex justify-between text-xs text-gray-500 mt-2">
-                        <span><span x-text="rangeMin"></span> AZN</span>
-                        <span><span x-text="rangeMax"></span> AZN</span>
+
+                    <!-- Komissiya -->
+                    <div class="flex justify-between items-baseline">
+                        <span class="text-sm text-gray-400">Komissiya</span>
+                        <span class="text-lg font-semibold text-amber-400">
+                            <span x-text="commissionAmount"></span> ₼
+                        </span>
+                    </div>
+
+                    <!-- Kredit məbləği (seçilmiş + komissiya) -->
+                    <div class="flex justify-between items-baseline pt-3 border-t border-white/10">
+                        <span class="text-sm text-gray-300 font-medium">Kredit məbləği</span>
+                        <span class="text-xl font-bold text-white">
+                            <span x-text="creditAmount"></span> ₼
+                        </span>
+                    </div>
+
+                    <!-- Karta köçürüləcək məbləğ -->
+                    <div class="flex justify-between items-baseline">
+                        <span class="text-sm text-gray-400">Karta köçürüləcək</span>
+                        <span class="text-lg font-semibold text-emerald-400">
+                            <span x-text="form.amount.toFixed(2)"></span> ₼
+                        </span>
+                    </div>
+
+                    <!-- Müddət -->
+                    <div class="flex justify-between items-baseline">
+                        <span class="text-sm text-gray-400">Müddət</span>
+                        <span class="text-lg font-semibold text-white">
+                            <span x-text="selectedRange?.term_months || '—'"></span> ay
+                        </span>
+                    </div>
+
+                    <!-- İllik faiz dərəcəsi -->
+                    <div class="flex justify-between items-baseline">
+                        <span class="text-sm text-gray-400">İllik faiz dərəcəsi</span>
+                        <span class="text-lg font-semibold text-white">
+                            <span x-text="selectedRange?.annual_interest_rate?.toFixed(0) || '—'"></span>%
+                        </span>
+                    </div>
+
+                    <!-- Faiz məbləği -->
+                    <div class="flex justify-between items-baseline">
+                        <span class="text-sm text-gray-400">Faiz məbləği</span>
+                        <span class="text-lg font-semibold text-amber-400">
+                            <span x-text="interestAmount"></span> ₼
+                        </span>
+                    </div>
+
+                    <!-- Ümumi qaytarılacaq -->
+                    <div class="flex justify-between items-baseline pt-3 border-t border-white/10">
+                        <span class="text-sm text-gray-300 font-medium">Ümumi qaytarılacaq</span>
+                        <span class="text-2xl font-extrabold text-emerald-400">
+                            <span x-text="totalRepayment"></span> ₼
+                        </span>
+                    </div>
+
+                    <!-- Aylıq ödəniş -->
+                    <div class="flex justify-between items-baseline">
+                        <span class="text-sm text-gray-400">Aylıq ödəniş</span>
+                        <span class="text-lg font-semibold text-white">
+                            <span x-text="monthlyPayment"></span> ₼
+                        </span>
                     </div>
                 </div>
 
-                <!-- Term (read-only, system-set) -->
-                <div class="p-4 rounded-xl bg-black/30 border border-white/5">
-                    <div class="flex justify-between items-center">
-                        <div>
-                            <div class="text-xs text-gray-400 mb-1">Kredit müddəti</div>
-                            <div class="text-lg font-semibold">
-                                <span x-text="selectedRange?.term_months || '—'"></span> ay
+                <!-- RIGHT: Amount slider + card + address -->
+                <div class="space-y-6">
+                    <!-- Amount slider -->
+                    <div>
+                        <div class="flex justify-between items-baseline mb-3">
+                            <label class="text-sm text-gray-400">Kredit məbləği</label>
+                            <div class="text-3xl font-extrabold">
+                                <span x-text="form.amount"></span>
+                                <span class="text-base text-gray-400">AZN</span>
                             </div>
                         </div>
-                        <div class="text-right">
-                            <div class="text-xs text-gray-400 mb-1">Aylıq ödəniş (təxmini)</div>
-                            <div class="text-lg font-semibold">
-                                <span x-text="monthlyPayment"></span> AZN
-                            </div>
+                        <input type="range" :min="rangeMin" :max="rangeMax" step="10" x-model.number="form.amount"
+                               :style="`--range-fill: ${((form.amount - rangeMin) / (rangeMax - rangeMin)) * 100}%`">
+                        <div class="flex justify-between text-xs text-gray-500 mt-2">
+                            <span><span x-text="rangeMin"></span> AZN</span>
+                            <span><span x-text="rangeMax"></span> AZN</span>
                         </div>
+                        <p class="text-xs text-gray-500 mt-2">Müddət: <span x-text="selectedRange?.term_months || '—'"></span> ay (sistem tərəfindən təyin olunur)</p>
                     </div>
-                    <p class="text-xs text-gray-500 mt-2">Müddət sistem tərəfindən kredit səviyyənizə əsasən təyin olunur.</p>
-                </div>
 
                 <!-- Card number -->
                 <div>
@@ -389,7 +445,8 @@
                         Göndərilir...
                     </span>
                 </button>
-            </div>
+                </div><!-- /right column -->
+            </div><!-- /grid -->
 
             <div x-show="!offer && !loading" class="text-center py-8">
                 <p class="text-gray-400">Təklif yüklənə bilmədi. Zəhmət olmasa səhifəni yeniləyin.</p>
@@ -535,11 +592,40 @@ function applyApp() {
         },
         get monthlyPayment() {
             if (!this.selectedRange || !this.form.amount) return '—';
-            // Total = principal + (rate / (100 - rate)) × 100  (matches backend)
-            const rate = this.selectedRange.rate;
-            const total = this.form.amount + (rate / (100 - rate)) * 100;
-            const monthly = total / this.selectedRange.term_months;
+            const monthly = parseFloat(this.totalRepayment) / this.selectedRange.term_months;
             return monthly.toFixed(2);
+        },
+
+        // PR #78: Backend-driven credit summary computed from selectedRange
+        // Commission = (rate / (100 - rate)) × 100  (rate is commission rate, not interest)
+        get commissionAmount() {
+            if (!this.selectedRange || !this.form.amount) return '0.00';
+            const rate = this.selectedRange.rate;
+            const commission = (rate / (100 - rate)) * 100;
+            return (Math.round(commission * 100) / 100).toFixed(2);
+        },
+
+        // Kredit məbləği = seçilmiş + komissiya
+        get creditAmount() {
+            if (!this.selectedRange || !this.form.amount) return '0.00';
+            const commission = parseFloat(this.commissionAmount);
+            return (Math.round((this.form.amount + commission) * 100) / 100).toFixed(2);
+        },
+
+        // Faiz məbləği = principal × annual_rate × (term / 12)
+        get interestAmount() {
+            if (!this.selectedRange || !this.form.amount) return '0.00';
+            const annualRate = this.selectedRange.annual_interest_rate || 0;
+            const interest = this.form.amount * (annualRate / 100) * (this.selectedRange.term_months / 12);
+            return (Math.round(interest * 100) / 100).toFixed(2);
+        },
+
+        // Ümumi qaytarılacaq = kredit məbləği + faiz məbləği
+        get totalRepayment() {
+            if (!this.selectedRange || !this.form.amount) return '0.00';
+            const credit = parseFloat(this.creditAmount);
+            const interest = parseFloat(this.interestAmount);
+            return (Math.round((credit + interest) * 100) / 100).toFixed(2);
         },
 
         // --- Actions ---
