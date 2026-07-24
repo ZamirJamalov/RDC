@@ -302,15 +302,7 @@
         <!-- STEP 3: Offer + Customer Confirm -->
         <div x-show="currentStep === 2" x-transition class="card-glow rounded-3xl p-8">
             <h2 class="text-3xl font-bold mb-2">Kredit təklifiniz</h2>
-            <p class="text-gray-400 mb-8">Sizin kredit səviyyənizə uyğun təklif aşağıdadır.</p>
-
-            <!-- Credit level badge -->
-            <div x-show="offer" class="mb-6 p-4 rounded-xl bg-gradient-to-br from-teal-500/10 to-indigo-500/10 border border-teal-500/20 flex items-center justify-between">
-                <div>
-                    <div class="text-xs text-gray-400 mb-1">Sizin kredit səviyyəniz</div>
-                    <div class="text-2xl font-bold gradient-accent-text" x-text="offer?.credit_level?.toUpperCase()"></div>
-                </div>
-            </div>
+            <p class="text-gray-400 mb-8">Sizin <span class="font-semibold text-white" x-text="offer?.credit_level?.toUpperCase()"></span> kredit səviyyənizə uyğun təklif aşağıdadır.</p>
 
             <div x-show="offer" class="grid md:grid-cols-2 gap-6">
 
@@ -376,8 +368,8 @@
 
                     <!-- Ümumi qaytarılacaq -->
                     <div class="flex justify-between items-baseline pt-3 border-t border-white/10">
-                        <span class="text-sm text-gray-300 font-medium">Ümumi qaytarılacaq</span>
-                        <span class="text-2xl font-extrabold text-emerald-400">
+                        <span class="text-sm text-gray-300 font-medium whitespace-nowrap">Ümumi qaytarılacaq</span>
+                        <span class="text-xl font-extrabold text-emerald-400 whitespace-nowrap">
                             <span x-text="totalRepayment"></span> ₼
                         </span>
                     </div>
@@ -420,12 +412,10 @@
                 </div>
 
                 <!-- Card ownership checkbox -->
-                <label class="flex items-start gap-3 cursor-pointer p-3 rounded-xl hover:bg-white/5 transition">
+                <label class="flex items-center gap-3 cursor-pointer p-3 rounded-xl hover:bg-white/5 transition whitespace-nowrap">
                     <input type="checkbox" x-model="form.cardConfirmed"
-                           class="mt-1 w-5 h-5 rounded accent-teal-500">
-                    <span class="text-sm text-gray-300">
-                        <span class="font-semibold">Bu kart məlumatının mən tərəfimdən daxil edilməsini təsdiq edirəm.</span>
-                    </span>
+                           class="w-5 h-5 rounded accent-teal-500 flex-shrink-0">
+                    <span class="text-sm text-gray-300 font-semibold whitespace-nowrap overflow-hidden text-ellipsis">Bu kart məlumatının mən tərəfimdən daxil edilməsini təsdiq edirəm.</span>
                 </label>
 
                 <!-- Address -->
