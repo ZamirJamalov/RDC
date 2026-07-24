@@ -55,7 +55,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
         var approvedAmount, approvedRate, totalAmount sql.NullFloat64
         var akbScore sql.NullInt64
         var officialIncome sql.NullFloat64
-        var contact1, contact2, contact3, address, customerPhone, customerSerial sql.NullString
+        var contact1, contact2, contact3, contact1Rel, contact2Rel, contact3Rel, address, customerPhone, customerSerial sql.NullString
         var customerConfirmedAt sql.NullString
 
         err := r.db.QueryRowContext(ctx, `
@@ -63,6 +63,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                        status, credit_level, approved_amount, approved_rate, total_amount,
                        rejection_reason_id, rejection_reason, akb_score,
                        official_income, contact1_phone, contact2_phone, contact3_phone, actual_address,
+                       contact1_relation, contact2_relation, contact3_relation,
                        card_number, customer_phone, customer_serial,
                        customer_confirmed_at, card_ownership_confirmed,
                        created_at, updated_at
@@ -86,6 +87,9 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                 &contact2,
                 &contact3,
                 &address,
+                &contact1Rel,
+                &contact2Rel,
+                &contact3Rel,
                 &app.CardNumber,
                 &customerPhone,
                 &customerSerial,
@@ -110,6 +114,9 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
         app.Contact1Phone = contact1.String
         app.Contact2Phone = contact2.String
         app.Contact3Phone = contact3.String
+        app.Contact1Relation = contact1Rel.String
+        app.Contact2Relation = contact2Rel.String
+        app.Contact3Relation = contact3Rel.String
         app.ActualAddress = address.String
         app.CustomerPhone = customerPhone.String
         app.CustomerSerial = customerSerial.String

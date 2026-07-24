@@ -130,6 +130,9 @@ type CompleteApplicationRequest struct {
         Contact1Phone    string  `json:"contact1_phone"`
         Contact2Phone    string  `json:"contact2_phone"`
         Contact3Phone    string  `json:"contact3_phone"`
+        Contact1Relation string `json:"contact1_relation"` // PR #85: Ata, Ana, Qardaş, etc.
+        Contact2Relation string `json:"contact2_relation"`
+        Contact3Relation string `json:"contact3_relation"`
         ActualAddress    string  `json:"actual_address"`
 }
 
@@ -197,6 +200,16 @@ func (s *ApplicationService) CompleteApplication(ctx context.Context, appID int,
         app.Contact1Phone = req.Contact1Phone
         app.Contact2Phone = req.Contact2Phone
         app.Contact3Phone = req.Contact3Phone
+        // PR #85: merge contact relations
+        if req.Contact1Relation != "" {
+                app.Contact1Relation = req.Contact1Relation
+        }
+        if req.Contact2Relation != "" {
+                app.Contact2Relation = req.Contact2Relation
+        }
+        if req.Contact3Relation != "" {
+                app.Contact3Relation = req.Contact3Relation
+        }
         app.Status = model.StatusPending // will transition to "checking" by the engine
 
         // 3. Validate that all required fields are now populated (either from

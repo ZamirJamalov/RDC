@@ -233,6 +233,9 @@ func (m *mockApplicationStore) UpdateApplicationDetails(_ context.Context, id in
                 existing.CustomerConfirmedAt = app.CustomerConfirmedAt
                 existing.CardOwnershipConfirmed = app.CardOwnershipConfirmed
                 existing.RejectionReason = app.RejectionReason
+                existing.Contact1Relation = app.Contact1Relation
+                existing.Contact2Relation = app.Contact2Relation
+                existing.Contact3Relation = app.Contact3Relation
         }
         return nil
 }
