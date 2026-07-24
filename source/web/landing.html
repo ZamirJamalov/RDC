@@ -674,19 +674,21 @@ function alpulLanding() {
             { name: 'ELITE',    subtitle: 'Maksimum etimad',    icon: '💎', maxAmount: 3000, terms: [3, 6, 9, 12], textClass: 'text-emerald-400' },
         ],
 
-        // Rate lookup table — derived from migration 001_init.sql credit_levels seed data.
+        // Rate lookup table — derived from migration 001_init.sql + 018_phase_and_min_amount.sql.
         // Key format: "level-amountRange-term" → rate
-        // amountRange: "100-300", "301-500", "501-700", "701-900", "901-1100", "1101-1300", "1301-1500", "1501-2000", "2001-2500", "2501-3000"
+        // amountRange: "50-300", "301-500", "501-700", "701-900", "901-1100", "1101-1300", "1301-1500", "1501-2000", "2001-2500", "2501-3000"
+        // Note: 'new-301-500-3' is phase 2 (requires 1+ approved loan at NEW level).
+        //       Landing page shows all phases for illustration; backend enforces phase at runtime.
         rateTable: {
-            'new-100-300-3': 30,
+            'new-50-300-3': 30,
             'new-301-500-3': 30,
-            'trusted-100-300-3': 29,
+            'trusted-50-300-3': 29,
             'trusted-301-500-3': 28,
             'trusted-501-700-3': 27,
             'trusted-501-700-6': 29,
             'trusted-701-900-3': 27,
             'trusted-701-900-6': 29,
-            'valuable-100-300-3': 28,
+            'valuable-50-300-3': 28,
             'valuable-301-500-3': 27,
             'valuable-501-700-3': 26,
             'valuable-501-700-6': 28,
@@ -696,7 +698,7 @@ function alpulLanding() {
             'valuable-901-1100-9': 28,
             'valuable-1101-1300-6': 25,
             'valuable-1101-1300-9': 27,
-            'elite-100-300-3': 27,
+            'elite-50-300-3': 27,
             'elite-301-500-3': 26,
             'elite-501-700-3': 25,
             'elite-501-700-6': 27,
@@ -721,7 +723,7 @@ function alpulLanding() {
 
         // Get the amount range bucket for current amount
         getAmountRange() {
-            if (this.amount <= 300) return '100-300';
+            if (this.amount <= 300) return '50-300';
             if (this.amount <= 500) return '301-500';
             if (this.amount <= 700) return '501-700';
             if (this.amount <= 900) return '701-900';
