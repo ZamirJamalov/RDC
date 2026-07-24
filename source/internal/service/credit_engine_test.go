@@ -22,14 +22,14 @@ func TestPreValidate(t *testing.T) {
                 akbScore    int
                 amount      float64
                 termMonths  int
-                rate        float64 // mock return from GetCreditLevelRate
-                rateErr     error   // mock error from GetCreditLevelRate
+                commission  float64    // mock return from GetCreditLevelRate
+                commissionErr error  // mock error from GetCreditLevelRate
                 levelRanges []repository.LevelRange
                 wantErr     bool
                 errSubstr   string
         }{
                 {
-                        name:       "valid: new customer, 100 AZN / 3 months, rate found",
+                        name:       "valid: new customer, 200 AZN / 3 months, commission found",
                         loans:      nil,
                         akbScore:   400,
                         amount:     200,
@@ -38,29 +38,29 @@ func TestPreValidate(t *testing.T) {
                         wantErr:    false,
                 },
                 {
-                        name:        "invalid: rate not found, ranges available for descriptive error",
+                        name:        "invalid: commission not found, ranges available for descriptive error",
                         loans:       nil,
                         akbScore:    400,
                         amount:      9999, // out-of-range
                         termMonths:  3,
-                        rateErr:     errors.New("no rate found"),
-                        levelRanges: []repository.LevelRange{{MinAmount: 100, MaxAmount: 500, TermMonths: 3, Rate: 30.0, Phase: 1}},
+                        commissionErr: errors.New("no commission found"),
+                        levelRanges: []repository.LevelRange{{MinAmount: 50, MaxAmount: 500, TermMonths: 3, Commission: 14.0, Phase: 1}},
                         wantErr:     true,
                         errSubstr:   "kecerli deyil",
                 },
                 {
-                        name:       "invalid: rate not found AND ranges query fails — fallback error",
+                        name:       "invalid: commission not found AND ranges query fails — fallback error",
                         loans:      nil,
                         akbScore:   400,
                         amount:     9999,
                         termMonths: 3,
-                        rateErr:    errors.New("no rate found"),
+                        commissionErr: errors.New("no commission found"),
                         levelRanges: nil, // implicit: GetLevelRanges returns levelRangesErr
                         wantErr:    true,
                         errSubstr:  "is not valid",
                 },
                 {
-                        name:       "AKB override to valuable, rate found",
+                        name:       "AKB override to valuable, commission found",
                         loans:      nil,
                         akbScore:   750,
                         amount:     700,
