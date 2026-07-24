@@ -14,7 +14,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
     <style>
-        :root {
+        /* PR #83: Theme variables — dark (default) and light */
+        :root, [data-theme="dark"] {
             --alpul-bg: #0A0A0F;
             --alpul-bg-soft: #12121A;
             --alpul-card: #181822;
@@ -26,6 +27,30 @@
             --alpul-success: #10B981;
             --alpul-gold: #F59E0B;
             --alpul-error: #EF4444;
+            --alpul-input-bg: #12121A;
+            --alpul-hover: rgba(255,255,255,0.05);
+            --alpul-shadow: rgba(63, 176, 167, 0.15);
+            --alpul-divider: rgba(255,255,255,0.1);
+            --alpul-card-inner: rgba(0,0,0,0.3);
+        }
+
+        [data-theme="light"] {
+            --alpul-bg: #F0F4F8;
+            --alpul-bg-soft: #E2E8F0;
+            --alpul-card: #FFFFFF;
+            --alpul-border: #CBD5E1;
+            --alpul-text: #1E293B;
+            --alpul-text-soft: #64748B;
+            --alpul-accent: #3FB0A7;
+            --alpul-accent-2: #6163A4;
+            --alpul-success: #059669;
+            --alpul-gold: #D97706;
+            --alpul-error: #DC2626;
+            --alpul-input-bg: #F8FAFC;
+            --alpul-hover: rgba(0,0,0,0.03);
+            --alpul-shadow: rgba(63, 176, 167, 0.1);
+            --alpul-divider: rgba(0,0,0,0.08);
+            --alpul-card-inner: rgba(0,0,0,0.02);
         }
 
         * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
@@ -39,7 +64,7 @@
         }
 
         .gradient-text {
-            background: linear-gradient(135deg, #FFFFFF 0%, #3FB0A7 50%, #6163A4 100%);
+            background: linear-gradient(135deg, var(--alpul-text) 0%, var(--alpul-accent) 50%, var(--alpul-accent-2) 100%);
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -59,11 +84,11 @@
         .card-glow {
             background: var(--alpul-card);
             border: 1px solid var(--alpul-border);
-            box-shadow: 0 20px 60px -20px rgba(63, 176, 167, 0.15);
+            box-shadow: 0 20px 60px -20px var(--alpul-shadow);
         }
 
         .input-field {
-            background: var(--alpul-bg-soft);
+            background: var(--alpul-input-bg);
             border: 1px solid var(--alpul-border);
             color: var(--alpul-text);
             transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -73,7 +98,7 @@
             border-color: #3FB0A7;
             box-shadow: 0 0 0 3px rgba(63, 176, 167, 0.15);
         }
-        .input-field::placeholder { color: #4B5563; }
+        .input-field::placeholder { color: var(--alpul-text-soft); opacity: 0.5; }
 
         input[type="range"] {
             -webkit-appearance: none;
@@ -150,9 +175,25 @@
         .pulse-soft { animation: pulse-soft 1.5s ease-in-out infinite; }
 
         [x-cloak] { display: none !important; }
+
+        /* PR #83: Theme-dependent overrides for Tailwind classes */
+        [data-theme="light"] .bg-black\/30 { background: var(--alpul-card-inner) !important; }
+        [data-theme="light"] .bg-black\/40 { background: rgba(0,0,0,0.04) !important; }
+        [data-theme="light"] .border-white\/5 { border-color: var(--alpul-border) !important; }
+        [data-theme="light"] .border-white\/10 { border-color: var(--alpul-divider) !important; }
+        [data-theme="light"] .text-gray-400 { color: var(--alpul-text-soft) !important; }
+        [data-theme="light"] .text-gray-500 { color: var(--alpul-text-soft) !important; }
+        [data-theme="light"] .text-gray-600 { color: #94A3B8 !important; }
+        [data-theme="light"] .text-gray-300 { color: var(--alpul-text) !important; }
+        [data-theme="light"] .text-white { color: var(--alpul-text) !important; }
+        [data-theme="light"] .bg-white\/5 { background: var(--alpul-hover) !important; }
+        [data-theme="light"] .border-white\/20 { border-color: var(--alpul-border) !important; }
+        [data-theme="light"] .from-teal-500\/10 { --tw-gradient-from: rgba(63,176,167,0.05) !important; }
+        [data-theme="light"] .to-indigo-500\/10 { --tw-gradient-to: rgba(97,99,164,0.05) !important; }
+        [data-theme="light"] .border-teal-500\/20 { border-color: rgba(63,176,167,0.2) !important; }
     </style>
 </head>
-<body x-data="applyApp()" x-init="init()" x-cloak>
+<body x-data="applyApp()" x-init="init()" x-cloak data-theme="dark">
 
 <div class="min-h-screen flex flex-col">
 
@@ -163,7 +204,14 @@
                 <div class="w-9 h-9 rounded-xl gradient-accent flex items-center justify-center font-black text-white text-lg">A</div>
                 <span class="text-xl font-bold tracking-tight">ALPUL</span>
             </a>
-            <div class="text-xs text-gray-500">Kredit müraciəti</div>
+            <div class="flex items-center gap-4">
+                <div class="text-xs text-gray-500 hidden sm:block">Kredit müraciəti</div>
+                <!-- PR #83: Theme toggle -->
+                <button @click="toggleTheme()" class="w-9 h-9 rounded-lg border border-white/10 flex items-center justify-center hover:bg-white/5 transition" title="Theme dəyiş">
+                    <svg x-show="theme === 'dark'" class="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/></svg>
+                    <svg x-show="theme === 'light'" class="w-5 h-5 text-indigo-500" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
+                </button>
+            </div>
         </div>
     </header>
 
@@ -527,6 +575,9 @@ function applyApp() {
         loading: false,
         error: '',
 
+        // PR #83: Theme state
+        theme: localStorage.getItem('alpul_theme') || 'dark',
+
         // Application state
         applicationId: null,
 
@@ -616,9 +667,21 @@ function applyApp() {
             return (Math.round((credit + interest) * 100) / 100).toFixed(2);
         },
 
+        // PR #83: Theme management
+        toggleTheme() {
+            this.theme = this.theme === 'dark' ? 'light' : 'dark';
+            this.applyTheme();
+            localStorage.setItem('alpul_theme', this.theme);
+        },
+        applyTheme() {
+            document.body.setAttribute('data-theme', this.theme);
+        },
+
         // --- Actions ---
 
         init() {
+            // PR #83: Apply saved theme
+            this.applyTheme();
             // PR #74: If navigated from landing page (?from=landing), clear
             // localStorage so the form starts fresh from step 0.
             const params = new URLSearchParams(window.location.search);
