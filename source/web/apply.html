@@ -302,7 +302,7 @@
         <!-- STEP 3: Offer + Customer Confirm -->
         <div x-show="currentStep === 2" x-transition class="card-glow rounded-3xl p-8">
             <h2 class="text-3xl font-bold mb-2">Kredit təklifiniz</h2>
-            <p class="text-gray-400 mb-8">Sizin <span class="font-semibold text-white" x-text="offer?.credit_level?.toUpperCase()"></span> kredit səviyyənizə uyğun təklif aşağıdadır.</p>
+            <p class="text-gray-400 mb-8">Sizin <span class="font-semibold text-white" x-text="levelNameAz(offer?.credit_level)"></span> kredit səviyyənizə uyğun təklif aşağıdadır.</p>
 
             <div x-show="offer" class="grid md:grid-cols-2 gap-6">
 
@@ -367,7 +367,7 @@
                     </div>
 
                     <!-- Ümumi qaytarılacaq -->
-                    <div class="flex justify-between items-baseline pt-3 border-t border-white/10">
+                    <div class="flex justify-between items-baseline pt-3 border-t border-white/10 gap-3">
                         <span class="text-sm text-gray-300 font-medium whitespace-nowrap">Ümumi qaytarılacaq</span>
                         <span class="text-xl font-extrabold text-emerald-400 whitespace-nowrap">
                             <span x-text="totalRepayment"></span> ₼
@@ -412,10 +412,10 @@
                 </div>
 
                 <!-- Card ownership checkbox -->
-                <label class="flex items-center gap-3 cursor-pointer p-3 rounded-xl hover:bg-white/5 transition whitespace-nowrap">
+                <label class="flex items-start gap-3 cursor-pointer p-3 rounded-xl hover:bg-white/5 transition">
                     <input type="checkbox" x-model="form.cardConfirmed"
-                           class="w-5 h-5 rounded accent-teal-500 flex-shrink-0">
-                    <span class="text-sm text-gray-300 font-semibold whitespace-nowrap overflow-hidden text-ellipsis">Bu kart məlumatının mən tərəfimdən daxil edilməsini təsdiq edirəm.</span>
+                           class="mt-0.5 w-5 h-5 rounded accent-teal-500 flex-shrink-0">
+                    <span class="text-xs text-gray-300 font-semibold leading-tight">Bu kart məlumatının mən tərəfimdən daxil edilməsini təsdiq edirəm.</span>
                 </label>
 
                 <!-- Address -->
@@ -584,6 +584,17 @@ function applyApp() {
             if (!this.selectedRange || !this.form.amount) return '—';
             const monthly = parseFloat(this.totalRepayment) / this.selectedRange.term_months;
             return monthly.toFixed(2);
+        },
+
+        // PR #79: Translate level names to Azerbaijani
+        levelNameAz(level) {
+            const map = {
+                'new': 'YENİ',
+                'trusted': 'ETİBARLI',
+                'valuable': 'DƏYƏRLİ',
+                'elite': 'ELİT',
+            };
+            return map[level] || (level || '').toUpperCase();
         },
 
         // PR #78: Backend-driven credit summary computed from selectedRange
