@@ -186,15 +186,16 @@
                     <div>
                         <select x-model="rejectReason" class="w-full border rounded px-3 py-2 mb-2 text-sm">
                             <option value="">İmtina səbəbini seçin...</option>
-                            <option value="Kobud rəftar">Kobud rəftar</option>
-                            <option value="Yalan məlumat">Yalan məlumat</option>
-                            <option value="Sənədlər uyğun deyil">Sənədlər uyğun deyil</option>
-                            <option value="Gəlir kifayət deyil">Gəlir kifayət deyil</option>
-                            <option value="Əlaqə nömrələri yanlış">Əlaqə nömrələri yanlış</option>
-                            <option value="MyGov icazə verilmədi">MyGov icazə verilmədi</option>
-                            <option value="Digər">Digər</option>
+                            <option value="MANUAL_FAKE_INFO">Yalan məlumat</option>
+                            <option value="MANUAL_WRONG_NUMBER">Nömrə yanlışdır</option>
+                            <option value="MANUAL_ROUGH_BEHAVIOR">Kobud rəftar</option>
+                            <option value="MANUAL_DOCS_INVALID">Sənədlər uyğun deyil</option>
+                            <option value="MANUAL_INCOME_LOW">Gəlir kifayət deyil</option>
+                            <option value="MANUAL_CONTACTS_WRONG">Əlaqə nömrələri yanlış</option>
+                            <option value="MANUAL_MYGOV_DENIED">MyGov icazə verilmədi</option>
+                            <option value="MANUAL_OTHER">Digər</option>
                         </select>
-                        <input x-show="rejectReason === 'Digər'" type="text" x-model="rejectReasonCustom" placeholder="Səbəbi daxil edin..."
+                        <input x-show="rejectReason === 'MANUAL_OTHER'" type="text" x-model="rejectReasonCustom" placeholder="Səbəbi daxil edin..."
                                class="w-full border rounded px-3 py-2 mb-2 text-sm">
                         <button @click="reject()" class="w-full bg-rose-600 text-white px-4 py-3 rounded-lg hover:bg-rose-700 font-medium"
                                 :disabled="actionLoading || !rejectReason">
@@ -317,8 +318,8 @@
                     this.actionError = '';
                     try {
                         let reason = this.rejectReason;
-                        if (this.rejectReason === 'Digər' && this.rejectReasonCustom) {
-                            reason = this.rejectReasonCustom;
+                        if (this.rejectReason === 'MANUAL_OTHER' && this.rejectReasonCustom) {
+                            reason = 'MANUAL_OTHER:' + this.rejectReasonCustom;
                         }
                         const resp = await fetch('/api/expert/' + this.id + '/reject', {
                             method: 'PUT',
