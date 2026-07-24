@@ -7,11 +7,15 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>body { font-family: 'Inter', sans-serif; }</style>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .alpul-btn { background: linear-gradient(135deg, #3FB0A7 0%, #6163A4 100%); }
+        .alpul-btn:hover { box-shadow: 0 4px 12px rgba(63, 176, 167, 0.4); }
+    </style>
 </head>
 <body class="bg-gray-50 min-h-screen">
-    <div x-data="appDetail()" x-init="load()" class="max-w-3xl mx-auto py-8 px-4">
-        
+    <div x-data="appDetail()" x-init="load()" class="max-w-4xl mx-auto py-8 px-4">
+
         <!-- Back button -->
         <div class="mb-6">
             <a href="/index.html" class="text-teal-600 hover:text-teal-800 flex items-center gap-1">
@@ -20,226 +24,191 @@
         </div>
 
         <!-- Loading -->
-        <div x-show="loading" class="text-center py-8 text-gray-500">
-            Yuklenir...
-        </div>
+        <div x-show="loading" class="text-center py-8 text-gray-500">Yuklenir...</div>
 
         <!-- Error -->
-        <div x-show="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" x-text="error">
-        </div>
+        <div x-show="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" x-text="error"></div>
 
         <!-- Content -->
-        <div x-show="!loading && !error && app">
-            <div class="bg-white rounded-lg shadow p-6 space-y-6">
-                
-                <!-- Header -->
-                <div class="flex justify-between items-center border-b pb-4">
+        <div x-show="!loading && !error && app" class="space-y-6">
+
+            <!-- ====== HEADER ====== -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div class="flex justify-between items-center">
                     <h1 class="text-2xl font-bold text-gray-800" x-text="'Muraciet #' + app.id"></h1>
                     <span class="inline-block px-3 py-1 rounded-full text-sm font-medium"
                           :class="{
                               'bg-yellow-100 text-yellow-800': app.status === 'pending_approval',
                               'bg-green-100 text-green-800': app.status === 'approved',
                               'bg-red-100 text-red-800': app.status === 'rejected',
-                              'bg-blue-100 text-blue-800': app.status === 'pending' || app.status === 'checking'
+                              'bg-teal-100 text-teal-800': app.status === 'pending' || app.status === 'checking' || app.status === 'pending_expert' || app.status === 'pending_customer',
+                              'bg-gray-200 text-gray-700': app.status === 'cancelled'
                           }"
                           x-text="app.status">
                     </span>
                 </div>
+            </div>
 
-                <!-- Customer Info -->
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-700 mb-3">Musteri Melumatlari</h2>
-                    <div class="grid grid-cols-2 gap-3 text-sm">
-                        <div><span class="font-medium text-gray-500">PIN:</span> <span x-text="app.customer_pin"></span></div>
-                        <div><span class="font-medium text-gray-500">Ad Soyad:</span> <span x-text="app.customer_full_name"></span></div>
-                        <div><span class="font-medium text-gray-500">Telefon:</span> <span x-text="app.customer_phone || '-'"></span></div>
-                        <div><span class="font-medium text-gray-500">Kart:</span> <span x-text="app.card_number ? '****' + app.card_number.slice(-4) : '-'"></span></div>
+            <!-- ====== MÜŞTƏRİ MƏLUMATLARI ====== -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <h2 class="text-lg font-semibold text-gray-700 mb-4 pb-2 border-b">Müştəri Məlumatları</h2>
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div><span class="font-medium text-gray-500">PIN:</span> <span class="font-semibold" x-text="app.customer_pin"></span></div>
+                    <div><span class="font-medium text-gray-500">Seriya:</span> <span class="font-semibold" x-text="app.customer_serial || '-'"></span></div>
+                    <div><span class="font-medium text-gray-500">Ad Soyad:</span> <span class="font-semibold" x-text="app.customer_full_name"></span></div>
+                    <div><span class="font-medium text-gray-500">Telefon:</span> <span class="font-semibold" x-text="app.customer_phone || '-'"></span></div>
+                    <div><span class="font-medium text-gray-500">Kart:</span> <span class="font-semibold" x-text="app.card_number ? '**** ' + app.card_number.slice(-4) : '-'"></span></div>
+                    <div><span class="font-medium text-gray-500">Ünvan:</span> <span class="font-semibold" x-text="app.actual_address || '-'"></span></div>
+                </div>
+            </div>
+
+            <!-- ====== KREDİT MƏLUMATLARI ====== -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <h2 class="text-lg font-semibold text-gray-700 mb-4 pb-2 border-b">Kredit Məlumatları</h2>
+                <div class="grid grid-cols-3 gap-4 text-sm">
+                    <div><span class="font-medium text-gray-500">Məbləğ:</span> <span class="font-bold text-teal-700" x-text="app.amount + ' AZN'"></span></div>
+                    <div><span class="font-medium text-gray-500">Müddət:</span> <span class="font-bold text-teal-700" x-text="app.term_months + ' ay'"></span></div>
+                    <div><span class="font-medium text-gray-500">Faiz:</span> <span class="font-bold text-teal-700" x-text="app.approved_rate ? app.approved_rate + '%' : '-'"></span></div>
+                </div>
+                <div x-show="app.total_amount > 0" class="mt-3 pt-3 border-t text-sm">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div><span class="font-medium text-gray-500">Kredit məbləği (komissiya daxil):</span> <span class="font-semibold" x-text="app.total_amount + ' AZN'"></span></div>
+                        <div><span class="font-medium text-gray-500">Karta köçürülən:</span> <span class="font-semibold" x-text="app.amount + ' AZN'"></span></div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Loan Details -->
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-700 mb-3">Kredit Melumatlari</h2>
-                    <div class="grid grid-cols-3 gap-3 text-sm">
-                        <div><span class="font-medium text-gray-500">Mebleg:</span> <span x-text="app.amount + ' AZN'"></span></div>
-                        <div><span class="font-medium text-gray-500">Muddet:</span> <span x-text="app.term_months + ' ay'"></span></div>
-                        <div><span class="font-medium text-gray-500">Level:</span> <span x-text="app.credit_level || '-'"></span></div>
-                    </div>
-                </div>
-
-                <!-- Contacts -->
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-700 mb-3">Elaqe Nomreleri</h2>
-                    <div class="grid grid-cols-3 gap-3 text-sm">
-                        <div><span class="font-medium text-gray-500">1:</span> <span x-text="app.contact1_phone || '-'"></span></div>
-                        <div><span class="font-medium text-gray-500">2:</span> <span x-text="app.contact2_phone || '-'"></span></div>
-                        <div><span class="font-medium text-gray-500">3:</span> <span x-text="app.contact3_phone || '-'"></span></div>
-                    </div>
-                </div>
-
-                <!-- MyGov Query -->
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-700 mb-3">MyGov Sorğusu</h2>
-                    <div class="flex gap-3 mb-3">
-                        <button @click="sendMyGov()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 text-sm"
-                                :disabled="mygovLoading">
-                            <span x-show="!mygovLoading">MyGov Link Gonder</span>
-                            <span x-show="mygovLoading">Gonderilir...</span>
-                        </button>
-                        <button @click="fetchMyGov()" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm"
-                                :disabled="mygovFetching">
-                            <span x-show="!mygovFetching">Is Yeri / Pensiya Sorğula</span>
-                            <span x-show="mygovFetching">Sorğulanir...</span>
-                        </button>
-                    </div>
-                    <div x-show="mygovResult" class="bg-gray-50 rounded p-3 text-sm">
-                        <pre x-text="mygovResult"></pre>
-                    </div>
-                </div>
-
-                <!-- Check Results -->
-                <div>
-                    <h2 class="text-lg font-semibold text-gray-700 mb-3">Yoxlama Neticeleri</h2>
-                    <div class="space-y-2">
-                        <template x-for="check in checks" :key="check.check_type">
-                            <div class="flex items-center justify-between bg-gray-50 rounded px-3 py-2 text-sm">
-                                <span x-text="check.check_type"></span>
-                                <span class="font-medium"
-                                      :class="check.status === 'passed' ? 'text-green-600' : 'text-red-600'"
-                                      x-text="check.status">
-                                </span>
-                            </div>
-                        </template>
-                        <div x-show="checks.length === 0" class="text-sm text-gray-400">
-                            Hələ yoxlama nəticəsi yoxdur.
+            <!-- =====+ ƏLAQƏ NÖMRƏLƏRİ ====== -->
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <h2 class="text-lg font-semibold text-gray-700 mb-4 pb-2 border-b">Əlaqə Nömrələri</h2>
+                <div class="space-y-3">
+                    <template x-for="(contact, idx) in contacts" :key="idx">
+                        <div class="flex gap-2 items-center">
+                            <span class="text-sm font-medium text-gray-500 w-6" x-text="(idx+1) + '.'"></span>
+                            <select x-model="contact.relation" class="border rounded px-2 py-2 text-sm w-32">
+                                <option value="">Münasibət...</option>
+                                <option value="Ata">Ata</option>
+                                <option value="Ana">Ana</option>
+                                <option value="Qardaş">Qardaş</option>
+                                <option value="Bacı">Bacı</option>
+                                <option value="Dost">Dost</option>
+                                <option value="Ər/Arvad">Ər/Arvad</option>
+                                <option value="Oğul">Oğul</option>
+                                <option value="Qız">Qız</option>
+                                <option value="Digər">Digər</option>
+                            </select>
+                            <input type="text" x-model="contact.phone" placeholder="+994 __ ___ __ __"
+                                   class="border rounded px-3 py-2 text-sm flex-1">
+                            <span x-show="contact.saved" class="text-xs text-gray-400" x-text="contact.saved ? (contact.relation ? contact.relation + ': ' : '') + contact.phone : ''"></span>
                         </div>
-                    </div>
+                    </template>
                 </div>
+            </div>
 
-                <!-- Credit Offer -->
-                <div x-show="app.approved_amount > 0 || app.approved_rate > 0">
-                    <h2 class="text-lg font-semibold text-gray-700 mb-3">Sistemin Teklifi</h2>
-                    <div class="bg-green-50 border border-green-200 rounded p-4">
-                        <div class="grid grid-cols-3 gap-3 text-sm">
-                            <div><span class="font-medium text-gray-500">Teyin olunan mebleg:</span> <span class="font-bold text-green-700" x-text="app.approved_amount + ' AZN'"></span></div>
-                            <div><span class="font-medium text-gray-500">Faiz:</span> <span class="font-bold text-green-700" x-text="app.approved_rate + '%'"></span></div>
-                            <div><span class="font-medium text-gray-500">Muddet:</span> <span class="font-bold text-green-700" x-text="app.term_months + ' ay'"></span></div>
-                        </div>
-                    </div>
-                </div>
+            <!-- ====== MyGov TƏSDİQİ ====== -->
+            <div x-show="app.status === 'pending_approval'" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <h2 class="text-lg font-semibold text-gray-700 mb-4 pb-2 border-b">MyGov Təsdiqi</h2>
 
-                <!-- PR #66: MyGov Employment + Pension Verification -->
-                <div x-show="app.status === 'pending_approval'" class="bg-blue-50 border border-blue-200 rounded-lg p-5">
-                    <h2 class="text-lg font-semibold text-gray-700 mb-1">MyGov Təsdiqi (PR #65-#66)</h2>
-                    <p class="text-sm text-gray-500 mb-4">Müştəri ilə dialoq qurun, rəsmi gəlir/pensiya statusunu yoxlayın.</p>
-
-                    <!-- Employment verification -->
-                    <div class="bg-white border border-gray-200 rounded p-4 mb-3">
-                        <div class="flex items-center justify-between mb-2">
-                            <h3 class="font-medium text-gray-700">İş Yeri Sorgusu</h3>
-                            <span x-show="employmentResult" class="text-xs font-medium px-2 py-1 rounded-full"
-                                  :class="{
-                                      'bg-green-100 text-green-700': employmentResult === 'passed',
-                                      'bg-red-100 text-red-700': employmentResult === 'rejected'
-                                  }"
-                                  x-text="employmentResult === 'passed' ? '✓ Keçdi' : (employmentResult === 'rejected' ? '✗ İmtina' : '')">
-                            </span>
-                        </div>
-                        <p class="text-xs text-gray-500 mb-3">Əmək stajı ≥ 6 ay qaydası yoxlanılır. Əgər cari iş &lt; 6 aydırsa, əvvəlki iş yeri nəzərə alınır (fasilə &lt; 29 gün).</p>
-                        <div class="flex gap-2">
+                <div class="grid md:grid-cols-2 gap-4">
+                    <!-- İş yerti -->
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <h3 class="font-medium text-gray-700 mb-2">İş Yeri</h3>
+                        <div class="flex gap-2 mb-2">
                             <button @click="employmentRequest()"
                                     :disabled="employmentLoading"
-                                    class="flex-1 bg-teal-600 text-white px-3 py-2 rounded text-sm hover:bg-teal-700 disabled:opacity-50">
-                                <span x-show="!employmentLoading">📤 İş Yeri Sorgusu Göndər</span>
+                                    class="flex-1 alpul-btn text-white px-3 py-2 rounded text-sm disabled:opacity-50">
+                                <span x-show="!employmentLoading">📤 Sorgu Göndər</span>
                                 <span x-show="employmentLoading">Göndərilir...</span>
                             </button>
                             <button @click="employmentVerify()"
                                     :disabled="employmentVerifying"
                                     class="flex-1 bg-indigo-600 text-white px-3 py-2 rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
-                                <span x-show="!employmentVerifying">✓ Məlumatı Yoxla</span>
+                                <span x-show="!employmentVerifying">✓ Yoxla</span>
                                 <span x-show="employmentVerifying">Yoxlanılır...</span>
                             </button>
                         </div>
-                        <div x-show="employmentMessage" class="mt-2 text-xs px-3 py-2 rounded"
-                             :class="employmentResult === 'rejected' ? 'bg-red-50 text-red-700' : 'bg-gray-50 text-gray-600'"
-                             x-text="employmentMessage">
+                        <div x-show="employmentResult" class="mt-2">
+                            <span class="text-xs font-medium px-2 py-1 rounded-full"
+                                  :class="{'bg-green-100 text-green-700': employmentResult === 'passed', 'bg-red-100 text-red-700': employmentResult === 'rejected'}"
+                                  x-text="employmentResult === 'passed' ? '✓ Keçdi' : '✗ İmtina'"></span>
+                            <p class="text-xs mt-1" :class="employmentResult === 'rejected' ? 'text-red-600' : 'text-gray-500'" x-text="employmentMessage"></p>
                         </div>
                     </div>
 
-                    <!-- Pension verification -->
-                    <div class="bg-white border border-gray-200 rounded p-4">
-                        <div class="flex items-center justify-between mb-2">
-                            <h3 class="font-medium text-gray-700">Pensiya Sorgusu</h3>
-                            <span x-show="pensionResult" class="text-xs font-medium px-2 py-1 rounded-full"
-                                  :class="{
-                                      'bg-green-100 text-green-700': pensionResult === 'passed',
-                                      'bg-red-100 text-red-700': pensionResult === 'rejected'
-                                  }"
-                                  x-text="pensionResult === 'passed' ? '✓ Keçdi' : (pensionResult === 'rejected' ? '✗ İmtina' : '')">
-                            </span>
-                        </div>
-                        <p class="text-xs text-gray-500 mb-3">1ci qrup əlilliyi olan müştərilər avtomatik imtina olunur. Digər qruplar/yaş pensiyaçısı keçir.</p>
-                        <div class="flex gap-2">
+                    <!-- Pensiya -->
+                    <div class="border border-gray-200 rounded-lg p-4">
+                        <h3 class="font-medium text-gray-700 mb-2">Pensiya</h3>
+                        <div class="flex gap-2 mb-2">
                             <button @click="pensionRequest()"
                                     :disabled="pensionLoading"
-                                    class="flex-1 bg-teal-600 text-white px-3 py-2 rounded text-sm hover:bg-teal-700 disabled:opacity-50">
-                                <span x-show="!pensionLoading">📤 Pensiya Sorgusu Göndər</span>
+                                    class="flex-1 alpul-btn text-white px-3 py-2 rounded text-sm disabled:opacity-50">
+                                <span x-show="!pensionLoading">📤 Sorgu Göndər</span>
                                 <span x-show="pensionLoading">Göndərilir...</span>
                             </button>
                             <button @click="pensionVerify()"
                                     :disabled="pensionVerifying"
                                     class="flex-1 bg-indigo-600 text-white px-3 py-2 rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
-                                <span x-show="!pensionVerifying">✓ Məlumatı Yoxla</span>
+                                <span x-show="!pensionVerifying">✓ Yoxla</span>
                                 <span x-show="pensionVerifying">Yoxlanılır...</span>
                             </button>
                         </div>
-                        <div x-show="pensionMessage" class="mt-2 text-xs px-3 py-2 rounded"
-                             :class="pensionResult === 'rejected' ? 'bg-red-50 text-red-700' : 'bg-gray-50 text-gray-600'"
-                             x-text="pensionMessage">
+                        <div x-show="pensionResult" class="mt-2">
+                            <span class="text-xs font-medium px-2 py-1 rounded-full"
+                                  :class="{'bg-green-100 text-green-700': pensionResult === 'passed', 'bg-red-100 text-red-700': pensionResult === 'rejected'}"
+                                  x-text="pensionResult === 'passed' ? '✓ Keçdi' : '✗ İmtina'"></span>
+                            <p class="text-xs mt-1" :class="pensionResult === 'rejected' ? 'text-red-600' : 'text-gray-500'" x-text="pensionMessage"></p>
                         </div>
                     </div>
-
-                    <!-- Auto-reject warning -->
-                    <div x-show="app.status === 'rejected' && app.rejection_reason" class="mt-3 bg-red-100 border border-red-300 rounded p-3">
-                        <div class="text-sm font-semibold text-red-700 mb-1">⚠ Müraciət Avtomatik İmtina Edildi</div>
-                        <div class="text-sm text-red-600" x-text="app.rejection_reason"></div>
-                    </div>
                 </div>
 
-                <!-- Action Buttons -->
-                <div x-show="app.status === 'pending_approval'" class="flex gap-4 pt-4 border-t">
-                    <div class="flex-1">
-                        <select x-model="approveLevel" class="w-full border rounded px-3 py-2 mb-2 text-sm">
-                            <option value=""> Kredit levelini secin...</option>
-                            <option value="new">new</option>
-                            <option value="trusted">trusted</option>
-                            <option value="valuable">valuable</option>
-                            <option value="elite">elite</option>
-                        </select>
+                <!-- Auto-reject warning -->
+                <div x-show="app.status === 'rejected' && app.rejection_reason" class="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div class="text-sm font-semibold text-red-700 mb-1">⚠ Müraciət Avtomatik İmtina Edildi</div>
+                    <div class="text-sm text-red-600" x-text="app.rejection_reason"></div>
+                </div>
+            </div>
+
+            <!-- ====== EKSPERT QƏRARI ====== -->
+            <div x-show="app.status === 'pending_approval'" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <h2 class="text-lg font-semibold text-gray-700 mb-4 pb-2 border-b">Ekspert Qərarı</h2>
+
+                <div class="grid md:grid-cols-2 gap-4">
+                    <!-- Təsdiq -->
+                    <div>
                         <button @click="approve()" class="w-full bg-teal-600 text-white px-4 py-3 rounded-lg hover:bg-teal-700 font-medium"
-                                :disabled="!approveLevel || actionLoading">
-                            <span x-show="!actionLoading">✓ Tesdiq Et</span>
-                            <span x-show="actionLoading">Emeliyyat...</span>
+                                :disabled="actionLoading">
+                            <span x-show="!actionLoading">✓ Təsdiq Et</span>
+                            <span x-show="actionLoading">Əməliyyat...</span>
                         </button>
                     </div>
-                    <div class="flex-1">
-                        <input type="text" x-model="rejectReason" placeholder="Imtina sebebi (opsional)" 
+
+                    <!-- İmtina -->
+                    <div>
+                        <select x-model="rejectReason" class="w-full border rounded px-3 py-2 mb-2 text-sm">
+                            <option value="">İmtina səbəbini seçin...</option>
+                            <option value="Kobud rəftar">Kobud rəftar</option>
+                            <option value="Yalan məlumat">Yalan məlumat</option>
+                            <option value="Sənədlər uyğun deyil">Sənədlər uyğun deyil</option>
+                            <option value="Gəlir kifayət deyil">Gəlir kifayət deyil</option>
+                            <option value="Əlaqə nömrələri yanlış">Əlaqə nömrələri yanlış</option>
+                            <option value="MyGov icazə verilmədi">MyGov icazə verilmədi</option>
+                            <option value="Digər">Digər</option>
+                        </select>
+                        <input x-show="rejectReason === 'Digər'" type="text" x-model="rejectReasonCustom" placeholder="Səbəbi daxil edin..."
                                class="w-full border rounded px-3 py-2 mb-2 text-sm">
                         <button @click="reject()" class="w-full bg-rose-600 text-white px-4 py-3 rounded-lg hover:bg-rose-700 font-medium"
-                                :disabled="actionLoading">
-                            <span x-show="!actionLoading">✗ Imtina Et</span>
-                            <span x-show="actionLoading">Emeliyyat...</span>
+                                :disabled="actionLoading || !rejectReason">
+                            <span x-show="!actionLoading">✗ İmtina Et</span>
+                            <span x-show="actionLoading">Əməliyyat...</span>
                         </button>
                     </div>
                 </div>
 
-                <!-- Success/Error messages -->
-                <div x-show="actionMessage" class="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded" x-text="actionMessage">
-                </div>
-                <div x-show="actionError" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded" x-text="actionError">
-                </div>
-
+                <!-- Messages -->
+                <div x-show="actionMessage" class="mt-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded" x-text="actionMessage"></div>
+                <div x-show="actionError" class="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded" x-text="actionError"></div>
             </div>
+
         </div>
     </div>
 
@@ -247,19 +216,22 @@
         function appDetail() {
             return {
                 app: null,
-                checks: [],
                 loading: false,
                 error: '',
-                approveLevel: '',
-                rejectReason: '',
                 actionLoading: false,
                 actionMessage: '',
                 actionError: '',
-                mygovLoading: false,
-                mygovFetching: false,
-                mygovResult: '',
+                rejectReason: '',
+                rejectReasonCustom: '',
 
-                // PR #66: Employment + Pension verification state
+                // Contacts (PR #84)
+                contacts: [
+                    { relation: '', phone: '', saved: false },
+                    { relation: '', phone: '', saved: false },
+                    { relation: '', phone: '', saved: false },
+                ],
+
+                // MyGov verification
                 employmentLoading: false,
                 employmentVerifying: false,
                 employmentResult: '',
@@ -277,15 +249,19 @@
                     this.loading = true;
                     this.error = '';
                     try {
-                        const [appResp, statusResp] = await Promise.all([
-                            fetch('/api/applications/' + this.id),
-                            fetch('/api/applications/' + this.id + '/status')
-                        ]);
-                        if (!appResp.ok) throw new Error('Muraciet tapilmadi');
-                        this.app = await appResp.json();
-                        if (statusResp.ok) {
-                            const statusData = await statusResp.json();
-                            this.checks = statusData.checks || [];
+                        const resp = await fetch('/api/applications/' + this.id);
+                        if (!resp.ok) throw new Error('Muraciet tapilmadi');
+                        this.app = await resp.json();
+
+                        // Load existing contacts if present
+                        if (this.app.contact1_phone) {
+                            this.contacts[0] = { relation: '', phone: this.app.contact1_phone, saved: true };
+                        }
+                        if (this.app.contact2_phone) {
+                            this.contacts[1] = { relation: '', phone: this.app.contact2_phone, saved: true };
+                        }
+                        if (this.app.contact3_phone) {
+                            this.contacts[2] = { relation: '', phone: this.app.contact3_phone, saved: true };
                         }
                     } catch (e) {
                         this.error = e.message;
@@ -299,10 +275,28 @@
                     this.actionMessage = '';
                     this.actionError = '';
                     try {
+                        // Use CompleteApplication with contacts
+                        const contactData = {};
+                        if (this.contacts[0].phone) contactData.contact1_phone = this.contacts[0].phone;
+                        if (this.contacts[1].phone) contactData.contact2_phone = this.contacts[1].phone;
+                        if (this.contacts[2].phone) contactData.contact3_phone = this.contacts[2].phone;
+
+                        // First save contacts via complete
+                        const completeResp = await fetch('/api/applications/' + this.id + '/complete', {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(contactData)
+                        });
+                        if (!completeResp.ok) {
+                            const err = await completeResp.json();
+                            throw new Error(err.error || 'Kontakt saxlanilmadi');
+                        }
+
+                        // Then approve via expert approve
                         const resp = await fetch('/api/expert/' + this.id + '/approve', {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ credit_level: this.approveLevel })
+                            body: JSON.stringify({ credit_level: this.app.credit_level || 'new' })
                         });
                         if (!resp.ok) {
                             const err = await resp.json();
@@ -322,11 +316,14 @@
                     this.actionMessage = '';
                     this.actionError = '';
                     try {
-                        const body = this.rejectReason ? { reason: this.rejectReason } : {};
+                        let reason = this.rejectReason;
+                        if (this.rejectReason === 'Digər' && this.rejectReasonCustom) {
+                            reason = this.rejectReasonCustom;
+                        }
                         const resp = await fetch('/api/expert/' + this.id + '/reject', {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(body)
+                            body: JSON.stringify({ reason: reason })
                         });
                         if (!resp.ok) {
                             const err = await resp.json();
@@ -341,61 +338,18 @@
                     }
                 },
 
-                async sendMyGov() {
-                    this.mygovLoading = true;
-                    this.mygovResult = '';
-                    try {
-                        const resp = await fetch('/api/mygov/permission-link', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                application_id: this.id,
-                                customer_pin: this.app.customer_pin
-                            })
-                        });
-                        const data = await resp.json();
-                        if (!resp.ok) throw new Error(data.error || 'MyGov link gonderilmedi');
-                        this.mygovResult = 'SMS gonderildi! Link: ' + data.url;
-                    } catch (e) {
-                        this.mygovResult = 'Xeta: ' + e.message;
-                    } finally {
-                        this.mygovLoading = false;
-                    }
-                },
-
-                async fetchMyGov() {
-                    this.mygovFetching = true;
-                    this.mygovResult = '';
-                    try {
-                        const resp = await fetch('/api/mygov/fetch-data?application_id=' + this.id, {
-                            method: 'POST'
-                        });
-                        const data = await resp.json();
-                        if (!resp.ok) throw new Error(data.error || 'Sorgu ugursuz');
-                        this.mygovResult = 'Sorgu tamamlandi: ' + JSON.stringify(data, null, 2);
-                    } catch (e) {
-                        this.mygovResult = 'Xeta: ' + e.message;
-                    } finally {
-                        this.mygovFetching = false;
-                    }
-                },
-
-                // PR #66: Employment verification methods
-
+                // MyGov employment
                 async employmentRequest() {
                     this.employmentLoading = true;
                     this.employmentMessage = '';
                     try {
-                        const resp = await fetch('/api/applications/' + this.id + '/mygov-employment-request', {
-                            method: 'POST'
-                        });
+                        const resp = await fetch('/api/applications/' + this.id + '/mygov-employment-request', { method: 'POST' });
                         const data = await resp.json();
                         if (!resp.ok) throw new Error(data.error || 'Sorgu gonderilmedi');
-                        this.employmentMessage = 'SMS gonderildi! Müştəri MyGov app-a daxil olub icazə verməlidir.';
+                        this.employmentMessage = 'SMS gonderildi.';
                         this.employmentResult = '';
                     } catch (e) {
                         this.employmentMessage = 'Xeta: ' + e.message;
-                        this.employmentResult = '';
                     } finally {
                         this.employmentLoading = false;
                     }
@@ -405,40 +359,31 @@
                     this.employmentVerifying = true;
                     this.employmentMessage = '';
                     try {
-                        const resp = await fetch('/api/applications/' + this.id + '/mygov-employment-verify', {
-                            method: 'POST'
-                        });
+                        const resp = await fetch('/api/applications/' + this.id + '/mygov-employment-verify', { method: 'POST' });
                         const data = await resp.json();
                         if (!resp.ok) throw new Error(data.error || 'Yoxlama ugursuz');
-                        this.employmentResult = data.status; // 'passed' or 'rejected'
+                        this.employmentResult = data.status;
                         this.employmentMessage = data.reason;
-                        if (data.status === 'rejected') {
-                            await this.load(); // refresh to show rejected status
-                        }
+                        if (data.status === 'rejected') await this.load();
                     } catch (e) {
                         this.employmentMessage = 'Xeta: ' + e.message;
-                        this.employmentResult = '';
                     } finally {
                         this.employmentVerifying = false;
                     }
                 },
 
-                // PR #66: Pension verification methods
-
+                // MyGov pension
                 async pensionRequest() {
                     this.pensionLoading = true;
                     this.pensionMessage = '';
                     try {
-                        const resp = await fetch('/api/applications/' + this.id + '/mygov-pension-request', {
-                            method: 'POST'
-                        });
+                        const resp = await fetch('/api/applications/' + this.id + '/mygov-pension-request', { method: 'POST' });
                         const data = await resp.json();
                         if (!resp.ok) throw new Error(data.error || 'Sorgu gonderilmedi');
-                        this.pensionMessage = 'SMS gonderildi! Müştəri MyGov app-a daxil olub icazə verməlidir.';
+                        this.pensionMessage = 'SMS gonderildi.';
                         this.pensionResult = '';
                     } catch (e) {
                         this.pensionMessage = 'Xeta: ' + e.message;
-                        this.pensionResult = '';
                     } finally {
                         this.pensionLoading = false;
                     }
@@ -448,23 +393,18 @@
                     this.pensionVerifying = true;
                     this.pensionMessage = '';
                     try {
-                        const resp = await fetch('/api/applications/' + this.id + '/mygov-pension-verify', {
-                            method: 'POST'
-                        });
+                        const resp = await fetch('/api/applications/' + this.id + '/mygov-pension-verify', { method: 'POST' });
                         const data = await resp.json();
                         if (!resp.ok) throw new Error(data.error || 'Yoxlama ugursuz');
                         this.pensionResult = data.status;
                         this.pensionMessage = data.reason;
-                        if (data.status === 'rejected') {
-                            await this.load(); // refresh to show rejected status
-                        }
+                        if (data.status === 'rejected') await this.load();
                     } catch (e) {
                         this.pensionMessage = 'Xeta: ' + e.message;
-                        this.pensionResult = '';
                     } finally {
                         this.pensionVerifying = false;
                     }
-                }
+                },
             }
         }
     </script>
