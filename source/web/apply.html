@@ -168,7 +168,7 @@
     </header>
 
     <!-- Progress steps -->
-    <div class="max-w-2xl mx-auto w-full px-6 pt-8 pb-4">
+    <div class="max-w-5xl mx-auto w-full px-6 pt-8 pb-4">
         <div class="flex items-center justify-between gap-2">
             <template x-for="(step, idx) in steps" :key="idx">
                 <div class="flex items-center flex-1 last:flex-none">
@@ -194,7 +194,7 @@
     </div>
 
     <!-- Main content -->
-    <main class="flex-1 max-w-2xl mx-auto w-full px-6 py-6">
+    <main class="flex-1 max-w-5xl mx-auto w-full px-6 py-6">
 
         <!-- Error banner -->
         <div x-show="error" x-transition class="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 flex items-start gap-3">
@@ -304,10 +304,10 @@
             <h2 class="text-3xl font-bold mb-2">Təklif</h2>
             <p class="text-gray-400 mb-8">Sizin <span class="font-semibold text-white" x-text="levelNameAz(offer?.credit_level)"></span> kredit səviyyənizə uyğun təklif aşağıdadır.</p>
 
-            <div x-show="offer" class="grid md:grid-cols-2 gap-6">
+            <div x-show="offer" class="grid md:grid-cols-5 gap-6">
 
-                <!-- LEFT: Credit Summary Panel (PR #81 redesigned) -->
-                <div class="bg-black/30 border border-white/5 rounded-xl p-5 space-y-3">
+                <!-- LEFT: Credit Summary Panel (2/5 width) -->
+                <div class="md:col-span-2 bg-black/30 border border-white/5 rounded-xl p-5 space-y-3">
                     <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Kredit Xülasəsi</h3>
 
                     <!-- Aylıq ödəniş + Ümumi qaytarılacaq (yan-yana, böyük, fərqli rəng) -->
@@ -370,8 +370,8 @@
                     </div>
                 </div>
 
-                <!-- RIGHT: Amount slider + card + address -->
-                <div class="space-y-6">
+                <!-- RIGHT: Amount slider + card + address (3/5 width) -->
+                <div class="md:col-span-3 space-y-8">
                     <!-- Amount slider -->
                     <div>
                         <div class="flex justify-between items-baseline mb-3">
