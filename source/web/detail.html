@@ -9,182 +9,351 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; }
+
+        /* Brand */
         .alpul-btn { background: linear-gradient(135deg, #3FB0A7 0%, #6163A4 100%); }
-        .alpul-btn:hover { box-shadow: 0 4px 12px rgba(63, 176, 167, 0.4); }
+        .alpul-btn:hover { box-shadow: 0 4px 14px rgba(63, 176, 167, 0.45); }
+        .alpul-grad-text {
+            background: linear-gradient(135deg, #3FB0A7 0%, #6163A4 100%);
+            -webkit-background-clip: text; background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        /* Theme variables (synced with index.html) */
+        [data-theme="light"] {
+            --bg: #F0F4F8; --card: #FFFFFF; --text: #1E293B; --text-soft: #64748B; --border: #E2E8F0;
+        }
+        [data-theme="dark"] {
+            --bg: #0A0A0F; --card: #181822; --text: #F5F5F7; --text-soft: #9CA3AF; --border: #26263A;
+        }
+        [data-theme="dark"] body { background: var(--bg) !important; }
+        [data-theme="dark"] .panel { background: var(--card) !important; border-color: var(--border) !important; }
+        [data-theme="dark"] .panel-title { color: var(--text) !important; }
+        [data-theme="dark"] .label-soft { color: var(--text-soft) !important; }
+        [data-theme="dark"] .value-strong { color: var(--text) !important; }
+        [data-theme="dark"] .panel-divider { border-color: var(--border) !important; }
+        [data-theme="dark"] .field-input {
+            background: #0F0F18 !important;
+            border-color: var(--border) !important;
+            color: var(--text) !important;
+        }
+        [data-theme="dark"] .field-input::placeholder { color: #4B5563 !important; }
+        [data-theme="dark"] .sub-card { background: #0F0F18 !important; border-color: var(--border) !important; }
+        [data-theme="dark"] .sub-card-title { color: var(--text-soft) !important; }
+
+        /* Sticky compact header */
+        .top-header {
+            backdrop-filter: blur(8px);
+            background: rgba(255,255,255,0.85);
+            border-bottom: 1px solid var(--border);
+        }
+        [data-theme="dark"] .top-header { background: rgba(15,15,24,0.85) !important; }
+
+        /* Panel */
+        .panel {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+            transition: box-shadow .2s, border-color .2s;
+        }
+        .panel:hover { box-shadow: 0 4px 16px rgba(15,23,42,0.06); }
+
+        .panel-title { color: var(--text); }
+        .panel-divider { border-color: var(--border); }
+        .label-soft { color: var(--text-soft); }
+        .value-strong { color: var(--text); }
+
+        .field-input {
+            background: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-size: 13px;
+            color: #1E293B;
+            transition: border-color .15s, box-shadow .15s;
+            width: 100%;
+        }
+        .field-input:focus {
+            outline: none;
+            border-color: #3FB0A7;
+            box-shadow: 0 0 0 3px rgba(63,176,167,0.15);
+        }
+
+        .sub-card {
+            background: #F8FAFC;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px;
+        }
+        .sub-card-title { color: #64748B; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+
+        /* Status badges */
+        .badge { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+
+        /* Icon chip in section header */
+        .icon-chip {
+            width: 28px; height: 28px; border-radius: 8px;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 14px;
+            background: linear-gradient(135deg, rgba(63,176,167,0.12), rgba(97,99,164,0.12));
+            color: #3FB0A7;
+        }
+
+        /* Make body non-scrolling on large screens */
+        @media (min-width: 1024px) {
+            html, body { height: 100%; overflow: hidden; }
+        }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
-    <div x-data="appDetail()" x-init="load()" class="max-w-4xl mx-auto py-8 px-4">
+<body class="min-h-screen" data-theme="light" x-data="appDetail()" x-init="initTheme(); load()">
+    <div class="lg:h-screen lg:flex lg:flex-col">
 
-        <!-- Back button -->
-        <div class="mb-6">
-            <a href="/index.html" class="text-teal-600 hover:text-teal-800 flex items-center gap-1">
-                ← Geri
+        <!-- ============ TOP HEADER (sticky, compact) ============ -->
+        <header class="top-header sticky top-0 z-30 px-5 py-3 flex items-center gap-4">
+            <a href="/index.html" class="flex items-center gap-2 text-teal-600 hover:text-teal-800 transition text-sm font-medium">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                <span class="hidden sm:inline">Siyahı</span>
             </a>
-        </div>
-
-        <!-- Loading -->
-        <div x-show="loading" class="text-center py-8 text-gray-500">Yuklenir...</div>
-
-        <!-- Error -->
-        <div x-show="error" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" x-text="error"></div>
-
-        <!-- Content -->
-        <div x-show="!loading && !error && app" class="space-y-6">
-
-            <!-- ====== HEADER ====== -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <div class="flex justify-between items-center">
-                    <h1 class="text-2xl font-bold text-gray-800" x-text="'Muraciet #' + app.id"></h1>
-                    <span class="inline-block px-3 py-1 rounded-full text-sm font-medium"
-                          :class="{
-                              'bg-yellow-100 text-yellow-800': app.status === 'pending_approval',
-                              'bg-green-100 text-green-800': app.status === 'approved',
-                              'bg-red-100 text-red-800': app.status === 'rejected',
-                              'bg-teal-100 text-teal-800': app.status === 'pending' || app.status === 'checking' || app.status === 'pending_expert' || app.status === 'pending_customer',
-                              'bg-gray-200 text-gray-700': app.status === 'cancelled'
-                          }"
-                          x-text="app.status">
-                    </span>
+            <div class="h-6 w-px bg-gray-300"></div>
+            <div class="flex items-center gap-3 flex-1 min-w-0">
+                <div class="w-9 h-9 rounded-xl alpul-btn flex items-center justify-center font-black text-white text-base shrink-0">A</div>
+                <div class="min-w-0">
+                    <h1 class="text-base font-bold text-gray-800 truncate flex items-center gap-2" :class="{'panel-title': true}">
+                        <span x-text="'Muraciet #' + (app?.id || '')"></span>
+                        <span x-show="app?.customer_full_name" class="text-gray-500 font-medium text-sm hidden md:inline" x-text="'· ' + (app?.customer_full_name || '')"></span>
+                    </h1>
+                    <p class="text-xs text-gray-500 hidden sm:block" x-text="app ? (app.customer_pin || '') + ' · ' + (app.customer_phone || '-') : 'Yuklenir...'"></p>
                 </div>
             </div>
 
-            <!-- ====== MÜŞTƏRİ MƏLUMATLARI ====== -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h2 class="text-lg font-semibold text-gray-700 mb-4 pb-2 border-b">Müştəri Məlumatları</h2>
-                <div class="grid grid-cols-2 gap-4 text-sm">
-                    <div><span class="font-medium text-gray-500">PIN:</span> <span class="font-semibold" x-text="app.customer_pin"></span></div>
-                    <div><span class="font-medium text-gray-500">Seriya:</span> <span class="font-semibold" x-text="app.customer_serial || '-'"></span></div>
-                    <div><span class="font-medium text-gray-500">Ad Soyad:</span> <span class="font-semibold" x-text="app.customer_full_name"></span></div>
-                    <div><span class="font-medium text-gray-500">Telefon:</span> <span class="font-semibold" x-text="app.customer_phone || '-'"></span></div>
-                    <div><span class="font-medium text-gray-500">Kart:</span> <span class="font-semibold" x-text="app.card_number ? '**** ' + app.card_number.slice(-4) : '-'"></span></div>
-                    <div><span class="font-medium text-gray-500">Ünvan:</span> <span class="font-semibold" x-text="app.actual_address || '-'"></span></div>
+            <!-- Status badge -->
+            <span x-show="app" class="badge shrink-0"
+                  :class="{
+                      'bg-amber-100 text-amber-800': app?.status === 'pending_approval',
+                      'bg-emerald-100 text-emerald-800': app?.status === 'approved',
+                      'bg-rose-100 text-rose-800': app?.status === 'rejected',
+                      'bg-teal-100 text-teal-800': app?.status === 'pending' || app?.status === 'checking' || app?.status === 'pending_expert' || app?.status === 'pending_customer',
+                      'bg-gray-200 text-gray-700': app?.status === 'cancelled'
+                  }"
+                  x-text="app?.status || ''">
+            </span>
+
+            <!-- Theme toggle -->
+            <button @click="toggleTheme()" class="w-9 h-9 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-100 transition shrink-0" title="Theme dəyiş">
+                <svg x-show="theme === 'light'" class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/></svg>
+                <svg x-show="theme === 'dark'" class="w-5 h-5 text-indigo-400" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
+            </button>
+
+            <button @click="load()" class="hidden sm:inline-flex alpul-btn text-white px-3 py-2 rounded-lg text-sm font-medium transition shrink-0 items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Yenile
+            </button>
+        </header>
+
+        <!-- ============ MAIN GRID ============ -->
+        <main class="flex-1 px-5 py-4 overflow-auto lg:overflow-hidden">
+
+            <!-- Loading -->
+            <div x-show="loading" class="flex items-center justify-center h-full text-gray-500">
+                <div class="flex items-center gap-2">
+                    <svg class="animate-spin w-5 h-5 text-teal-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                    Yuklenir...
                 </div>
             </div>
 
-            <!-- ====== KREDİT MƏLUMATLARI ====== -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h2 class="text-lg font-semibold text-gray-700 mb-4 pb-2 border-b">Kredit Məlumatları</h2>
-                <div class="grid grid-cols-3 gap-4 text-sm">
-                    <div><span class="font-medium text-gray-500">Məbləğ:</span> <span class="font-bold text-teal-700" x-text="app.amount + ' AZN'"></span></div>
-                    <div><span class="font-medium text-gray-500">Müddət:</span> <span class="font-bold text-teal-700" x-text="app.term_months + ' ay'"></span></div>
-                    <div><span class="font-medium text-gray-500">Faiz:</span> <span class="font-bold text-teal-700" x-text="app.approved_rate ? app.approved_rate + '%' : '-'"></span></div>
-                </div>
-                <div x-show="app.total_amount > 0" class="mt-3 pt-3 border-t text-sm">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div><span class="font-medium text-gray-500">Kredit məbləği (komissiya daxil):</span> <span class="font-semibold" x-text="app.total_amount + ' AZN'"></span></div>
-                        <div><span class="font-medium text-gray-500">Karta köçürülən:</span> <span class="font-semibold" x-text="app.amount + ' AZN'"></span></div>
+            <!-- Error -->
+            <div x-show="error" class="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-lg mb-4 text-sm" x-text="error"></div>
+
+            <!-- Content (fits viewport on lg) -->
+            <div x-show="!loading && !error && app" class="grid grid-cols-12 gap-4 lg:h-full">
+
+                <!-- ===== ROW 1: Customer | Credit | Contacts ===== -->
+
+                <!-- Müştəri Məlumatları -->
+                <section class="panel p-4 col-span-12 lg:col-span-4 flex flex-col">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="icon-chip">👤</span>
+                        <h2 class="panel-title text-sm font-bold tracking-wide uppercase">Müştəri</h2>
                     </div>
-                </div>
-            </div>
-
-            <!-- =====+ ƏLAQƏ NÖMRƏLƏRİ ====== -->
-            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h2 class="text-lg font-semibold text-gray-700 mb-4 pb-2 border-b">Əlaqə Nömrələri</h2>
-                <div class="space-y-3">
-                    <template x-for="(contact, idx) in contacts" :key="idx">
-                        <div class="flex gap-2 items-center">
-                            <span class="text-sm font-medium text-gray-500 w-6" x-text="(idx+1) + '.'"></span>
-                            <select x-model="contact.relation" class="border rounded px-2 py-2 text-sm w-32">
-                                <option value="">Münasibət...</option>
-                                <option value="Ata">Ata</option>
-                                <option value="Ana">Ana</option>
-                                <option value="Qardaş">Qardaş</option>
-                                <option value="Bacı">Bacı</option>
-                                <option value="Dost">Dost</option>
-                                <option value="Ər/Arvad">Ər/Arvad</option>
-                                <option value="Oğul">Oğul</option>
-                                <option value="Qız">Qız</option>
-                                <option value="Digər">Digər</option>
-                            </select>
-                            <input type="text" x-model="contact.phone" placeholder="+994 __ ___ __ __"
-                                   class="border rounded px-3 py-2 text-sm flex-1">
-                            <span x-show="contact.saved" class="text-xs text-gray-400" x-text="contact.saved ? (contact.relation ? contact.relation + ': ' : '') + contact.phone : ''"></span>
+                    <div class="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm flex-1">
+                        <div>
+                            <div class="label-soft text-[11px] uppercase tracking-wide">PIN</div>
+                            <div class="value-strong font-semibold" x-text="app?.customer_pin || '-'"></div>
                         </div>
-                    </template>
-                </div>
-            </div>
-
-            <!-- ====== MyGov TƏSDİQİ ====== -->
-            <div x-show="app.status === 'pending_approval'" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h2 class="text-lg font-semibold text-gray-700 mb-4 pb-2 border-b">MyGov Təsdiqi</h2>
-
-                <div class="grid md:grid-cols-2 gap-4">
-                    <!-- İş yerti -->
-                    <div class="border border-gray-200 rounded-lg p-4">
-                        <h3 class="font-medium text-gray-700 mb-2">İş Yeri</h3>
-                        <div class="flex gap-2 mb-2">
-                            <button @click="employmentRequest()"
-                                    :disabled="employmentLoading"
-                                    class="flex-1 alpul-btn text-white px-3 py-2 rounded text-sm disabled:opacity-50">
-                                <span x-show="!employmentLoading">📤 Sorgu Göndər</span>
-                                <span x-show="employmentLoading">Göndərilir...</span>
-                            </button>
-                            <button @click="employmentVerify()"
-                                    :disabled="employmentVerifying"
-                                    class="flex-1 bg-indigo-600 text-white px-3 py-2 rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
-                                <span x-show="!employmentVerifying">✓ Yoxla</span>
-                                <span x-show="employmentVerifying">Yoxlanılır...</span>
-                            </button>
+                        <div>
+                            <div class="label-soft text-[11px] uppercase tracking-wide">Seriya</div>
+                            <div class="value-strong font-semibold" x-text="app?.customer_serial || '-'"></div>
                         </div>
-                        <div x-show="employmentResult" class="mt-2">
-                            <span class="text-xs font-medium px-2 py-1 rounded-full"
-                                  :class="{'bg-green-100 text-green-700': employmentResult === 'passed', 'bg-red-100 text-red-700': employmentResult === 'rejected'}"
-                                  x-text="employmentResult === 'passed' ? '✓ Keçdi' : '✗ İmtina'"></span>
-                            <p class="text-xs mt-1" :class="employmentResult === 'rejected' ? 'text-red-600' : 'text-gray-500'" x-text="employmentMessage"></p>
+                        <div class="col-span-2">
+                            <div class="label-soft text-[11px] uppercase tracking-wide">Ad Soyad</div>
+                            <div class="value-strong font-semibold" x-text="app?.customer_full_name || '-'"></div>
+                        </div>
+                        <div>
+                            <div class="label-soft text-[11px] uppercase tracking-wide">Telefon</div>
+                            <div class="value-strong font-semibold" x-text="app?.customer_phone || '-'"></div>
+                        </div>
+                        <div>
+                            <div class="label-soft text-[11px] uppercase tracking-wide">Kart</div>
+                            <div class="value-strong font-semibold" x-text="app?.card_number ? '**** ' + app.card_number.slice(-4) : '-'"></div>
+                        </div>
+                        <div class="col-span-2">
+                            <div class="label-soft text-[11px] uppercase tracking-wide">Ünvan</div>
+                            <div class="value-strong font-semibold text-sm leading-snug" x-text="app?.actual_address || '-'"></div>
                         </div>
                     </div>
+                </section>
 
-                    <!-- Pensiya -->
-                    <div class="border border-gray-200 rounded-lg p-4">
-                        <h3 class="font-medium text-gray-700 mb-2">Pensiya</h3>
-                        <div class="flex gap-2 mb-2">
-                            <button @click="pensionRequest()"
-                                    :disabled="pensionLoading"
-                                    class="flex-1 alpul-btn text-white px-3 py-2 rounded text-sm disabled:opacity-50">
-                                <span x-show="!pensionLoading">📤 Sorgu Göndər</span>
-                                <span x-show="pensionLoading">Göndərilir...</span>
-                            </button>
-                            <button @click="pensionVerify()"
-                                    :disabled="pensionVerifying"
-                                    class="flex-1 bg-indigo-600 text-white px-3 py-2 rounded text-sm hover:bg-indigo-700 disabled:opacity-50">
-                                <span x-show="!pensionVerifying">✓ Yoxla</span>
-                                <span x-show="pensionVerifying">Yoxlanılır...</span>
-                            </button>
+                <!-- Kredit Məlumatları -->
+                <section class="panel p-4 col-span-12 lg:col-span-4 flex flex-col">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="icon-chip">💳</span>
+                        <h2 class="panel-title text-sm font-bold tracking-wide uppercase">Kredit</h2>
+                    </div>
+                    <div class="grid grid-cols-3 gap-3 mb-3">
+                        <div class="sub-card text-center">
+                            <div class="sub-card-title mb-1">Məbləğ</div>
+                            <div class="alpul-grad-text font-extrabold text-lg leading-tight" x-text="(app?.amount ?? '-') + ' AZN'"></div>
                         </div>
-                        <div x-show="pensionResult" class="mt-2">
-                            <span class="text-xs font-medium px-2 py-1 rounded-full"
-                                  :class="{'bg-green-100 text-green-700': pensionResult === 'passed', 'bg-red-100 text-red-700': pensionResult === 'rejected'}"
-                                  x-text="pensionResult === 'passed' ? '✓ Keçdi' : '✗ İmtina'"></span>
-                            <p class="text-xs mt-1" :class="pensionResult === 'rejected' ? 'text-red-600' : 'text-gray-500'" x-text="pensionMessage"></p>
+                        <div class="sub-card text-center">
+                            <div class="sub-card-title mb-1">Müddət</div>
+                            <div class="alpul-grad-text font-extrabold text-lg leading-tight" x-text="(app?.term_months ?? '-') + ' ay'"></div>
+                        </div>
+                        <div class="sub-card text-center">
+                            <div class="sub-card-title mb-1">Faiz</div>
+                            <div class="alpul-grad-text font-extrabold text-lg leading-tight" x-text="app?.approved_rate ? app.approved_rate + '%' : '-'"></div>
                         </div>
                     </div>
-                </div>
+                    <div x-show="app?.total_amount > 0" class="panel-divider border-t pt-3 grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                            <div class="label-soft text-[11px] uppercase tracking-wide">Ümumi (komissiya ilə)</div>
+                            <div class="value-strong font-semibold" x-text="(app?.total_amount ?? '-') + ' AZN'"></div>
+                        </div>
+                        <div>
+                            <div class="label-soft text-[11px] uppercase tracking-wide">Karta köçürülən</div>
+                            <div class="value-strong font-semibold" x-text="(app?.amount ?? '-') + ' AZN'"></div>
+                        </div>
+                    </div>
+                </section>
 
-                <!-- Auto-reject warning -->
-                <div x-show="app.status === 'rejected' && app.rejection_reason" class="mt-4 bg-red-50 border border-red-200 rounded-lg p-4">
-                    <div class="text-sm font-semibold text-red-700 mb-1">⚠ Müraciət Avtomatik İmtina Edildi</div>
-                    <div class="text-sm text-red-600" x-text="app.rejection_reason"></div>
-                </div>
-            </div>
+                <!-- Əlaqə Nömrələri -->
+                <section class="panel p-4 col-span-12 lg:col-span-4 flex flex-col">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="icon-chip">📞</span>
+                        <h2 class="panel-title text-sm font-bold tracking-wide uppercase">Əlaqə Nömrələri</h2>
+                    </div>
+                    <div class="space-y-2 flex-1">
+                        <template x-for="(contact, idx) in contacts" :key="idx">
+                            <div class="flex gap-2 items-center">
+                                <span class="text-xs font-bold text-gray-400 w-5 text-center" x-text="(idx+1)"></span>
+                                <select x-model="contact.relation" class="field-input !py-1.5 !px-2 w-28 text-xs">
+                                    <option value="">Münasibət...</option>
+                                    <option value="Ata">Ata</option>
+                                    <option value="Ana">Ana</option>
+                                    <option value="Qardaş">Qardaş</option>
+                                    <option value="Bacı">Bacı</option>
+                                    <option value="Dost">Dost</option>
+                                    <option value="Ər/Arvad">Ər/Arvad</option>
+                                    <option value="Oğul">Oğul</option>
+                                    <option value="Qız">Qız</option>
+                                    <option value="Digər">Digər</option>
+                                </select>
+                                <input type="text" x-model="contact.phone" placeholder="+994 __ ___ __ __"
+                                       class="field-input !py-1.5 flex-1 text-xs">
+                            </div>
+                        </template>
+                    </div>
+                </section>
 
-            <!-- ====== EKSPERT QƏRARI ====== -->
-            <div x-show="app.status === 'pending_approval'" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-                <h2 class="text-lg font-semibold text-gray-700 mb-4 pb-2 border-b">Ekspert Qərarı</h2>
+                <!-- ===== ROW 2: MyGov (8 cols) | Expert Decision (4 cols) ===== -->
 
-                <div class="grid md:grid-cols-2 gap-4">
-                    <!-- Təsdiq -->
-                    <div>
-                        <button @click="approve()" class="w-full bg-teal-600 text-white px-4 py-3 rounded-lg hover:bg-teal-700 font-medium"
+                <!-- MyGov Təsdiqi -->
+                <section x-show="app?.status === 'pending_approval'" class="panel p-4 col-span-12 lg:col-span-8 flex flex-col">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="icon-chip">🏛️</span>
+                            <h2 class="panel-title text-sm font-bold tracking-wide uppercase">MyGov Təsdiqi</h2>
+                        </div>
+                        <span class="text-[11px] text-gray-400">Sorgu göndər → yoxla</span>
+                    </div>
+
+                    <div class="grid md:grid-cols-2 gap-3 flex-1">
+                        <!-- İş Yeri -->
+                        <div class="sub-card flex flex-col">
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="sub-card-title">İş Yeri</h3>
+                                <span x-show="employmentResult" class="badge text-[10px] px-2 py-0.5"
+                                      :class="{'bg-emerald-100 text-emerald-700': employmentResult === 'passed', 'bg-rose-100 text-rose-700': employmentResult === 'rejected'}"
+                                      x-text="employmentResult === 'passed' ? '✓ Keçdi' : '✗ İmtina'"></span>
+                            </div>
+                            <div class="flex gap-2 mb-2">
+                                <button @click="employmentRequest()"
+                                        :disabled="employmentLoading"
+                                        class="flex-1 alpul-btn text-white px-2 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition">
+                                    <span x-show="!employmentLoading">📤 Sorgu</span>
+                                    <span x-show="employmentLoading">...</span>
+                                </button>
+                                <button @click="employmentVerify()"
+                                        :disabled="employmentVerifying"
+                                        class="flex-1 bg-indigo-600 text-white px-2 py-1.5 rounded-md text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition">
+                                    <span x-show="!employmentVerifying">✓ Yoxla</span>
+                                    <span x-show="employmentVerifying">...</span>
+                                </button>
+                            </div>
+                            <p class="text-[11px] mt-auto" :class="employmentResult === 'rejected' ? 'text-rose-600' : 'text-gray-500'" x-text="employmentMessage"></p>
+                        </div>
+
+                        <!-- Pensiya -->
+                        <div class="sub-card flex flex-col">
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="sub-card-title">Pensiya</h3>
+                                <span x-show="pensionResult" class="badge text-[10px] px-2 py-0.5"
+                                      :class="{'bg-emerald-100 text-emerald-700': pensionResult === 'passed', 'bg-rose-100 text-rose-700': pensionResult === 'rejected'}"
+                                      x-text="pensionResult === 'passed' ? '✓ Keçdi' : '✗ İmtina'"></span>
+                            </div>
+                            <div class="flex gap-2 mb-2">
+                                <button @click="pensionRequest()"
+                                        :disabled="pensionLoading"
+                                        class="flex-1 alpul-btn text-white px-2 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition">
+                                    <span x-show="!pensionLoading">📤 Sorgu</span>
+                                    <span x-show="pensionLoading">...</span>
+                                </button>
+                                <button @click="pensionVerify()"
+                                        :disabled="pensionVerifying"
+                                        class="flex-1 bg-indigo-600 text-white px-2 py-1.5 rounded-md text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition">
+                                    <span x-show="!pensionVerifying">✓ Yoxla</span>
+                                    <span x-show="pensionVerifying">...</span>
+                                </button>
+                            </div>
+                            <p class="text-[11px] mt-auto" :class="pensionResult === 'rejected' ? 'text-rose-600' : 'text-gray-500'" x-text="pensionMessage"></p>
+                        </div>
+                    </div>
+
+                    <!-- Auto-reject warning -->
+                    <div x-show="app?.status === 'rejected' && app?.rejection_reason" class="mt-3 bg-rose-50 border border-rose-200 rounded-lg p-3">
+                        <div class="text-xs font-bold text-rose-700 mb-0.5">⚠ Müraciət Avtomatik İmtina Edildi</div>
+                        <div class="text-xs text-rose-600" x-text="app?.rejection_reason"></div>
+                    </div>
+                </section>
+
+                <!-- Ekspert Qərarı -->
+                <section x-show="app?.status === 'pending_approval'" class="panel p-4 col-span-12 lg:col-span-4 flex flex-col">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="icon-chip">⚖️</span>
+                        <h2 class="panel-title text-sm font-bold tracking-wide uppercase">Ekspert Qərarı</h2>
+                    </div>
+
+                    <div class="space-y-2.5 flex-1 flex flex-col">
+                        <!-- Təsdiq -->
+                        <button @click="approve()" class="w-full bg-emerald-600 text-white px-3 py-2.5 rounded-lg hover:bg-emerald-700 font-semibold text-sm transition disabled:opacity-50 flex items-center justify-center gap-2"
                                 :disabled="actionLoading">
-                            <span x-show="!actionLoading">✓ Təsdiq Et</span>
-                            <span x-show="actionLoading">Əməliyyat...</span>
+                            <svg x-show="!actionLoading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                            <svg x-show="actionLoading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                            <span x-text="actionLoading ? 'Əməliyyat...' : 'Təsdiq Et'"></span>
                         </button>
-                    </div>
 
-                    <!-- İmtina -->
-                    <div>
-                        <select x-model="rejectReason" class="w-full border rounded px-3 py-2 mb-2 text-sm">
+                        <!-- İmtina: dropdown -->
+                        <select x-model="rejectReason" class="field-input text-sm">
                             <option value="">İmtina səbəbini seçin...</option>
                             <option value="MANUAL_FAKE_INFO">Yalan məlumat</option>
                             <option value="MANUAL_WRONG_NUMBER">Nömrə yanlışdır</option>
@@ -195,22 +364,25 @@
                             <option value="MANUAL_MYGOV_DENIED">MyGov icazə verilmədi</option>
                             <option value="MANUAL_OTHER">Digər</option>
                         </select>
+
                         <input x-show="rejectReason === 'MANUAL_OTHER'" type="text" x-model="rejectReasonCustom" placeholder="Səbəbi daxil edin..."
-                               class="w-full border rounded px-3 py-2 mb-2 text-sm">
-                        <button @click="reject()" class="w-full bg-rose-600 text-white px-4 py-3 rounded-lg hover:bg-rose-700 font-medium"
+                               class="field-input text-sm">
+
+                        <!-- İmtina button -->
+                        <button @click="reject()" class="w-full bg-rose-600 text-white px-3 py-2.5 rounded-lg hover:bg-rose-700 font-semibold text-sm transition disabled:opacity-50 flex items-center justify-center gap-2"
                                 :disabled="actionLoading || !rejectReason">
-                            <span x-show="!actionLoading">✗ İmtina Et</span>
-                            <span x-show="actionLoading">Əməliyyat...</span>
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                            <span x-text="actionLoading ? 'Əməliyyat...' : 'İmtina Et'"></span>
                         </button>
+
+                        <!-- Messages -->
+                        <div x-show="actionMessage" class="bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-2 rounded-md text-xs mt-auto" x-text="actionMessage"></div>
+                        <div x-show="actionError" class="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 rounded-md text-xs mt-auto" x-text="actionError"></div>
                     </div>
-                </div>
+                </section>
 
-                <!-- Messages -->
-                <div x-show="actionMessage" class="mt-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded" x-text="actionMessage"></div>
-                <div x-show="actionError" class="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded" x-text="actionError"></div>
             </div>
-
-        </div>
+        </main>
     </div>
 
     <script>
@@ -224,6 +396,7 @@
                 actionError: '',
                 rejectReason: '',
                 rejectReasonCustom: '',
+                theme: localStorage.getItem('alpul_theme') || 'light',
 
                 // Contacts (PR #84)
                 contacts: [
@@ -241,6 +414,15 @@
                 pensionVerifying: false,
                 pensionResult: '',
                 pensionMessage: '',
+
+                initTheme() {
+                    document.body.setAttribute('data-theme', this.theme);
+                },
+                toggleTheme() {
+                    this.theme = this.theme === 'light' ? 'dark' : 'light';
+                    document.body.setAttribute('data-theme', this.theme);
+                    localStorage.setItem('alpul_theme', this.theme);
+                },
 
                 get id() {
                     return new URLSearchParams(window.location.search).get('id');
@@ -276,13 +458,11 @@
                     this.actionMessage = '';
                     this.actionError = '';
                     try {
-                        // Use CompleteApplication with contacts
                         const contactData = {};
                         if (this.contacts[0].phone) contactData.contact1_phone = this.contacts[0].phone;
                         if (this.contacts[1].phone) contactData.contact2_phone = this.contacts[1].phone;
                         if (this.contacts[2].phone) contactData.contact3_phone = this.contacts[2].phone;
 
-                        // First save contacts via complete
                         const completeResp = await fetch('/api/applications/' + this.id + '/complete', {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
@@ -293,7 +473,6 @@
                             throw new Error(err.error || 'Kontakt saxlanilmadi');
                         }
 
-                        // Then approve via expert approve
                         const resp = await fetch('/api/expert/' + this.id + '/approve', {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
