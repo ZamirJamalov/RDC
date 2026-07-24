@@ -48,7 +48,7 @@ type mockApplicationStore struct {
         pendingErr    error
 
         // GetCreditLevelRate
-        rate    float64
+        commission    float64
         rateErr error
 
         // CountApprovedAtLevel
@@ -185,7 +185,7 @@ func (m *mockApplicationStore) ListByStatus(_ context.Context, status string) ([
 }
 
 func (m *mockApplicationStore) GetCreditLevelRate(_ context.Context, _ string, _ float64, _ int, _ int) (float64, error) {
-        return m.rate, m.rateErr
+        return m.commission, m.rateErr
 }
 
 func (m *mockApplicationStore) CountApprovedAtLevel(_ context.Context, _ string, _ string) (int, error) {
@@ -327,7 +327,7 @@ type errNotFoundSentinel struct{}
 func (errNotFoundSentinel) Error() string { return "application not found (mock)" }
 
 // newMockStore returns a mockApplicationStore with sensible defaults:
-// no errors, empty results, rate=0, approvedCount=0. Tests should override
+// no errors, empty results, commission=0, approvedCount=0. Tests should override
 // the specific fields they need for their scenario.
 func newMockStore() *mockApplicationStore {
         return &mockApplicationStore{

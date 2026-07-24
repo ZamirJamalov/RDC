@@ -231,23 +231,23 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
 
 // calculateTotalAmount returns the total credit amount = principal + commission.
 //
-// PR #78: 'rate' in credit_levels is the COMMISSION rate, not interest.
-// Commission = principal × (rate / (100 - rate)) × 100
+// PR #86: 'commission' in credit_levels is the COMMISSION rate.
+// Commission = principal × (commission / (100 - commission)) × 100
 // Credit amount (total_amount in DB, sent to LW) = principal + commission
 //
 // Interest is separate: interest = principal × annual_interest_rate × (term / 12)
 // Interest is NOT included in total_amount — it's shown to the customer
 // in the summary panel but not sent to LW.
 //
-// Example: 300 AZN principal, rate=30 (commission):
-//   commission = 300 × (30/70) × 100 = 128.57
-//   total = 300 + 128.57 = 428.57 AZN
-func calculateTotalAmount(principal, rate float64) float64 {
-        if rate <= 0 || rate >= 100 {
+// Example: 300 AZN principal, commission=14:
+//   commission_amount = 300 × (14/86) × 100 = 162.79
+//   total = 300 + 162.79 = 462.79 AZN
+func calculateTotalAmount(principal, commission float64) float64 {
+        if commission <= 0 || commission >= 100 {
                 return principal
         }
-        commission := (rate / (100 - rate)) * 100
-        total := principal + commission
+        commissionAmount := (commission / (100 - commission)) * 100
+        total := principal + commissionAmount
         return math.Round(total*100) / 100
 }
 

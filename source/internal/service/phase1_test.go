@@ -19,7 +19,7 @@ func TestProcessApplication_BlacklistRejection(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         provider.blacklisted = true // triggers blacklist rejection
@@ -68,7 +68,7 @@ func TestProcessApplication_BlacklistCheckFailureIsFailOpen(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         provider.blacklistErr = errors.New("LW unreachable")
@@ -99,7 +99,7 @@ func TestProcessApplication_LWApproveLoanCalledOnApproval(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 500, TermMonths: 6, AkbScore: 400,
         }
-        store.rate = 27.0
+        store.commission = 27.0
         store.approvedCount = 1 // phase 2
         store.currentLevel = "valuable" // customer is at valuable level
 
@@ -143,7 +143,7 @@ func TestProcessApplication_LWApproveLoanFailureDowngradesToRejected(t *testing.
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 500, TermMonths: 6, AkbScore: 400,
         }
-        store.rate = 27.0
+        store.commission = 27.0
         store.approvedCount = 1
         store.currentLevel = "valuable"
 
@@ -187,7 +187,7 @@ func TestProcessApplication_LWApproveLoanNotCalledForRejection(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         // Active loan → rejected
         provider := newMockLWProvider().withLoans([]lw.CustomerLoan{
@@ -216,7 +216,7 @@ func TestProcessApplication_LWApproveLoanNotCalledForPendingApproval(t *testing.
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
         store.approvedCount = 0
 
         // No loans → new level → pending_approval
@@ -300,7 +300,7 @@ func TestProcessApplication_AKBFromLWUsedForLevel(t *testing.T) {
                 ID: 1, CustomerPIN: "PIN1", Amount: 700, TermMonths: 3,
                 AkbScore: 400, // request says 400, but LW will say 750
         }
-        store.rate = 26.0 // valuable level rate
+        store.commission = 26.0 // valuable level rate
         store.approvedCount = 0
 
         // No loans → would be "new" with AKB 400. But LW says AKB 750 → "valuable".
@@ -338,7 +338,7 @@ func TestProcessApplication_TransactionRollbackOnSaveCheckFailure(t *testing.T) 
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
         store.saveCheckErr = errors.New("DB connection lost")
 
         provider := newMockLWProvider()
@@ -363,7 +363,7 @@ func TestProcessApplication_TransactionRollbackOnDecisionFailure(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
         store.updateDecisionErr = errors.New("DB write failed")
 
         provider := newMockLWProvider()
@@ -385,7 +385,7 @@ func TestProcessApplication_WithTxFailure(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
         store.withTxErr = errors.New("BEGIN TRANSACTION failed")
 
         provider := newMockLWProvider()
@@ -439,7 +439,7 @@ func TestProcessApplicationWithRetry_SuccessOnFirstAttempt(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         engine := NewCreditEngine(provider, store)
@@ -471,7 +471,7 @@ func TestProcessApplicationWithRetry_SuccessAfterRetry(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         realEngine := NewCreditEngine(provider, store)
@@ -570,7 +570,7 @@ func TestProcessApplication_AkbScoreBelow200(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         // LW returns AKB score 150 — below 200 threshold, no stop factor.
@@ -620,7 +620,7 @@ func TestProcessApplication_AkbScoreZeroNoRejection(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
         store.approvedCount = 0
         store.currentLevel = ""
 
@@ -655,7 +655,7 @@ func TestProcessApplication_AkbStopFactorRejection(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 700,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         // AKB signals stop factor: Point == 1, Response = "AB".
@@ -712,7 +712,7 @@ func TestProcessApplication_AgeOver69(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         // DOB 1950-01-01 → age ~76 → reject.
@@ -763,7 +763,7 @@ func TestProcessApplication_AgeExactly69Allowed(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
         store.approvedCount = 0
         store.currentLevel = ""
 
@@ -801,7 +801,7 @@ func TestProcessApplication_PersonalInfoFailsNoAgeRejection(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
         store.approvedCount = 0
         store.currentLevel = ""
 
@@ -871,7 +871,7 @@ func TestProcessApplication_DelayRatioAbove6(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         // Build 12 reporting periods (last 12 months) with total 90 overdue days.
@@ -916,7 +916,7 @@ func TestProcessApplication_ActiveLoanCurrentDelayAbove5(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         provider.akbHistory = &lw.AkbHistoryResponse{
@@ -948,7 +948,7 @@ func TestProcessApplication_Delay3MonthsAbove20(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         // One month ago, 25 days overdue — within 3-month window, ≥ 20 → reject.
@@ -980,7 +980,7 @@ func TestProcessApplication_Delay6MonthsAbove30(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         // 4 months ago, 35 days overdue — within 6-month window (but outside 3-month),
@@ -1013,7 +1013,7 @@ func TestProcessApplication_Delay12MonthsAbove45(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         // 8 months ago, 50 days overdue — within 12-month window, ≥ 45 → reject.
@@ -1045,7 +1045,7 @@ func TestProcessApplication_Delay18MonthsAbove60(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         // 14 months ago, 65 days overdue — within 18-month window (but outside 12-month),
@@ -1079,7 +1079,7 @@ func TestProcessApplication_MonthlyPaymentsAbove2000(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         // Two active liabilities: 1200 + 900 = 2100 > 2000 → reject.
@@ -1114,7 +1114,7 @@ func TestProcessApplication_AkbHistoryUnavailableFailSoft(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
         store.approvedCount = 0
         store.currentLevel = ""
 
@@ -1170,7 +1170,7 @@ func TestProcessApplication_AkbHistoryBelowThresholds(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
         store.approvedCount = 0
         store.currentLevel = ""
 
@@ -1206,7 +1206,7 @@ func TestProcessApplication_AzmkBlacklistRejection(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         provider.azmkBlacklisted = true // triggers AZMK blacklist rejection
@@ -1253,7 +1253,7 @@ func TestProcessApplication_AzmkBlacklistFailSoft(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
         store.approvedCount = 0
         store.currentLevel = ""
 
@@ -1302,7 +1302,7 @@ func TestProcessApplication_AzmkBlacklistNotListed(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
         store.approvedCount = 0
         store.currentLevel = ""
 
