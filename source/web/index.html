@@ -11,10 +11,33 @@
         body { font-family: 'Inter', sans-serif; }
         .alpul-btn { background: linear-gradient(135deg, #3FB0A7 0%, #6163A4 100%); }
         .alpul-btn:hover { box-shadow: 0 4px 12px rgba(63, 176, 167, 0.4); }
+
+        /* PR #83: Theme variables */
+        [data-theme="light"] {
+            --bg: #F0F4F8;
+            --card: #FFFFFF;
+            --text: #1E293B;
+            --text-soft: #64748B;
+            --border: #E2E8F0;
+        }
+        [data-theme="dark"] {
+            --bg: #0A0A0F;
+            --card: #181822;
+            --text: #F5F5F7;
+            --text-soft: #9CA3AF;
+            --border: #26263A;
+        }
+        [data-theme="dark"] body { background: var(--bg) !important; }
+        [data-theme="dark"] .bg-white { background: var(--card) !important; }
+        [data-theme="dark"] .text-gray-800 { color: var(--text) !important; }
+        [data-theme="dark"] .text-gray-600 { color: var(--text-soft) !important; }
+        [data-theme="dark"] .text-gray-500 { color: var(--text-soft) !important; }
+        [data-theme="dark"] .border-gray-200 { border-color: var(--border) !important; }
+        [data-theme="dark"] .hover\:border-teal-300:hover { border-color: #3FB0A7 !important; }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
-    <div x-data="appList()" x-init="load()" class="max-w-4xl mx-auto py-8 px-4">
+<body class="bg-gray-50 min-h-screen" data-theme="light">
+    <div x-data="appList()" x-init="initTheme(); load()" class="max-w-4xl mx-auto py-8 px-4">
         
         <!-- Header -->
         <div class="flex justify-between items-center mb-6">
@@ -22,9 +45,15 @@
                 <div class="w-10 h-10 rounded-xl alpul-btn flex items-center justify-center font-black text-white text-lg">A</div>
                 <h1 class="text-2xl font-bold text-gray-800">RDC — Muraciet Siyahisi</h1>
             </div>
-            <button @click="load()" class="alpul-btn text-white px-4 py-2 rounded-lg font-medium transition">
-                Yenile
-            </button>
+            <div class="flex items-center gap-3">
+                <button @click="toggleTheme()" class="w-9 h-9 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-100 transition" title="Theme dəyiş">
+                    <svg x-show="theme === 'light'" class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/></svg>
+                    <svg x-show="theme === 'dark'" class="w-5 h-5 text-indigo-400" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
+                </button>
+                <button @click="load()" class="alpul-btn text-white px-4 py-2 rounded-lg font-medium transition">
+                    Yenile
+                </button>
+            </div>
         </div>
 
         <!-- Loading -->
@@ -83,6 +112,16 @@
                 applications: [],
                 loading: false,
                 error: '',
+                theme: localStorage.getItem('alpul_theme') || 'light',
+
+                initTheme() {
+                    document.body.setAttribute('data-theme', this.theme);
+                },
+                toggleTheme() {
+                    this.theme = this.theme === 'light' ? 'dark' : 'light';
+                    document.body.setAttribute('data-theme', this.theme);
+                    localStorage.setItem('alpul_theme', this.theme);
+                },
 
                 async load() {
                     this.loading = true;
