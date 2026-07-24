@@ -34,7 +34,7 @@ func TestPreValidate(t *testing.T) {
                         akbScore:   400,
                         amount:     200,
                         termMonths: 3,
-                        rate:       30.0,
+                        commission:  14.0,
                         wantErr:    false,
                 },
                 {
@@ -65,7 +65,7 @@ func TestPreValidate(t *testing.T) {
                         akbScore:   750,
                         amount:     700,
                         termMonths: 3,
-                        rate:       26.0,
+                        commission:  15.0,
                         wantErr:    false,
                 },
         }
@@ -73,11 +73,11 @@ func TestPreValidate(t *testing.T) {
         for _, tc := range tests {
                 t.Run(tc.name, func(t *testing.T) {
                         store := newMockStore()
-                        store.rate = tc.rate
-                        store.rateErr = tc.rateErr
+                        store.commission = tc.commission
+                        store.rateErr = tc.commissionErr
                         if tc.levelRanges != nil {
                                 store.levelRanges = tc.levelRanges
-                        } else if tc.rateErr != nil {
+                        } else if tc.commissionErr != nil {
                                 // Simulate ranges query failure when no ranges configured
                                 store.levelRangesErr = errors.New("no ranges")
                         }
@@ -117,7 +117,7 @@ func TestProcessApplication_RejectActiveLoans(t *testing.T) {
                 TermMonths:  3,
                 AkbScore:    400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
         store.approvedCount = 0
 
         provider := newMockLWProvider().withLoans([]lw.CustomerLoan{
@@ -156,7 +156,7 @@ func TestProcessApplication_RejectLatePayments(t *testing.T) {
                 TermMonths:  3,
                 AkbScore:    400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
         store.approvedCount = 0
 
         provider := newMockLWProvider().withLoans([]lw.CustomerLoan{
@@ -194,7 +194,7 @@ func TestProcessApplication_EliteAutoApprove(t *testing.T) {
                 TermMonths:  6,
                 AkbScore:    400, // AKB below 700, so level comes from loan history
         }
-        store.rate = 27.0
+        store.commission = 27.0
         store.approvedCount = 1 // phase 2
         store.currentLevel = "valuable" // customer is at valuable level
 
@@ -248,7 +248,7 @@ func TestProcessApplication_NewLevelPendingApproval(t *testing.T) {
                 TermMonths:  3,
                 AkbScore:    400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
         store.approvedCount = 0
 
         // No completed loans → new level
@@ -286,7 +286,7 @@ func TestProcessApplication_StatusTransitionToChecking(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         engine := NewCreditEngine(provider, store)
@@ -313,7 +313,7 @@ func TestProcessApplication_ChecksSaved(t *testing.T) {
         store.appByID[1] = &model.LoanApplication{
                 ID: 1, CustomerPIN: "PIN1", Amount: 200, TermMonths: 3, AkbScore: 400,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         engine := NewCreditEngine(provider, store)
@@ -353,7 +353,7 @@ func TestProcessApplication_AppNotFound(t *testing.T) {
 
         store := newMockStore()
         // appByID is empty → GetApplicationByID returns errNotFound
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         engine := NewCreditEngine(provider, store)

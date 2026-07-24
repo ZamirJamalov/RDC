@@ -22,7 +22,7 @@ func newConfirmStore() *mockApplicationStore {
                 CustomerPhone:  "+994501234567",
                 Status:         model.StatusPendingExpert,
         }
-        store.rate = 30.0
+        store.commission = 30.0
         store.approvedCount = 0
         store.currentLevel = ""
         store.levelRanges = []repository.LevelRange{
@@ -339,7 +339,7 @@ func TestCompleteApplication_RelaxedValidation(t *testing.T) {
                 CardOwnershipConfirmed: true,
                 Status:                model.StatusPendingExpert,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         svc := NewApplicationService(store, NewCreditEngine(provider, newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
@@ -394,7 +394,7 @@ func TestCompleteApplication_Contact1Required(t *testing.T) {
                 AkbScore:         650,
                 Status:           model.StatusPendingExpert,
         }
-        store.rate = 30.0
+        store.commission = 30.0
 
         provider := newMockLWProvider()
         svc := NewApplicationService(store, NewCreditEngine(provider, newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
@@ -462,7 +462,7 @@ func TestCustomerConfirm_VariantB_EliteDowngraded(t *testing.T) {
                 CustomerPhone:  "+994501234567",
                 Status:         model.StatusPendingExpert,
         }
-        store.rate = 20.0 // elite rate
+        store.commission = 20.0 // elite rate
         store.approvedCount = 2
         store.currentLevel = model.CreditLevelValuable
         store.levelRanges = []repository.LevelRange{

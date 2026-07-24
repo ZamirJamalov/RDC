@@ -129,7 +129,7 @@ func TestCreateApplication_Success(t *testing.T) {
 
         store := newMockStore()
         store.pendingAppID = 0 // no duplicate
-        store.rate = 30.0      // PreValidate will find a rate → success
+        store.commission = 30.0      // PreValidate will find a rate → success
 
         provider := newMockLWProvider() // no loans → "new" level
         engine := NewCreditEngine(provider, store)

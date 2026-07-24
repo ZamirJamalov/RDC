@@ -386,7 +386,7 @@
 
                         <!-- Komissiya (faiz dərəcəsi ilə) -->
                         <div class="flex justify-between items-baseline">
-                            <span class="text-xs text-gray-400">Komissiya (<span x-text="selectedRange?.rate?.toFixed(0)"></span>%)</span>
+                            <span class="text-xs text-gray-400">Komissiya (<span x-text="selectedRange?.commission?.toFixed(0)"></span>%)</span>
                             <span class="text-sm font-semibold text-gray-300">
                                 <span x-text="commissionAmount"></span> ₼
                             </span>
@@ -639,7 +639,7 @@ function applyApp() {
         // Commission = (rate / (100 - rate)) × 100  (rate is commission rate, not interest)
         get commissionAmount() {
             if (!this.selectedRange || !this.form.amount) return '0.00';
-            const rate = this.selectedRange.rate;
+            const rate = this.selectedRange.commission;
             const commission = (rate / (100 - rate)) * 100;
             return (Math.round(commission * 100) / 100).toFixed(2);
         },

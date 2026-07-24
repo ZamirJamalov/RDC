@@ -11,28 +11,28 @@ type LevelRange struct {
         MinAmount          float64
         MaxAmount          float64
         TermMonths         int
-        Rate               float64 // commission rate
+        Commission         float64 // PR #86: renamed from Rate
         Phase              int
-        AnnualInterestRate float64 // PR #78: real annual interest rate (55/52/48/45)
+        AnnualInterestRate float64
 }
 
 // GetCreditLevelRate looks up the applicable interest rate for a given credit level,
 // amount, term, and unlock phase. unlock_phase uses <= so that phase 2 customers can
 // also access phase 1 ranges.
 func (r *ApplicationRepo) GetCreditLevelRate(ctx context.Context, level string, amount float64, termMonths int, unlockPhase int) (float64, error) {
-        var rate float64
+        var commission float64
         err := r.db.QueryRowContext(ctx, `
-                SELECT rate FROM credit_levels
+                SELECT commission FROM credit_levels
                 WHERE level_name = ? AND min_amount <= ? AND max_amount >= ? AND term_months = ? AND unlock_phase <= ? AND is_active = 1`,
-                level, amount, amount, termMonths, unlockPhase).Scan(&rate)
+                level, amount, amount, termMonths, unlockPhase).Scan(&commission)
         if err != nil {
                 if err == sql.ErrNoRows {
-                        return 0, fmt.Errorf("no rate found for level=%s amount=%.2f term=%d months (unlock_phase=%d)",
+                        return 0, fmt.Errorf("no commission found for level=%s amount=%.2f term=%d months (unlock_phase=%d)",
                                 level, amount, termMonths, unlockPhase)
                 }
                 return 0, fmt.Errorf("failed to query credit level rate: %w", err)
         }
-        return rate, nil
+        return commission, nil
 }
 
 // CountApprovedAtLevel counts how many loan applications a customer has had approved
@@ -56,7 +56,7 @@ func (r *ApplicationRepo) CountApprovedAtLevel(ctx context.Context, customerPIN 
 // amount/term has no matching rate.
 func (r *ApplicationRepo) GetLevelRanges(ctx context.Context, level string, unlockPhase int) ([]LevelRange, error) {
         rows, err := r.db.QueryContext(ctx, `
-                SELECT min_amount, max_amount, term_months, rate, unlock_phase, annual_interest_rate
+                SELECT min_amount, max_amount, term_months, commission, unlock_phase, annual_interest_rate
                 FROM credit_levels
                 WHERE level_name = ? AND unlock_phase <= ? AND is_active = 1
                 ORDER BY unlock_phase, min_amount, term_months`,
@@ -69,7 +69,7 @@ func (r *ApplicationRepo) GetLevelRanges(ctx context.Context, level string, unlo
         var ranges []LevelRange
         for rows.Next() {
                 var lr LevelRange
-                if err := rows.Scan(&lr.MinAmount, &lr.MaxAmount, &lr.TermMonths, &lr.Rate, &lr.Phase, &lr.AnnualInterestRate); err != nil {
+                if err := rows.Scan(&lr.MinAmount, &lr.MaxAmount, &lr.TermMonths, &lr.Commission, &lr.Phase, &lr.AnnualInterestRate); err != nil {
                         return nil, fmt.Errorf("failed to scan level range: %w", err)
                 }
                 ranges = append(ranges, lr)

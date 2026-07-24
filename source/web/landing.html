@@ -395,10 +395,10 @@
                         <!-- Available: show total + monthly -->
                         <div class="text-right" x-show="isLevelAvailable(lvl) && isTermAvailableForLevel(lvl, term)">
                             <div class="font-bold text-lg" :class="lvl.textClass">
-                                <span x-text="formatMoney(totalFor(getRate(lvl)))"></span> ₼
+                                <span x-text="formatMoney(totalFor(getCommission(lvl)))"></span> ₼
                             </div>
                             <div class="text-xs text-gray-500">
-                                Aylıq: <span x-text="formatMoney(totalFor(getRate(lvl)) / term)"></span>₼
+                                Aylıq: <span x-text="formatMoney(totalFor(getCommission(lvl)) / term)"></span>₼
                             </div>
                         </div>
                         <!-- Level available but term not: show max amount -->
@@ -718,51 +718,53 @@ function alpulLanding() {
             { name: 'ELITE',    subtitle: 'Maksimum etimad',    icon: '💎', maxAmount: 3000, terms: [3, 6, 9, 12], textClass: 'text-emerald-400' },
         ],
 
-        // Rate lookup table — derived from migration 001_init.sql + 018_phase_and_min_amount.sql.
-        // Key format: "level-amountRange-term" → rate
+        // Commission lookup table — PR #86: updated with correct commission values.
+        // Key format: "level-amountRange-term" → commission
         // amountRange: "50-300", "301-500", "501-700", "701-900", "901-1100", "1101-1300", "1301-1500", "1501-2000", "2001-2500", "2501-3000"
-        // Note: 'new-301-500-3' is phase 2 (requires 1+ approved loan at NEW level).
-        //       Landing page shows all phases for illustration; backend enforces phase at runtime.
         rateTable: {
-            'new-50-300-3': 30,
-            'new-301-500-3': 30,
-            'trusted-50-300-3': 29,
-            'trusted-301-500-3': 28,
-            'trusted-501-700-3': 27,
-            'trusted-501-700-6': 29,
-            'trusted-701-900-3': 27,
-            'trusted-701-900-6': 29,
-            'valuable-50-300-3': 28,
-            'valuable-301-500-3': 27,
-            'valuable-501-700-3': 26,
-            'valuable-501-700-6': 28,
-            'valuable-701-900-3': 26,
-            'valuable-701-900-6': 28,
-            'valuable-901-1100-6': 26,
-            'valuable-901-1100-9': 28,
-            'valuable-1101-1300-6': 25,
-            'valuable-1101-1300-9': 27,
-            'elite-50-300-3': 27,
-            'elite-301-500-3': 26,
-            'elite-501-700-3': 25,
-            'elite-501-700-6': 27,
-            'elite-701-900-3': 25,
-            'elite-701-900-6': 27,
-            'elite-901-1100-6': 25,
-            'elite-901-1100-9': 27,
-            'elite-1101-1300-6': 24,
-            'elite-1101-1300-9': 26,
-            'elite-1301-1500-6': 22,
-            'elite-1301-1500-9': 24,
-            'elite-1301-1500-12': 26,
-            'elite-1501-2000-6': 21,
-            'elite-1501-2000-9': 23,
-            'elite-1501-2000-12': 25,
-            'elite-2001-2500-6': 20,
-            'elite-2001-2500-9': 22,
-            'elite-2001-2500-12': 24,
-            'elite-2501-3000-9': 22,
-            'elite-2501-3000-12': 21,
+            'new-50-300-3': 14,
+            'new-301-500-3': 14,
+            'trusted-50-300-3': 13,
+            'trusted-301-500-3': 13,
+            'trusted-501-700-3': 16,
+            'trusted-501-700-6': 17,
+            'trusted-701-900-3': 15,
+            'trusted-701-900-6': 16,
+            'valuable-50-300-3': 11,
+            'valuable-301-500-3': 11,
+            'valuable-501-700-3': 14,
+            'valuable-501-700-6': 15,
+            'valuable-701-900-3': 13,
+            'valuable-701-900-6': 14,
+            'valuable-901-1100-3': 15,
+            'valuable-901-1100-6': 16,
+            'valuable-901-1100-9': 17,
+            'valuable-1101-1300-3': 14,
+            'valuable-1101-1300-6': 15,
+            'valuable-1101-1300-9': 16,
+            'elite-50-300-3': 9,
+            'elite-301-500-3': 9,
+            'elite-501-700-3': 12,
+            'elite-501-700-6': 13,
+            'elite-701-900-3': 11,
+            'elite-701-900-6': 12,
+            'elite-901-1100-3': 13,
+            'elite-901-1100-6': 14,
+            'elite-901-1100-9': 15,
+            'elite-1101-1300-3': 12,
+            'elite-1101-1300-6': 13,
+            'elite-1101-1300-9': 14,
+            'elite-1301-1500-6': 11,
+            'elite-1301-1500-9': 12,
+            'elite-1301-1500-12': 13,
+            'elite-1501-2000-6': 10,
+            'elite-1501-2000-9': 11,
+            'elite-1501-2000-12': 12,
+            'elite-2001-2500-6': 9,
+            'elite-2001-2500-9': 10,
+            'elite-2001-2500-12': 11,
+            'elite-2501-3000-9': 9,
+            'elite-2501-3000-12': 10,
         },
 
         // PR #83: Theme management
@@ -790,7 +792,7 @@ function alpulLanding() {
         },
 
         // Get rate for a level at current amount + term
-        getRate(lvl) {
+        getCommission(lvl) {
             const range = this.getAmountRange();
             const key = `${lvl.name.toLowerCase()}-${range}-${this.term}`;
             return this.rateTable[key] || null; // null = not available
@@ -846,15 +848,15 @@ function alpulLanding() {
         // Savings vs NEW level rate
         savingsFor(lvl) {
             if (!this.isLevelAvailable(lvl)) return 0;
-            const rate = this.getRate(lvl);
+            const rate = this.getCommission(lvl);
             if (rate === null) return 0;
             const newLvl = this.levels[0]; // NEW is always first
             let baseRate;
             if (this.isLevelAvailable(newLvl)) {
-                baseRate = this.getRate(newLvl);
+                baseRate = this.getCommission(newLvl);
             } else {
                 // NEW not available (amount > 500) — use TRUSTED as base
-                baseRate = this.getRate(this.levels[1]);
+                baseRate = this.getCommission(this.levels[1]);
             }
             if (baseRate === null) return 0;
             return Math.round((this.totalFor(baseRate) - this.totalFor(rate)) * 100) / 100;

@@ -70,7 +70,7 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
                 rejectionReason = "Manually rejected"
         } else if req.Status == model.StatusApproved {
                 // Calculate total amount for manual approval (Principal + Interest)
-                totalAmount = calculateTotalAmount(app.Amount, app.ApprovedRate)
+                totalAmount = calculateTotalAmount(app.Amount, app.ApprovedRate) // ApprovedRate is commission
         }
 
         err = s.repo.UpdateApplicationDecision(ctx, id,

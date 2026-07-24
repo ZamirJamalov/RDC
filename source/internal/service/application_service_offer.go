@@ -54,7 +54,7 @@ func (s *ApplicationService) GetOffer(ctx context.Context, customerPIN string, a
                         MinAmount:          r.MinAmount,
                         MaxAmount:          r.MaxAmount,
                         TermMonths:         r.TermMonths,
-                        Rate:               r.Rate,
+                        Commission:         r.Commission,
                         Phase:              r.Phase,
                         AnnualInterestRate: r.AnnualInterestRate,
                 }
@@ -93,7 +93,7 @@ type OfferRange struct {
         MinAmount          float64 `json:"min_amount"`
         MaxAmount          float64 `json:"max_amount"`
         TermMonths         int     `json:"term_months"`
-        Rate               float64 `json:"rate"`                  // commission rate
+        Commission         float64 `json:"commission"`                // PR #86: commission rate
         Phase              int     `json:"phase"`
-        AnnualInterestRate float64 `json:"annual_interest_rate"`  // PR #78: 55/52/48/45
+        AnnualInterestRate float64 `json:"annual_interest_rate"`      // 55/52/48/45
 }
