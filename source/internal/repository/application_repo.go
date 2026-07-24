@@ -4,6 +4,9 @@ import (
         "context"
         "database/sql"
         "fmt"
+        "strings"
+        "time"
+
         "rdc-source/internal/model"
 )
 
@@ -206,18 +209,75 @@ func (r *ApplicationRepo) GetCheckResults(ctx context.Context, appID int) ([]mod
 
 // HasPendingApplication checks if a customer has an active (non-final) application.
 // Returns the existing app's ID and status, or 0 and "" if none.
+// PR #89: also checks if the last rejected application's cutoff period has expired.
 func (r *ApplicationRepo) HasPendingApplication(ctx context.Context, customerPIN string) (int, string, error) {
         var appID int
         var status string
         err := r.db.QueryRowContext(ctx, `
                 SELECT TOP 1 id, status FROM loan_applications
-                WHERE customer_pin = ? AND status IN ('pending', 'checking', 'pending_approval')
+                WHERE customer_pin = ? AND status IN ('pending', 'checking', 'pending_approval', 'pending_customer', 'pending_expert')
                 ORDER BY id DESC`, customerPIN).Scan(&appID, &status)
         if err != nil {
                 if err == sql.ErrNoRows {
-                        return 0, "", nil
+                        // No active application — check if last rejection is still within validity period
+                        return r.checkLastRejectionCutoff(ctx, customerPIN)
                 }
                 return 0, "", fmt.Errorf("failed to check pending applications: %w", err)
         }
         return appID, status, nil
+}
+
+// checkLastRejectionCutoff checks if the customer's most recent rejected
+// application is still within the validity period of its cutoff rule.
+// Returns (appID, "rejected", nil) if still blocked, or (0, "", nil) if
+// the customer can re-apply.
+func (r *ApplicationRepo) checkLastRejectionCutoff(ctx context.Context, customerPIN string) (int, string, error) {
+        var appID int
+        var rejectionReason string
+        var updatedAt time.Time
+
+        err := r.db.QueryRowContext(ctx, `
+                SELECT TOP 1 id, rejection_reason, updated_at
+                FROM loan_applications
+                WHERE customer_pin = ? AND status = 'rejected' AND rejection_reason IS NOT NULL AND rejection_reason != ''
+                ORDER BY id DESC`, customerPIN).Scan(&appID, &rejectionReason, &updatedAt)
+        if err != nil {
+                if err == sql.ErrNoRows {
+                        return 0, "", nil // No previous rejection — can apply
+                }
+                return 0, "", fmt.Errorf("failed to check last rejection: %w", err)
+        }
+
+        // Extract rule_code from rejection_reason (may have suffix like "AKB_STOP_FACTOR:AB")
+        ruleCode := rejectionReason
+        if idx := strings.Index(rejectionReason, ":"); idx > 0 {
+                ruleCode = rejectionReason[:idx]
+        }
+
+        // Look up validity_days from business_cutoffs
+        var validityDays int
+        err = r.db.QueryRowContext(ctx, `
+                SELECT validity_days FROM business_cutoffs
+                WHERE rule_code = ? AND is_active = 1`, ruleCode).Scan(&validityDays)
+        if err != nil {
+                if err == sql.ErrNoRows {
+                        // Rule not found in cutoffs table — allow re-apply (fail-soft)
+                        return 0, "", nil
+                }
+                return 0, "", fmt.Errorf("failed to check cutoff validity: %w", err)
+        }
+
+        // validity_days = 0 means permanent rejection
+        if validityDays == 0 {
+                return appID, "rejected", nil
+        }
+
+        // Check if the validity period has expired
+        daysSinceRejection := int(time.Since(updatedAt).Hours() / 24)
+        if daysSinceRejection < validityDays {
+                return appID, "rejected", nil // Still within validity period — blocked
+        }
+
+        // Validity period expired — customer can re-apply
+        return 0, "", nil
 }
