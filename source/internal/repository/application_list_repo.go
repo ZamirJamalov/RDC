@@ -42,5 +42,8 @@ func (r *ApplicationRepo) ListByStatus(ctx context.Context, status string) ([]mo
                 app.ApprovedRate = approvedRate.Float64
                 apps = append(apps, app)
         }
+        if err = rows.Err(); err != nil {
+                return nil, fmt.Errorf("error iterating applications: %w", err)
+        }
         return apps, nil
 }
