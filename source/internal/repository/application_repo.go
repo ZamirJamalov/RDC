@@ -60,6 +60,9 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
         var officialIncome sql.NullFloat64
         var contact1, contact2, contact3, contact1Rel, contact2Rel, contact3Rel, address, customerPhone, customerSerial sql.NullString
         var customerConfirmedAt sql.NullString
+        // PR #94: discount fields
+        var discountCode sql.NullString
+        var discountAmount sql.NullFloat64
 
         err := r.db.QueryRowContext(ctx, `
                 SELECT id, customer_pin, customer_full_name, amount, term_months, loan_purpose,
@@ -69,6 +72,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                        contact1_relation, contact2_relation, contact3_relation,
                        card_number, customer_phone, customer_serial,
                        customer_confirmed_at, card_ownership_confirmed,
+                       discount_code, discount_amount,
                        created_at, updated_at
                 FROM loan_applications WHERE id = ?`, id).Scan(
                 &app.ID,
@@ -98,6 +102,8 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                 &customerSerial,
                 &customerConfirmedAt,
                 &app.CardOwnershipConfirmed,
+                &discountCode,
+                &discountAmount,
                 &app.CreatedAt,
                 &app.UpdatedAt,
         )
@@ -131,6 +137,12 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                 rid := int(rejectionReasonID.Int64)
                 app.RejectionReasonID = &rid
         }
+        // PR #94: discount fields
+        app.DiscountCode = discountCode.String
+        if discountAmount.Valid {
+                da := discountAmount.Float64
+                app.DiscountAmount = &da
+        }
 
         return &app, nil
 }
@@ -163,6 +175,49 @@ func (r *ApplicationRepo) UpdateApplicationDecision(ctx context.Context, id int,
                 status, creditLevel, approvedAmount, approvedRate, totalAmount, rejectionReason, id)
         if err != nil {
                 return fmt.Errorf("failed to update application decision: %w", err)
+        }
+        return nil
+}
+
+// UpdateApplicationDiscount sets the discount_code and discount_amount fields
+// on a loan application. PR #94: called by customer-confirm flow (discount_code)
+// and by the approval flow (discount_amount after discount is computed).
+//
+// discountCode: the code string the customer entered (empty to clear).
+// discountAmount: nil to clear, non-nil to set a value.
+func (r *ApplicationRepo) UpdateApplicationDiscount(ctx context.Context, id int, discountCode string, discountAmount *float64) error {
+        var amt interface{}
+        if discountAmount != nil {
+                amt = *discountAmount
+        }
+        _, err := r.db.ExecContext(ctx, `
+                UPDATE loan_applications
+                SET discount_code = ?,
+                    discount_amount = ?,
+                    updated_at = GETDATE()
+                WHERE id = ?`,
+                discountCode, amt, id)
+        if err != nil {
+                return fmt.Errorf("failed to update application discount: %w", err)
+        }
+        return nil
+}
+
+// UpdateApplicationDiscountTx is the tx-aware variant of UpdateApplicationDiscount.
+func (r *ApplicationRepo) UpdateApplicationDiscountTx(ctx context.Context, runner TxRunner, id int, discountCode string, discountAmount *float64) error {
+        var amt interface{}
+        if discountAmount != nil {
+                amt = *discountAmount
+        }
+        _, err := runner.ExecContext(ctx, `
+                UPDATE loan_applications
+                SET discount_code = ?,
+                    discount_amount = ?,
+                    updated_at = GETDATE()
+                WHERE id = ?`,
+                discountCode, amt, id)
+        if err != nil {
+                return fmt.Errorf("failed to update application discount: %w", err)
         }
         return nil
 }

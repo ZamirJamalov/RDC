@@ -11,6 +11,9 @@ import (
 // completes the application (customer name, amount, term, card, contacts, etc).
 // This is used by the CompleteApplication flow and the new CustomerConfirmApplication
 // flow (PR #58).
+//
+// PR #94: also persists discount_code if the customer entered one in apply.html.
+// discount_amount is set later (on approval) by UpdateApplicationDiscount.
 func (r *ApplicationRepo) UpdateApplicationDetails(ctx context.Context, id int, app *model.LoanApplication) error {
         _, err := r.db.ExecContext(ctx, `
                 UPDATE loan_applications
@@ -29,6 +32,7 @@ func (r *ApplicationRepo) UpdateApplicationDetails(ctx context.Context, id int, 
                     card_number = ?,
                     customer_confirmed_at = ?,
                     card_ownership_confirmed = ?,
+                    discount_code = ?,
                     status = ?,
                     updated_at = GETDATE()
                 WHERE id = ?`,
@@ -47,6 +51,7 @@ func (r *ApplicationRepo) UpdateApplicationDetails(ctx context.Context, id int, 
                 app.CardNumber,
                 nullableString(app.CustomerConfirmedAt),
                 app.CardOwnershipConfirmed,
+                nullableString(app.DiscountCode),
                 app.Status,
                 id,
         )

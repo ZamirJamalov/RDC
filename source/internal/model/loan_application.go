@@ -39,6 +39,13 @@ type LoanApplication struct {
         // "I confirm this card belongs to me". Stored for legal/audit purposes.
         CardOwnershipConfirmed bool `json:"card_ownership_confirmed"`
 
+        // PR #94: Discount / referral code.
+        // DiscountCode is the code the customer entered in apply.html (optional).
+        // It belongs to a different customer (self-use prevention enforced in service layer).
+        // DiscountAmount is computed and stored on approval (commission discount applied).
+        DiscountCode   string   `json:"discount_code,omitempty"`
+        DiscountAmount *float64 `json:"discount_amount,omitempty"`
+
         CreatedAt string `json:"created_at"`
         UpdatedAt string `json:"updated_at"`
 }
