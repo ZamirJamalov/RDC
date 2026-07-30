@@ -460,9 +460,21 @@
                               class="input-field w-full px-4 py-3.5 rounded-xl resize-none"></textarea>
                 </div>
 
+                <!-- PR #92: Internal rules confirmation checkbox -->
+                <label class="flex items-start gap-3 cursor-pointer p-3 rounded-xl hover:bg-white/5 transition">
+                    <input type="checkbox" x-model="form.rulesConfirmed"
+                           class="mt-0.5 w-5 h-5 rounded accent-teal-500 flex-shrink-0">
+                    <span class="text-xs text-gray-300 font-semibold leading-relaxed">
+                        Daxili <button type="button" @click="rulesModalOpen = true"
+                                class="text-teal-400 hover:text-teal-300 underline underline-offset-2 decoration-teal-400/50 hover:decoration-teal-300 font-semibold transition">
+                            qaydalarla
+                        </button> tanış olduğumu və bu məlumatların düzgün təqdim edilməsi üçün məsuliyyəti öz üzəmə götürdüyümü təsdiq edirəm.
+                    </span>
+                </label>
+
                 <!-- Confirm button -->
                 <button @click="confirmApplication"
-                        :disabled="loading || !form.amount || form.cardNumber.replace(/\s/g, '').length !== 16 || !form.cardConfirmed || !form.address"
+                        :disabled="loading || !form.amount || form.cardNumber.replace(/\s/g, '').length !== 16 || !form.cardConfirmed || !form.address || !form.rulesConfirmed"
                         class="cta-btn w-full text-white font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
                     <span x-show="!loading">Təsdiq edirəm →</span>
                     <span x-show="loading" class="flex items-center gap-2">
@@ -592,7 +604,11 @@ function applyApp() {
             cardNumber: '',
             cardConfirmed: false,
             address: '',
+            rulesConfirmed: false, // PR #92: internal rules checkbox
         },
+
+        // PR #92: Internal rules modal state
+        rulesModalOpen: false,
 
         // OTP/UI state
         otpSent: false,
@@ -876,6 +892,7 @@ function applyApp() {
                         card_number: this.form.cardNumber.replace(/\s/g, ''), // PR #70: strip spaces
                         actual_address: this.form.address,
                         card_ownership_confirmed: this.form.cardConfirmed,
+                        rules_confirmed: this.form.rulesConfirmed, // PR #92: internal rules ack
                     }),
                 });
                 const data = await resp.json();
@@ -899,6 +916,161 @@ function applyApp() {
     };
 }
 </script>
+
+<!-- ============================================================ -->
+<!-- PR #92: Internal Rules Modal                                 -->
+<!-- ============================================================ -->
+<div x-show="rulesModalOpen"
+     x-transition.opacity
+     x-cloak
+     @keydown.escape.window="rulesModalOpen = false"
+     class="fixed inset-0 z-50 flex items-center justify-center p-4"
+     style="display: none;">
+
+    <!-- Backdrop -->
+    <div class="absolute inset-0 bg-black/70 backdrop-blur-sm" @click="rulesModalOpen = false"></div>
+
+    <!-- Modal -->
+    <div x-show="rulesModalOpen"
+         x-transition
+         class="relative bg-[var(--alpul-card)] border border-[var(--alpul-border)] rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col"
+         style="display: none;">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between p-5 border-b border-[var(--alpul-border)]">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl alpul-btn flex items-center justify-center font-black text-white text-lg shrink-0">A</div>
+                <div>
+                    <h3 class="text-lg font-bold text-[var(--alpul-text)]">Daxili Qaydalar</h3>
+                    <p class="text-xs text-[var(--alpul-text-soft)]">Müştəri sorğusu — uyğunluq və açıqlama</p>
+                </div>
+            </div>
+            <button @click="rulesModalOpen = false"
+                    class="w-9 h-9 rounded-lg border border-[var(--alpul-border)] flex items-center justify-center hover:bg-white/5 transition shrink-0"
+                    title="Bağla (Esc)">
+                <svg class="w-5 h-5 text-[var(--alpul-text-soft)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Body (scrollable) -->
+        <div class="flex-1 overflow-y-auto p-5">
+
+            <!-- Minimalist table -->
+            <div class="border border-[var(--alpul-border)] rounded-lg overflow-hidden">
+
+                <!-- Row 1 -->
+                <div class="grid grid-cols-12 gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
+                    <div class="col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
+                        İş yeri, vəzifəsi və digər gəlir mənbələri olmadığı təqdirdə müştərini maliyyələşdirən şəxs (sponsor) var?
+                    </div>
+                    <div class="col-span-3 flex items-center justify-end">
+                        <span class="px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">Xeyr</span>
+                    </div>
+                </div>
+
+                <!-- Row 2 -->
+                <div class="grid grid-cols-12 gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
+                    <div class="col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
+                        Müştərinin səlahiyyətli nümayəndəsi (məhsul üzərində sərəncam vermək hüququ olan digər şəxslər) var?
+                    </div>
+                    <div class="col-span-3 flex items-center justify-end">
+                        <span class="px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">Xeyr</span>
+                    </div>
+                </div>
+
+                <!-- Row 3 -->
+                <div class="grid grid-cols-12 gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
+                    <div class="col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
+                        Siz xarici ölkədə təsis edilən hüquqi şəxsin, xarici ölkədə qüvvədə olan qanunvericiliyə uyğun olaraq hüquqi şəxs yaratmadan təsis edilən trastın və ya analoji xüsusiyyətlərə malik digər növ hüquqi təsisatın kənar idarəçisi qismində çıxış edirsinizmi?
+                    </div>
+                    <div class="col-span-3 flex items-center justify-end">
+                        <span class="px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">Xeyr</span>
+                    </div>
+                </div>
+
+                <!-- Row 4 — PEP (with explanation) -->
+                <div class="grid grid-cols-12 gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
+                    <div class="col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
+                        <p class="font-medium">Siz siyasi nüfuzlu şəxs, onun yaxın qohumu və ya onunla yaxın münasibətdə olan şəxsinizmi?</p>
+                        <p class="text-xs text-[var(--alpul-text-soft)] mt-1.5 leading-relaxed">
+                            <span class="font-semibold">Siyasi xadim</span> — xarici dövlətdə mühüm ictimai vəzifə tutan və ya əvvəllər belə vəzifəni tutmuş şəxslər (dövlət və ya hökumət başçıları, nüfuzlu siyasətçilər, hökumət üzvləri, yuxarı instansiya məhkəmələrinin hakimləri, yüksək rütbəli hərbi qulluqçular, dövlət mülkiyyətində olan müəssisələrin rəhbər vəzifəli şəxsləri, siyasi partiya vəzifəli şəxsləri), onların ailə üzvləri və yaxın qohumları.
+                        </p>
+                    </div>
+                    <div class="col-span-3 flex items-start justify-end pt-0.5">
+                        <span class="px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">Xeyr</span>
+                    </div>
+                </div>
+
+                <!-- Row 5 -->
+                <div class="grid grid-cols-12 gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
+                    <div class="col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
+                        Kart, ödəniş və ya digər bank hesabları yalnız öz şəxsi məqsədləriniz üçün istifadə ediləcək?
+                    </div>
+                    <div class="col-span-3 flex items-center justify-end">
+                        <span class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">Bəli</span>
+                    </div>
+                </div>
+
+                <!-- Row 6 -->
+                <div class="grid grid-cols-12 gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
+                    <div class="col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
+                        Kart, ödəniş və ya digər bank hesabları üçüncü şəxslərin, ailə üzvləri istisna olmaqla, istifadəsinə məqsədilə əldə edilir?
+                    </div>
+                    <div class="col-span-3 flex items-center justify-end">
+                        <span class="px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">Xeyr</span>
+                    </div>
+                </div>
+
+                <!-- Row 7 -->
+                <div class="grid grid-cols-12 gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
+                    <div class="col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
+                        Kart, ödəniş və ya digər bank hesabları üçüncü şəxslərin istifadəsinə verildiyi halda narkotik vasitələrin dövriyyəsi, qanunsuz qumar/mərc oyunları və ya digər qanunsuz əməliyyatlarda istifadə olunacaq?
+                    </div>
+                    <div class="col-span-3 flex items-center justify-end">
+                        <span class="px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">Xeyr</span>
+                    </div>
+                </div>
+
+                <!-- Row 8 -->
+                <div class="grid grid-cols-12 gap-3 p-3 hover:bg-white/[0.02] transition">
+                    <div class="col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
+                        Kart, ödəniş və ya digər bank hesablarının üçüncü şəxslərin istifadəsinə verildiyi halda narkotik vasitələrin dövriyyəsi, qanunsuz qumar/mərc oyunları və ya digər qanunsuz əməliyyatlarda istifadə oluna biləcəyindən məlumatlısınız?
+                    </div>
+                    <div class="col-span-3 flex items-center justify-end">
+                        <span class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">Bəli</span>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Final declaration -->
+            <div class="mt-4 p-4 bg-[var(--alpul-bg-soft)] border border-[var(--alpul-border)] rounded-lg">
+                <div class="flex items-start gap-2.5">
+                    <svg class="w-5 h-5 text-[var(--alpul-accent)] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <p class="text-xs text-[var(--alpul-text)] leading-relaxed">
+                        Mən, anketə daxil edilən məlumatların düzgün və tam olduğunu təsdiq edirəm. Müvafiq məlumatlar yalnış olduğu təqdirdə qanunvericiliklə müəyyən edilmiş qaydada məsuliyyət daşıdığımı anlayıram.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="p-4 border-t border-[var(--alpul-border)] flex items-center justify-between gap-3">
+            <p class="text-xs text-[var(--alpul-text-soft)]">Bu məlumatlar daxili uyğunluq məqsədilə saxlanılır.</p>
+            <button @click="rulesModalOpen = false"
+                    class="alpul-btn text-white px-5 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2">
+                <span>Anladım, bağla</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+</div>
 
 </body>
 </html>
