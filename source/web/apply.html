@@ -460,6 +460,43 @@
                               class="input-field w-full px-4 py-3.5 rounded-xl resize-none"></textarea>
                 </div>
 
+                <!-- PR #96: Discount code (opsiyonel) -->
+                <div>
+                    <label class="text-sm text-gray-400 mb-2 block">
+                        Endirim kodu <span class="text-gray-500 font-normal">(opsiyonel)</span>
+                    </label>
+                    <div class="relative">
+                        <input type="text"
+                               x-model="form.discountCode"
+                               @input="form.discountCode = form.discountCode.toUpperCase().trim(); validateDiscountCode()"
+                               placeholder="ALPUL-XXXXXX"
+                               maxlength="13"
+                               class="input-field w-full px-4 py-3.5 rounded-xl uppercase tracking-wider font-mono pr-12">
+                        <!-- Real-time validation indicator -->
+                        <div x-show="form.discountCode.length >= 13" class="absolute right-3 top-1/2 -translate-y-1/2">
+                            <svg x-show="discountValid === 'valid'" class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            <svg x-show="discountValid === 'invalid'" class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
+                            </svg>
+                            <svg x-show="discountValid === 'checking'" class="w-5 h-5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                            </svg>
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1.5 leading-relaxed">
+                        Başqa müştəridən aldığınız endirim kodunu daxil edin — komissiyadan endirim tətbiq olunacaq.
+                    </p>
+                    <p x-show="discountValid === 'valid'" class="text-xs text-emerald-400 mt-1.5 font-medium">
+                        ✓ Kod etibarlıdır: <span x-text="discountPreview"></span>
+                    </p>
+                    <p x-show="discountValid === 'invalid'" class="text-xs text-rose-400 mt-1.5 font-medium">
+                        ✗ Yanlış və ya artıq istifadə olunmuş kod.
+                    </p>
+                </div>
+
                 <!-- PR #92: Internal rules confirmation checkbox -->
                 <label class="flex items-start gap-3 cursor-pointer p-3 rounded-xl hover:bg-white/5 transition">
                     <input type="checkbox" x-model="form.rulesConfirmed"
@@ -605,10 +642,17 @@ function applyApp() {
             cardConfirmed: false,
             address: '',
             rulesConfirmed: false, // PR #92: internal rules checkbox
+            discountCode: '',      // PR #96: endirim kodu (opsiyonel)
         },
 
         // PR #92: Internal rules modal state
         rulesModalOpen: false,
+
+        // PR #96: Discount code real-time validation
+        // 'valid' | 'invalid' | 'checking' | '' (empty = not yet validated)
+        discountValid: '',
+        discountPreview: '',
+        _discountValidateTimer: null,
 
         // OTP/UI state
         otpSent: false,
@@ -893,6 +937,7 @@ function applyApp() {
                         actual_address: this.form.address,
                         card_ownership_confirmed: this.form.cardConfirmed,
                         rules_confirmed: this.form.rulesConfirmed, // PR #92: internal rules ack
+                        discount_code: this.form.discountCode.trim(), // PR #96: endirim kodu (opsiyonel)
                     }),
                 });
                 const data = await resp.json();
@@ -912,6 +957,56 @@ function applyApp() {
             } finally {
                 this.loading = false;
             }
+        },
+
+        // PR #96: Real-time discount code validation (debounced).
+        // Calls GET /api/discount-codes/validate?code=ALPUL-XXXXXX
+        // Note: this endpoint only checks format + existence + active status.
+        // Self-use prevention is checked by backend on customer-confirm (it
+        // knows the customer's PIN). So 'valid' here means "code exists and
+        // is active" — the final verdict comes from the backend on submit.
+        validateDiscountCode() {
+            // Clear any pending validation
+            if (this._discountValidateTimer) {
+                clearTimeout(this._discountValidateTimer);
+            }
+
+            // Reset state if code is empty or too short
+            const code = this.form.discountCode.trim();
+            if (code.length < 13) {
+                this.discountValid = '';
+                this.discountPreview = '';
+                return;
+            }
+
+            // Show checking indicator immediately
+            this.discountValid = 'checking';
+            this.discountPreview = '';
+
+            // Debounce 500ms to avoid hammering the API on every keystroke
+            this._discountValidateTimer = setTimeout(async () => {
+                try {
+                    const resp = await fetch('/api/discount-codes/validate?code=' + encodeURIComponent(code));
+                    if (resp.ok) {
+                        const data = await resp.json();
+                        this.discountValid = 'valid';
+                        if (data.discount_type === 'percent') {
+                            this.discountPreview = 'komissiyadan ' + data.discount_value + '% endirim';
+                        } else if (data.discount_type === 'fixed') {
+                            this.discountPreview = data.discount_value + ' AZN endirim';
+                        } else {
+                            this.discountPreview = 'endirim tətbiq olunacaq';
+                        }
+                    } else {
+                        this.discountValid = 'invalid';
+                        this.discountPreview = '';
+                    }
+                } catch (e) {
+                    // Network error — don't block the customer, just clear indicator
+                    this.discountValid = '';
+                    this.discountPreview = '';
+                }
+            }, 500);
         },
     };
 }

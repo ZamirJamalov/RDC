@@ -22,6 +22,7 @@ import (
 //   - /api/lw/*                — LW operations (blacklist, approve)
 //   - /api/rdc/callback/*      — async callbacks from LW (sima-result)
 //   - /api/otp/*               — OTP send/verify (T-3.8)
+//   - /api/discount-codes/*    — discount code validation (PR #96)
 func NewRouter(
         appHandler *ApplicationHandler,
         lwMockHandler *LWMockHandler,
@@ -31,6 +32,7 @@ func NewRouter(
         mygovHandler *MyGovHandler,
         expertHandler *ExpertHandler,
         lwLoanStatusHandler *LWLoanStatusHandler,
+        discountCodeHandler *DiscountCodeHandler, // PR #96
 ) http.Handler {
         mux := http.NewServeMux()
 
@@ -86,6 +88,9 @@ func NewRouter(
         mux.HandleFunc("GET /api/expert/{id}", expertHandler.GetApplication)
         mux.HandleFunc("PUT /api/expert/{id}/approve", expertHandler.Approve)
         mux.HandleFunc("PUT /api/expert/{id}/reject", expertHandler.Reject)
+
+        // PR #96: Discount code validation (public endpoint, used by apply.html)
+        mux.HandleFunc("GET /api/discount-codes/validate", discountCodeHandler.Validate)
 
         // Wrap with middleware: RequestID → Recovery → Logger → mux
         var handler http.Handler = mux
