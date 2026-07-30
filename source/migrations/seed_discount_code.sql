@@ -16,8 +16,8 @@
 --     DELETE FROM customers WHERE customer_pin IN ('TESTA','TESTB');"
 --
 -- ENDİRİM KODUNU ON/OFF ETMƏK (PR #98):
---   OFF:  sqlcmd -Q "UPDATE system_settings SET value='0' WHERE key='discount_codes_enabled'"
---   ON:   sqlcmd -Q "UPDATE system_settings SET value='1' WHERE key='discount_codes_enabled'"
+--   OFF:  sqlcmd -Q "UPDATE system_settings SET [value]='0' WHERE [key]='discount_codes_enabled'"
+--   ON:   sqlcmd -Q "UPDATE system_settings SET [value]='1' WHERE [key]='discount_codes_enabled'"
 --   Və ya HTTP ilə:
 --     curl -X PUT http://localhost:8000/api/admin/feature-flags/discount_codes_enabled \
 --       -H "Content-Type: application/json" -d '{"enabled": false}'
@@ -92,13 +92,14 @@ ELSE
 -- 3. Feature flag yoxlanışı (PR #98)
 -- ============================================================
 DECLARE @flag_value VARCHAR(10);
-SELECT @flag_value = value FROM system_settings WHERE key = 'discount_codes_enabled';
+SELECT @flag_value = [value] FROM system_settings WHERE [key] = 'discount_codes_enabled';
 
 IF @flag_value = '0'
+BEGIN
     PRINT '';
     PRINT '⚠ ENDİRİM KODU FUNKİSIONALI HAL-HAZIRDA SÖNDÜRÜLÜB!';
     PRINT '  Yandırmaq üçün:';
-    PRINT '  sqlcmd -Q "UPDATE system_settings SET value=''1'' WHERE key=''discount_codes_enabled''"';
+    PRINT '  sqlcmd -Q "UPDATE system_settings SET [value]=''1'' WHERE [key]=''discount_codes_enabled''"';
     PRINT '  Və ya:';
     PRINT '  curl -X PUT http://localhost:8000/api/admin/feature-flags/discount_codes_enabled -H "Content-Type: application/json" -d "{\"enabled\": true}"';
 END
@@ -121,7 +122,7 @@ WHERE dc.code IN ('ALPUL-TEST01', 'ALPUL-TEST02');
 
 PRINT '';
 PRINT '=== Feature flag statusu ===';
-SELECT key, value, description FROM system_settings WHERE key = 'discount_codes_enabled';
+SELECT [key], [value], description FROM system_settings WHERE [key] = 'discount_codes_enabled';
 
 COMMIT TRANSACTION;
 

@@ -6,24 +6,27 @@
 --   - discount_codes_enabled: 1=on, 0=off (turns off the entire discount
 --     code feature with one command)
 --
+-- NOTE: 'key' is a reserved keyword in SQL Server, so the column name
+-- must be wrapped in brackets [key] in all SQL statements.
+--
 -- Query example:
---   SELECT value FROM system_settings WHERE key = 'discount_codes_enabled';
+--   SELECT [value] FROM system_settings WHERE [key] = 'discount_codes_enabled';
 
 IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'system_settings')
 BEGIN
     CREATE TABLE system_settings (
-        key         VARCHAR(50)  NOT NULL PRIMARY KEY,
-        value       VARCHAR(255) NOT NULL,
-        description NVARCHAR(500) NULL,
-        updated_at  DATETIME     NOT NULL DEFAULT GETDATE()
+        [key]        VARCHAR(50)  NOT NULL PRIMARY KEY,
+        [value]      VARCHAR(255) NOT NULL,
+        description  NVARCHAR(500) NULL,
+        updated_at   DATETIME     NOT NULL DEFAULT GETDATE()
     );
 END
 GO
 
 -- Seed: discount_codes_enabled (default ON)
-IF NOT EXISTS (SELECT 1 FROM system_settings WHERE key = 'discount_codes_enabled')
+IF NOT EXISTS (SELECT 1 FROM system_settings WHERE [key] = 'discount_codes_enabled')
 BEGIN
-    INSERT INTO system_settings (key, value, description)
+    INSERT INTO system_settings ([key], [value], description)
     VALUES (
         'discount_codes_enabled',
         '1',
