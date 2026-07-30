@@ -32,7 +32,13 @@ func (r *DiscountCodeRepo) Create(ctx context.Context, c *model.DiscountCode) er
 }
 
 // CreateTx is the tx-aware variant of Create.
+// PR #97: issued_from_application_id is now nullable — if IssuedFromApplicationID
+// is nil (manually-created code), NULL is stored.
 func (r *DiscountCodeRepo) CreateTx(ctx context.Context, runner TxRunner, c *model.DiscountCode) error {
+        var issuedFromAppID interface{}
+        if c.IssuedFromApplicationID != nil {
+                issuedFromAppID = *c.IssuedFromApplicationID
+        }
         err := runner.QueryRowContext(ctx, `
                 INSERT INTO discount_codes
                         (code, issued_to_customer_id, issued_from_application_id,
@@ -41,7 +47,7 @@ func (r *DiscountCodeRepo) CreateTx(ctx context.Context, runner TxRunner, c *mod
                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
                 c.Code,
                 c.IssuedToCustomerID,
-                c.IssuedFromApplicationID,
+                issuedFromAppID,
                 c.DiscountType,
                 c.DiscountValue,
                 c.Status,
@@ -62,7 +68,7 @@ func (r *DiscountCodeRepo) GetByCode(ctx context.Context, code string) (*model.D
 // GetByCodeTx is the tx-aware variant of GetByCode (for re-validation inside tx).
 func (r *DiscountCodeRepo) GetByCodeTx(ctx context.Context, runner TxRunner, code string) (*model.DiscountCode, error) {
         var c model.DiscountCode
-        var usedByAppID sql.NullInt64
+        var issuedFromAppID, usedByAppID sql.NullInt64
         var usedAt, validUntil sql.NullTime
 
         err := runner.QueryRowContext(ctx, `
@@ -74,7 +80,7 @@ func (r *DiscountCodeRepo) GetByCodeTx(ctx context.Context, runner TxRunner, cod
                 &c.ID,
                 &c.Code,
                 &c.IssuedToCustomerID,
-                &c.IssuedFromApplicationID,
+                &issuedFromAppID,
                 &c.DiscountType,
                 &c.DiscountValue,
                 &c.Status,
@@ -90,6 +96,10 @@ func (r *DiscountCodeRepo) GetByCodeTx(ctx context.Context, runner TxRunner, cod
                 return nil, fmt.Errorf("failed to query discount code: %w", err)
         }
 
+        if issuedFromAppID.Valid {
+                id := int(issuedFromAppID.Int64)
+                c.IssuedFromApplicationID = &id
+        }
         if usedByAppID.Valid {
                 id := int(usedByAppID.Int64)
                 c.UsedByApplicationID = &id
@@ -171,14 +181,14 @@ func (r *DiscountCodeRepo) GetByOwnerCustomerID(ctx context.Context, customerID 
         var codes []*model.DiscountCode
         for rows.Next() {
                 var c model.DiscountCode
-                var usedByAppID sql.NullInt64
+                var issuedFromAppID, usedByAppID sql.NullInt64
                 var usedAt, validUntil sql.NullTime
 
                 if err := rows.Scan(
                         &c.ID,
                         &c.Code,
                         &c.IssuedToCustomerID,
-                        &c.IssuedFromApplicationID,
+                        &issuedFromAppID,
                         &c.DiscountType,
                         &c.DiscountValue,
                         &c.Status,
@@ -190,6 +200,10 @@ func (r *DiscountCodeRepo) GetByOwnerCustomerID(ctx context.Context, customerID 
                         return nil, fmt.Errorf("failed to scan discount code: %w", err)
                 }
 
+                if issuedFromAppID.Valid {
+                        id := int(issuedFromAppID.Int64)
+                        c.IssuedFromApplicationID = &id
+                }
                 if usedByAppID.Valid {
                         id := int(usedByAppID.Int64)
                         c.UsedByApplicationID = &id
