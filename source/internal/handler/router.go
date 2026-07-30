@@ -33,6 +33,7 @@ func NewRouter(
         expertHandler *ExpertHandler,
         lwLoanStatusHandler *LWLoanStatusHandler,
         discountCodeHandler *DiscountCodeHandler, // PR #96
+        featureFlagHandler *FeatureFlagHandler,   // PR #98
 ) http.Handler {
         mux := http.NewServeMux()
 
@@ -91,6 +92,11 @@ func NewRouter(
 
         // PR #96: Discount code validation (public endpoint, used by apply.html)
         mux.HandleFunc("GET /api/discount-codes/validate", discountCodeHandler.Validate)
+
+        // PR #98: Feature flag management (admin endpoints)
+        mux.HandleFunc("GET /api/admin/feature-flags", featureFlagHandler.List)
+        mux.HandleFunc("GET /api/admin/feature-flags/{key}", featureFlagHandler.Get)
+        mux.HandleFunc("PUT /api/admin/feature-flags/{key}", featureFlagHandler.Toggle)
 
         // Wrap with middleware: RequestID → Recovery → Logger → mux
         var handler http.Handler = mux

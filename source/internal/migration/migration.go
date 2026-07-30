@@ -75,6 +75,8 @@ func dropAllTables(db *sql.DB) error {
                 "DROP TABLE IF EXISTS customers",
                 // PR #89: business_cutoffs (no FK deps, safe to drop last).
                 "DROP TABLE IF EXISTS business_cutoffs",
+                // PR #98: system_settings (no FK deps).
+                "DROP TABLE IF EXISTS system_settings",
         }
         for _, stmt := range dropStatements {
                 if _, err := db.Exec(stmt); err != nil {
