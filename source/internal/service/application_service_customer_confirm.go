@@ -29,6 +29,11 @@ type CustomerConfirmRequest struct {
         CardNumber              string  `json:"card_number"`
         ActualAddress           string  `json:"actual_address"`
         CardOwnershipConfirmed  bool    `json:"card_ownership_confirmed"`
+        // PR #95: optional discount/referral code entered by the customer.
+        // Validated against the discount_codes table (must exist, belong to a
+        // different customer, and be in 'active' status). If valid, the code is
+        // stored on the application; the actual discount is applied at approval.
+        DiscountCode            string  `json:"discount_code,omitempty"`
 }
 
 // CustomerConfirmApplication finalizes the customer-side of the application flow.
@@ -145,6 +150,35 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
         app.ActualAddress = req.ActualAddress
         app.CustomerConfirmedAt = time.Now().Format(time.RFC3339)
         app.CardOwnershipConfirmed = true
+
+        // PR #95: validate discount code if the customer entered one.
+        // The code is NOT marked as 'used' here — that happens atomically at
+        // approval. If the customer enters an invalid code, we reject the whole
+        // request so the customer can correct it.
+        if req.DiscountCode != "" && s.discountSvc != nil {
+                customer, err := s.customerRepo.GetByPIN(ctx, app.CustomerPIN)
+                if err != nil {
+                        slog.Error("customer-confirm: failed to fetch customer for discount validation",
+                                "application_id", appID,
+                                "customer_pin", app.CustomerPIN,
+                                "error", err)
+                        return nil, fmt.Errorf("texniki xəta — müştəri məlumatları əldə edilə bilmədi")
+                }
+                if _, err := s.discountSvc.ValidateForCustomer(ctx, req.DiscountCode, customer.ID); err != nil {
+                        slog.Info("customer-confirm: discount code rejected",
+                                "application_id", appID,
+                                "customer_pin", app.CustomerPIN,
+                                "discount_code", req.DiscountCode,
+                                "error", err)
+                        return nil, err
+                }
+                app.DiscountCode = req.DiscountCode
+                slog.Info("customer-confirm: discount code accepted",
+                        "application_id", appID,
+                        "customer_pin", app.CustomerPIN,
+                        "discount_code", app.DiscountCode)
+        }
+
         // PR #63 (Variant B): transition to 'pending' so the credit engine can pick it up.
         // Previously (Variant A), status stayed pending_expert and the expert had to call
         // CompleteApplication to add contact phones and trigger the engine. Now the engine

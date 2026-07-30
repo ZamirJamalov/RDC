@@ -240,6 +240,49 @@ func calculateTotalAmount(principal, commission float64) float64 {
         return math.Round(total*100) / 100
 }
 
+// PR #95: discount-aware variants.
+//
+// calculateCommissionAmount returns only the commission portion of a loan,
+// without adding the principal. Used to compute the base for discount
+// application.
+//
+// Example: 300 AZN principal, commission=14:
+//   commission_amount = 300 × (14/86) × 100 = 162.79
+func calculateCommissionAmount(principal, commission float64) float64 {
+        if commission <= 0 || commission >= 100 {
+                return 0
+        }
+        return (commission / (100 - commission)) * 100
+}
+
+// calculateTotalAmountWithDiscount returns the total credit amount after
+// applying a discount to the commission portion.
+//
+// total = principal + max(0, commission_amount - max(0, discount_amount))
+//
+// The discount is clamped to [0, commission_amount] so the commission can
+// never go negative (and the total can never drop below the principal).
+// Negative discount_amount is treated as 0 (no discount).
+//
+// Example: 300 AZN principal, commission=14 (→ 16.28 commission), discount=5:
+//   discounted_commission = max(0, 16.28 - 5) = 11.28
+//   total = 300 + 11.28 = 311.28 AZN
+func calculateTotalAmountWithDiscount(principal, commission, discountAmount float64) float64 {
+        if commission <= 0 || commission >= 100 {
+                return principal
+        }
+        if discountAmount < 0 {
+                discountAmount = 0
+        }
+        commissionAmount := (commission / (100 - commission)) * 100
+        discounted := commissionAmount - discountAmount
+        if discounted < 0 {
+                discounted = 0
+        }
+        total := principal + discounted
+        return math.Round(total*100) / 100
+}
+
 // applyDecisionTx writes the decision to the DB inside the given transaction.
 // For approved applications, it also saves the credit-level history (best-effort
 // — a failure here is logged but does not roll back the tx).

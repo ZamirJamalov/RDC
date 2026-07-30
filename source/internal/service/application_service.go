@@ -6,6 +6,7 @@ import (
         "log/slog"
 
         "rdc-source/internal/model"
+        "rdc-source/pkg/otp"
 )
 
 // ApplicationService handles loan application business logic.
@@ -14,7 +15,9 @@ type ApplicationService struct {
         creditEngine *CreditEngine
         customerRepo CustomerStore
         otpService   *OTPService
-        simaService  *SimaService // PR #69: set via SetSimaService after construction
+        simaService  *SimaService        // PR #69: set via SetSimaService after construction
+        discountSvc  *DiscountCodeService // PR #95: set via SetDiscountService after construction
+        smsProvider  otp.Provider         // PR #95: for approval SMS (may be nil if otpService is nil)
 }
 
 // NewApplicationService creates a new ApplicationService.
@@ -24,12 +27,16 @@ type ApplicationService struct {
 // the application is created — customer info is stored in a single
 // profile, not duplicated per application.
 func NewApplicationService(repo ApplicationStore, engine *CreditEngine, customerRepo CustomerStore, otpService *OTPService) *ApplicationService {
-        return &ApplicationService{
+        svc := &ApplicationService{
                 repo:         repo,
                 creditEngine: engine,
                 customerRepo: customerRepo,
                 otpService:   otpService,
         }
+        if otpService != nil {
+                svc.smsProvider = otpService.provider
+        }
+        return svc
 }
 
 // SetSimaService injects the SIMA service after construction (PR #69).
@@ -38,6 +45,20 @@ func NewApplicationService(repo ApplicationStore, engine *CreditEngine, customer
 // KYC link via SMS to the customer after the engine passes.
 func (s *ApplicationService) SetSimaService(sima *SimaService) {
         s.simaService = sima
+}
+
+// SetDiscountService injects the discount code service after construction
+// (PR #95). Needed because DiscountCodeService is created after
+// ApplicationService in main.go. When set, the approval flow will:
+//   - validate the customer-entered discount code (if any)
+//   - apply the discount to the commission
+//   - mark the code as used
+//   - generate a new code for the approved customer
+//   - send an SMS with the new code
+// When nil (e.g. in tests that don't care about discount), the approval
+// flow proceeds without discount logic.
+func (s *ApplicationService) SetDiscountService(svc *DiscountCodeService) {
+        s.discountSvc = svc
 }
 
 // CreateApplication creates a new loan application with "pending" status and triggers the credit engine.

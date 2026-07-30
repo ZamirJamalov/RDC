@@ -236,6 +236,18 @@ func (m *mockApplicationStore) UpdateApplicationDetails(_ context.Context, id in
                 existing.Contact1Relation = app.Contact1Relation
                 existing.Contact2Relation = app.Contact2Relation
                 existing.Contact3Relation = app.Contact3Relation
+                // PR #95: discount_code
+                existing.DiscountCode = app.DiscountCode
+        }
+        return nil
+}
+
+// UpdateApplicationDiscount — PR #95: mock implementation. Mutates the stored
+// application to reflect discount_code / discount_amount changes.
+func (m *mockApplicationStore) UpdateApplicationDiscount(_ context.Context, id int, discountCode string, discountAmount *float64) error {
+        if existing, ok := m.appByID[id]; ok {
+                existing.DiscountCode = discountCode
+                existing.DiscountAmount = discountAmount
         }
         return nil
 }
