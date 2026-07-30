@@ -146,8 +146,8 @@ func TestGenerateForApplication_CreatesValidCode(t *testing.T) {
         if code.IssuedToCustomerID != 100 {
                 t.Errorf("issued_to_customer_id should be 100, got %d", code.IssuedToCustomerID)
         }
-        if code.IssuedFromApplicationID != 1 {
-                t.Errorf("issued_from_application_id should be 1, got %d", code.IssuedFromApplicationID)
+        if code.IssuedFromApplicationID == nil || *code.IssuedFromApplicationID != 1 {
+                t.Errorf("issued_from_application_id should be 1, got %v", code.IssuedFromApplicationID)
         }
 }
 
