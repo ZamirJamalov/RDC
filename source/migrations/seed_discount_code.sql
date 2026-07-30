@@ -1,19 +1,28 @@
 -- ============================================================
 -- seed_discount_code.sql
--- PR #97: Test endirim kodları və müştərilər əlavə edir.
+-- PR #97 / PR #98: Test endirim kodları və müştərilər əlavə edir.
 -- ============================================================
 --
 -- Bu script endirim kodu funksionalını sadə yolla sınaqdan
 -- keçirmək üçün DB-yə test datası əlavə edir.
 --
--- Əlavə olunanlar:
---   1. 2 test müştərisi (TESTA, TESTB)
---   2. 2 endirim kodu (ALPUL-TEST01, ALPUL-TEST02)
---
--- İstifadə:
+-- İSTİFADƏ:
 --   sqlcmd -S DB_HOST -U DB_USER -P DB_PASSWORD -d RDC -i seed_discount_code.sql
 --
--- Tələb: Migration 023 və 024 artıq run olunmalıdır.
+-- TƏMİZLƏMƏK (PR #98):
+--   sqlcmd -S DB_HOST -U DB_USER -P DB_PASSWORD -d RDC -Q "
+--     DELETE FROM discount_codes WHERE code IN ('ALPUL-TEST01','ALPUL-TEST02');
+--     DELETE FROM loan_applications WHERE customer_pin IN ('TESTA','TESTB');
+--     DELETE FROM customers WHERE customer_pin IN ('TESTA','TESTB');"
+--
+-- ENDİRİM KODUNU ON/OFF ETMƏK (PR #98):
+--   OFF:  sqlcmd -Q "UPDATE system_settings SET value='0' WHERE key='discount_codes_enabled'"
+--   ON:   sqlcmd -Q "UPDATE system_settings SET value='1' WHERE key='discount_codes_enabled'"
+--   Və ya HTTP ilə:
+--     curl -X PUT http://localhost:8000/api/admin/feature-flags/discount_codes_enabled \
+--       -H "Content-Type: application/json" -d '{"enabled": false}'
+--
+-- Tələb: Migration 023, 024, 025 artıq run olunmalıdır.
 -- ============================================================
 
 BEGIN TRANSACTION;
@@ -45,52 +54,34 @@ ELSE
 -- ============================================================
 -- 2. Endirim kodları
 -- ============================================================
--- PR #97: issued_from_application_id artıq NULLABLE-dır,
--- ona görə manual seed kodları təmiz şəkildə əlavə olunur.
 
 DECLARE @customer_a_id INT;
 SELECT @customer_a_id = id FROM customers WHERE customer_pin = 'TESTA';
 
--- Kod 1: 10% endirim (komissiyanın 10%-i)
+-- Kod 1: 10% percent endirim
 IF NOT EXISTS (SELECT 1 FROM discount_codes WHERE code = 'ALPUL-TEST01')
 BEGIN
     INSERT INTO discount_codes (
-        code,
-        issued_to_customer_id,
-        issued_from_application_id,  -- NULL = manually created (PR #97)
-        discount_type,
-        discount_value,
-        status
+        code, issued_to_customer_id, issued_from_application_id,
+        discount_type, discount_value, status
     ) VALUES (
-        'ALPUL-TEST01',
-        @customer_a_id,
-        NULL,           -- manually seeded, no source application
-        'percent',      -- komissiyanın faizi kimi
-        10.00,          -- 10% endirim
-        'active'
+        'ALPUL-TEST01', @customer_a_id, NULL,
+        'percent', 10.00, 'active'
     );
     PRINT '✓ Endirim kodu əlavə edildi: ALPUL-TEST01 (10% percent, sahib: TESTA)';
 END
 ELSE
     PRINT '  Endirim kodu artıq mövcuddur: ALPUL-TEST01';
 
--- Kod 2: 5 AZN fixed endirim (mütləq məbləğ)
+-- Kod 2: 5 AZN fixed endirim
 IF NOT EXISTS (SELECT 1 FROM discount_codes WHERE code = 'ALPUL-TEST02')
 BEGIN
     INSERT INTO discount_codes (
-        code,
-        issued_to_customer_id,
-        issued_from_application_id,
-        discount_type,
-        discount_value,
-        status
+        code, issued_to_customer_id, issued_from_application_id,
+        discount_type, discount_value, status
     ) VALUES (
-        'ALPUL-TEST02',
-        @customer_a_id,
-        NULL,
-        'fixed',        -- mütləq məbləğ
-        5.00,           -- 5 AZN endirim
-        'active'
+        'ALPUL-TEST02', @customer_a_id, NULL,
+        'fixed', 5.00, 'active'
     );
     PRINT '✓ Endirim kodu əlavə edildi: ALPUL-TEST02 (5 AZN fixed, sahib: TESTA)';
 END
@@ -98,7 +89,22 @@ ELSE
     PRINT '  Endirim kodu artıq mövcuddur: ALPUL-TEST02';
 
 -- ============================================================
--- 3. Nəticəni göstər
+-- 3. Feature flag yoxlanışı (PR #98)
+-- ============================================================
+DECLARE @flag_value VARCHAR(10);
+SELECT @flag_value = value FROM system_settings WHERE key = 'discount_codes_enabled';
+
+IF @flag_value = '0'
+    PRINT '';
+    PRINT '⚠ ENDİRİM KODU FUNKİSIONALI HAL-HAZIRDA SÖNDÜRÜLÜB!';
+    PRINT '  Yandırmaq üçün:';
+    PRINT '  sqlcmd -Q "UPDATE system_settings SET value=''1'' WHERE key=''discount_codes_enabled''"';
+    PRINT '  Və ya:';
+    PRINT '  curl -X PUT http://localhost:8000/api/admin/feature-flags/discount_codes_enabled -H "Content-Type: application/json" -d "{\"enabled\": true}"';
+END
+
+-- ============================================================
+-- 4. Nəticəni göstər
 -- ============================================================
 PRINT '';
 PRINT '=== Cari endirim kodları ===';
@@ -112,6 +118,10 @@ SELECT
 FROM discount_codes dc
 JOIN customers c ON c.id = dc.issued_to_customer_id
 WHERE dc.code IN ('ALPUL-TEST01', 'ALPUL-TEST02');
+
+PRINT '';
+PRINT '=== Feature flag statusu ===';
+SELECT key, value, description FROM system_settings WHERE key = 'discount_codes_enabled';
 
 COMMIT TRANSACTION;
 
@@ -130,6 +140,7 @@ PRINT '  3. Endirim kodu xanasına ALPUL-TEST01 daxil et';
 PRINT '  4. Real-time ✓ görməlisən';
 PRINT '  5. Təsdiq et → ekspert approve → endirim tətbiq olunur';
 PRINT '';
-PRINT 'Və ya curl ilə validate et:';
-PRINT '  curl "http://localhost:8000/api/discount-codes/validate?code=ALPUL-TEST01"';
+PRINT 'On/off (PR #98):';
+PRINT '  curl -X PUT http://localhost:8000/api/admin/feature-flags/discount_codes_enabled \';
+PRINT '    -H "Content-Type: application/json" -d "{\"enabled\": false}"';
 PRINT '============================================================';

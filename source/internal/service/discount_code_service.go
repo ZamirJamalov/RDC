@@ -28,6 +28,18 @@ import (
 //     to subtract from the commission, based on discount_type (percent|fixed).
 type DiscountCodeService struct {
         repo DiscountCodeStore
+
+        // PR #98: feature flag service for the discount_codes_enabled toggle.
+        // May be nil (e.g. in tests) — in that case the feature is treated as ON.
+        flags *FeatureFlagService
+}
+
+// SetFeatureFlagService injects the feature flag service after construction.
+// PR #98: when set, all discount code operations check the
+// discount_codes_enabled flag first. When nil, the feature is always ON
+// (backward-compatible with tests that don't wire the flag).
+func (s *DiscountCodeService) SetFeatureFlagService(flags *FeatureFlagService) {
+        s.flags = flags
 }
 
 // NewDiscountCodeService creates a new DiscountCodeService.
@@ -213,6 +225,15 @@ func (s *DiscountCodeService) ValidateForCustomer(ctx context.Context, code stri
                 return nil, fmt.Errorf("endirim kodu boşdur")
         }
 
+        // PR #98: feature flag check — if the discount feature is globally
+        // disabled, reject validation immediately.
+        if s.flags != nil && !s.flags.IsDiscountCodesEnabled(ctx) {
+                slog.Info("discount code validation rejected — feature disabled",
+                        "code", normalized,
+                        "customer_id", currentCustomerID)
+                return nil, fmt.Errorf("endirim kodu funksiyası müvəqqəti söndürülüb")
+        }
+
         dc, err := s.repo.GetByCode(ctx, normalized)
         if err != nil {
                 slog.Info("discount code not found",
@@ -255,6 +276,11 @@ func (s *DiscountCodeService) ValidateForCustomerTx(ctx context.Context, runner 
         normalized := normalizeCode(code)
         if normalized == "" {
                 return nil, fmt.Errorf("endirim kodu boşdur")
+        }
+
+        // PR #98: feature flag check (same as ValidateForCustomer).
+        if s.flags != nil && !s.flags.IsDiscountCodesEnabled(ctx) {
+                return nil, fmt.Errorf("endirim kodu funksiyası müvəqqəti söndürülüb")
         }
 
         dc, err := s.repo.GetByCodeTx(ctx, runner, normalized)

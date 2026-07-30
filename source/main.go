@@ -69,7 +69,8 @@ func main() {
         appRepo := repository.NewApplicationRepo(db)
         customerRepo := repository.NewCustomerRepo(db)
         lwEventRepo := repository.NewLWLoanEventRepo(db)
-        discountCodeRepo := repository.NewDiscountCodeRepo(db) // PR #94/95: discount codes
+        discountCodeRepo := repository.NewDiscountCodeRepo(db)           // PR #94/95: discount codes
+        systemSettingsRepo := repository.NewSystemSettingsRepo(db)       // PR #98: feature flags
 
         // --- LW Provider (T-2.13) ---
         // In mock mode: reads from local DB (mock_lms_loans table) + canned responses.
@@ -89,6 +90,12 @@ func main() {
         // and approval can apply discounts + send SMS with new codes.
         discountCodeService := service.NewDiscountCodeService(discountCodeRepo)
         appService.SetDiscountService(discountCodeService)
+
+        // PR #98: feature flag service — lets admin toggle the discount code
+        // feature on/off with one PUT command. Wired into DiscountCodeService
+        // so validation/generation respect the flag.
+        featureFlagService := service.NewFeatureFlagService(systemSettingsRepo)
+        discountCodeService.SetFeatureFlagService(featureFlagService)
 
 
         // --- SIMA Provider + Service (T-4.1 to T-4.5) ---
@@ -115,9 +122,10 @@ func main() {
         expertHandler := handler.NewExpertHandler(appService)
         lwLoanStatusHandler := handler.NewLWLoanStatusHandler(lwEventRepo)
         discountCodeHandler := handler.NewDiscountCodeHandler(discountCodeService) // PR #96
+        featureFlagHandler := handler.NewFeatureFlagHandler(featureFlagService)    // PR #98
 
         // --- Route registration + middleware chain ---
-        router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler, lwLoanStatusHandler, discountCodeHandler)
+        router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler, lwLoanStatusHandler, discountCodeHandler, featureFlagHandler)
 
         // UI: serve embedded static files from web/ directory.
         // fs.Sub strips the "web/" prefix so /detail.html maps to web/detail.html.
