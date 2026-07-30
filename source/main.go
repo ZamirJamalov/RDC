@@ -69,6 +69,7 @@ func main() {
         appRepo := repository.NewApplicationRepo(db)
         customerRepo := repository.NewCustomerRepo(db)
         lwEventRepo := repository.NewLWLoanEventRepo(db)
+        discountCodeRepo := repository.NewDiscountCodeRepo(db) // PR #94/95: discount codes
 
         // --- LW Provider (T-2.13) ---
         // In mock mode: reads from local DB (mock_lms_loans table) + canned responses.
@@ -83,6 +84,11 @@ func main() {
         // --- Service layer ---
         creditEngine := service.NewCreditEngine(lwProvider, appRepo)
         appService := service.NewApplicationService(appRepo, creditEngine, customerRepo, otpService)
+
+        // PR #95: inject DiscountCodeService so customer-confirm can validate codes
+        // and approval can apply discounts + send SMS with new codes.
+        discountCodeService := service.NewDiscountCodeService(discountCodeRepo)
+        appService.SetDiscountService(discountCodeService)
 
 
         // --- SIMA Provider + Service (T-4.1 to T-4.5) ---

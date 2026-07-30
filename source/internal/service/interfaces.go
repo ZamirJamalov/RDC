@@ -87,6 +87,12 @@ type ApplicationStore interface {
         // completes the application (used by CompleteApplication flow).
         UpdateApplicationDetails(ctx context.Context, id int, app *model.LoanApplication) error
 
+        // PR #95: discount code persistence.
+        // UpdateApplicationDiscount sets discount_code + discount_amount on an
+        // application. Used by customer-confirm (to store the entered code) and
+        // approval (to store the computed discount amount).
+        UpdateApplicationDiscount(ctx context.Context, id int, discountCode string, discountAmount *float64) error
+
         // --- Tx-aware variants (used by ProcessApplication for atomicity) ---
 
         UpdateApplicationStatusTx(ctx context.Context, runner repository.TxRunner, id int, status string) error
