@@ -114,9 +114,10 @@ func main() {
         mygovHandler := handler.NewMyGovHandler(mygovService)
         expertHandler := handler.NewExpertHandler(appService)
         lwLoanStatusHandler := handler.NewLWLoanStatusHandler(lwEventRepo)
+        discountCodeHandler := handler.NewDiscountCodeHandler(discountCodeService) // PR #96
 
         // --- Route registration + middleware chain ---
-        router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler, lwLoanStatusHandler)
+        router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler, lwLoanStatusHandler, discountCodeHandler)
 
         // UI: serve embedded static files from web/ directory.
         // fs.Sub strips the "web/" prefix so /detail.html maps to web/detail.html.
