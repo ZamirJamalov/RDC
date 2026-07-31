@@ -472,27 +472,8 @@
                                @input="formatDiscountCode()"
                                placeholder="ALPUL-XXXXXX"
                                maxlength="13"
-                               class="input-field w-full px-4 py-3.5 rounded-xl uppercase tracking-wider font-mono pr-12">
-                        <!-- Real-time validation indicator -->
-                        <div x-show="form.discountCode.length >= 13" class="absolute right-3 top-1/2 -translate-y-1/2">
-                            <svg x-show="discountValid === 'valid'" class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
-                            </svg>
-                            <svg x-show="discountValid === 'invalid'" class="w-5 h-5 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/>
-                            </svg>
-                            <svg x-show="discountValid === 'checking'" class="w-5 h-5 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
-                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                            </svg>
-                        </div>
+                               class="input-field w-full px-4 py-3.5 rounded-xl uppercase tracking-wider font-mono">
                     </div>
-                    <p class="text-xs text-gray-500 mt-1.5 leading-relaxed">
-                        Başqa müştəridən aldığınız endirim kodunu daxil edin — komissiyadan endirim tətbiq olunacaq.
-                    </p>
-                    <p x-show="discountValid === 'valid'" class="text-xs text-emerald-400 mt-1.5 font-medium">
-                        ✓ Kod etibarlıdır: <span x-text="discountPreview"></span>
-                    </p>
                     <p x-show="discountValid === 'invalid'" class="text-xs text-rose-400 mt-1.5 font-medium">
                         ✗ Yanlış və ya artıq istifadə olunmuş kod.
                     </p>
@@ -981,8 +962,21 @@ function applyApp() {
         // is active" — the final verdict comes from the backend on submit.
         //
         // PR #101: ALPUL- prefiksi avtomatik əlavə olunur.
+        // PR #104: əgər istifadəçi kodu silirsə (yalnız ALPUL- qalıbsa və ya
+        // boşdursa), input tam təmizlənsin ki, təsdiq zamanı ALPUL- kod kimi
+        // qəbul olunmasın.
         formatDiscountCode() {
             let v = (this.form.discountCode || '').toUpperCase().trim();
+
+            // PR #104: əgər input boşdursa və ya yalnız 'ALPUL-' qalıbsa,
+            // tamamilə təmizlə (ALPUL- də silinsin)
+            if (v === '' || v === 'ALPUL' || v === 'ALPUL-') {
+                this.form.discountCode = '';
+                this.discountValid = '';
+                this.discountPreview = '';
+                return;
+            }
+
             // əgər istifadəçi ALPUL yazmıbsa, avtomatik əlavə et
             if (v && !v.startsWith('ALPUL')) {
                 // əgər A, AL, ALP, ALPU ilə başlayıbsa → tamamla
@@ -1005,6 +999,15 @@ function applyApp() {
             v = v.replace(/[^A-Z0-9-]/g, '');
             // maksimum 13 simvol
             if (v.length > 13) v = v.substring(0, 13);
+
+            // PR #104: əgər formatdan sonra yalnız 'ALPUL-' qaldısa, təmizlə
+            if (v === 'ALPUL-') {
+                this.form.discountCode = '';
+                this.discountValid = '';
+                this.discountPreview = '';
+                return;
+            }
+
             this.form.discountCode = v;
             // validasiya davam etsin
             this.validateDiscountCode();
