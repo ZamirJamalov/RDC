@@ -494,7 +494,7 @@
                 <!-- Confirm button -->
                 <button @click="confirmApplication"
                         x-ref="confirmBtn"
-                        :disabled="loading || !form.amount || form.cardNumber.replace(/\s/g, '').length !== 16 || !form.cardConfirmed || !form.address || !form.rulesConfirmed"
+                        :disabled="loading || !form.amount || form.cardNumber.replace(/\s/g, '').length !== 16 || !form.cardConfirmed || !form.address || !form.rulesConfirmed || discountValid === 'invalid'"
                         class="cta-btn w-full text-white font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
                     <span x-show="!loading">Təsdiq edirəm →</span>
                     <span x-show="loading" class="flex items-center gap-2">
@@ -514,6 +514,11 @@
                         <div class="text-sm mt-0.5" x-text="confirmError"></div>
                     </div>
                 </div>
+
+                <!-- PR #106: endirim kodu etibarsız olanda düymə disabled olur -->
+                <p x-show="discountValid === 'invalid'" class="text-xs text-rose-400 mt-2 text-center">
+                    Endirim kodu etibarsızdır — düzəldin və ya silin.
+                </p>
                 </div><!-- /right column -->
             </div><!-- /grid -->
 
@@ -651,6 +656,7 @@ function applyApp() {
 
         // PR #105: confirm-specific error (button yanında göstərilir)
         confirmError: '',
+        _confirmErrorTimer: null,
 
         // OTP/UI state
         otpSent: false,
@@ -973,6 +979,11 @@ function applyApp() {
                         this.$refs.confirmBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }
                 });
+                // PR #106: xətanı 10 saniyə sonra avtomatik sil
+                if (this._confirmErrorTimer) clearTimeout(this._confirmErrorTimer);
+                this._confirmErrorTimer = setTimeout(() => {
+                    this.confirmError = '';
+                }, 10000);
             } finally {
                 this.loading = false;
             }
