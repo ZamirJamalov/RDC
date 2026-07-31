@@ -145,6 +145,9 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
 // validateAndComputeDiscount re-validates the discount code on the application
 // (race-condition protection) and computes the discount amount to apply.
 //
+// PR #109: endirim artıq FAİZDƏN (interestAmount) çıxılır, komissiyadan yox.
+// annual_interest_rate credit_levels cədvəlindən alınır (level + amount + term + phase əsasında).
+//
 // Returns the discount amount (>= 0). Returns an error if the code is no
 // longer valid (e.g. already used by another customer between customer-confirm
 // and approval).
@@ -170,16 +173,45 @@ func (s *ApplicationService) validateAndComputeDiscount(ctx context.Context, app
                 return 0, fmt.Errorf("endirim kodu artıq keçərli deyil: %w", err)
         }
 
-        // Compute the commission amount (without principal) and apply discount.
-        commissionAmount := calculateCommissionAmount(app.Amount, app.ApprovedRate)
-        discount := s.discountSvc.CalculateDiscount(dc, commissionAmount)
+        // PR #109: faiz məbləğini hesabla (komissiya yox).
+        // 1. credit_levels cədvəlindən annual_interest_rate al
+        // 2. interestAmount = principal × annualRate × (term / 12)
+        // 3. discount = CalculateDiscount(dc, interestAmount)
 
-        slog.Info("approval: discount applied",
+        // unlock_phase təyin et (CountApprovedAtLevel ilə)
+        approvedCount, err := s.repo.CountApprovedAtLevel(ctx, app.CustomerPIN, app.CreditLevel)
+        if err != nil {
+                slog.Warn("approval: failed to count approved at level — assuming phase 1",
+                        "application_id", app.ID,
+                        "error", err)
+                approvedCount = 0
+        }
+        unlockPhase := 1
+        if approvedCount > 0 {
+                unlockPhase = 2
+        }
+
+        annualInterestRate, err := s.repo.GetCreditLevelInterestRate(ctx, app.CreditLevel, app.Amount, app.TermMonths, unlockPhase)
+        if err != nil {
+                slog.Warn("approval: failed to fetch annual_interest_rate — discount skipped",
+                        "application_id", app.ID,
+                        "credit_level", app.CreditLevel,
+                        "error", err)
+                // Faiz tapılmadısa discount tətbiq etmə — amma approval uğurlu sayılır
+                return 0, nil
+        }
+
+        interestAmount := calculateInterestAmount(app.Amount, annualInterestRate, app.TermMonths)
+        discount := s.discountSvc.CalculateDiscount(dc, interestAmount)
+
+        slog.Info("approval: discount applied (from interest)",
                 "application_id", app.ID,
                 "discount_code", app.DiscountCode,
                 "discount_type", dc.DiscountType,
                 "discount_value", dc.DiscountValue,
-                "commission_amount", commissionAmount,
+                "credit_level", app.CreditLevel,
+                "annual_interest_rate", annualInterestRate,
+                "interest_amount", interestAmount,
                 "discount_amount", discount)
 
         return discount, nil

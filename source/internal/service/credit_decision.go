@@ -17,8 +17,8 @@ type decisionResult struct {
         Status          string
         RejectionReason string
         ApprovedAmount  float64
-        ApprovedRate    float64
-        TotalAmount     float64 // Principal + Interest (sent to LW)
+        ApprovedRate    float64 // commission rate (NOT interest — see migration 021)
+        TotalAmount     float64 // Principal + Commission (sent to LW). Interest is separate.
 }
 
 // computeDecision evaluates the analytics, blacklist, credit level, and rate
@@ -221,7 +221,7 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
 // calculateTotalAmount returns the total credit amount = principal + commission.
 //
 // PR #86: 'commission' in credit_levels is the COMMISSION rate.
-// Commission = principal × (commission / (100 - commission)) × 100
+// Commission = (commission / (100 - commission)) × 100
 // Credit amount (total_amount in DB, sent to LW) = principal + commission
 //
 // Interest is separate: interest = principal × annual_interest_rate × (term / 12)
@@ -229,8 +229,8 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
 // in the summary panel but not sent to LW.
 //
 // Example: 300 AZN principal, commission=14:
-//   commission_amount = 300 × (14/86) × 100 = 162.79
-//   total = 300 + 162.79 = 462.79 AZN
+//   commission_amount = (14/86) × 100 = 16.28
+//   total = 300 + 16.28 = 316.28 AZN
 func calculateTotalAmount(principal, commission float64) float64 {
         if commission <= 0 || commission >= 100 {
                 return principal
@@ -243,11 +243,10 @@ func calculateTotalAmount(principal, commission float64) float64 {
 // PR #95: discount-aware variants.
 //
 // calculateCommissionAmount returns only the commission portion of a loan,
-// without adding the principal. Used to compute the base for discount
-// application.
+// without adding the principal. Used for reporting/display.
 //
 // Example: 300 AZN principal, commission=14:
-//   commission_amount = 300 × (14/86) × 100 = 162.79
+//   commission_amount = (14/86) × 100 = 16.28
 func calculateCommissionAmount(principal, commission float64) float64 {
         if commission <= 0 || commission >= 100 {
                 return 0
@@ -255,32 +254,47 @@ func calculateCommissionAmount(principal, commission float64) float64 {
         return (commission / (100 - commission)) * 100
 }
 
-// calculateTotalAmountWithDiscount returns the total credit amount after
-// applying a discount to the commission portion.
+// calculateInterestAmount returns the interest portion of a loan.
+// PR #109: discount is now applied to interest (not commission).
 //
-// total = principal + max(0, commission_amount - max(0, discount_amount))
+// Formula: interest = principal × annualInterestRate × (termMonths / 12)
 //
-// The discount is clamped to [0, commission_amount] so the commission can
-// never go negative (and the total can never drop below the principal).
-// Negative discount_amount is treated as 0 (no discount).
+// Example: 300 AZN principal, annual_interest_rate=55, term=3 months:
+//   interest = 300 × 0.55 × (3/12) = 300 × 0.55 × 0.25 = 41.25 AZN
+func calculateInterestAmount(principal, annualInterestRate float64, termMonths int) float64 {
+        if principal <= 0 || annualInterestRate <= 0 || termMonths <= 0 {
+                return 0
+        }
+        interest := principal * (annualInterestRate / 100.0) * (float64(termMonths) / 12.0)
+        return math.Round(interest*100) / 100
+}
+
+// calculateTotalAmountWithDiscount returns the total credit amount.
 //
-// Example: 300 AZN principal, commission=14 (→ 16.28 commission), discount=5:
-//   discounted_commission = max(0, 16.28 - 5) = 11.28
-//   total = 300 + 11.28 = 311.28 AZN
+// PR #109: endirim artıq FAİZDƏN çıxılır (komissiyadan yox).
+//
+// total_amount (→ LW) = principal + commission  (dəyişmir — LW-ə komissiya daxil göndərilir)
+//
+// Bu funksiya yalnız discount məbləğini DB-də saxlamaq üçün discountAmount-u qaytarır
+// (interestAmount-dan çıxılaraq). Actual total_amount calculateTotalAmount() ilə eynidir,
+// çünki LW-ə interest göndərilmir.
+//
+// Amma əgər gələcəkdə total-a endirimli faiz daxil edilməli olsa, bu funksiya
+// yenidən yazılmalıdır. Hazırda discount yalnız interestAmount-a təsir edir və
+// müştəriyə frontend-də gösterilir.
+//
+// Example: 300 AZN principal, commission=14, annual_interest=55, term=3 ay, discount=10 AZN:
+//   commissionAmount = 16.28 AZN
+//   interestAmount    = 41.25 AZN
+//   discountAmount    = 10 AZN  (faizdən çıxılır)
+//   discountedInterest = 41.25 - 10 = 31.25 AZN
+//   total_amount (→ LW) = 300 + 16.28 = 316.28 AZN  (dəyişmir)
+//   totalRepayment (frontend) = 316.28 + 31.25 = 347.53 AZN  (endirimli)
 func calculateTotalAmountWithDiscount(principal, commission, discountAmount float64) float64 {
-        if commission <= 0 || commission >= 100 {
-                return principal
-        }
-        if discountAmount < 0 {
-                discountAmount = 0
-        }
-        commissionAmount := (commission / (100 - commission)) * 100
-        discounted := commissionAmount - discountAmount
-        if discounted < 0 {
-                discounted = 0
-        }
-        total := principal + discounted
-        return math.Round(total*100) / 100
+        // PR #109: total_amount dəyişmir — discount yalnız interestAmount-a təsir edir.
+        // Bu funksiya backward compatibility üçün saxlanılıb, amma faktiki olaraq
+        // calculateTotalAmount() ilə eynidir.
+        return calculateTotalAmount(principal, commission)
 }
 
 // applyDecisionTx writes the decision to the DB inside the given transaction.

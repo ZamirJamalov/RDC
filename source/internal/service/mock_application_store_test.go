@@ -51,6 +51,9 @@ type mockApplicationStore struct {
         commission    float64
         rateErr error
 
+        // PR #109: GetCreditLevelInterestRate
+        annualInterestRate float64
+
         // CountApprovedAtLevel
         approvedCount    int
         approvedCountErr error
@@ -186,6 +189,16 @@ func (m *mockApplicationStore) ListByStatus(_ context.Context, status string) ([
 
 func (m *mockApplicationStore) GetCreditLevelRate(_ context.Context, _ string, _ float64, _ int, _ int) (float64, error) {
         return m.commission, m.rateErr
+}
+
+// PR #109: GetCreditLevelInterestRate mock — returns a default 55% annual interest
+// (matches the 'new' level seed data). Tests that need a different value can
+// override the field.
+func (m *mockApplicationStore) GetCreditLevelInterestRate(_ context.Context, _ string, _ float64, _ int, _ int) (float64, error) {
+        if m.annualInterestRate == 0 {
+                return 55.0, nil // default 'new' level
+        }
+        return m.annualInterestRate, nil
 }
 
 func (m *mockApplicationStore) CountApprovedAtLevel(_ context.Context, _ string, _ string) (int, error) {

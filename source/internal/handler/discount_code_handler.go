@@ -57,7 +57,7 @@ type validateDiscountCodeErrorResponse struct {
 //        "valid": true,
 //        "discount_type": "percent",
 //        "discount_value": 2.00,
-//        "preview_text": "komissiyadan 2% endirim"
+//        "preview_text": "faizdən 2% endirim"
 //      }
 //
 // Response (200 OK, invalid code):
@@ -126,7 +126,7 @@ func (h *DiscountCodeHandler) Validate(w http.ResponseWriter, r *http.Request) {
         previewText := ""
         switch dc.DiscountType {
         case model.DiscountTypePercent:
-                previewText = "komissiyadan " + formatFloat(dc.DiscountValue) + "% endirim"
+                previewText = "faizdən " + formatFloat(dc.DiscountValue) + "% endirim"
         case model.DiscountTypeFixed:
                 previewText = formatFloat(dc.DiscountValue) + " AZN endirim"
         default:

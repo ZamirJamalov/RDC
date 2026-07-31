@@ -430,35 +430,59 @@ func TestCalculateCommissionAmount_ZeroCommission(t *testing.T) {
 }
 
 func TestCalculateTotalAmountWithDiscount(t *testing.T) {
-        // 300 AZN, commission=14, discount=20
-        // commission_amount = (14/86)*100 ≈ 16.28
-        // discount 20 > 16.28 → clamped to 0
-        // total = 300 + 0 = 300
+        // PR #109: calculateTotalAmountWithDiscount artıq endirimi total-a tətbiq etmir.
+        // Endirim yalnız interestAmount-a təsir edir (frontend-də göstərilir).
+        // total_amount (→ LW) = principal + commission (dəyişmir).
+        //
+        // 300 AZN, commission=14, discount=20 → total = 316.28 (calculateTotalAmount ilə eyni)
         got := calculateTotalAmountWithDiscount(300, 14, 20)
-        expected := 300.0 // principal only (commission fully discounted)
+        expected := calculateTotalAmount(300, 14) // 316.28
         if got != expected {
-                t.Errorf("expected %v, got %v", expected, got)
+                t.Errorf("PR #109: total should equal calculateTotalAmount (discount no longer affects total). expected %v, got %v", expected, got)
         }
 
-        // 300 AZN, commission=14, discount=5
-        // Discounted total must be less than no-discount total
+        // discount=5 olsa da, total dəyişməməlidir
         got = calculateTotalAmountWithDiscount(300, 14, 5)
-        noDiscountTotal := calculateTotalAmount(300, 14)
-        if got >= noDiscountTotal {
-                t.Errorf("discounted total %v should be < no-discount total %v", got, noDiscountTotal)
-        }
-        // And greater than principal (since commission is positive after discount)
-        if got <= 300 {
-                t.Errorf("discounted total %v should be > principal 300", got)
+        if got != expected {
+                t.Errorf("PR #109: discount should not affect total. expected %v, got %v", expected, got)
         }
 }
 
 func TestCalculateTotalAmountWithDiscount_NegativeDiscount(t *testing.T) {
-        // Negative discount → treated as 0 discount
+        // PR #109: negative discount da eyni nəticə verir (total dəyişmir)
         got := calculateTotalAmountWithDiscount(300, 14, -10)
         expected := calculateTotalAmount(300, 14)
         if got != expected {
                 t.Errorf("expected %v (no discount), got %v", expected, got)
+        }
+}
+
+// PR #109: calculateInterestAmount testi — faiz məbləği hesablama
+func TestCalculateInterestAmount(t *testing.T) {
+        // 300 AZN, annual_interest_rate=55%, term=3 ay
+        // interest = 300 × 0.55 × (3/12) = 300 × 0.55 × 0.25 = 41.25
+        got := calculateInterestAmount(300, 55, 3)
+        if got != 41.25 {
+                t.Errorf("expected 41.25, got %v", got)
+        }
+
+        // 500 AZN, annual_interest_rate=52%, term=6 ay
+        // interest = 500 × 0.52 × (6/12) = 500 × 0.52 × 0.5 = 130.00
+        got = calculateInterestAmount(500, 52, 6)
+        if got != 130.00 {
+                t.Errorf("expected 130.00, got %v", got)
+        }
+}
+
+func TestCalculateInterestAmount_ZeroInputs(t *testing.T) {
+        if got := calculateInterestAmount(0, 55, 3); got != 0 {
+                t.Errorf("expected 0 for zero principal, got %v", got)
+        }
+        if got := calculateInterestAmount(300, 0, 3); got != 0 {
+                t.Errorf("expected 0 for zero rate, got %v", got)
+        }
+        if got := calculateInterestAmount(300, 55, 0); got != 0 {
+                t.Errorf("expected 0 for zero term, got %v", got)
         }
 }
 

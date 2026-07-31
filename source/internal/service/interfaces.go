@@ -67,6 +67,10 @@ type ApplicationStore interface {
         // credit level, amount, term, and unlock phase.
         GetCreditLevelRate(ctx context.Context, level string, amount float64, termMonths int, unlockPhase int) (float64, error)
 
+        // PR #109: GetCreditLevelInterestRate looks up the annual interest rate
+        // (separate from commission rate) — used for discount calculation.
+        GetCreditLevelInterestRate(ctx context.Context, level string, amount float64, termMonths int, unlockPhase int) (float64, error)
+
         // CountApprovedAtLevel counts how many loan applications a customer has
         // had approved at a specific credit level.
         CountApprovedAtLevel(ctx context.Context, customerPIN string, level string) (int, error)

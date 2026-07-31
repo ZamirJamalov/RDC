@@ -303,29 +303,31 @@ func (s *DiscountCodeService) ValidateForCustomerTx(ctx context.Context, runner 
         return dc, nil
 }
 
-// CalculateDiscount computes the discount amount to subtract from the
-// commission, based on the code's discount_type and discount_value.
+// CalculateDiscount computes the discount amount to subtract.
 //
-//   - percent: discount = commission × (value / 100)
-//   - fixed:   discount = min(value, commission)
+// PR #109: endirim artıq FAİZDƏN (interestAmount) çıxılır, komissiyadan yox.
+// baseAmount parametri interest məbləğini təmsil edir.
 //
-// The discount is clamped to [0, commission] — it can never exceed the
-// commission and can never be negative. This protects against bad data
-// (e.g. discount_value > commission).
+//   - percent: discount = baseAmount × (value / 100)
+//   - fixed:   discount = min(value, baseAmount)
 //
-// Returns the discount amount (always >= 0 and <= commissionAmount).
-func (s *DiscountCodeService) CalculateDiscount(code *model.DiscountCode, commissionAmount float64) float64 {
+// The discount is clamped to [0, baseAmount] — it can never exceed the base
+// and can never be negative. This protects against bad data
+// (e.g. discount_value > baseAmount).
+//
+// Returns the discount amount (always >= 0 and <= baseAmount).
+func (s *DiscountCodeService) CalculateDiscount(code *model.DiscountCode, baseAmount float64) float64 {
         if code == nil {
                 return 0
         }
-        if code.DiscountValue <= 0 || commissionAmount <= 0 {
+        if code.DiscountValue <= 0 || baseAmount <= 0 {
                 return 0
         }
 
         var discount float64
         switch code.DiscountType {
         case model.DiscountTypePercent:
-                discount = commissionAmount * (code.DiscountValue / 100.0)
+                discount = baseAmount * (code.DiscountValue / 100.0)
         case model.DiscountTypeFixed:
                 discount = code.DiscountValue
         default:
@@ -335,12 +337,12 @@ func (s *DiscountCodeService) CalculateDiscount(code *model.DiscountCode, commis
                 return 0
         }
 
-        // Clamp: discount must be in [0, commissionAmount]
+        // Clamp: discount must be in [0, baseAmount]
         if discount < 0 {
                 discount = 0
         }
-        if discount > commissionAmount {
-                discount = commissionAmount
+        if discount > baseAmount {
+                discount = baseAmount
         }
 
         return math.Round(discount*100) / 100

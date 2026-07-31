@@ -1074,7 +1074,7 @@ function applyApp() {
                         const data = await resp.json();
                         this.discountValid = 'valid';
                         if (data.discount_type === 'percent') {
-                            this.discountPreview = 'komissiyadan ' + data.discount_value + '% endirim';
+                            this.discountPreview = 'faizdən ' + data.discount_value + '% endirim';
                         } else if (data.discount_type === 'fixed') {
                             this.discountPreview = data.discount_value + ' AZN endirim';
                         } else {

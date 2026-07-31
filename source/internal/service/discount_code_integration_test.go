@@ -61,22 +61,25 @@ func TestApprovalFlow_DiscountCodeLifecycle(t *testing.T) {
         // === Step 3: B's application is approved → discount applied + code marked used ===
         t.Log("Step 3: B's application approved — applying discount + marking code used")
 
-        // Simulate the approval flow logic (without the full ApplicationService)
-        commissionAmount := calculateCommissionAmount(500, 14) // 500 AZN, 14% commission
-        discount := discountSvc.CalculateDiscount(dc, commissionAmount)
+        // PR #109: discount artıq interestAmount-dan çıxılır (komissiyadan yox)
+        // 500 AZN, annual_interest_rate=55, term=3 ay
+        // interestAmount = 500 × 0.55 × (3/12) = 68.75 AZN
+        interestAmount := calculateInterestAmount(500, 55, 3)
+        discount := discountSvc.CalculateDiscount(dc, interestAmount)
         if discount <= 0 {
                 t.Errorf("Step 3: expected positive discount, got %v", discount)
         }
-        t.Logf("Step 3: Commission amount: %.2f, Discount: %.2f", commissionAmount, discount)
+        t.Logf("Step 3: Interest amount: %.2f, Discount: %.2f", interestAmount, discount)
 
+        // PR #109: total_amount dəyişmir (discount yalnız interestAmount-a təsir edir)
         totalAmount := calculateTotalAmountWithDiscount(500, 14, discount)
         noDiscountTotal := calculateTotalAmount(500, 14)
-        if totalAmount >= noDiscountTotal {
-                t.Errorf("Step 3: discounted total %v should be < no-discount total %v",
-                        totalAmount, noDiscountTotal)
+        if totalAmount != noDiscountTotal {
+                t.Errorf("Step 3: PR #109 — total should not change. expected %v, got %v",
+                        noDiscountTotal, totalAmount)
         }
-        t.Logf("Step 3: Total without discount: %.2f, with discount: %.2f",
-                noDiscountTotal, totalAmount)
+        t.Logf("Step 3: Total (unchanged): %.2f, Discount from interest: %.2f",
+                totalAmount, discount)
 
         // Mark the code as used
         if err := discountStore.MarkUsed(context.Background(), dc.ID, 2); err != nil {
@@ -122,127 +125,137 @@ func TestApprovalFlow_DiscountCodeLifecycle(t *testing.T) {
 }
 
 // TestDiscountCode_PercentDiscountCalculation tests the math for a percent
-// discount end-to-end:
+// discount applied to interestAmount (PR #109).
 //
 //      Principal: 500 AZN
-//      Commission rate: 14%
-//      Discount: 10% of commission
+//      Annual interest rate: 55%
+//      Term: 3 months
+//      Discount: 10% of interest
 //
 // Expected:
-//      commission_amount = 500 × (14/86) × 100 = 81.40
-//      discount = 81.40 × 10/100 = 8.14
-//      discounted_commission = 81.40 - 8.14 = 73.26
-//      total = 500 + 73.26 = 573.26
+//      interestAmount = 500 × 0.55 × (3/12) = 68.75
+//      discount = 68.75 × 10/100 = 6.88
+//      discounted_interest = 68.75 - 6.88 = 61.87
+//      total_amount (→ LW) = 500 + commission (dəyişmir — discount yalnız interestAmount-a təsir edir)
 func TestDiscountCode_PercentDiscountCalculation(t *testing.T) {
         principal := 500.0
-        commission := 14.0
+        annualInterestRate := 55.0
+        termMonths := 3
 
-        commissionAmount := calculateCommissionAmount(principal, commission)
-        t.Logf("Commission amount: %.4f", commissionAmount)
+        interestAmount := calculateInterestAmount(principal, annualInterestRate, termMonths)
+        t.Logf("Interest amount: %.4f", interestAmount)
 
         code := &model.DiscountCode{
                 DiscountType:  model.DiscountTypePercent,
-                DiscountValue: 10.0, // 10% off commission
+                DiscountValue: 10.0, // 10% off interest
         }
 
         svc := NewDiscountCodeService(newMockDiscountCodeStore())
-        discount := svc.CalculateDiscount(code, commissionAmount)
-        t.Logf("Discount (10%% of %.4f): %.4f", commissionAmount, discount)
+        discount := svc.CalculateDiscount(code, interestAmount)
+        t.Logf("Discount (10%% of %.4f): %.4f", interestAmount, discount)
 
+        // PR #109: total_amount dəyişmir
+        commission := 14.0
         totalWithDiscount := calculateTotalAmountWithDiscount(principal, commission, discount)
         totalWithoutDiscount := calculateTotalAmount(principal, commission)
         t.Logf("Total without discount: %.2f", totalWithoutDiscount)
-        t.Logf("Total with discount:    %.2f", totalWithDiscount)
-        t.Logf("Savings:                %.2f", totalWithoutDiscount-totalWithDiscount)
+        t.Logf("Total with discount:    %.2f (unchanged — PR #109)", totalWithDiscount)
+        t.Logf("Discount amount:        %.2f (from interest)", discount)
+        t.Logf("Discounted interest:    %.4f", interestAmount-discount)
 
-        if totalWithDiscount >= totalWithoutDiscount {
-                t.Errorf("discounted total %v should be < no-discount total %v",
-                        totalWithDiscount, totalWithoutDiscount)
+        // PR #109: total dəyişməməlidir
+        if totalWithDiscount != totalWithoutDiscount {
+                t.Errorf("PR #109: total should not change. expected %v, got %v",
+                        totalWithoutDiscount, totalWithDiscount)
         }
-        if totalWithDiscount <= principal {
-                t.Errorf("discounted total %v should be > principal %v (commission is positive)",
-                        totalWithDiscount, principal)
+        // Discount 0-dan böyük olmalıdır
+        if discount <= 0 {
+                t.Errorf("discount should be > 0, got %v", discount)
         }
 }
 
 // TestDiscountCode_FixedDiscountCalculation tests a fixed-amount discount
-// that is smaller than the commission.
+// applied to interestAmount (PR #109).
 //
-// With principal=500, commission=14:
-//   commission_amount = (14/86) × 100 ≈ 16.28  (formula does NOT multiply by principal)
-// So a fixed 5 AZN discount is fully applied (5 < 16.28).
+// With principal=500, annual_interest_rate=55, term=3 ay:
+//   interestAmount = 500 × 0.55 × (3/12) = 68.75 AZN
+// A fixed 5 AZN discount is fully applied (5 < 68.75).
+//
+// total_amount (→ LW) = principal + commission (dəyişmir)
+// discountAmount = 5 AZN (interestAmount-dan çıxılır, frontend-də göstərilir)
 func TestDiscountCode_FixedDiscountCalculation(t *testing.T) {
         principal := 500.0
-        commission := 14.0
+        annualInterestRate := 55.0
+        termMonths := 3
 
-        commissionAmount := calculateCommissionAmount(principal, commission)
-        t.Logf("Commission amount: %.4f", commissionAmount)
+        interestAmount := calculateInterestAmount(principal, annualInterestRate, termMonths)
+        t.Logf("Interest amount: %.4f (principal=%.0f, annual_rate=%.0f%%, term=%d ay)",
+                interestAmount, principal, annualInterestRate, termMonths)
 
-        // Use a discount that is smaller than the commission (16.28)
+        // 5 AZN discount < 68.75 interest → fully applied
         code := &model.DiscountCode{
                 DiscountType:  model.DiscountTypeFixed,
-                DiscountValue: 5.0, // 5 AZN off (< 16.28 commission)
+                DiscountValue: 5.0,
         }
 
         svc := NewDiscountCodeService(newMockDiscountCodeStore())
-        discount := svc.CalculateDiscount(code, commissionAmount)
+        discount := svc.CalculateDiscount(code, interestAmount)
         if discount != 5.0 {
-                t.Errorf("expected discount 5.0 (smaller than commission %.2f), got %v",
-                        commissionAmount, discount)
+                t.Errorf("expected discount 5.0 (smaller than interest %.2f), got %v",
+                        interestAmount, discount)
         }
 
+        // PR #109: total_amount dəyişmir (discount yalnız interestAmount-a təsir edir)
+        commission := 14.0
         totalWithDiscount := calculateTotalAmountWithDiscount(principal, commission, discount)
         totalWithoutDiscount := calculateTotalAmount(principal, commission)
-        savings := totalWithoutDiscount - totalWithDiscount
-
-        t.Logf("Total without discount: %.2f", totalWithoutDiscount)
-        t.Logf("Total with discount:    %.2f", totalWithDiscount)
-        t.Logf("Savings:                %.2f", savings)
-
-        // Savings should equal the discount (5 AZN)
-        if savings < 4.99 || savings > 5.01 {
-                t.Errorf("expected savings ≈ 5.0, got %v", savings)
+        if totalWithDiscount != totalWithoutDiscount {
+                t.Errorf("PR #109: total should not change with discount. expected %v, got %v",
+                        totalWithoutDiscount, totalWithDiscount)
         }
+
+        t.Logf("Total (unchanged):       %.2f", totalWithDiscount)
+        t.Logf("Discount amount:         %.2f (from interest %.2f)", discount, interestAmount)
+        t.Logf("Discounted interest:     %.2f", interestAmount-discount)
 }
 
-// TestDiscountCode_FixedDiscountLargerThanCommission tests that a fixed
-// discount larger than the commission is clamped (commission can't go negative).
+// TestDiscountCode_FixedDiscountLargerThanInterest tests that a fixed
+// discount larger than the interestAmount is clamped (interest can't go negative).
 //
-// With principal=300, commission=14:
-//   commission_amount = 300 × (14/86) × 100 ≈ 16.28
-// So a 500 AZN discount is clamped to 16.28 (the full commission).
-func TestDiscountCode_FixedDiscountLargerThanCommission(t *testing.T) {
+// With principal=300, annual_interest_rate=55, term=3 ay:
+//   interestAmount = 300 × 0.55 × (3/12) = 41.25 AZN
+// A 500 AZN discount is clamped to 41.25 (the full interest).
+func TestDiscountCode_FixedDiscountLargerThanInterest(t *testing.T) {
         principal := 300.0
-        commission := 14.0
+        annualInterestRate := 55.0
+        termMonths := 3
 
-        commissionAmount := calculateCommissionAmount(principal, commission)
-        t.Logf("Commission amount: %.4f (principal=%.0f, commission=%.0f)",
-                commissionAmount, principal, commission)
+        interestAmount := calculateInterestAmount(principal, annualInterestRate, termMonths)
+        t.Logf("Interest amount: %.4f (principal=%.0f, annual_rate=%.0f%%, term=%d ay)",
+                interestAmount, principal, annualInterestRate, termMonths)
 
         code := &model.DiscountCode{
                 DiscountType:  model.DiscountTypeFixed,
-                DiscountValue: 500.0, // 500 AZN off — way more than the commission (~16.28)
+                DiscountValue: 500.0, // 500 AZN off — way more than interest (41.25)
         }
 
         svc := NewDiscountCodeService(newMockDiscountCodeStore())
-        discount := svc.CalculateDiscount(code, commissionAmount)
-        t.Logf("Discount requested: 500.0, applied: %.4f (clamped to commission)", discount)
+        discount := svc.CalculateDiscount(code, interestAmount)
+        t.Logf("Discount requested: 500.0, applied: %.4f (clamped to interest)", discount)
 
-        // Discount should be clamped to the commission amount (rounded to 2 decimals)
-        expectedClamp := float64(int(commissionAmount*100)) / 100
-        if discount < expectedClamp-0.01 || discount > expectedClamp+0.01 {
-                t.Errorf("expected discount clamped to commission ≈ %.4f, got %v",
-                        commissionAmount, discount)
+        // Discount should be clamped to the interest amount
+        if discount < interestAmount-0.01 || discount > interestAmount+0.01 {
+                t.Errorf("expected discount clamped to interest ≈ %.4f, got %v",
+                        interestAmount, discount)
         }
 
+        // PR #109: total_amount yine dəyişmir
+        commission := 14.0
         totalWithDiscount := calculateTotalAmountWithDiscount(principal, commission, discount)
-        t.Logf("Total with discount: %.2f (should equal principal %.2f)",
-                totalWithDiscount, principal)
-
-        // Total should equal the principal (commission fully discounted)
-        if totalWithDiscount < principal-0.01 || totalWithDiscount > principal+0.01 {
-                t.Errorf("expected total ≈ principal %.2f when discount >= commission, got %v",
-                        principal, totalWithDiscount)
+        totalWithoutDiscount := calculateTotalAmount(principal, commission)
+        if totalWithDiscount != totalWithoutDiscount {
+                t.Errorf("PR #109: total should not change. expected %v, got %v",
+                        totalWithoutDiscount, totalWithDiscount)
         }
 }
 
