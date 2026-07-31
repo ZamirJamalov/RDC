@@ -493,6 +493,7 @@
 
                 <!-- Confirm button -->
                 <button @click="confirmApplication"
+                        x-ref="confirmBtn"
                         :disabled="loading || !form.amount || form.cardNumber.replace(/\s/g, '').length !== 16 || !form.cardConfirmed || !form.address || !form.rulesConfirmed"
                         class="cta-btn w-full text-white font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
                     <span x-show="!loading">Təsdiq edirəm →</span>
@@ -501,6 +502,18 @@
                         Göndərilir...
                     </span>
                 </button>
+
+                <!-- PR #105: confirm xətası birbaşa düymə altında (scroll etmədən görünür) -->
+                <div x-show="confirmError" x-transition
+                     class="mt-3 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 flex items-start gap-2.5">
+                    <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
+                    </svg>
+                    <div>
+                        <div class="font-semibold text-sm">Təsdiq alınmadı</div>
+                        <div class="text-sm mt-0.5" x-text="confirmError"></div>
+                    </div>
+                </div>
                 </div><!-- /right column -->
             </div><!-- /grid -->
 
@@ -635,6 +648,9 @@ function applyApp() {
         discountValid: '',
         discountPreview: '',
         _discountValidateTimer: null,
+
+        // PR #105: confirm-specific error (button yanında göstərilir)
+        confirmError: '',
 
         // OTP/UI state
         otpSent: false,
@@ -912,6 +928,7 @@ function applyApp() {
 
         async confirmApplication() {
             this.error = '';
+            this.confirmError = ''; // PR #105: yerli xətanı təmizlə
             this.loading = true;
             try {
                 // Find the matching range for the selected amount
@@ -932,7 +949,7 @@ function applyApp() {
                         actual_address: this.form.address,
                         card_ownership_confirmed: this.form.cardConfirmed,
                         rules_confirmed: this.form.rulesConfirmed, // PR #92: internal rules ack
-                        discount_code: this.form.discountCode.trim(), // PR #96: endirim kodu (opsiyonel)
+                        discount_code: this.form.discountCode.trim(), // PR #96: endirim kodu
                     }),
                 });
                 const data = await resp.json();
@@ -949,6 +966,13 @@ function applyApp() {
                 this.clearState(); // PR #70: clear localStorage on final result
             } catch (e) {
                 this.error = e.message;
+                // PR #105: xətanı button yanında da göstər və button-a scroll et
+                this.confirmError = e.message;
+                this.$nextTick(() => {
+                    if (this.$refs.confirmBtn) {
+                        this.$refs.confirmBtn.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+                });
             } finally {
                 this.loading = false;
             }
