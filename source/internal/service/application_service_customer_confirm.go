@@ -155,6 +155,9 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
         // The code is NOT marked as 'used' here — that happens atomically at
         // approval. If the customer enters an invalid code, we reject the whole
         // request so the customer can correct it.
+        //
+        // PR #108: xəta mesajlarına 'Endirim kodu:' prefiks əlavə olunur ki,
+        // istifadəçi xətanın endirim koduna aid olduğunu dərhal başa düşsün.
         if req.DiscountCode != "" && s.discountSvc != nil {
                 customer, err := s.customerRepo.GetByPIN(ctx, app.CustomerPIN)
                 if err != nil {
@@ -162,7 +165,7 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
                                 "application_id", appID,
                                 "customer_pin", app.CustomerPIN,
                                 "error", err)
-                        return nil, fmt.Errorf("texniki xəta — müştəri məlumatları əldə edilə bilmədi")
+                        return nil, fmt.Errorf("Endirim kodu yoxlanıla bilmədi — texniki xəta, bir az sonra yenidən cəhd edin")
                 }
                 if _, err := s.discountSvc.ValidateForCustomer(ctx, req.DiscountCode, customer.ID); err != nil {
                         slog.Info("customer-confirm: discount code rejected",
@@ -170,7 +173,11 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
                                 "customer_pin", app.CustomerPIN,
                                 "discount_code", req.DiscountCode,
                                 "error", err)
-                        return nil, err
+                        // PR #108: prefiks əlavə et ki, istifadəçi xətanın endirim koduna
+                        // aid olduğunu dərhal başa düşsün (ValidateForCustomer artıq
+                        // Azərbaycan dilində aydın mesajlar qaytarır: "yanlış endirim kodu",
+                        // "öz endirim kodunuzdan...", "artıq istifadə olunub" və s.)
+                        return nil, fmt.Errorf("Endirim kodu: %w", err)
                 }
                 app.DiscountCode = req.DiscountCode
                 slog.Info("customer-confirm: discount code accepted",
