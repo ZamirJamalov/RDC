@@ -430,6 +430,7 @@
                             </div>
                         </div>
                         <input type="range" :min="rangeMin" :max="rangeMax" step="10" x-model.number="form.amount"
+                               @input="updateSelectedRange()"
                                :style="`--range-fill: ${((form.amount - rangeMin) / (rangeMax - rangeMin)) * 100}%`">
                         <div class="flex justify-between text-xs text-gray-500 mt-2">
                             <span><span x-text="rangeMin"></span> AZN</span>
@@ -460,15 +461,15 @@
                               class="input-field w-full px-4 py-3.5 rounded-xl resize-none"></textarea>
                 </div>
 
-                <!-- PR #96: Discount code (opsiyonel) -->
+                <!-- PR #96: Discount code -->
                 <div>
                     <label class="text-sm text-gray-400 mb-2 block">
-                        Endirim kodu <span class="text-gray-500 font-normal">(opsiyonel)</span>
+                        Endirim kodu
                     </label>
                     <div class="relative">
                         <input type="text"
                                x-model="form.discountCode"
-                               @input="form.discountCode = form.discountCode.toUpperCase().trim(); validateDiscountCode()"
+                               @input="formatDiscountCode()"
                                placeholder="ALPUL-XXXXXX"
                                maxlength="13"
                                class="input-field w-full px-4 py-3.5 rounded-xl uppercase tracking-wider font-mono pr-12">
@@ -677,6 +678,18 @@ function applyApp() {
         get rangeMax() {
             if (!this.offer || !this.offer.ranges || !this.offer.ranges.length) return 300;
             return Math.max(...this.offer.ranges.map(r => r.max_amount));
+        },
+
+        // PR #101: amount dəyişəndə selectedRange-i yenilə
+        // (slider hərəkət etdikdə uyğun range tapılır)
+        updateSelectedRange() {
+            if (!this.offer || !this.offer.ranges || !this.offer.ranges.length) return;
+            const matched = this.offer.ranges.find(r =>
+                this.form.amount >= r.min_amount && this.form.amount <= r.max_amount
+            );
+            if (matched) {
+                this.selectedRange = matched;
+            }
         },
         get monthlyPayment() {
             if (!this.selectedRange || !this.form.amount) return '—';
@@ -893,7 +906,8 @@ function applyApp() {
                 // (so the slider starts at the minimum of the first range)
                 if (this.offer.ranges && this.offer.ranges.length > 0) {
                     this.selectedRange = this.offer.ranges[0];
-                    this.form.amount = this.rangeMin;
+                    // PR #101: slider max-da başlasın (əvvəl min-də başlayırdı)
+                    this.form.amount = this.rangeMax;
                 }
 
                 // 4. Move to offer step
@@ -965,6 +979,37 @@ function applyApp() {
         // Self-use prevention is checked by backend on customer-confirm (it
         // knows the customer's PIN). So 'valid' here means "code exists and
         // is active" — the final verdict comes from the backend on submit.
+        //
+        // PR #101: ALPUL- prefiksi avtomatik əlavə olunur.
+        formatDiscountCode() {
+            let v = (this.form.discountCode || '').toUpperCase().trim();
+            // əgər istifadəçi ALPUL yazmıbsa, avtomatik əlavə et
+            if (v && !v.startsWith('ALPUL')) {
+                // əgər A, AL, ALP, ALPU ilə başlayıbsa → tamamla
+                if ('ALPUL'.startsWith(v) || v.startsWith('A')) {
+                    // istifadəçi yalnız A/AL/ALP/ALPU yazıbsa, ALPUL- ilə əvəz et
+                    if (v.length < 6 && 'ALPUL'.startsWith(v)) {
+                        v = 'ALPUL-';
+                    } else {
+                        v = 'ALPUL-' + v;
+                    }
+                } else {
+                    v = 'ALPUL-' + v;
+                }
+            }
+            // əgər ALPUL yazıb amma - yoxdursa, əlavə et
+            if (v.startsWith('ALPUL') && v.length > 5 && !v.startsWith('ALPUL-')) {
+                v = 'ALPUL-' + v.substring(5);
+            }
+            // yalnız A-Z, 0-9, - saxla
+            v = v.replace(/[^A-Z0-9-]/g, '');
+            // maksimum 13 simvol
+            if (v.length > 13) v = v.substring(0, 13);
+            this.form.discountCode = v;
+            // validasiya davam etsin
+            this.validateDiscountCode();
+        },
+
         validateDiscountCode() {
             // Clear any pending validation
             if (this._discountValidateTimer) {
