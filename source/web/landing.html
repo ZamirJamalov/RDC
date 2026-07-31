@@ -701,6 +701,14 @@
             <div class="mt-3 md:mt-0">Lisenziyalaşdırılmış kredit təşkilatı · AMFK #1234</div>
         </div>
     </div>
+<!-- PR #107: Soft10.io widget — footer bölməsində
+     Standart widget yerləşdirmə: footer-in sonunda, defer ilə.
+     Footer DOM-da yüklənəndən sonra widget initialize olunur. -->
+<script src="https://cdn.soft10.io/widget.js"
+        data-customer-id="lc_53a767d43ff6e7d09543006b49651e2c"
+        data-language="az"
+        defer></script>
+
 </footer>
 
 <script>
@@ -886,13 +894,6 @@ document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
 <style>
 [x-cloak] { display: none !important; }
 </style>
-
-<!-- PR #106: Soft10.io widget — </body> əvvəlində, defer olmadan
-     Səbəb: widget-lər DOM tam yüklənəndən sonra işləməlidir, defer isə
-     async yüklənmə səbəbiylə widget-in görünməməsinə səbəb ola bilər. -->
-<script src="https://cdn.soft10.io/widget.js"
-        data-customer-id="lc_53a767d43ff6e7d09543006b49651e2c"
-        data-language="az"></script>
 
 </body>
 </html>
