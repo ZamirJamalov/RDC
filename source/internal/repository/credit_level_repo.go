@@ -35,6 +35,26 @@ func (r *ApplicationRepo) GetCreditLevelRate(ctx context.Context, level string, 
         return commission, nil
 }
 
+// GetCreditLevelInterestRate looks up the annual interest rate for a given
+// credit level, amount, term, and unlock phase.
+// PR #109: discount is now applied to interest (not commission), so we need
+// to fetch the annual_interest_rate separately.
+func (r *ApplicationRepo) GetCreditLevelInterestRate(ctx context.Context, level string, amount float64, termMonths int, unlockPhase int) (float64, error) {
+        var annualInterestRate float64
+        err := r.db.QueryRowContext(ctx, `
+                SELECT annual_interest_rate FROM credit_levels
+                WHERE level_name = ? AND min_amount <= ? AND max_amount >= ? AND term_months = ? AND unlock_phase <= ? AND is_active = 1`,
+                level, amount, amount, termMonths, unlockPhase).Scan(&annualInterestRate)
+        if err != nil {
+                if err == sql.ErrNoRows {
+                        return 0, fmt.Errorf("no annual_interest_rate found for level=%s amount=%.2f term=%d months (unlock_phase=%d)",
+                                level, amount, termMonths, unlockPhase)
+                }
+                return 0, fmt.Errorf("failed to query credit level interest rate: %w", err)
+        }
+        return annualInterestRate, nil
+}
+
 // CountApprovedAtLevel counts how many loan applications a customer has had approved
 // at a specific credit level. Used to determine unlock_phase:
 //   - 0 approved = phase 1 (first loan at this level, limited ranges)
