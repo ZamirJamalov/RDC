@@ -128,23 +128,64 @@ func (p *HTTPProvider) GetPersonalInfo(ctx context.Context, fin, serial string) 
 }
 
 // GetAkbScore fetches the AKB credit score via LW router.
+// PR #111: AKB Skor AYRI servisdır və sadə format qaytarır (data.score).
+// point STRING kimi gəlir, ToScoreResponse() int-ə çevirir.
 func (p *HTTPProvider) GetAkbScore(ctx context.Context, fin, serial string) (*AkbScoreResponse, error) {
-        var resp AkbScoreResponse
-        err := p.getJSON(ctx, pathGetAkbScore+"?fin="+fin+"&serial="+serial, &resp)
+        var envelope AkbScoreEnvelope
+        err := p.getJSON(ctx, pathGetAkbScore+"?fin="+fin+"&serial="+serial, &envelope)
         if err != nil {
                 return nil, fmt.Errorf("http provider: GetAkbScore: %w", err)
         }
-        return &resp, nil
+
+        // PR #111: AKB Skor servisi `result` field-i ilə xəta bildirir
+        if envelope.IsServiceError() {
+                return nil, fmt.Errorf("AKB score service error: result=%d message=%s",
+                        envelope.Result, envelope.Message)
+        }
+
+        resp := envelope.ToScoreResponse(fin)
+
+        // PR #111: detect silent fail-soft
+        if resp != nil && resp.Return != nil && resp.Return.Point == 0 && resp.Return.Response == "" {
+                slog.Warn("AKB score: parsed envelope has empty score — possible silent decode issue",
+                        "fin", fin,
+                        "result", envelope.Result,
+                        "message", envelope.Message,
+                        "point_str", envelope.Data.Score.PointStr)
+        }
+
+        return resp, nil
 }
 
 // GetAkbHistory fetches the full AKB credit history via LW router.
+// PR #111: AKB History AYRI servisdır və deep nested format qaytarır
+// (data.Request.inquiryResult.*). ToHistoryResponse() flat struct-a çevirir.
 func (p *HTTPProvider) GetAkbHistory(ctx context.Context, fin, serial string) (*AkbHistoryResponse, error) {
-        var resp AkbHistoryResponse
-        err := p.getJSON(ctx, pathGetAkbHistory+"?fin="+fin+"&serial="+serial, &resp)
+        var envelope AkbHistoryEnvelope
+        err := p.getJSON(ctx, pathGetAkbHistory+"?fin="+fin+"&serial="+serial, &envelope)
         if err != nil {
                 return nil, fmt.Errorf("http provider: GetAkbHistory: %w", err)
         }
-        return &resp, nil
+
+        // PR #111: AKB History `serviceResponse.code` ilə xəta bildirir
+        if envelope.IsServiceError() {
+                return nil, fmt.Errorf("AKB history service error: code=%s message=%s",
+                        envelope.Data.Request.ServiceResponse.Code,
+                        envelope.ServiceErrorMessage())
+        }
+
+        resp := envelope.ToHistoryResponse()
+
+        // PR #111: detect silent fail-soft
+        if resp != nil && resp.ReportID == "" && len(resp.Liabilities) == 0 {
+                slog.Warn("AKB history: parsed envelope has empty reportId and no liabilities — possible silent decode issue",
+                        "fin", fin,
+                        "result", envelope.Result,
+                        "message", envelope.Message,
+                        "request_id", envelope.RequestID)
+        }
+
+        return resp, nil
 }
 
 // GetAsanFinance fetches official income from ASAN Finance via LW router.
