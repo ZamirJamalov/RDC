@@ -896,6 +896,15 @@ function applyApp() {
                 const data = await resp.json();
                 if (!resp.ok) throw new Error(data.error || 'OTP təsdiq olunmadı');
 
+                // PR #115: əgər early cutoff rədd etdisə, rədd ekranını göstər
+                if (data.status === 'rejected') {
+                    this.engineStatus = 'rejected';
+                    this.engineRejectionReason = data.rejection_reason || '';
+                    this.currentStep = 3; // rədd ekranı
+                    this.clearState();
+                    return;
+                }
+
                 // 2. Move to loading step
                 this.currentStep = 1;
 
