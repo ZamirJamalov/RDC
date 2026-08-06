@@ -36,6 +36,35 @@ func doPost(t *testing.T, handler http.HandlerFunc, url string, payload string) 
 }
 
 // --- AKB Score tests ---
+// PR #110: tests now use real AKB envelope format (data.Request.inquiryResult.score)
+
+// helper: extract score from real AKB envelope
+func extractScore(t *testing.T, body map[string]any) (point float64, response string) {
+        t.Helper()
+        data, ok := body["data"].(map[string]any)
+        if !ok {
+                t.Fatalf("missing 'data' envelope: %v", body)
+        }
+        req, ok := data["Request"].(map[string]any)
+        if !ok {
+                t.Fatalf("missing 'data.Request': %v", data)
+        }
+        ir, ok := req["inquiryResult"].(map[string]any)
+        if !ok {
+                t.Fatalf("missing 'data.Request.inquiryResult': %v", req)
+        }
+        score, ok := ir["score"].(map[string]any)
+        if !ok {
+                t.Fatalf("missing 'data.Request.inquiryResult.score': %v", ir)
+        }
+        if p, ok := score["point"].(float64); ok {
+                point = p
+        }
+        if r, ok := score["response"].(string); ok {
+                response = r
+        }
+        return
+}
 
 func TestStub_AkbScore_Default(t *testing.T) {
         s := New(0)
@@ -43,15 +72,12 @@ func TestStub_AkbScore_Default(t *testing.T) {
         if code != http.StatusOK {
                 t.Errorf("status = %d, want 200", code)
         }
-        ret, ok := body["return"].(map[string]any)
-        if !ok {
-                t.Fatalf("missing 'return' object")
+        point, response := extractScore(t, body)
+        if point != 650 {
+                t.Errorf("point = %v, want 650", point)
         }
-        if ret["point"].(float64) != 650 {
-                t.Errorf("point = %v, want 650", ret["point"])
-        }
-        if ret["response"] != "" {
-                t.Errorf("response = %v, want empty", ret["response"])
+        if response != "" {
+                t.Errorf("response = %v, want empty", response)
         }
 }
 
@@ -61,21 +87,21 @@ func TestStub_AkbScore_StopFactor(t *testing.T) {
         if code != http.StatusOK {
                 t.Errorf("status = %d, want 200", code)
         }
-        ret := body["return"].(map[string]any)
-        if ret["point"].(float64) != 1 {
-                t.Errorf("point = %v, want 1", ret["point"])
+        point, response := extractScore(t, body)
+        if point != 1 {
+                t.Errorf("point = %v, want 1", point)
         }
-        if ret["response"] != "AB" {
-                t.Errorf("response = %v, want 'AB'", ret["response"])
+        if response != "AB" {
+                t.Errorf("response = %v, want 'AB'", response)
         }
 }
 
 func TestStub_AkbScore_LowScore(t *testing.T) {
         s := New(0)
         _, body := doGet(t, s.handleAkbScore, "/api/router/akb-score?fin=PIN1&scenario=low_score")
-        ret := body["return"].(map[string]any)
-        if ret["point"].(float64) != 150 {
-                t.Errorf("point = %v, want 150", ret["point"])
+        point, _ := extractScore(t, body)
+        if point != 150 {
+                t.Errorf("point = %v, want 150", point)
         }
 }
 
@@ -144,6 +170,33 @@ func TestStub_AzmkBlacklist_Blacklisted(t *testing.T) {
 }
 
 // --- AKB History tests ---
+// PR #110: tests now use real AKB envelope format (data.Request.inquiryResult.liabilities.liability[])
+
+// helper: extract liabilities array from real AKB envelope
+func extractLiabilities(t *testing.T, body map[string]any) []any {
+        t.Helper()
+        data, ok := body["data"].(map[string]any)
+        if !ok {
+                t.Fatalf("missing 'data' envelope: %v", body)
+        }
+        req, ok := data["Request"].(map[string]any)
+        if !ok {
+                t.Fatalf("missing 'data.Request': %v", data)
+        }
+        ir, ok := req["inquiryResult"].(map[string]any)
+        if !ok {
+                t.Fatalf("missing 'data.Request.inquiryResult': %v", req)
+        }
+        libs, ok := ir["liabilities"].(map[string]any)
+        if !ok {
+                t.Fatalf("missing 'data.Request.inquiryResult.liabilities': %v", ir)
+        }
+        libArray, ok := libs["liability"].([]any)
+        if !ok {
+                t.Fatalf("missing 'data.Request.inquiryResult.liabilities.liability' array: %v", libs)
+        }
+        return libArray
+}
 
 func TestStub_AkbHistory_Empty(t *testing.T) {
         s := New(0)
@@ -151,10 +204,7 @@ func TestStub_AkbHistory_Empty(t *testing.T) {
         if code != http.StatusOK {
                 t.Errorf("status = %d, want 200", code)
         }
-        liabilities, ok := body["liabilities"].([]any)
-        if !ok {
-                t.Fatalf("missing liabilities array")
-        }
+        liabilities := extractLiabilities(t, body)
         if len(liabilities) != 0 {
                 t.Errorf("liabilities len = %d, want 0 (clean customer)", len(liabilities))
         }
@@ -163,25 +213,26 @@ func TestStub_AkbHistory_Empty(t *testing.T) {
 func TestStub_AkbHistory_Delay3M(t *testing.T) {
         s := New(0)
         _, body := doGet(t, s.handleAkbHistory, "/api/router/akb-history?fin=PIN1&scenario=delay_3m")
-        liabilities := body["liabilities"].([]any)
+        liabilities := extractLiabilities(t, body)
         if len(liabilities) != 1 {
                 t.Fatalf("liabilities len = %d, want 1", len(liabilities))
         }
         lib := liabilities[0].(map[string]any)
-        history := lib["history"].([]any)
+        historyObj := lib["history"].(map[string]any)
+        history := historyObj["historyItem"].([]any)
         if len(history) != 1 {
                 t.Fatalf("history len = %d, want 1", len(history))
         }
         entry := history[0].(map[string]any)
-        if entry["overdue_days"].(float64) != 25 {
-                t.Errorf("overdue_days = %v, want 25", entry["overdue_days"])
+        if entry["overdueDays"].(float64) != 25 {
+                t.Errorf("overdueDays = %v, want 25", entry["overdueDays"])
         }
 }
 
 func TestStub_AkbHistory_HighMonthlyPayments(t *testing.T) {
         s := New(0)
         _, body := doGet(t, s.handleAkbHistory, "/api/router/akb-history?fin=PIN1&scenario=high_monthly_payments")
-        liabilities := body["liabilities"].([]any)
+        liabilities := extractLiabilities(t, body)
         if len(liabilities) != 2 {
                 t.Fatalf("liabilities len = %d, want 2", len(liabilities))
         }

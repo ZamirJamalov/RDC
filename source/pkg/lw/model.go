@@ -249,3 +249,220 @@ type LoanStatusResponse struct {
         LmsLoanID      string `json:"lms_loan_id"`
         Detail         string `json:"detail,omitempty"`
 }
+
+// ============================================================
+// PR #110: Real AKB envelope structs (camelCase, deeply nested)
+// ============================================================
+//
+// PR #55/52 used a flat, snake_case struct that worked for mock/stub data
+// but does NOT match the real AKB router JSON format. Real AKB returns a
+// deeply-nested envelope:
+//
+//   {
+//     "result": 0,
+//     "requestId": 123,
+//     "message": "...",
+//     "data": {
+//       "Request": {
+//         "inquiryResult": {
+//           "reportId": "...",
+//           "liabilities": { "liability": [...] },
+//           "score": { "calculated": true, "point": 650, "response": "" },
+//           "borrower": { "fin": "...", "name": "..." },
+//           "balance": 0
+//         },
+//         "serviceResponse": { "code": "0", "message": "OK" }
+//       }
+//     }
+//   }
+//
+// The structs below mirror this exact shape. The HTTPProvider now parses
+// the real envelope and converts it to the flat AkbHistoryResponse /
+// AkbScoreResponse via the ToHistoryResponse() / ToScoreResponse() adapter
+// methods defined below.
+
+// AkbEnvelope is the top-level wrapper for real AKB JSON responses.
+type AkbEnvelope struct {
+        Result    int    `json:"result"`
+        RequestID int    `json:"requestId"`
+        Message   string `json:"message"`
+        Data      struct {
+                Request struct {
+                        InquiryResult   AkbInquiryResult `json:"inquiryResult"`
+                        ServiceResponse AkbServiceResp    `json:"serviceResponse"`
+                } `json:"Request"`
+        } `json:"data"`
+}
+
+// AkbServiceResp contains the service response code and message.
+// code == "0" means success; any other value indicates an error.
+type AkbServiceResp struct {
+        Code    string `json:"code"`
+        Message string `json:"message"`
+}
+
+// AkbInquiryResult contains the actual inquiry data.
+type AkbInquiryResult struct {
+        ReportID      string        `json:"reportId"`
+        ReportingDate string        `json:"reportingDate"`
+        Borrower      AkbBorrowerV2 `json:"borrower"`
+        Liabilities   struct {
+                Liability []AkbLiabilityV2 `json:"liability"`
+        } `json:"liabilities"`
+        Score   AkbScoreV2 `json:"score"`
+        Balance float64    `json:"balance"`
+}
+
+// AkbBorrowerV2 is the real AKB borrower structure (camelCase).
+type AkbBorrowerV2 struct {
+        DocumentNo        string `json:"documentNo"`
+        Name              string `json:"name"`
+        Fin               string `json:"fin"`
+        DateOfBirth       string `json:"dateOfBirth"`
+        PlaceOfBirth      string `json:"placeOfBirth"`
+        PersonType        string `json:"personType"`
+        Country           string `json:"country"`
+        FileDate          string `json:"fileDate"`
+        LocationCity      string `json:"locationCity"`
+        RegisteredAddress string `json:"registeredAddress"`
+        Status            string `json:"status"`
+}
+
+// AkbLiabilityV2 is the real AKB liability structure (camelCase).
+type AkbLiabilityV2 struct {
+        ID                      string               `json:"id"`
+        BankID                  string               `json:"bankId"`
+        BankName                string               `json:"bankName"`
+        AccountNo               string               `json:"accountNo"`
+        CreditType              string               `json:"creditType"`
+        CreditTypeName          string               `json:"creditTypeName"`
+        GrantedOn               string               `json:"grantedOn"`
+        InitialAmount           float64              `json:"initialAmount"`
+        LineAmount              float64              `json:"lineAmount"`
+        DaysInterestOverdue     int                  `json:"daysInterestOverdue"`
+        DaysMainSumOverdue      int                  `json:"daysMainSumOverdue"`
+        ContractDueOn           string               `json:"contractDueOn"`
+        InterestRate            float64              `json:"interestRate"`
+        OutstandingDebtMain     float64              `json:"outstandingDebtMain"`
+        OutstandingDebtInterest float64              `json:"outstandingDebtInterest"`
+        MonthlyPaymentAmount    float64              `json:"monthlyPaymentAmount"`
+        Prolongations           int                  `json:"prolongations"`
+        CreditStatus            string               `json:"creditStatus"`
+        CreditStatusName        string               `json:"creditStatusName"`
+        Currency                string               `json:"currency"`
+        History                 struct {
+                HistoryItem []AkbHistoryItemV2 `json:"historyItem"`
+        } `json:"history"`
+}
+
+// AkbHistoryItemV2 is a single monthly history entry (camelCase).
+type AkbHistoryItemV2 struct {
+        OverdueDays     int    `json:"overdueDays"`
+        ReportingPeriod string `json:"reportingPeriod"` // "yyyy-MM" format
+        CreditStatus    string `json:"creditStatus"`
+}
+
+// AkbScoreV2 is the real AKB score structure (camelCase, inside inquiryResult).
+type AkbScoreV2 struct {
+        Calculated bool   `json:"calculated"`
+        Point      int    `json:"point"`
+        Response   string `json:"response"`
+}
+
+// ============================================================
+// Adapter methods: convert real envelope → flat struct (backward compat)
+// ============================================================
+
+// ToHistoryResponse converts the real AKB envelope to the flat
+// AkbHistoryResponse that credit_engine.go expects.
+func (e *AkbEnvelope) ToHistoryResponse() *AkbHistoryResponse {
+        if e == nil {
+                return nil
+        }
+        ir := e.Data.Request.InquiryResult
+
+        resp := &AkbHistoryResponse{
+                ReportID:      ir.ReportID,
+                ReportingDate: ir.ReportingDate,
+                Borrower: AkbBorrower{
+                        DocumentNo:        ir.Borrower.DocumentNo,
+                        Fin:               ir.Borrower.Fin,
+                        Name:              ir.Borrower.Name,
+                        DateOfBirth:       ir.Borrower.DateOfBirth,
+                        PlaceOfBirth:      ir.Borrower.PlaceOfBirth,
+                        PersonType:        ir.Borrower.PersonType,
+                        FileDate:          ir.Borrower.FileDate,
+                        RegisteredAddress: ir.Borrower.RegisteredAddress,
+                        Status:            ir.Borrower.Status,
+                },
+                Balance: ir.Balance,
+        }
+
+        // Map liabilities
+        for _, lib := range ir.Liabilities.Liability {
+                akbLib := AkbLiability{
+                        ID:                      lib.ID,
+                        BankID:                  lib.BankID,
+                        BankName:                lib.BankName,
+                        CreditType:              lib.CreditType,
+                        GrantedOn:               lib.GrantedOn,
+                        LineAmount:              lib.LineAmount,
+                        DaysInterestOverdue:     lib.DaysInterestOverdue,
+                        DaysMainSumOverdue:      lib.DaysMainSumOverdue,
+                        ContractDueOn:           lib.ContractDueOn,
+                        InterestRate:            lib.InterestRate,
+                        OutstandingDebtMain:     lib.OutstandingDebtMain,
+                        OutstandingDebtInterest: lib.OutstandingDebtInterest,
+                        MonthlyPaymentAmount:    lib.MonthlyPaymentAmount,
+                        Prolongations:           lib.Prolongations,
+                        CreditStatus:            lib.CreditStatus,
+                        Currency:                lib.Currency,
+                }
+                // Map history items
+                for _, h := range lib.History.HistoryItem {
+                        akbLib.History = append(akbLib.History, AkbLiabilityHistory{
+                                ReportingPeriod: h.ReportingPeriod,
+                                OverdueDays:     h.OverdueDays,
+                                CreditStatus:    h.CreditStatus,
+                        })
+                }
+                resp.Liabilities = append(resp.Liabilities, akbLib)
+        }
+
+        return resp
+}
+
+// ToScoreResponse converts the real AKB envelope to the flat
+// AkbScoreResponse that credit_engine.go expects.
+func (e *AkbEnvelope) ToScoreResponse(fin string) *AkbScoreResponse {
+        if e == nil {
+                return nil
+        }
+        score := e.Data.Request.InquiryResult.Score
+        return &AkbScoreResponse{
+                Fin:    fin,
+                Return: &AkbScoreReturn{
+                        Response: score.Response,
+                        Point:    score.Point,
+                },
+        }
+}
+
+// IsServiceError returns true if the AKB service returned an error code.
+// code == "0" means success; any other value (or non-empty message with
+// empty code) indicates an error.
+func (e *AkbEnvelope) IsServiceError() bool {
+        if e == nil {
+                return false
+        }
+        code := e.Data.Request.ServiceResponse.Code
+        return code != "" && code != "0" && code != "200"
+}
+
+// ServiceErrorMessage returns the error message from serviceResponse.
+func (e *AkbEnvelope) ServiceErrorMessage() string {
+        if e == nil {
+                return ""
+        }
+        return e.Data.Request.ServiceResponse.Message
+}

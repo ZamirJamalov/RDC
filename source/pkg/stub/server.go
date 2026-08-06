@@ -164,55 +164,56 @@ func (s *Server) handleAkbScore(w http.ResponseWriter, r *http.Request) {
                 return
         }
 
+        // PR #110: helper to build real AKB envelope for score
+        buildScoreEnvelope := func(point int, response string) map[string]any {
+                return map[string]any{
+                        "result":    0,
+                        "requestId": 123,
+                        "message":   "OK",
+                        "data": map[string]any{
+                                "Request": map[string]any{
+                                        "inquiryResult": map[string]any{
+                                                "reportId":      "STUB-SCORE-" + fin,
+                                                "reportingDate": time.Now().Format("2006-01-02T15:04:05"),
+                                                "borrower": map[string]any{
+                                                        "fin":  fin,
+                                                        "name": "Stub Customer",
+                                                },
+                                                "score": map[string]any{
+                                                        "calculated": true,
+                                                        "point":       point,
+                                                        "response":    response,
+                                                },
+                                                "balance": 0,
+                                        },
+                                        "serviceResponse": map[string]any{
+                                                "code":    "0",
+                                                "message": "OK",
+                                        },
+                                },
+                        },
+                }
+        }
+
         sc := scenario(r)
         switch sc {
         case "stop_factor":
                 // Point=1 → stop factor present, Response=2-letter code
-                writeJSON(w, http.StatusOK, map[string]any{
-                        "fin": fin,
-                        "return": map[string]any{
-                                "response": "AB",
-                                "point":    1,
-                        },
-                })
+                writeJSON(w, http.StatusOK, buildScoreEnvelope(1, "AB"))
         case "low_score":
                 // Point=150 → below 200 threshold (rule 1)
-                writeJSON(w, http.StatusOK, map[string]any{
-                        "fin": fin,
-                        "return": map[string]any{
-                                "response": "",
-                                "point":    150,
-                        },
-                })
+                writeJSON(w, http.StatusOK, buildScoreEnvelope(150, ""))
         case "high_score":
                 // Point=750 → triggers valuable override (AKB 700+)
-                writeJSON(w, http.StatusOK, map[string]any{
-                        "fin": fin,
-                        "return": map[string]any{
-                                "response": "",
-                                "point":    750,
-                        },
-                })
+                writeJSON(w, http.StatusOK, buildScoreEnvelope(750, ""))
         case "no_data":
                 // Point=0 → AKB returned no usable data
-                writeJSON(w, http.StatusOK, map[string]any{
-                        "fin": fin,
-                        "return": map[string]any{
-                                "response": "",
-                                "point":    0,
-                        },
-                })
+                writeJSON(w, http.StatusOK, buildScoreEnvelope(0, ""))
         case "error":
                 writeError(w, http.StatusBadGateway, "stub: simulated AKB service error")
         case "":
                 // Default: normal score 650
-                writeJSON(w, http.StatusOK, map[string]any{
-                        "fin": fin,
-                        "return": map[string]any{
-                                "response": "",
-                                "point":    650,
-                        },
-                })
+                writeJSON(w, http.StatusOK, buildScoreEnvelope(650, ""))
         default:
                 writeError(w, http.StatusBadRequest, "stub: unknown scenario '"+sc+"' for akb-score")
         }
@@ -234,189 +235,147 @@ func (s *Server) handleAkbHistory(w http.ResponseWriter, r *http.Request) {
                 return now.AddDate(0, -monthsAgo, 0).Format("2006-01")
         }
 
+        // PR #110: helper to build real AKB envelope for history
+        // liabilities: list of liability objects (each with camelCase fields + nested history)
+        buildHistoryEnvelope := func(reportID, customerName string, liabilities []map[string]any, balance float64) map[string]any {
+                return map[string]any{
+                        "result":    0,
+                        "requestId": 456,
+                        "message":   "OK",
+                        "data": map[string]any{
+                                "Request": map[string]any{
+                                        "inquiryResult": map[string]any{
+                                                "reportId":      reportID,
+                                                "reportingDate": "2026-07-01T00:00:00",
+                                                "borrower": map[string]any{
+                                                        "fin":    fin,
+                                                        "name":   customerName,
+                                                        "status": "active",
+                                                },
+                                                "liabilities": map[string]any{
+                                                        "liability": liabilities,
+                                                },
+                                                "score": map[string]any{
+                                                        "calculated": true,
+                                                        "point":       650,
+                                                        "response":    "",
+                                                },
+                                                "balance": balance,
+                                        },
+                                        "serviceResponse": map[string]any{
+                                                "code":    "0",
+                                                "message": "OK",
+                                        },
+                                },
+                        },
+                }
+        }
+
+        // PR #110: helper to build a single liability (camelCase, nested history)
+        buildLiability := func(id, status string, daysOverdue int, monthlyPayment float64, historyItems []map[string]any) map[string]any {
+                return map[string]any{
+                        "id":                     id,
+                        "creditStatus":           status,
+                        "daysMainSumOverdue":     daysOverdue,
+                        "monthlyPaymentAmount":   monthlyPayment,
+                        "history": map[string]any{
+                                "historyItem": historyItems,
+                        },
+                }
+        }
+
+        // PR #110: helper to build a history item (camelCase)
+        buildHistoryItem := func(period string, overdueDays int) map[string]any {
+                return map[string]any{
+                        "reportingPeriod": period,
+                        "overdueDays":     overdueDays,
+                        "creditStatus":    "active",
+                }
+        }
+
         sc := scenario(r)
         switch sc {
         case "delay_ratio_high":
                 // 12 months with 7 days overdue each → ratio = 84/12 = 7.0 > 6 (rule 2)
                 history := []map[string]any{}
                 for i := 0; i < 12; i++ {
-                        history = append(history, map[string]any{
-                                "reporting_period": formatPeriod(i),
-                                "overdue_days":     7,
-                                "credit_status":    "active",
-                        })
+                        history = append(history, buildHistoryItem(formatPeriod(i), 7))
                 }
-                writeJSON(w, http.StatusOK, map[string]any{
-                        "report_id":      "MOCK-DELAY-RATIO",
-                        "reporting_date": "2026-07-01",
-                        "borrower": map[string]any{
-                                "fin":    fin,
-                                "name":   "Delay Ratio Customer",
-                                "status": "active",
-                        },
-                        "liabilities": []map[string]any{
-                                {
-                                        "id":                     "L-DELAY",
-                                        "credit_status":          "closed",
-                                        "days_main_sum_overdue":  0,
-                                        "monthly_payment_amount": 0,
-                                        "history":                history,
-                                },
-                        },
-                        "inquiry_history": []map[string]any{},
-                        "balance":         0,
-                })
+                writeJSON(w, http.StatusOK, buildHistoryEnvelope(
+                        "MOCK-DELAY-RATIO", "Delay Ratio Customer",
+                        []map[string]any{buildLiability("L-DELAY", "closed", 0, 0, history)},
+                        0,
+                ))
 
         case "active_delay_high":
                 // Active liability with 10 days overdue → rule 6 (>5 days)
-                writeJSON(w, http.StatusOK, map[string]any{
-                        "report_id":      "MOCK-ACTIVE-DELAY",
-                        "reporting_date": "2026-07-01",
-                        "borrower": map[string]any{
-                                "fin":    fin,
-                                "name":   "Active Delay Customer",
-                                "status": "active",
-                        },
-                        "liabilities": []map[string]any{
-                                {
-                                        "id":                     "L-ACTIVE",
-                                        "credit_status":          "active",
-                                        "days_main_sum_overdue":  10,
-                                        "monthly_payment_amount": 200,
-                                        "history":                []map[string]any{},
-                                },
-                        },
-                        "inquiry_history": []map[string]any{},
-                        "balance":         200,
-                })
+                writeJSON(w, http.StatusOK, buildHistoryEnvelope(
+                        "MOCK-ACTIVE-DELAY", "Active Delay Customer",
+                        []map[string]any{buildLiability("L-ACTIVE", "active", 10, 200, []map[string]any{})},
+                        200,
+                ))
 
         case "delay_3m":
                 // 25 days overdue 1 month ago → rule 7 (>=20 in 3 months)
-                writeJSON(w, http.StatusOK, map[string]any{
-                        "report_id":      "MOCK-DELAY-3M",
-                        "reporting_date": "2026-07-01",
-                        "borrower":       map[string]any{"fin": fin, "name": "Delay 3M Customer", "status": "active"},
-                        "liabilities": []map[string]any{
-                                {
-                                        "id":                     "L-3M",
-                                        "credit_status":          "closed",
-                                        "days_main_sum_overdue":  0,
-                                        "monthly_payment_amount": 0,
-                                        "history": []map[string]any{
-                                                {"reporting_period": formatPeriod(1), "overdue_days": 25, "credit_status": "active"},
-                                        },
-                                },
-                        },
-                        "inquiry_history": []map[string]any{},
-                        "balance":         0,
-                })
+                writeJSON(w, http.StatusOK, buildHistoryEnvelope(
+                        "MOCK-DELAY-3M", "Delay 3M Customer",
+                        []map[string]any{buildLiability("L-3M", "closed", 0, 0, []map[string]any{
+                                buildHistoryItem(formatPeriod(1), 25),
+                        })},
+                        0,
+                ))
 
         case "delay_6m":
                 // 35 days overdue 4 months ago → rule 8 (>=30 in 6 months)
-                writeJSON(w, http.StatusOK, map[string]any{
-                        "report_id":      "MOCK-DELAY-6M",
-                        "reporting_date": "2026-07-01",
-                        "borrower":       map[string]any{"fin": fin, "name": "Delay 6M Customer", "status": "active"},
-                        "liabilities": []map[string]any{
-                                {
-                                        "id":                     "L-6M",
-                                        "credit_status":          "closed",
-                                        "days_main_sum_overdue":  0,
-                                        "monthly_payment_amount": 0,
-                                        "history": []map[string]any{
-                                                {"reporting_period": formatPeriod(4), "overdue_days": 35, "credit_status": "active"},
-                                        },
-                                },
-                        },
-                        "inquiry_history": []map[string]any{},
-                        "balance":         0,
-                })
+                writeJSON(w, http.StatusOK, buildHistoryEnvelope(
+                        "MOCK-DELAY-6M", "Delay 6M Customer",
+                        []map[string]any{buildLiability("L-6M", "closed", 0, 0, []map[string]any{
+                                buildHistoryItem(formatPeriod(4), 35),
+                        })},
+                        0,
+                ))
 
         case "delay_12m":
                 // 50 days overdue 8 months ago → rule 9 (>=45 in 12 months)
-                writeJSON(w, http.StatusOK, map[string]any{
-                        "report_id":      "MOCK-DELAY-12M",
-                        "reporting_date": "2026-07-01",
-                        "borrower":       map[string]any{"fin": fin, "name": "Delay 12M Customer", "status": "active"},
-                        "liabilities": []map[string]any{
-                                {
-                                        "id":                     "L-12M",
-                                        "credit_status":          "closed",
-                                        "days_main_sum_overdue":  0,
-                                        "monthly_payment_amount": 0,
-                                        "history": []map[string]any{
-                                                {"reporting_period": formatPeriod(8), "overdue_days": 50, "credit_status": "active"},
-                                        },
-                                },
-                        },
-                        "inquiry_history": []map[string]any{},
-                        "balance":         0,
-                })
+                writeJSON(w, http.StatusOK, buildHistoryEnvelope(
+                        "MOCK-DELAY-12M", "Delay 12M Customer",
+                        []map[string]any{buildLiability("L-12M", "closed", 0, 0, []map[string]any{
+                                buildHistoryItem(formatPeriod(8), 50),
+                        })},
+                        0,
+                ))
 
         case "delay_18m":
                 // 65 days overdue 14 months ago → rule 10 (>=60 in 18 months)
-                writeJSON(w, http.StatusOK, map[string]any{
-                        "report_id":      "MOCK-DELAY-18M",
-                        "reporting_date": "2026-07-01",
-                        "borrower":       map[string]any{"fin": fin, "name": "Delay 18M Customer", "status": "active"},
-                        "liabilities": []map[string]any{
-                                {
-                                        "id":                     "L-18M",
-                                        "credit_status":          "closed",
-                                        "days_main_sum_overdue":  0,
-                                        "monthly_payment_amount": 0,
-                                        "history": []map[string]any{
-                                                {"reporting_period": formatPeriod(14), "overdue_days": 65, "credit_status": "active"},
-                                        },
-                                },
-                        },
-                        "inquiry_history": []map[string]any{},
-                        "balance":         0,
-                })
+                writeJSON(w, http.StatusOK, buildHistoryEnvelope(
+                        "MOCK-DELAY-18M", "Delay 18M Customer",
+                        []map[string]any{buildLiability("L-18M", "closed", 0, 0, []map[string]any{
+                                buildHistoryItem(formatPeriod(14), 65),
+                        })},
+                        0,
+                ))
 
         case "high_monthly_payments":
                 // Two active liabilities: 1200 + 900 = 2100 > 2000 → rule 12
-                writeJSON(w, http.StatusOK, map[string]any{
-                        "report_id":      "MOCK-HIGH-PAYMENTS",
-                        "reporting_date": "2026-07-01",
-                        "borrower":       map[string]any{"fin": fin, "name": "High Payments Customer", "status": "active"},
-                        "liabilities": []map[string]any{
-                                {
-                                        "id":                     "L-PAY1",
-                                        "credit_status":          "active",
-                                        "days_main_sum_overdue":  0,
-                                        "monthly_payment_amount": 1200,
-                                        "history":                []map[string]any{},
-                                },
-                                {
-                                        "id":                     "L-PAY2",
-                                        "credit_status":          "active",
-                                        "days_main_sum_overdue":  0,
-                                        "monthly_payment_amount": 900,
-                                        "history":                []map[string]any{},
-                                },
+                writeJSON(w, http.StatusOK, buildHistoryEnvelope(
+                        "MOCK-HIGH-PAYMENTS", "High Payments Customer",
+                        []map[string]any{
+                                buildLiability("L-PAY1", "active", 0, 1200, []map[string]any{}),
+                                buildLiability("L-PAY2", "active", 0, 900, []map[string]any{}),
                         },
-                        "inquiry_history": []map[string]any{},
-                        "balance":         2100,
-                })
+                        2100,
+                ))
 
         case "error":
                 writeError(w, http.StatusBadGateway, "stub: simulated AKB history service error")
 
         case "", "empty":
                 // Default: no liabilities (clean customer)
-                writeJSON(w, http.StatusOK, map[string]any{
-                        "report_id":      "MOCK-CLEAN",
-                        "reporting_date": "2026-07-01",
-                        "borrower": map[string]any{
-                                "fin":    fin,
-                                "name":   "Clean Customer",
-                                "status": "active",
-                        },
-                        "liabilities":     []map[string]any{},
-                        "inquiry_history": []map[string]any{},
-                        "balance":         0,
-                })
+                writeJSON(w, http.StatusOK, buildHistoryEnvelope(
+                        "MOCK-CLEAN", "Clean Customer",
+                        []map[string]any{},
+                        0,
+                ))
 
         default:
                 writeError(w, http.StatusBadRequest, "stub: unknown scenario '"+sc+"' for akb-history")
