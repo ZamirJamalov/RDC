@@ -5,7 +5,6 @@ import (
         "fmt"
         "log/slog"
         "net/http"
-        "os"
         "time"
 )
 
@@ -33,9 +32,6 @@ type HTTPProvider struct {
         baseURL string
         apiKey  string
         client  *http.Client
-        // PR #113: stub scenario parametri (test üçün). Mühit dəyişəni
-        // LW_STUB_SCENARIO ilə təyin olunur. Boş olarsa, ötürülmür.
-        stubScenario string
 }
 
 // NewHTTPProvider creates a new HTTPProvider with the given configuration.
@@ -47,16 +43,7 @@ func NewHTTPProvider(baseURL, apiKey string, timeout time.Duration) *HTTPProvide
                 client: &http.Client{
                         Timeout: timeout,
                 },
-                stubScenario: os.Getenv("LW_STUB_SCENARIO"),
         }
-}
-
-// scenarioParam returns "&scenario=xxx" if stubScenario is set, otherwise "".
-func (p *HTTPProvider) scenarioParam() string {
-        if p.stubScenario != "" {
-                return "&scenario=" + p.stubScenario
-        }
-        return ""
 }
 
 // LW API endpoint paths (placeholders — update when real docs arrive).
@@ -78,7 +65,7 @@ const (
 // GetCustomerLoans fetches all loans for a customer from LW.
 func (p *HTTPProvider) GetCustomerLoans(ctx context.Context, pin string) (*CustomerLoansResponse, error) {
         var resp CustomerLoansResponse
-        err := p.getJSON(ctx, pathGetCustomerLoans+"?pin="+pin+p.scenarioParam(), &resp)
+        err := p.getJSON(ctx, pathGetCustomerLoans+"?pin="+pin, &resp)
         if err != nil {
                 return nil, fmt.Errorf("http provider: GetCustomerLoans: %w", err)
         }
@@ -100,7 +87,7 @@ type blacklistResponse struct {
 
 func (p *HTTPProvider) CheckBlacklist(ctx context.Context, fin string) (bool, error) {
         var resp blacklistResponse
-        err := p.getJSON(ctx, pathCheckBlacklist+"?fin="+fin+p.scenarioParam(), &resp)
+        err := p.getJSON(ctx, pathCheckBlacklist+"?fin="+fin, &resp)
         if err != nil {
                 return false, fmt.Errorf("http provider: CheckBlacklist: %w", err)
         }
@@ -121,7 +108,7 @@ type azmkBlacklistResponse struct {
 // blacklist, the application must be rejected.
 func (p *HTTPProvider) GetAzmkBlacklist(ctx context.Context, fin string) (bool, error) {
         var resp azmkBlacklistResponse
-        err := p.getJSON(ctx, pathGetAzmkBlacklist+"?fin="+fin+p.scenarioParam(), &resp)
+        err := p.getJSON(ctx, pathGetAzmkBlacklist+"?fin="+fin, &resp)
         if err != nil {
                 return false, fmt.Errorf("http provider: GetAzmkBlacklist: %w", err)
         }
@@ -133,7 +120,7 @@ func (p *HTTPProvider) GetAzmkBlacklist(ctx context.Context, fin string) (bool, 
 // GetPersonalInfo fetches personal info from DIN via LW router.
 func (p *HTTPProvider) GetPersonalInfo(ctx context.Context, fin, serial string) (*PersonalInfoResponse, error) {
         var resp PersonalInfoResponse
-        err := p.getJSON(ctx, pathGetPersonalInfo+"?fin="+fin+"&serial="+serial+p.scenarioParam(), &resp)
+        err := p.getJSON(ctx, pathGetPersonalInfo+"?fin="+fin+"&serial="+serial, &resp)
         if err != nil {
                 return nil, fmt.Errorf("http provider: GetPersonalInfo: %w", err)
         }
@@ -146,7 +133,7 @@ func (p *HTTPProvider) GetPersonalInfo(ctx context.Context, fin, serial string) 
 // PR #113: stubScenario varsa scenario parametri ötürülür (test üçün).
 func (p *HTTPProvider) GetAkbScore(ctx context.Context, fin, serial string) (*AkbScoreResponse, error) {
         var envelope AkbScoreEnvelope
-        err := p.getJSON(ctx, pathGetAkbScore+"?fin="+fin+"&serial="+serial+p.scenarioParam(), &envelope)
+        err := p.getJSON(ctx, pathGetAkbScore+"?fin="+fin+"&serial="+serial, &envelope)
         if err != nil {
                 return nil, fmt.Errorf("http provider: GetAkbScore: %w", err)
         }
@@ -177,7 +164,7 @@ func (p *HTTPProvider) GetAkbScore(ctx context.Context, fin, serial string) (*Ak
 // PR #113: stubScenario varsa scenario parametri ötürülür (test üçün).
 func (p *HTTPProvider) GetAkbHistory(ctx context.Context, fin, serial string) (*AkbHistoryResponse, error) {
         var envelope AkbHistoryEnvelope
-        err := p.getJSON(ctx, pathGetAkbHistory+"?fin="+fin+"&serial="+serial+p.scenarioParam(), &envelope)
+        err := p.getJSON(ctx, pathGetAkbHistory+"?fin="+fin+"&serial="+serial, &envelope)
         if err != nil {
                 return nil, fmt.Errorf("http provider: GetAkbHistory: %w", err)
         }
@@ -206,7 +193,7 @@ func (p *HTTPProvider) GetAkbHistory(ctx context.Context, fin, serial string) (*
 // GetAsanFinance fetches official income from ASAN Finance via LW router.
 func (p *HTTPProvider) GetAsanFinance(ctx context.Context, fin string) (*AsanFinanceResponse, error) {
         var resp AsanFinanceResponse
-        err := p.getJSON(ctx, pathGetAsanFinance+"?fin="+fin+p.scenarioParam(), &resp)
+        err := p.getJSON(ctx, pathGetAsanFinance+"?fin="+fin, &resp)
         if err != nil {
                 return nil, fmt.Errorf("http provider: GetAsanFinance: %w", err)
         }
