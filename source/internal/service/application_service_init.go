@@ -252,7 +252,15 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
                 "application_id", app.ID,
                 "customer_pin", customerPIN,
                 "akb_score", akbScore,
-                "age", age)
+                "age", age,
+                "akb_history_available", analytics.akbHistoryAvailable,
+                "delay_ratio", analytics.delayRatio,
+                "active_delay", analytics.activeMaxDelayDays,
+                "max_3m", analytics.maxDelayLast3Months,
+                "max_6m", analytics.maxDelayLast6Months,
+                "max_12m", analytics.maxDelayLast12Months,
+                "max_18m", analytics.maxDelayLast18Months,
+                "monthly_payments", analytics.totalMonthlyPayments)
 
         return "", nil
 }
