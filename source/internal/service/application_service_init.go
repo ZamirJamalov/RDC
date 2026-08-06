@@ -75,8 +75,21 @@ type VerifyInitApplicationRequest struct {
 }
 
 // VerifyInitApplication verifies the OTP code and transitions the application
-// from pending_customer to pending_expert. In this version, no cutoff checks
-// are performed — the customer is assumed to have passed.
+// from pending_customer to pending_expert.
+//
+// PR #112: AUTO cutoff yoxlamaları burada baş verir — OTP-dən sonra, kredit təklifindən ƏVVƏL.
+// Bu yoxlamalar məbləğdən asılı deyil və müştəriyə vaxt itirmədən rədd cavabı verir:
+//   - AKB skoru (< 200 → rədd)
+//   - AKB stop-faktor (point == 1 → rədd)
+//   - Qara siyahı (LW_BLACKLIST, AZMK_BLACKLIST → rədd)
+//   - Yaş (> 69 → rədd)
+//   - Gecikmə tarixçəsi (delay ratio, 3/6/12/18 ay → rədd)
+//   - Aktiv kredit (ACTIVE_LOAN → rədd)
+//   - Gecikməli ödəniş (LATE_PAYMENT → rədd)
+//   - Aylıq ödəniş həddi (MONTHLY_PAYMENTS_HIGH → rədd)
+//
+// EMPLOYMENT_TENURE və DISABILITY_GROUP1 manual yoxlamalardır və ekspert
+// dashboard-da MyGov sorğusu zamanı yoxlanılır (credit engine-də yox).
 func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *VerifyInitApplicationRequest) (*model.LoanApplication, error) {
         if req.ApplicationID <= 0 {
                 return nil, fmt.Errorf("application_id is required")
@@ -103,19 +116,145 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
                 return nil, fmt.Errorf("application is not in pending_customer status (current: %s)", app.Status)
         }
 
-        // 3. Transition to pending_expert
-        // NOTE: Cutoff checks (AKB, blacklist) will be added here in the next phase.
-        // For now, we skip them and go straight to pending_expert.
+        // 3. PR #112: Early AUTO cutoff yoxlamaları
+        // Müştəri kredit təklifi görməzdən əvvəl yoxlanılır.
+        rejectionReason, err := s.runEarlyCutoffChecks(ctx, app)
+        if err != nil {
+                slog.Error("early cutoff checks failed — proceeding to pending_expert (fail-soft)",
+                        "application_id", app.ID,
+                        "customer_pin", app.CustomerPIN,
+                        "error", err)
+                // Fail-soft: cutoff xətası olanda müştərini bloklamırıq — normal flow davam edir
+        } else if rejectionReason != "" {
+                // Cutoff rədd etdi — statusu rejected et və səbəbi yaz
+                app.Status = model.StatusRejected
+                app.RejectionReason = rejectionReason
+                if err := s.repo.UpdateApplicationDecision(ctx, app.ID,
+                        app.Status, "", rejectionReason, 0, 0, 0); err != nil {
+                        return nil, fmt.Errorf("failed to save rejection: %w", err)
+                }
+                slog.Info("early cutoff: application rejected before offer",
+                        "application_id", app.ID,
+                        "customer_pin", app.CustomerPIN,
+                        "rejection_reason", rejectionReason)
+                return app, nil
+        }
+
+        // 4. Cutoff keçdi — transition to pending_expert
         app.Status = model.StatusPendingExpert
         if err := s.repo.UpdateApplicationStatus(ctx, app.ID, app.Status); err != nil {
                 return nil, fmt.Errorf("failed to update status: %w", err)
         }
 
-        slog.Info("application verified, waiting for expert",
+        slog.Info("application verified, early cutoff passed, waiting for expert",
                 "application_id", app.ID,
                 "customer_pin", app.CustomerPIN)
 
         return app, nil
+}
+
+// runEarlyCutoffChecks performs AUTO cutoff checks after OTP verification,
+// before the customer sees the credit offer.
+//
+// PR #112: bu yoxlamalar məbləğdən asılı deyil — AKB, blacklist, yaş, gecikmə.
+// Məbləğdən asılı olanlar (NO_COMMISSION_FOUND) customer-confirm-da yoxlanılır.
+//
+// Returns:
+//   - ("", nil) — bütün yoxlamalar keçdi
+//   - ("RULE_CODE", nil) — rədd səbəbi (məs. "AKB_SCORE_LOW")
+//   - ("", error) — texniki xəta (fail-soft — müştərini bloklamırıq)
+func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *model.LoanApplication) (string, error) {
+        if s.creditEngine == nil {
+                slog.Warn("early cutoff: creditEngine is nil — skipping checks")
+                return "", nil
+        }
+
+        customerPIN := app.CustomerPIN
+        serial := app.CustomerSerial
+
+        // 1. Qara siyahı yoxlaması (LW + AZMK)
+        blacklisted, err := s.creditEngine.lwProvider.CheckBlacklist(ctx, customerPIN)
+        if err != nil {
+                slog.Warn("early cutoff: LW blacklist check failed — fail-soft (skip)", "error", err)
+        } else if blacklisted {
+                return "LW_BLACKLIST", nil
+        }
+
+        azmkBlacklisted, azmkErr := s.creditEngine.lwProvider.GetAzmkBlacklist(ctx, customerPIN)
+        if azmkErr != nil {
+                slog.Warn("early cutoff: AZMK blacklist check failed — fail-soft (skip)", "error", azmkErr)
+        } else if azmkBlacklisted {
+                return "AZMK_BLACKLIST", nil
+        }
+
+        // 2. AKB skoru və stop-faktor
+        akbScore, stopFactorCode, hasStopFactor := s.creditEngine.resolveAkbScoreAndStopFactors(ctx, customerPIN, 0)
+        if hasStopFactor {
+                return fmt.Sprintf("AKB_STOP_FACTOR:%s", stopFactorCode), nil
+        }
+        if akbScore > 0 && akbScore < 200 {
+                return "AKB_SCORE_LOW", nil
+        }
+
+        // 3. Yaş yoxlaması
+        age := s.creditEngine.resolveCustomerAge(ctx, customerPIN, serial)
+        if age > 69 {
+                return "AGE_OVER_69", nil
+        }
+
+        // 4. AKB History yoxlamaları (gecikmə, aktiv kredit, aylıq ödəniş)
+        // Bu yoxlamalar loanAnalytics strukturunu doldurur
+        var analytics loanAnalytics
+        s.creditEngine.resolveAkbHistory(ctx, customerPIN, serial, &analytics)
+
+        // 4a. Gecikmə tarixçəsi (yalnız AKB history available olanda)
+        if analytics.akbHistoryAvailable {
+                if analytics.delayRatio > 6 {
+                        return "DELAY_RATIO_HIGH", nil
+                }
+                if analytics.activeMaxDelayDays > 5 {
+                        return "ACTIVE_DELAY_HIGH", nil
+                }
+                if analytics.maxDelayLast3Months >= 20 {
+                        return "DELAY_3M", nil
+                }
+                if analytics.maxDelayLast6Months >= 30 {
+                        return "DELAY_6M", nil
+                }
+                if analytics.maxDelayLast12Months >= 45 {
+                        return "DELAY_12M", nil
+                }
+                if analytics.maxDelayLast18Months >= 60 {
+                        return "DELAY_18M", nil
+                }
+                if analytics.totalMonthlyPayments > 2000 {
+                        return "MONTHLY_PAYMENTS_HIGH", nil
+                }
+        }
+
+        // 5. Aktiv kredit və gecikməli ödəniş (LW loans)
+        customerLoans, loansErr := s.creditEngine.lwProvider.GetCustomerLoans(ctx, customerPIN)
+        if loansErr != nil {
+                slog.Warn("early cutoff: failed to fetch customer loans — fail-soft (skip)",
+                        "customer_pin", customerPIN,
+                        "error", loansErr)
+        } else {
+                loanAnalytics := computeAnalytics(customerLoans.Loans)
+                if loanAnalytics.hasActive {
+                        return "ACTIVE_LOAN", nil
+                }
+                if loanAnalytics.completedCount > 0 && !loanAnalytics.allOnTime {
+                        return "LATE_PAYMENT", nil
+                }
+        }
+
+        slog.Info("early cutoff: all checks passed",
+                "application_id", app.ID,
+                "customer_pin", customerPIN,
+                "akb_score", akbScore,
+                "age", age)
+
+        return "", nil
 }
 
 // CompleteApplicationRequest is the body for PUT /api/applications/{id}/complete.
