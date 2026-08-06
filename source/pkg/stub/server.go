@@ -27,7 +27,9 @@ import (
         "fmt"
         "log/slog"
         "net/http"
+        "os"
         "strconv"
+        "strings"
         "time"
 )
 
@@ -103,8 +105,69 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 }
 
 // scenario extracts the ?scenario= query parameter (empty when not set).
+// scenario returns the stub scenario for a request.
+// PR #114: FIN-based avtomatik scenario — istifadəçi apply.html-də
+// fərqli FIN yazaraq fərqli cutoff-ları test edə bilər.
+//
+// Prioritet:
+//  1. URL-də ?scenario= varsa, onu istifadə et
+//  2. LW_STUB_SCENARIO env var varsa, onu istifadə et
+//  3. FIN koduna görə avtomatik scenario təyin et
+//  4. Default: "" (clean customer)
 func scenario(r *http.Request) string {
-        return r.URL.Query().Get("scenario")
+        // 1. URL parametri
+        if sc := r.URL.Query().Get("scenario"); sc != "" {
+                return sc
+        }
+
+        // 2. LW_STUB_SCENARIO env var
+        if sc := os.Getenv("LW_STUB_SCENARIO"); sc != "" {
+                return sc
+        }
+
+        // 3. FIN-based avtomatik scenario
+        fin := r.URL.Query().Get("fin")
+        if fin != "" {
+                if sc, ok := finScenarios[fin]; ok {
+                        return sc
+                }
+                if sc, ok := finScenarios[strings.ToUpper(fin)]; ok {
+                        return sc
+                }
+        }
+
+        // 4. Default
+        return ""
+}
+
+// finScenarios maps FIN codes to stub scenarios for easy testing.
+// PR #114: apply.html-də bu FIN-ləri yazaraq fərqli cutoff-ları test et.
+var finScenarios = map[string]string{
+        // AKB History cutoffs
+        "TEST123": "delay_3m",           // 25 gün gecikmə → DELAY_3M
+        "TEST444": "delay_6m",           // 35 gün gecikmə → DELAY_6M
+        "TEST555": "delay_12m",          // 50 gün gecikmə → DELAY_12M
+        "TEST666": "delay_18m",          // 65 gün gecikmə → DELAY_18M
+        "TEST321": "active_delay_high",  // aktiv 10 gün → ACTIVE_DELAY_HIGH
+        "TEST654": "high_monthly_payments", // 2100 AZN → MONTHLY_PAYMENTS_HIGH
+        "TEST333": "delay_ratio_high",   // 7 gün/ay → DELAY_RATIO_HIGH
+
+        // AKB Score cutoffs
+        "TEST789": "low_score",          // Point=150 → AKB_SCORE_LOW
+        "TEST111": "stop_factor",        // Point=1 → AKB_STOP_FACTOR
+
+        // Blacklist cutoffs
+        "TEST456": "blacklisted",        // AZMK → AZMK_BLACKLIST
+
+        // Age cutoff
+        "TEST222": "old_customer",       // Age 76 → AGE_OVER_69
+
+        // LW Loans cutoffs
+        "TEST777": "active_loan",        // aktiv kredit → ACTIVE_LOAN
+        "TEST888": "late_payment",       // gecikməli ödəniş → LATE_PAYMENT
+
+        // Clean customer (cutoff keçir)
+        "TEST000": "",                   // default — təmiz tarixçə
 }
 
 // =====================================================================
