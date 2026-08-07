@@ -23,6 +23,7 @@ type ApplicationService struct {
         // PR #117: AZMK Online Lending Service
         azmkProvider  azmk.Provider // set via SetAzmkProvider (nil = skip KYC/Partner)
         azmkBranch    string        // AZMK_BRANCH_CODE (məs. "HO")
+        azmkCardExpiring string     // AZMK_CARD_EXPIRING (məs. "2030-01-01")
 }
 
 // NewApplicationService creates a new ApplicationService.
@@ -73,9 +74,10 @@ func (s *ApplicationService) SetDiscountService(svc *DiscountCodeService) {
 //   3. Register Partner → get partner_id
 //   4. Save kyc_id + partner_id to the application
 // When nil (e.g. in tests), KYC/Partner steps are skipped.
-func (s *ApplicationService) SetAzmkProvider(provider azmk.Provider, branchCode string) {
+func (s *ApplicationService) SetAzmkProvider(provider azmk.Provider, branchCode, cardExpiring string) {
         s.azmkProvider = provider
         s.azmkBranch = branchCode
+        s.azmkCardExpiring = cardExpiring
 }
 
 // CreateApplication creates a new loan application with "pending" status and triggers the credit engine.
