@@ -251,6 +251,11 @@ func (m *mockApplicationStore) UpdateApplicationDetails(_ context.Context, id in
                 existing.Contact3Relation = app.Contact3Relation
                 // PR #95: discount_code
                 existing.DiscountCode = app.DiscountCode
+                // PR #116: AZMK Online Lending fields
+                existing.KycID = app.KycID
+                existing.PartnerID = app.PartnerID
+                existing.CardID = app.CardID
+                existing.LwApplicationID = app.LwApplicationID
         }
         return nil
 }

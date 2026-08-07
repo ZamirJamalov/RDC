@@ -63,6 +63,8 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
         // PR #94: discount fields
         var discountCode sql.NullString
         var discountAmount sql.NullFloat64
+        // PR #116: AZMK Online Lending fields
+        var kycID, partnerID, cardID, lwApplicationID sql.NullString
 
         err := r.db.QueryRowContext(ctx, `
                 SELECT id, customer_pin, customer_full_name, amount, term_months, loan_purpose,
@@ -73,6 +75,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                        card_number, customer_phone, customer_serial,
                        customer_confirmed_at, card_ownership_confirmed,
                        discount_code, discount_amount,
+                       kyc_id, partner_id, card_id, lw_application_id,
                        created_at, updated_at
                 FROM loan_applications WHERE id = ?`, id).Scan(
                 &app.ID,
@@ -104,6 +107,10 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                 &app.CardOwnershipConfirmed,
                 &discountCode,
                 &discountAmount,
+                &kycID,
+                &partnerID,
+                &cardID,
+                &lwApplicationID,
                 &app.CreatedAt,
                 &app.UpdatedAt,
         )
@@ -143,6 +150,11 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                 da := discountAmount.Float64
                 app.DiscountAmount = &da
         }
+        // PR #116: AZMK Online Lending fields
+        app.KycID = kycID.String
+        app.PartnerID = partnerID.String
+        app.CardID = cardID.String
+        app.LwApplicationID = lwApplicationID.String
 
         return &app, nil
 }

@@ -77,6 +77,8 @@ func dropAllTables(db *sql.DB) error {
                 "DROP TABLE IF EXISTS business_cutoffs",
                 // PR #98: system_settings (no FK deps).
                 "DROP TABLE IF EXISTS system_settings",
+                // PR #116: azmk_online_lending sütunları loan_applications-a əlavə olunub,
+                // ayrıca cədvəl yoxdur — dropAllTables-də nəsə lazım deyil.
         }
         for _, stmt := range dropStatements {
                 if _, err := db.Exec(stmt); err != nil {
