@@ -16,7 +16,6 @@ type ApplicationService struct {
         creditEngine *CreditEngine
         customerRepo CustomerStore
         otpService   *OTPService
-        simaService  *SimaService         // PR #69: set via SetSimaService after construction
         discountSvc  *DiscountCodeService // PR #95: set via SetDiscountService after construction
         smsProvider  otp.Provider         // PR #95: for approval SMS (may be nil if otpService is nil)
 
@@ -45,14 +44,6 @@ func NewApplicationService(repo ApplicationStore, engine *CreditEngine, customer
                 svc.smsProvider = otpService.provider
         }
         return svc
-}
-
-// SetSimaService injects the SIMA service after construction (PR #69).
-// Needed because SimaService is created after ApplicationService in main.go.
-// When set, CustomerConfirmApplication will trigger SIMA KYC and send the
-// KYC link via SMS to the customer after the engine passes.
-func (s *ApplicationService) SetSimaService(sima *SimaService) {
-        s.simaService = sima
 }
 
 // SetDiscountService injects the discount code service after construction

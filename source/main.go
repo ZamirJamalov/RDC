@@ -113,13 +113,11 @@ func main() {
 
 
         // --- SIMA Provider + Service (T-4.1 to T-4.5) ---
+        // PR #120: SIMA KYC artıq customer-confirm-da çağrılmır (AZMK KYC əvəzlədi).
+        // SIMA service hələ də lwCallbackHandler üçün saxlanılır.
         simaProvider := newSimaProvider(cfg)
         simaRepo := repository.NewSimaRepo(db)
         simaService := service.NewSimaService(simaProvider, simaRepo)
-
-        // PR #69: inject SIMA service into ApplicationService so that
-        // CustomerConfirmApplication can trigger KYC SMS automatically.
-        appService.SetSimaService(simaService)
 
         // --- MyGov Provider + Service (T-4.8 to T-4.10) ---
         mygovProvider := newMyGovProvider(cfg)
