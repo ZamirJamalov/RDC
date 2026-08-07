@@ -18,6 +18,7 @@ import (
         "rdc-source/internal/migration"
         "rdc-source/internal/repository"
         "rdc-source/internal/service"
+        "rdc-source/pkg/azmk"
         "rdc-source/pkg/lw"
         "rdc-source/pkg/stub"
 
@@ -96,6 +97,19 @@ func main() {
         // so validation/generation respect the flag.
         featureFlagService := service.NewFeatureFlagService(systemSettingsRepo)
         discountCodeService.SetFeatureFlagService(featureFlagService)
+
+        // PR #117: AZMK Online Lending Service provider
+        // Mock mode: AZMK_USE_MOCK=true (default) → MockProvider (test üçün)
+        // Real mode: AZMK_USE_MOCK=false → HTTPProvider (real AZMK servisinə)
+        var azmkProvider azmk.Provider
+        if cfg.AzmkUseMock {
+                slog.Info("using mock AZMK provider (dev/test mode)")
+                azmkProvider = azmk.NewMockProvider()
+        } else {
+                slog.Info("using HTTP AZMK provider", "base_url", cfg.AzmkBaseURL, "timeout_s", cfg.AzmkTimeoutS)
+                azmkProvider = azmk.NewHTTPProvider(cfg.AzmkBaseURL, cfg.AzmkTimeoutS)
+        }
+        appService.SetAzmkProvider(azmkProvider, cfg.AzmkBranchCode)
 
 
         // --- SIMA Provider + Service (T-4.1 to T-4.5) ---
