@@ -337,13 +337,11 @@
             </div>
         </div>
 
-        <!-- STEP 2: Loading / Reviewing -->
+        <!-- STEP 2: Loading / KYC + Cutoff Reviewing -->
         <div x-show="currentStep === 1" x-transition class="card-glow rounded-3xl p-12 text-center">
             <div class="spinner mx-auto mb-6"></div>
-            <h2 class="text-2xl font-bold mb-3">Müraciətinizə baxılır...</h2>
-            <p class="text-gray-400 max-w-md mx-auto pulse-soft">
-                Sistem sizin kredit səviyyənizi təhlil edir. Bu, bir neçə saniyə çəkə bilər.
-            </p>
+            <h2 class="text-2xl font-bold mb-3" x-text="kycLoadingTitle"></h2>
+            <p class="text-gray-400 max-w-md mx-auto pulse-soft" x-text="kycLoadingMessage"></p>
             <p class="text-xs text-gray-600 mt-6">Muraciət №: <span class="font-mono text-gray-400" x-text="applicationId"></span></p>
         </div>
 
@@ -658,6 +656,11 @@ function applyApp() {
         confirmError: '',
         _confirmErrorTimer: null,
 
+        // PR #121: KYC loading state-ləri
+        kycLoadingTitle: 'Müraciətinizə baxılır...',
+        kycLoadingMessage: 'Sistem sizin kredit səviyyənizi təhlil edir. Bu, bir neçə saniyə çəkə bilər.',
+        _kycLoadingTimers: [],
+
         // OTP/UI state
         otpSent: false,
 
@@ -905,8 +908,23 @@ function applyApp() {
                     return;
                 }
 
-                // 2. Move to loading step
+                // PR #121: KYC loading state-ləri
+                // Backend artıq OTP verify zamanı KYC + Partner + cutoff edir.
+                // Loading ekranında mərhələləri göstəririk.
                 this.currentStep = 1;
+                this.kycLoadingTitle = 'Kimlik təsdiqi...';
+                this.kycLoadingMessage = 'Sistem sizin kimliyinizi AZMK KYC ilə təsdiqləyir. Bu, bir neçə saniyə çəkə bilər.';
+
+                // Animasiya üçün mərhələləri yenilə (timer-ləri track et)
+                this._kycLoadingTimers.push(setTimeout(() => {
+                    this.kycLoadingTitle = 'Kredit tarixçəniz yoxlanılır...';
+                    this.kycLoadingMessage = 'AKB skor, qara siyahı və gecikmə tarixçəniz yoxlanılır.';
+                }, 2000));
+
+                this._kycLoadingTimers.push(setTimeout(() => {
+                    this.kycLoadingTitle = 'Təklif hazırlanır...';
+                    this.kycLoadingMessage = 'Sizin kredit səviyyənizə uyğun təklif hazırlanır.';
+                }, 4000));
 
                 // 3. Fetch offer (customer_pin is required by the endpoint)
                 const offerResp = await fetch(`/api/applications/offer?customer_pin=${encodeURIComponent(this.form.fin)}&akb_score=0`);
@@ -930,6 +948,9 @@ function applyApp() {
                 this.currentStep = 0; // back to init on error
                 this.saveState();
             } finally {
+                // PR #121: KYC loading timer-ləri təmizlə
+                this._kycLoadingTimers.forEach(t => clearTimeout(t));
+                this._kycLoadingTimers = [];
                 this.loading = false;
             }
         },
