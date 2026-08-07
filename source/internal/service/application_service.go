@@ -6,6 +6,7 @@ import (
         "log/slog"
 
         "rdc-source/internal/model"
+        "rdc-source/pkg/azmk"
         "rdc-source/pkg/otp"
 )
 
@@ -15,9 +16,13 @@ type ApplicationService struct {
         creditEngine *CreditEngine
         customerRepo CustomerStore
         otpService   *OTPService
-        simaService  *SimaService        // PR #69: set via SetSimaService after construction
+        simaService  *SimaService         // PR #69: set via SetSimaService after construction
         discountSvc  *DiscountCodeService // PR #95: set via SetDiscountService after construction
         smsProvider  otp.Provider         // PR #95: for approval SMS (may be nil if otpService is nil)
+
+        // PR #117: AZMK Online Lending Service
+        azmkProvider  azmk.Provider // set via SetAzmkProvider (nil = skip KYC/Partner)
+        azmkBranch    string        // AZMK_BRANCH_CODE (məs. "HO")
 }
 
 // NewApplicationService creates a new ApplicationService.
@@ -59,6 +64,18 @@ func (s *ApplicationService) SetSimaService(sima *SimaService) {
 // flow proceeds without discount logic.
 func (s *ApplicationService) SetDiscountService(svc *DiscountCodeService) {
         s.discountSvc = svc
+}
+
+// SetAzmkProvider injects the AZMK Online Lending provider after construction
+// (PR #117). When set, VerifyInitApplication will:
+//   1. Create AZMK KYC session → get kyc_id
+//   2. Verify KYC (VERIFIED status)
+//   3. Register Partner → get partner_id
+//   4. Save kyc_id + partner_id to the application
+// When nil (e.g. in tests), KYC/Partner steps are skipped.
+func (s *ApplicationService) SetAzmkProvider(provider azmk.Provider, branchCode string) {
+        s.azmkProvider = provider
+        s.azmkBranch = branchCode
 }
 
 // CreateApplication creates a new loan application with "pending" status and triggers the credit engine.

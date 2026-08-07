@@ -4,9 +4,11 @@ import (
         "context"
         "fmt"
         "log/slog"
+        "strings"
         "time"
 
         "rdc-source/internal/model"
+        "rdc-source/pkg/azmk"
         "rdc-source/pkg/otp"
 )
 
@@ -77,19 +79,15 @@ type VerifyInitApplicationRequest struct {
 // VerifyInitApplication verifies the OTP code and transitions the application
 // from pending_customer to pending_expert.
 //
-// PR #112: AUTO cutoff yoxlamaları burada baş verir — OTP-dən sonra, kredit təklifindən ƏVVƏL.
-// Bu yoxlamalar məbləğdən asılı deyil və müştəriyə vaxt itirmədən rədd cavabı verir:
-//   - AKB skoru (< 200 → rədd)
-//   - AKB stop-faktor (point == 1 → rədd)
-//   - Qara siyahı (LW_BLACKLIST, AZMK_BLACKLIST → rədd)
-//   - Yaş (> 69 → rədd)
-//   - Gecikmə tarixçəsi (delay ratio, 3/6/12/18 ay → rədd)
-//   - Aktiv kredit (ACTIVE_LOAN → rədd)
-//   - Gecikməli ödəniş (LATE_PAYMENT → rədd)
-//   - Aylıq ödəniş həddi (MONTHLY_PAYMENTS_HIGH → rədd)
+// PR #117: AZMK KYC və Partner registration OTP-dən SONRA, cutoff-dan ƏVVƏL baş verir.
+// PR #112: AUTO cutoff yoxlamaları KYC-dən sonra, kredit təklifindən ƏVVƏL baş verir.
 //
-// EMPLOYMENT_TENURE və DISABILITY_GROUP1 manual yoxlamalardır və ekspert
-// dashboard-da MyGov sorğusu zamanı yoxlanılır (credit engine-də yox).
+// Flow:
+//   1. OTP verify
+//   2. AZMK KYC (create session → verify → get kyc_id)
+//   3. AZMK Partner registration (get partner_id)
+//   4. AUTO cutoff checks (AKB, blacklist, age, delay, active loan, etc.)
+//   5. If all pass → pending_expert
 func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *VerifyInitApplicationRequest) (*model.LoanApplication, error) {
         if req.ApplicationID <= 0 {
                 return nil, fmt.Errorf("application_id is required")
@@ -116,7 +114,27 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
                 return nil, fmt.Errorf("application is not in pending_customer status (current: %s)", app.Status)
         }
 
-        // 3. PR #112: Early AUTO cutoff yoxlamaları
+        // 3. PR #117: AZMK KYC + Partner registration
+        // Müştəri kimliyini təsdiq etmədən cutoff yoxlamaq mənasızdır.
+        if s.azmkProvider != nil {
+                kycErr := s.runAzmkKycAndPartner(ctx, app)
+                if kycErr != nil {
+                        // KYC rədd olundu — müştəriyə xəbər ver
+                        app.Status = model.StatusRejected
+                        app.RejectionReason = kycErr.Error()
+                        if err := s.repo.UpdateApplicationDecision(ctx, app.ID,
+                                app.Status, "", app.RejectionReason, 0, 0, 0); err != nil {
+                                return nil, fmt.Errorf("failed to save KYC rejection: %w", err)
+                        }
+                        slog.Info("AZMK KYC: application rejected",
+                                "application_id", app.ID,
+                                "customer_pin", app.CustomerPIN,
+                                "reason", app.RejectionReason)
+                        return app, nil
+                }
+        }
+
+        // 4. PR #112: Early AUTO cutoff yoxlamaları
         // Müştəri kredit təklifi görməzdən əvvəl yoxlanılır.
         rejectionReason, err := s.runEarlyCutoffChecks(ctx, app)
         if err != nil {
@@ -140,17 +158,110 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
                 return app, nil
         }
 
-        // 4. Cutoff keçdi — transition to pending_expert
+        // 5. Cutoff keçdi — transition to pending_expert
         app.Status = model.StatusPendingExpert
         if err := s.repo.UpdateApplicationStatus(ctx, app.ID, app.Status); err != nil {
                 return nil, fmt.Errorf("failed to update status: %w", err)
         }
 
-        slog.Info("application verified, early cutoff passed, waiting for expert",
+        slog.Info("application verified, KYC passed, early cutoff passed, waiting for expert",
                 "application_id", app.ID,
-                "customer_pin", app.CustomerPIN)
+                "customer_pin", app.CustomerPIN,
+                "kyc_id", app.KycID,
+                "partner_id", app.PartnerID)
 
         return app, nil
+}
+
+// runAzmkKycAndPartner performs AZMK KYC verification and Partner registration.
+// PR #117: OTP-dən sonra, cutoff-dan əvvəl çağrılır.
+//
+// Steps:
+//   1. Create KYC session (POST /kyc) → get kyc_id
+//   2. Verify KYC (GET /kyc/{id}) → must be VERIFIED
+//   3. Register Partner (POST /partner with kycId) → get partner_id
+//   4. Save kyc_id + partner_id to the application
+//
+// Returns error if KYC fails or is not verified.
+func (s *ApplicationService) runAzmkKycAndPartner(ctx context.Context, app *model.LoanApplication) error {
+        // Build PartnerData from application info
+        phone := app.CustomerPhone
+        // AZMK expects phone without +994 prefix (məs. "513153393")
+        phone = strings.TrimPrefix(phone, "+994")
+
+        pd := azmk.PartnerData{
+                AsanFinanceEmployeeInfo: false,
+                AsanFinancePersonalInfo: false,
+                FirstName:               "-", // müşteri info henüz yoxdur
+                LastName:                "-",
+                Mkr:                     false,
+                Mobile:                  phone,
+                Pin:                     app.CustomerPIN,
+                BranchCode:              s.azmkBranch,
+                Passport:                app.CustomerSerial,
+                HomeAddress:             "-",
+        }
+
+        // 1. Create KYC session
+        kycReq := &azmk.KYCRequest{PartnerData: pd}
+        kycID, err := s.azmkProvider.KYC(ctx, kycReq)
+        if err != nil {
+                slog.Error("AZMK KYC creation failed",
+                        "application_id", app.ID,
+                        "customer_pin", app.CustomerPIN,
+                        "error", err)
+                return fmt.Errorf("KYC yaradıla bilmədi: %w", err)
+        }
+        slog.Info("AZMK KYC session created",
+                "application_id", app.ID,
+                "kyc_id", kycID)
+
+        // 2. Verify KYC
+        verified, err := s.azmkProvider.VerifyKYC(ctx, kycID)
+        if err != nil {
+                slog.Error("AZMK KYC verify failed",
+                        "application_id", app.ID,
+                        "kyc_id", kycID,
+                        "error", err)
+                return fmt.Errorf("KYC yoxlanıla bilmədi: %w", err)
+        }
+        if !verified {
+                slog.Info("AZMK KYC not verified",
+                        "application_id", app.ID,
+                        "kyc_id", kycID)
+                return fmt.Errorf("KYC təsdiq olunmadı")
+        }
+        slog.Info("AZMK KYC verified",
+                "application_id", app.ID,
+                "kyc_id", kycID)
+
+        // 3. Register Partner (with kycId)
+        pd.KycID = kycID
+        partnerReq := &azmk.PartnerRequest{PartnerData: pd}
+        partnerID, err := s.azmkProvider.RegisterPartner(ctx, partnerReq)
+        if err != nil {
+                slog.Error("AZMK Partner registration failed",
+                        "application_id", app.ID,
+                        "kyc_id", kycID,
+                        "error", err)
+                return fmt.Errorf("Partner qeydiyyatı uğursuz: %w", err)
+        }
+        slog.Info("AZMK Partner registered",
+                "application_id", app.ID,
+                "kyc_id", kycID,
+                "partner_id", partnerID)
+
+        // 4. Save kyc_id + partner_id to application
+        app.KycID = kycID
+        app.PartnerID = partnerID
+        if err := s.repo.UpdateApplicationDetails(ctx, app.ID, app); err != nil {
+                slog.Error("AZMK: failed to save kyc_id/partner_id",
+                        "application_id", app.ID,
+                        "error", err)
+                // Non-fatal: IDs are in memory, will be saved on next UpdateApplicationDetails call
+        }
+
+        return nil
 }
 
 // runEarlyCutoffChecks performs AUTO cutoff checks after OTP verification,
