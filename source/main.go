@@ -109,7 +109,7 @@ func main() {
                 slog.Info("using HTTP AZMK provider", "base_url", cfg.AzmkBaseURL, "timeout_s", cfg.AzmkTimeoutS)
                 azmkProvider = azmk.NewHTTPProvider(cfg.AzmkBaseURL, cfg.AzmkTimeoutS)
         }
-        appService.SetAzmkProvider(azmkProvider, cfg.AzmkBranchCode)
+        appService.SetAzmkProvider(azmkProvider, cfg.AzmkBranchCode, cfg.AzmkCardExpiring)
 
 
         // --- SIMA Provider + Service (T-4.1 to T-4.5) ---

@@ -7,6 +7,7 @@ import (
         "time"
 
         "rdc-source/internal/model"
+        "rdc-source/pkg/azmk"
 )
 
 // CustomerConfirmRequest is the body for POST /api/applications/{id}/customer-confirm (PR #58).
@@ -192,6 +193,34 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
         // runs immediately at customer-confirm, and the expert's role is downstream
         // (MyGov employment/pension verification, contact phone collection).
         app.Status = model.StatusPending
+
+        // PR #118: AZMK Card registration
+        // Müştəri kart nömrəsini daxil edib təsdiq edəndən sonra, kartı AZMK-ya qeyd edirik.
+        // Bu, sonradan disburse zamanı istifadə olunacaq.
+        if s.azmkProvider != nil && app.PartnerID != "" {
+                cardReq := &azmk.CardRequest{
+                        CardData: azmk.CardData{
+                                PartnerID: app.PartnerID,
+                                Code:      req.CardNumber,
+                                Expiring:  s.azmkCardExpiring,
+                        },
+                }
+                cardID, err := s.azmkProvider.RegisterCard(ctx, cardReq)
+                if err != nil {
+                        slog.Error("AZMK Card registration failed",
+                                "application_id", appID,
+                                "customer_pin", app.CustomerPIN,
+                                "partner_id", app.PartnerID,
+                                "error", err)
+                        return nil, fmt.Errorf("Kart qeydiyyatı uğursuz: %w", err)
+                }
+                app.CardID = cardID
+                slog.Info("AZMK Card registered",
+                        "application_id", appID,
+                        "customer_pin", app.CustomerPIN,
+                        "partner_id", app.PartnerID,
+                        "card_id", cardID)
+        }
 
         // 5. Save
         if err := s.repo.UpdateApplicationDetails(ctx, appID, app); err != nil {
