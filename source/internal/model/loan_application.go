@@ -46,6 +46,12 @@ type LoanApplication struct {
         DiscountCode   string   `json:"discount_code,omitempty"`
         DiscountAmount *float64 `json:"discount_amount,omitempty"`
 
+        // PR #116: AZMK Online Lending Service ID-ləri
+        KycID           string `json:"kyc_id,omitempty"`           // KYC verify-dən qaytarılan ID
+        PartnerID       string `json:"partner_id,omitempty"`       // Partner registration-dan qaytarılan ID
+        CardID          string `json:"card_id,omitempty"`          // Card registration-dan qaytarılan ID
+        LwApplicationID string `json:"lw_application_id,omitempty"` // Application create-dən qaytarılan ID
+
         CreatedAt string `json:"created_at"`
         UpdatedAt string `json:"updated_at"`
 }

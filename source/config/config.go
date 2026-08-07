@@ -78,6 +78,15 @@ type Config struct {
 
         // Phase 5: income + contacts validation (T-5.2)
         MinOfficialIncomeAZN float64 // minimum official income required for approval
+
+        // PR #116: AZMK Online Lending Service
+        AzmkBaseURL       string  // https://web.azmk.az:7077/LW_CREDIT_HOUSE/services/OnlineLendingService
+        AzmkBranchCode    string  // HO (default, dəyişilə bilər)
+        AzmkProductID     string  // L07 (default, config-dən dəyişilə bilər)
+        AzmkCardExpiring  string  // 2030-01-01 (həmişə statik)
+        AzmkDisbursementFee float64 // 0 (həmişə 0, gələcəkdə dəyişə bilər)
+        AzmkUseMock       bool    // mock mode (test üçün)
+        AzmkTimeoutS      int     // HTTP timeout
 }
 
 // Load reads configuration from environment variables. Required fields (DB_HOST,
@@ -116,6 +125,15 @@ func Load() *Config {
                 MyGovRedirectURI:       getEnv("MYGOV_REDIRECT_URI", "https://webhook.site/9f74dfae-92bc-458e-a3e3-b5134a9bf8bb"),
                 MyGovWebURL:            getEnv("MYGOV_WEB_URL", "https://lively-pie-17ab5c.netlify.app/"),
                 MinOfficialIncomeAZN:   getEnvFloat("MIN_OFFICIAL_INCOME_AZN", 300.0),
+
+                // PR #116: AZMK Online Lending Service
+                AzmkBaseURL:         getEnv("AZMK_BASE_URL", "https://web.azmk.az:7077/LW_CREDIT_HOUSE/services/OnlineLendingService"),
+                AzmkBranchCode:      getEnv("AZMK_BRANCH_CODE", "HO"),
+                AzmkProductID:       getEnv("AZMK_PRODUCT_ID", "L07"),
+                AzmkCardExpiring:    getEnv("AZMK_CARD_EXPIRING", "2030-01-01"),
+                AzmkDisbursementFee: getEnvFloat("AZMK_DISBURSEMENT_FEE", 0.0),
+                AzmkUseMock:         getEnvBool("AZMK_USE_MOCK", true),
+                AzmkTimeoutS:        getEnvInt("AZMK_TIMEOUT_S", 30),
         }
 
         if cfg.MigrationsDropRecreate {
