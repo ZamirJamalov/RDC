@@ -21,9 +21,11 @@ type ApplicationService struct {
         smsProvider  otp.Provider         // PR #95: for approval SMS (may be nil if otpService is nil)
 
         // PR #117: AZMK Online Lending Service
-        azmkProvider  azmk.Provider // set via SetAzmkProvider (nil = skip KYC/Partner)
-        azmkBranch    string        // AZMK_BRANCH_CODE (məs. "HO")
-        azmkCardExpiring string     // AZMK_CARD_EXPIRING (məs. "2030-01-01")
+        azmkProvider     azmk.Provider // set via SetAzmkProvider (nil = skip KYC/Partner)
+        azmkBranch       string        // AZMK_BRANCH_CODE (məs. "HO")
+        azmkCardExpiring string        // AZMK_CARD_EXPIRING (məs. "2030-01-01")
+        azmkProductID    string        // AZMK_PRODUCT_ID (məs. "L07", config-dən dəyişilə bilər)
+        azmkDisbursementFee float64    // AZMK_DISBURSEMENT_FEE (həmişə 0)
 }
 
 // NewApplicationService creates a new ApplicationService.
@@ -74,10 +76,12 @@ func (s *ApplicationService) SetDiscountService(svc *DiscountCodeService) {
 //   3. Register Partner → get partner_id
 //   4. Save kyc_id + partner_id to the application
 // When nil (e.g. in tests), KYC/Partner steps are skipped.
-func (s *ApplicationService) SetAzmkProvider(provider azmk.Provider, branchCode, cardExpiring string) {
+func (s *ApplicationService) SetAzmkProvider(provider azmk.Provider, branchCode, cardExpiring, productID string, disbursementFee float64) {
         s.azmkProvider = provider
         s.azmkBranch = branchCode
         s.azmkCardExpiring = cardExpiring
+        s.azmkProductID = productID
+        s.azmkDisbursementFee = disbursementFee
 }
 
 // CreateApplication creates a new loan application with "pending" status and triggers the credit engine.

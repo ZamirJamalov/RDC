@@ -6,6 +6,7 @@ import (
         "log/slog"
 
         "rdc-source/internal/model"
+        "rdc-source/pkg/azmk"
 )
 
 // UpdateStatusRequest is the request body for manually updating an application's status (mock/testing endpoint).
@@ -136,6 +137,18 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
                 // send an SMS with the code. The customer can share this code with
                 // others to give them a commission discount on their next loan.
                 s.generateAndSendDiscountSMS(ctx, id, app.CustomerPIN, app.CustomerPhone)
+
+                // PR #119: AZMK Application create + Sign check + Disburse
+                // Ekspert approve etdikdə AZMK-da kredit müraciəti yaradılır,
+                // imzalanma yoxlanılır və pul köçürülür.
+                if s.azmkProvider != nil && app.PartnerID != "" {
+                        if err := s.azmkCreateSignDisburse(ctx, app, totalAmount); err != nil {
+                                slog.Error("AZMK approve flow failed (non-fatal — application is still approved)",
+                                        "application_id", id,
+                                        "error", err)
+                                // Non-fatal: müştəri approve olunub, AZMK xətası ayrı log lanır
+                        }
+                }
         }
 
         // Return the updated application
@@ -306,4 +319,109 @@ func (s *ApplicationService) generateAndSendDiscountSMS(ctx context.Context, app
                 "customer_pin", customerPIN,
                 "phone", customerPhone,
                 "discount_code", newCode.Code)
+}
+
+// azmkCreateSignDisburse performs the AZMK Online Lending approve flow:
+//   1. Application create (POST /application/create) → lw_application_id
+//   2. Sign check (GET /application/{id}/sign) — "already signed" yoxla
+//   3. Disburse (POST /application/disburse) — pulu karta köçür
+//
+// PR #119: ekspert approve zamanı çağrılır. Bütün addımlar best-effort:
+// xəta olanda approval uğurlu sayılır, AZMK xətası log lanır.
+//
+// LoanData sahələri:
+//   - clientId: partner_id (KYC/Partner registration-dan)
+//   - productId: config-dən (AZMK_PRODUCT_ID)
+//   - amount: total_amount (principal + commission)
+//   - term: app.TermMonths
+//   - branchCode: config-dən (AZMK_BRANCH_CODE)
+//   - interestRate: annual_interest_rate (credit_levels-dən)
+//   - disbursementFee: config-dən (AZMK_DISBURSEMENT_FEE, həmişə 0)
+func (s *ApplicationService) azmkCreateSignDisburse(ctx context.Context, app *model.LoanApplication, totalAmount float64) error {
+        // annual_interest_rate-i credit_levels-dən al
+        approvedCount, _ := s.repo.CountApprovedAtLevel(ctx, app.CustomerPIN, app.CreditLevel)
+        unlockPhase := 1
+        if approvedCount > 0 {
+                unlockPhase = 2
+        }
+        annualInterestRate, err := s.repo.GetCreditLevelInterestRate(ctx, app.CreditLevel, app.Amount, app.TermMonths, unlockPhase)
+        if err != nil {
+                slog.Warn("AZMK: failed to fetch annual_interest_rate — using 0",
+                        "application_id", app.ID,
+                        "error", err)
+                annualInterestRate = 0
+        }
+
+        // 1. AZMK Application create
+        appReq := &azmk.ApplicationCreateRequest{
+                LoanData: azmk.LoanData{
+                        ClientID:        app.PartnerID,
+                        ProductID:       s.azmkProductID,
+                        Amount:          totalAmount,
+                        Term:            app.TermMonths,
+                        BranchCode:      s.azmkBranch,
+                        InterestRate:    annualInterestRate,
+                        DisbursementFee: s.azmkDisbursementFee,
+                        LetterNumber:    "",
+                },
+        }
+
+        lwAppID, err := s.azmkProvider.CreateApplication(ctx, appReq)
+        if err != nil {
+                return fmt.Errorf("AZMK application create failed: %w", err)
+        }
+
+        // lw_application_id saxla
+        app.LwApplicationID = lwAppID
+        if err := s.repo.UpdateApplicationDetails(ctx, app.ID, app); err != nil {
+                slog.Warn("AZMK: failed to save lw_application_id",
+                        "application_id", app.ID,
+                        "lw_application_id", lwAppID,
+                        "error", err)
+        }
+
+        // 2. Sign check — "already signed" yoxla
+        // Bu addım asinxron ola bilər (müştəri SIMA ilə imzalayana qədər gözləmək)
+        // Hazırda dərhal yoxlayırıq — əgər imzalanmayıbsa, disburse etmirik
+        signed, err := s.azmkProvider.CheckSign(ctx, lwAppID)
+        if err != nil {
+                slog.Warn("AZMK: sign check failed — skipping disburse",
+                        "application_id", app.ID,
+                        "lw_application_id", lwAppID,
+                        "error", err)
+                return nil // sign check xətası — disburse etmə
+        }
+        if !signed {
+                slog.Info("AZMK: contract not yet signed — disburse will be triggered later",
+                        "application_id", app.ID,
+                        "lw_application_id", lwAppID)
+                return nil // hələ imzalanmayıb — disburse etmə
+        }
+
+        // 3. Disburse — pulu karta köçür
+        disburseReq := &azmk.DisburseRequest{
+                LoanData: azmk.LoanData{
+                        ApplicationID: lwAppID,
+                        CardID:        app.CardID,
+                },
+        }
+
+        if err := s.azmkProvider.Disburse(ctx, disburseReq); err != nil {
+                slog.Error("AZMK: disburse failed",
+                        "application_id", app.ID,
+                        "lw_application_id", lwAppID,
+                        "card_id", app.CardID,
+                        "error", err)
+                return fmt.Errorf("AZMK disburse failed: %w", err)
+        }
+
+        slog.Info("AZMK: full approve flow completed (create + sign + disburse)",
+                "application_id", app.ID,
+                "lw_application_id", lwAppID,
+                "card_id", app.CardID,
+                "amount", totalAmount,
+                "term", app.TermMonths,
+                "interest_rate", annualInterestRate)
+
+        return nil
 }
