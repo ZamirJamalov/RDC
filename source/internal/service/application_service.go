@@ -75,6 +75,58 @@ func (s *ApplicationService) SetAzmkProvider(provider azmk.Provider, branchCode,
         s.azmkDisbursementFee = disbursementFee
 }
 
+// UpdateContactsRequest is the body for PUT /api/applications/{id}/contacts.
+// PR #124: ekspert kontakt nömrələrini və yoxlanma statusunu saxlayır.
+// Bu endpoint pending_approval statusunda da işləyir (CompleteApplication-a alternativ).
+type UpdateContactsRequest struct {
+        Contact1Phone    string `json:"contact1_phone,omitempty"`
+        Contact2Phone    string `json:"contact2_phone,omitempty"`
+        Contact3Phone    string `json:"contact3_phone,omitempty"`
+        Contact1Relation string `json:"contact1_relation,omitempty"`
+        Contact2Relation string `json:"contact2_relation,omitempty"`
+        Contact3Relation string `json:"contact3_relation,omitempty"`
+        // Verification: nil=yoxlanılmayıb, true=təsdiq, false=imtina
+        Contact1Verified *bool `json:"contact1_verified,omitempty"`
+        Contact2Verified *bool `json:"contact2_verified,omitempty"`
+        Contact3Verified *bool `json:"contact3_verified,omitempty"`
+}
+
+// UpdateContacts saves contact phone numbers, relations, and verification status.
+// PR #124: works in any status — unlike CompleteApplication which only works in pending_expert.
+func (s *ApplicationService) UpdateContacts(ctx context.Context, appID int, req *UpdateContactsRequest) (*model.LoanApplication, error) {
+        if appID <= 0 {
+                return nil, fmt.Errorf("invalid application id")
+        }
+
+        app, err := s.repo.GetApplicationByID(ctx, appID)
+        if err != nil {
+                return nil, fmt.Errorf("application not found: %w", err)
+        }
+
+        // Update fields from request
+        app.Contact1Phone = req.Contact1Phone
+        app.Contact2Phone = req.Contact2Phone
+        app.Contact3Phone = req.Contact3Phone
+        app.Contact1Relation = req.Contact1Relation
+        app.Contact2Relation = req.Contact2Relation
+        app.Contact3Relation = req.Contact3Relation
+        app.Contact1Verified = req.Contact1Verified
+        app.Contact2Verified = req.Contact2Verified
+        app.Contact3Verified = req.Contact3Verified
+
+        if err := s.repo.UpdateContacts(ctx, appID, app); err != nil {
+                return nil, fmt.Errorf("failed to save contacts: %w", err)
+        }
+
+        slog.Info("contacts updated",
+                "application_id", appID,
+                "contact1_verified", req.Contact1Verified,
+                "contact2_verified", req.Contact2Verified,
+                "contact3_verified", req.Contact3Verified)
+
+        return s.repo.GetApplicationByID(ctx, appID)
+}
+
 // CreateApplication creates a new loan application with "pending" status and triggers the credit engine.
 func (s *ApplicationService) CreateApplication(ctx context.Context, req *model.CreateApplicationRequest) (*model.LoanApplication, error) {
         if req.CustomerPIN == "" {

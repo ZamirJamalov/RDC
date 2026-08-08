@@ -28,6 +28,10 @@ type LoanApplication struct {
         Contact1Relation string `json:"contact1_relation,omitempty"` // PR #85: Ata, Ana, Qardaş, etc.
         Contact2Relation string `json:"contact2_relation,omitempty"`
         Contact3Relation string `json:"contact3_relation,omitempty"`
+        // PR #124: kontakt yoxlanma statusu — NULL=yoxlanılmayıb, true=təsdiq, false=imtina
+        Contact1Verified *bool `json:"contact1_verified,omitempty"`
+        Contact2Verified *bool `json:"contact2_verified,omitempty"`
+        Contact3Verified *bool `json:"contact3_verified,omitempty"`
         ActualAddress  string  `json:"actual_address,omitempty"` // factiki ünvan (T-5.6)
 
         // PR #58: customer-side confirmation flow.
