@@ -259,8 +259,9 @@
                                     <select x-model="contact.relation"
                                             @blur="saveContactIfChanged(idx)"
                                             :disabled="contact.saved && contact.relation"
-                                            class="field-input !py-1.5 !px-2 w-24 text-xs disabled:opacity-60 disabled:cursor-not-allowed">
-                                        <option value="">Əlaqə</option>
+                                            class="field-input !py-1.5 !px-2 w-24 text-xs disabled:opacity-60 disabled:cursor-not-allowed"
+                                            :class="!contact.relation && contact.phone ? 'border-amber-400' : ''">
+                                        <option value="">Əlaqə *</option>
                                         <template x-for="opt in ['Ata','Ana','Qardaş','Bacı','Dost','Ər','Arvad','Oğul','Qız','Qaynata','Qaynana','Qayın','Bacanaq','Baldız','Yeznə','Qonşu','Digər']" :key="opt">
                                             <option :value="opt" x-text="opt"
                                                     :disabled="isRelationUsedByOther(idx, opt)"
@@ -290,14 +291,14 @@
                                     <span x-show="contact.verified === false" class="badge text-[10px] px-2 py-0.5 bg-rose-100 text-rose-700 shrink-0">✗ İmtina</span>
                                     <span x-show="contact.verified === null || contact.verified === undefined" class="badge text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 shrink-0">Yoxlanılmayıb</span>
 
-                                    <!-- Verify/reject buttons -->
-                                    <button x-show="contact.phone && contact.verified !== true"
+                                    <!-- Verify/reject buttons — yalnız əlaqə seçilibsə və telefon varsa -->
+                                    <button x-show="contact.relation && contact.phone && contact.verified !== true"
                                             @click="verifyContact(idx, true)"
                                             class="inline-flex items-center gap-0.5 text-[11px] font-medium text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 px-1.5 py-1 rounded transition shrink-0"
                                             title="Nömrə doğrulandı — zəng etdiniz və doğru şəxs cavab verdi">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                                     </button>
-                                    <button x-show="contact.phone && contact.verified !== false"
+                                    <button x-show="contact.relation && contact.phone && contact.verified !== false"
                                             @click="verifyContact(idx, false)"
                                             class="inline-flex items-center gap-0.5 text-[11px] font-medium text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-1.5 py-1 rounded transition shrink-0"
                                             title="Nömrə imtina — zəng etdiniz və ya yanlış nömrədir, ya da şəxs münasibəti təsdiqləmədi">
@@ -588,11 +589,18 @@
 
                 // PR #125: blur-da avtomatik saxla (yalnız dəyişiklik olarsa)
                 // PR #128: name field də dəyişiklik yoxlamasına daxil
+                // PR #130: əlaqə seçilmədən saxlanmaq olmaz
                 async saveContactIfChanged(idx) {
                     const c = this.contacts[idx];
                     if (!c) return;
                     // Dəyişiklik yoxdursa — skip
                     if (c.phone === c.savedPhone && c.relation === c.savedRelation && c.name === c.savedName) return;
+                    // Əlaqə seçilməyibsə və telefon varsa — saxlama, xəbərdarlıq et
+                    if (c.phone && !c.relation) {
+                        this.actionError = 'Əlaqə seçilməyib — nömrə və ad soyad saxlanıla bilməz.';
+                        setTimeout(() => { this.actionError = ''; }, 5000);
+                        return;
+                    }
                     // Boş telefon varsa — skip
                     if (!c.phone) return;
 
