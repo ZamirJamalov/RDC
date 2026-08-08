@@ -134,6 +134,15 @@ func (s *ApplicationService) UpdateContacts(ctx context.Context, appID int, req 
         return s.repo.GetApplicationByID(ctx, appID)
 }
 
+// UpdateTimer saves the elapsed timer seconds for an application.
+// PR #134: ekspert müraciəti açandan təsdiq/imtinaya qədər vaxt saxlanır.
+func (s *ApplicationService) UpdateTimer(ctx context.Context, appID int, seconds int) error {
+        if appID <= 0 {
+                return fmt.Errorf("invalid application id")
+        }
+        return s.repo.UpdateTimer(ctx, appID, seconds)
+}
+
 // CreateApplication creates a new loan application with "pending" status and triggers the credit engine.
 func (s *ApplicationService) CreateApplication(ctx context.Context, req *model.CreateApplicationRequest) (*model.LoanApplication, error) {
         if req.CustomerPIN == "" {

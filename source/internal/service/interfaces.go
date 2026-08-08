@@ -100,6 +100,9 @@ type ApplicationStore interface {
         // PR #124: kontakt nömrələri və yoxlanma statusu (pending_approval-da da işləyir)
         UpdateContacts(ctx context.Context, id int, app *model.LoanApplication) error
 
+        // PR #134: müraciət timer-ı saxla
+        UpdateTimer(ctx context.Context, id int, seconds int) error
+
         // --- Tx-aware variants (used by ProcessApplication for atomicity) ---
 
         UpdateApplicationStatusTx(ctx context.Context, runner repository.TxRunner, id int, status string) error

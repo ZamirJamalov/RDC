@@ -60,6 +60,9 @@ type LoanApplication struct {
         CardID          string `json:"card_id,omitempty"`          // Card registration-dan qaytarılan ID
         LwApplicationID string `json:"lw_application_id,omitempty"` // Application create-dən qaytarılan ID
 
+        // PR #134: Muraciət üzərində işləmə vaxtı (saniyə)
+        TimerSeconds int `json:"timer_seconds,omitempty"`
+
         CreatedAt string `json:"created_at"`
         UpdatedAt string `json:"updated_at"`
 }
