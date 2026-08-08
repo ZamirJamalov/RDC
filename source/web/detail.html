@@ -259,9 +259,9 @@
                                     <select x-model="contact.relation"
                                             @blur="saveContactIfChanged(idx)"
                                             :disabled="contact.saved && contact.relation"
-                                            class="field-input !py-1.5 !px-2 w-28 text-xs disabled:opacity-60 disabled:cursor-not-allowed">
-                                        <option value="">Münasibət...</option>
-                                        <template x-for="opt in ['Ata','Ana','Qardaş','Bacı','Dost','Ər/Arvad','Oğul','Qız','Digər']" :key="opt">
+                                            class="field-input !py-1.5 !px-2 w-24 text-xs disabled:opacity-60 disabled:cursor-not-allowed">
+                                        <option value="">Əlaqə</option>
+                                        <template x-for="opt in ['Ata','Ana','Qardaş','Bacı','Dost','Ər','Arvad','Oğul','Qız','Qaynata','Qaynana','Qayın','Bacanaq','Baldız','Yeznə','Qonşu','Digər']" :key="opt">
                                             <option :value="opt" x-text="opt"
                                                     :disabled="isRelationUsedByOther(idx, opt)"
                                                     :class="isRelationUsedByOther(idx, opt) ? 'text-gray-300' : ''"></option>
@@ -271,8 +271,8 @@
                                            x-model="contact.phone"
                                            @input="contact.phone = formatPhone(contact.phone)"
                                            @blur="saveContactIfChanged(idx)"
-                                           maxlength="13"
-                                           placeholder="+994 __ ___ __ __"
+                                           maxlength="17"
+                                           placeholder="+994 XX XXX XX XX"
                                            class="field-input !py-1.5 flex-1 text-xs">
                                     <!-- Save indicator -->
                                     <span x-show="contact.saving" class="text-xs text-gray-400 animate-pulse shrink-0">...</span>
@@ -550,28 +550,39 @@
                     return this.contacts.some((c, i) => i !== currentIdx && c.relation === relation);
                 },
 
-                // PR #101: telefon nömrəsinin formatını tənzimlə
+                // PR #101/#129: telefon nömrəsinin formatını tənzimlə
+                // Format: +994 XX XXX XX XX
                 // - boşdürsə +994 ilə başlat
                 // - yalnız rəqəm və + qəbul et
                 // - maksimum 13 simvol: +994XXXXXXXXX
+                // - vizual format: +994 və sonra XX XXX XX XX (boşluqlarla)
                 formatPhone(value) {
                     if (!value) return '';
                     let v = value;
                     // əgər istifadəçi +994 yazmayıbsa, avtomatik əlavə et
                     if (!v.startsWith('+')) {
-                        // əgər 994 ilə başlayırsa → + əlavə et
                         if (v.startsWith('994')) v = '+' + v;
-                        // əgər 0 ilə başlayıbsa → +994 + (0 sil)
                         else if (v.startsWith('0')) v = '+994' + v.substring(1);
-                        // yalnız rəqəmdirsə → +994 əlavə et
                         else if (/^\d/.test(v)) v = '+994' + v;
                     }
                     // yalnız rəqəm və + saxla
                     v = v.replace(/[^\d+]/g, '');
                     // birdən çox + olmasın
                     v = v.replace(/\+/g, ''); v = '+' + v;
-                    // maksimum 13 simvol
+                    // maksimum 13 simvol (+994 + 9 rəqəm)
                     if (v.length > 13) v = v.substring(0, 13);
+
+                    // PR #129: vizual format +994 XX XXX XX XX
+                    // +994 mövcuddursa, qalan rəqəmləri format et
+                    if (v.startsWith('+994') && v.length > 4) {
+                        let digits = v.substring(4); // 994-dən sonrakı rəqəmlər
+                        let formatted = '+994';
+                        if (digits.length > 0) formatted += ' ' + digits.substring(0, 2);
+                        if (digits.length > 2) formatted += ' ' + digits.substring(2, 5);
+                        if (digits.length > 5) formatted += ' ' + digits.substring(5, 7);
+                        if (digits.length > 7) formatted += ' ' + digits.substring(7, 9);
+                        return formatted;
+                    }
                     return v;
                 },
 
