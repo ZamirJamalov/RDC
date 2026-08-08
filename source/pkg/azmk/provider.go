@@ -1,15 +1,16 @@
 package azmk
 
 import (
-	"context"
-	"crypto/tls"
-	"encoding/json"
-	"fmt"
-	"io"
-	"log/slog"
-	"net/http"
-	"strings"
-	"time"
+        "context"
+        "crypto/tls"
+        "encoding/base64"
+        "encoding/json"
+        "fmt"
+        "io"
+        "log/slog"
+        "net/http"
+        "strings"
+        "time"
 )
 
 // ============================================================
@@ -31,26 +32,26 @@ import (
 
 // Provider is the interface for AZMK Online Lending operations.
 type Provider interface {
-	// KYC creates a KYC session and returns the KYC ID.
-	KYC(ctx context.Context, req *KYCRequest) (string, error)
+        // KYC creates a KYC session and returns the KYC ID.
+        KYC(ctx context.Context, req *KYCRequest) (string, error)
 
-	// VerifyKYC checks if the KYC session is verified.
-	VerifyKYC(ctx context.Context, kycID string) (bool, error)
+        // VerifyKYC checks if the KYC session is verified.
+        VerifyKYC(ctx context.Context, kycID string) (bool, error)
 
-	// RegisterPartner registers a partner and returns the Partner ID.
-	RegisterPartner(ctx context.Context, req *PartnerRequest) (string, error)
+        // RegisterPartner registers a partner and returns the Partner ID.
+        RegisterPartner(ctx context.Context, req *PartnerRequest) (string, error)
 
-	// RegisterCard registers a card and returns the Card ID.
-	RegisterCard(ctx context.Context, req *CardRequest) (string, error)
+        // RegisterCard registers a card and returns the Card ID.
+        RegisterCard(ctx context.Context, req *CardRequest) (string, error)
 
-	// CreateApplication creates a loan application and returns the Application ID.
-	CreateApplication(ctx context.Context, req *ApplicationCreateRequest) (string, error)
+        // CreateApplication creates a loan application and returns the Application ID.
+        CreateApplication(ctx context.Context, req *ApplicationCreateRequest) (string, error)
 
-	// CheckSign checks if the application contract is signed.
-	CheckSign(ctx context.Context, applicationID string) (bool, error)
+        // CheckSign checks if the application contract is signed.
+        CheckSign(ctx context.Context, applicationID string) (bool, error)
 
-	// Disburse disburses the loan to the customer's card.
-	Disburse(ctx context.Context, req *DisburseRequest) error
+        // Disburse disburses the loan to the customer's card.
+        Disburse(ctx context.Context, req *DisburseRequest) error
 }
 
 // ============================================================
@@ -59,65 +60,65 @@ type Provider interface {
 
 // PartnerData is the common payload for KYC and Partner requests.
 type PartnerData struct {
-	AsanFinanceEmployeeInfo bool   `json:"asanfinanceEmployeeInfo"`
-	AsanFinancePersonalInfo bool   `json:"asanfinancePersonalInfo"`
-	FirstName               string `json:"firstName"`
-	LastName                string `json:"lastName"`
-	Mkr                     bool   `json:"mkr"`
-	Mobile                  string `json:"mobile"`
-	Pin                     string `json:"pin"`
-	BranchCode              string `json:"branchCode"`
-	Passport                string `json:"passport"`
-	HomeAddress             string `json:"homeAddress"`
-	// KycID is only used for Partner registration (not KYC).
-	KycID string `json:"kycId,omitempty"`
+        AsanFinanceEmployeeInfo bool   `json:"asanfinanceEmployeeInfo"`
+        AsanFinancePersonalInfo bool   `json:"asanfinancePersonalInfo"`
+        FirstName               string `json:"firstName"`
+        LastName                string `json:"lastName"`
+        Mkr                     bool   `json:"mkr"`
+        Mobile                  string `json:"mobile"`
+        Pin                     string `json:"pin"`
+        BranchCode              string `json:"branchCode"`
+        Passport                string `json:"passport"`
+        HomeAddress             string `json:"homeAddress"`
+        // KycID is only used for Partner registration (not KYC).
+        KycID string `json:"kycId,omitempty"`
 }
 
 // KYCRequest is the body for POST /kyc.
 type KYCRequest struct {
-	PartnerData PartnerData `json:"PartnerData"`
+        PartnerData PartnerData `json:"PartnerData"`
 }
 
 // PartnerRequest is the body for POST /partner.
 type PartnerRequest struct {
-	PartnerData PartnerData `json:"PartnerData"`
+        PartnerData PartnerData `json:"PartnerData"`
 }
 
 // CardData is the payload for card registration.
 type CardData struct {
-	PartnerID string `json:"partnerId"`
-	Code      string `json:"code"`     // 16-digit card number
-	Expiring  string `json:"expiring"` // "2030-01-01" (always)
+        PartnerID string `json:"partnerId"`
+        Code      string `json:"code"`     // 16-digit card number
+        Expiring  string `json:"expiring"` // "2030-01-01" (always)
 }
 
 // CardRequest is the body for POST /card.
 type CardRequest struct {
-	CardData CardData `json:"CardData"`
+        CardData CardData `json:"CardData"`
 }
 
 // LoanData is the payload for application create and disburse.
 type LoanData struct {
-	ClientID       string  `json:"clientId"`       // Partner ID
-	ProductID      string  `json:"productId"`      // config-dən (məs. "L07")
-	Amount         float64 `json:"amount"`         // total_amount (principal + commission)
-	Term           int     `json:"term"`           // months
-	BranchCode     string  `json:"branchCode"`     // config-dən (məs. "HO")
-	InterestRate   float64 `json:"interestRate"`   // annual_interest_rate (məs. 55)
-	DisbursementFee float64 `json:"disbursementFee"` // 0 (həmişə)
-	LetterNumber   string  `json:"letterNumber"`   // boş
-	// Disburse üçün:
-	ApplicationID string `json:"applicationId,omitempty"` // Application create-dən qaytarılan ID
-	CardID        string `json:"cardId,omitempty"`        // Card registration-dan qaytarılan ID
+        ClientID       string  `json:"clientId"`       // Partner ID
+        ProductID      string  `json:"productId"`      // config-dən (məs. "L07")
+        Amount         float64 `json:"amount"`         // total_amount (principal + commission)
+        Term           int     `json:"term"`           // months
+        BranchCode     string  `json:"branchCode"`     // config-dən (məs. "HO")
+        InterestRate   float64 `json:"interestRate"`   // annual_interest_rate (məs. 55)
+        DisbursementFee float64 `json:"disbursementFee"` // 0 (həmişə)
+        LetterNumber   string  `json:"letterNumber"`   // boş
+        // Disburse üçün:
+        ApplicationID string `json:"applicationId,omitempty"` // Application create-dən qaytarılan ID
+        CardID        string `json:"cardId,omitempty"`        // Card registration-dan qaytarılan ID
 }
 
 // ApplicationCreateRequest is the body for POST /application/create.
 type ApplicationCreateRequest struct {
-	LoanData LoanData `json:"LoanData"`
+        LoanData LoanData `json:"LoanData"`
 }
 
 // DisburseRequest is the body for POST /application/disburse.
 type DisburseRequest struct {
-	LoanData LoanData `json:"LoanData"`
+        LoanData LoanData `json:"LoanData"`
 }
 
 // ============================================================
@@ -126,109 +127,125 @@ type DisburseRequest struct {
 
 // HTTPProvider implements the AZMK Provider interface via real HTTP calls.
 type HTTPProvider struct {
-	baseURL    string
-	timeout    time.Duration
-	httpClient *http.Client
+        baseURL    string
+        username   string
+        password   string
+        timeout    time.Duration
+        httpClient *http.Client
 }
 
 // NewHTTPProvider creates a new AZMK HTTPProvider.
 // PR #116: HTTPS with self-signed cert support (InsecureSkipVerify).
-func NewHTTPProvider(baseURL string, timeoutS int) *HTTPProvider {
-	timeout := time.Duration(timeoutS) * time.Second
-	return &HTTPProvider{
-		baseURL: strings.TrimRight(baseURL, "/"),
-		timeout: timeout,
-		httpClient: &http.Client{
-			Timeout: timeout,
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true, // AZMK self-signed sertifikat üçün
-				},
-			},
-		},
-	}
+// PR #123: Basic Auth (username + password) dəstəyi.
+func NewHTTPProvider(baseURL, username, password string, timeoutS int) *HTTPProvider {
+        timeout := time.Duration(timeoutS) * time.Second
+        return &HTTPProvider{
+                baseURL:  strings.TrimRight(baseURL, "/"),
+                username: username,
+                password: password,
+                timeout:  timeout,
+                httpClient: &http.Client{
+                        Timeout: timeout,
+                        Transport: &http.Transport{
+                                TLSClientConfig: &tls.Config{
+                                        InsecureSkipVerify: true, // AZMK self-signed sertifikat üçün
+                                },
+                        },
+                },
+        }
+}
+
+// setAuthHeaders adds Basic Auth and Content-Type headers to the request.
+// PR #123: AZMK servisi username/password tələb edir.
+func (p *HTTPProvider) setAuthHeaders(req *http.Request) {
+        req.Header.Set("Content-Type", "application/json")
+        if p.username != "" && p.password != "" {
+                auth := base64.StdEncoding.EncodeToString([]byte(p.username + ":" + p.password))
+                req.Header.Set("Authorization", "Basic "+auth)
+        }
 }
 
 // doPost sends a POST request and returns the response body as string.
 func (p *HTTPProvider) doPost(ctx context.Context, path string, body interface{}) (string, error) {
-	url := p.baseURL + path
+        url := p.baseURL + path
 
-	jsonBody, err := json.Marshal(body)
-	if err != nil {
-		return "", fmt.Errorf("azmk: failed to marshal request: %w", err)
-	}
+        jsonBody, err := json.Marshal(body)
+        if err != nil {
+                return "", fmt.Errorf("azmk: failed to marshal request: %w", err)
+        }
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(jsonBody)))
-	if err != nil {
-		return "", fmt.Errorf("azmk: failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
+        req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(jsonBody)))
+        if err != nil {
+                return "", fmt.Errorf("azmk: failed to create request: %w", err)
+        }
+        p.setAuthHeaders(req) // PR #123: Basic Auth + Content-Type
 
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("azmk: HTTP request failed: %w", err)
-	}
-	defer resp.Body.Close()
+        resp, err := p.httpClient.Do(req)
+        if err != nil {
+                return "", fmt.Errorf("azmk: HTTP request failed: %w", err)
+        }
+        defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("azmk: failed to read response: %w", err)
-	}
+        respBody, err := io.ReadAll(resp.Body)
+        if err != nil {
+                return "", fmt.Errorf("azmk: failed to read response: %w", err)
+        }
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("azmk: %s returned HTTP %d: %s", path, resp.StatusCode, string(respBody))
-	}
+        if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+                return "", fmt.Errorf("azmk: %s returned HTTP %d: %s", path, resp.StatusCode, string(respBody))
+        }
 
-	return string(respBody), nil
+        return string(respBody), nil
 }
 
 // doGet sends a GET request and returns the response body as string.
 func (p *HTTPProvider) doGet(ctx context.Context, path string) (string, error) {
-	url := p.baseURL + path
+        url := p.baseURL + path
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return "", fmt.Errorf("azmk: failed to create request: %w", err)
-	}
+        req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+        if err != nil {
+                return "", fmt.Errorf("azmk: failed to create request: %w", err)
+        }
+        p.setAuthHeaders(req) // PR #123: Basic Auth + Content-Type
 
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("azmk: HTTP request failed: %w", err)
-	}
-	defer resp.Body.Close()
+        resp, err := p.httpClient.Do(req)
+        if err != nil {
+                return "", fmt.Errorf("azmk: HTTP request failed: %w", err)
+        }
+        defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("azmk: failed to read response: %w", err)
-	}
+        respBody, err := io.ReadAll(resp.Body)
+        if err != nil {
+                return "", fmt.Errorf("azmk: failed to read response: %w", err)
+        }
 
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("azmk: %s returned HTTP %d: %s", path, resp.StatusCode, string(respBody))
-	}
+        if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+                return "", fmt.Errorf("azmk: %s returned HTTP %d: %s", path, resp.StatusCode, string(respBody))
+        }
 
-	return string(respBody), nil
+        return string(respBody), nil
 }
 
 // parseIDResponse extracts the ID from AZMK responses.
 // AZMK returns either a plain string ID or {"id": "..."} JSON.
 func parseIDResponse(body string) (string, error) {
-	body = strings.TrimSpace(body)
-	body = strings.Trim(body, `"`)
+        body = strings.TrimSpace(body)
+        body = strings.Trim(body, `"`)
 
-	// Try JSON first
-	var jsonResp struct {
-		ID string `json:"id"`
-	}
-	if err := json.Unmarshal([]byte(body), &jsonResp); err == nil && jsonResp.ID != "" {
-		return jsonResp.ID, nil
-	}
+        // Try JSON first
+        var jsonResp struct {
+                ID string `json:"id"`
+        }
+        if err := json.Unmarshal([]byte(body), &jsonResp); err == nil && jsonResp.ID != "" {
+                return jsonResp.ID, nil
+        }
 
-	// Plain string
-	if body != "" {
-		return body, nil
-	}
+        // Plain string
+        if body != "" {
+                return body, nil
+        }
 
-	return "", fmt.Errorf("azmk: could not parse ID from response: %s", body)
+        return "", fmt.Errorf("azmk: could not parse ID from response: %s", body)
 }
 
 // ============================================================
@@ -237,93 +254,93 @@ func parseIDResponse(body string) (string, error) {
 
 // KYC creates a KYC session and returns the KYC ID.
 func (p *HTTPProvider) KYC(ctx context.Context, req *KYCRequest) (string, error) {
-	body, err := p.doPost(ctx, "/kyc", req)
-	if err != nil {
-		return "", err
-	}
-	id, err := parseIDResponse(body)
-	if err != nil {
-		return "", err
-	}
-	slog.Info("AZMK KYC created", "kyc_id", id)
-	return id, nil
+        body, err := p.doPost(ctx, "/kyc", req)
+        if err != nil {
+                return "", err
+        }
+        id, err := parseIDResponse(body)
+        if err != nil {
+                return "", err
+        }
+        slog.Info("AZMK KYC created", "kyc_id", id)
+        return id, nil
 }
 
 // VerifyKYC checks if the KYC session is verified.
 func (p *HTTPProvider) VerifyKYC(ctx context.Context, kycID string) (bool, error) {
-	body, err := p.doGet(ctx, "/kyc/"+kycID)
-	if err != nil {
-		return false, err
-	}
-	verified := strings.Contains(strings.ToUpper(body), "VERIFIED")
-	slog.Info("AZMK KYC verify", "kyc_id", kycID, "verified", verified, "response", body)
-	return verified, nil
+        body, err := p.doGet(ctx, "/kyc/"+kycID)
+        if err != nil {
+                return false, err
+        }
+        verified := strings.Contains(strings.ToUpper(body), "VERIFIED")
+        slog.Info("AZMK KYC verify", "kyc_id", kycID, "verified", verified, "response", body)
+        return verified, nil
 }
 
 // RegisterPartner registers a partner and returns the Partner ID.
 func (p *HTTPProvider) RegisterPartner(ctx context.Context, req *PartnerRequest) (string, error) {
-	body, err := p.doPost(ctx, "/partner", req)
-	if err != nil {
-		return "", err
-	}
-	id, err := parseIDResponse(body)
-	if err != nil {
-		return "", err
-	}
-	slog.Info("AZMK Partner registered", "partner_id", id)
-	return id, nil
+        body, err := p.doPost(ctx, "/partner", req)
+        if err != nil {
+                return "", err
+        }
+        id, err := parseIDResponse(body)
+        if err != nil {
+                return "", err
+        }
+        slog.Info("AZMK Partner registered", "partner_id", id)
+        return id, nil
 }
 
 // RegisterCard registers a card and returns the Card ID.
 func (p *HTTPProvider) RegisterCard(ctx context.Context, req *CardRequest) (string, error) {
-	body, err := p.doPost(ctx, "/card", req)
-	if err != nil {
-		return "", err
-	}
-	id, err := parseIDResponse(body)
-	if err != nil {
-		return "", err
-	}
-	slog.Info("AZMK Card registered", "card_id", id)
-	return id, nil
+        body, err := p.doPost(ctx, "/card", req)
+        if err != nil {
+                return "", err
+        }
+        id, err := parseIDResponse(body)
+        if err != nil {
+                return "", err
+        }
+        slog.Info("AZMK Card registered", "card_id", id)
+        return id, nil
 }
 
 // CreateApplication creates a loan application and returns the Application ID.
 func (p *HTTPProvider) CreateApplication(ctx context.Context, req *ApplicationCreateRequest) (string, error) {
-	body, err := p.doPost(ctx, "/application/create", req)
-	if err != nil {
-		return "", err
-	}
-	id, err := parseIDResponse(body)
-	if err != nil {
-		return "", err
-	}
-	slog.Info("AZMK Application created", "application_id", id)
-	return id, nil
+        body, err := p.doPost(ctx, "/application/create", req)
+        if err != nil {
+                return "", err
+        }
+        id, err := parseIDResponse(body)
+        if err != nil {
+                return "", err
+        }
+        slog.Info("AZMK Application created", "application_id", id)
+        return id, nil
 }
 
 // CheckSign checks if the application contract is signed.
 func (p *HTTPProvider) CheckSign(ctx context.Context, applicationID string) (bool, error) {
-	body, err := p.doGet(ctx, "/application/"+applicationID+"/sign")
-	if err != nil {
-		return false, err
-	}
-	signed := strings.Contains(strings.ToLower(body), "already signed") ||
-		strings.Contains(strings.ToLower(body), "signed")
-	slog.Info("AZMK Sign check", "application_id", applicationID, "signed", signed, "response", body)
-	return signed, nil
+        body, err := p.doGet(ctx, "/application/"+applicationID+"/sign")
+        if err != nil {
+                return false, err
+        }
+        signed := strings.Contains(strings.ToLower(body), "already signed") ||
+                strings.Contains(strings.ToLower(body), "signed")
+        slog.Info("AZMK Sign check", "application_id", applicationID, "signed", signed, "response", body)
+        return signed, nil
 }
 
 // Disburse disburses the loan to the customer's card.
 func (p *HTTPProvider) Disburse(ctx context.Context, req *DisburseRequest) error {
-	_, err := p.doPost(ctx, "/application/disburse", req)
-	if err != nil {
-		return err
-	}
-	slog.Info("AZMK Disburse completed",
-		"application_id", req.LoanData.ApplicationID,
-		"card_id", req.LoanData.CardID)
-	return nil
+        _, err := p.doPost(ctx, "/application/disburse", req)
+        if err != nil {
+                return err
+        }
+        slog.Info("AZMK Disburse completed",
+                "application_id", req.LoanData.ApplicationID,
+                "card_id", req.LoanData.CardID)
+        return nil
 }
 
 // ============================================================
@@ -336,42 +353,42 @@ type MockProvider struct{}
 func NewMockProvider() *MockProvider { return &MockProvider{} }
 
 func (m *MockProvider) KYC(_ context.Context, _ *KYCRequest) (string, error) {
-	id := "MOCK-KYC-0001"
-	slog.Info("mock AZMK KYC", "kyc_id", id)
-	return id, nil
+        id := "MOCK-KYC-0001"
+        slog.Info("mock AZMK KYC", "kyc_id", id)
+        return id, nil
 }
 
 func (m *MockProvider) VerifyKYC(_ context.Context, kycID string) (bool, error) {
-	slog.Info("mock AZMK KYC verify", "kyc_id", kycID, "verified", true)
-	return true, nil
+        slog.Info("mock AZMK KYC verify", "kyc_id", kycID, "verified", true)
+        return true, nil
 }
 
 func (m *MockProvider) RegisterPartner(_ context.Context, _ *PartnerRequest) (string, error) {
-	id := "MOCK-PARTNER-0001"
-	slog.Info("mock AZMK Partner", "partner_id", id)
-	return id, nil
+        id := "MOCK-PARTNER-0001"
+        slog.Info("mock AZMK Partner", "partner_id", id)
+        return id, nil
 }
 
 func (m *MockProvider) RegisterCard(_ context.Context, _ *CardRequest) (string, error) {
-	id := "MOCK-CARD-0001"
-	slog.Info("mock AZMK Card", "card_id", id)
-	return id, nil
+        id := "MOCK-CARD-0001"
+        slog.Info("mock AZMK Card", "card_id", id)
+        return id, nil
 }
 
 func (m *MockProvider) CreateApplication(_ context.Context, _ *ApplicationCreateRequest) (string, error) {
-	id := "MOCK-APP-0001"
-	slog.Info("mock AZMK Application create", "application_id", id)
-	return id, nil
+        id := "MOCK-APP-0001"
+        slog.Info("mock AZMK Application create", "application_id", id)
+        return id, nil
 }
 
 func (m *MockProvider) CheckSign(_ context.Context, applicationID string) (bool, error) {
-	slog.Info("mock AZMK Sign check", "application_id", applicationID, "signed", true)
-	return true, nil
+        slog.Info("mock AZMK Sign check", "application_id", applicationID, "signed", true)
+        return true, nil
 }
 
 func (m *MockProvider) Disburse(_ context.Context, req *DisburseRequest) error {
-	slog.Info("mock AZMK Disburse",
-		"application_id", req.LoanData.ApplicationID,
-		"card_id", req.LoanData.CardID)
-	return nil
+        slog.Info("mock AZMK Disburse",
+                "application_id", req.LoanData.ApplicationID,
+                "card_id", req.LoanData.CardID)
+        return nil
 }

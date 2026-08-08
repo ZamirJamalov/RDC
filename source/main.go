@@ -106,8 +106,8 @@ func main() {
                 slog.Info("using mock AZMK provider (dev/test mode)")
                 azmkProvider = azmk.NewMockProvider()
         } else {
-                slog.Info("using HTTP AZMK provider", "base_url", cfg.AzmkBaseURL, "timeout_s", cfg.AzmkTimeoutS)
-                azmkProvider = azmk.NewHTTPProvider(cfg.AzmkBaseURL, cfg.AzmkTimeoutS)
+                slog.Info("using HTTP AZMK provider", "base_url", cfg.AzmkBaseURL, "timeout_s", cfg.AzmkTimeoutS, "auth", cfg.AzmkUsername != "")
+                azmkProvider = azmk.NewHTTPProvider(cfg.AzmkBaseURL, cfg.AzmkUsername, cfg.AzmkPassword, cfg.AzmkTimeoutS)
         }
         appService.SetAzmkProvider(azmkProvider, cfg.AzmkBranchCode, cfg.AzmkCardExpiring, cfg.AzmkProductID, cfg.AzmkDisbursementFee)
 

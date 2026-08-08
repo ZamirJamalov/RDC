@@ -87,6 +87,9 @@ type Config struct {
         AzmkDisbursementFee float64 // 0 (həmişə 0, gələcəkdə dəyişə bilər)
         AzmkUseMock       bool    // mock mode (test üçün)
         AzmkTimeoutS      int     // HTTP timeout
+        // PR #123: AZMK Basic Auth
+        AzmkUsername      string  // AZMK servisinə qoşulma üçün username
+        AzmkPassword      string  // AZMK servisinə qoşulma üçün password
 }
 
 // Load reads configuration from environment variables. Required fields (DB_HOST,
@@ -134,6 +137,8 @@ func Load() *Config {
                 AzmkDisbursementFee: getEnvFloat("AZMK_DISBURSEMENT_FEE", 0.0),
                 AzmkUseMock:         getEnvBool("AZMK_USE_MOCK", true),
                 AzmkTimeoutS:        getEnvInt("AZMK_TIMEOUT_S", 30),
+                AzmkUsername:        getEnv("AZMK_USERNAME", ""),
+                AzmkPassword:        getEnv("AZMK_PASSWORD", ""),
         }
 
         if cfg.MigrationsDropRecreate {
