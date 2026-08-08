@@ -258,17 +258,14 @@
                                     <span class="text-xs font-bold text-gray-400 w-5 text-center" x-text="(idx+1)"></span>
                                     <select x-model="contact.relation"
                                             @blur="saveContactIfChanged(idx)"
-                                            class="field-input !py-1.5 !px-2 w-28 text-xs">
+                                            :disabled="contact.saved && contact.relation"
+                                            class="field-input !py-1.5 !px-2 w-28 text-xs disabled:opacity-60 disabled:cursor-not-allowed">
                                         <option value="">Münasibət...</option>
-                                        <option value="Ata">Ata</option>
-                                        <option value="Ana">Ana</option>
-                                        <option value="Qardaş">Qardaş</option>
-                                        <option value="Bacı">Bacı</option>
-                                        <option value="Dost">Dost</option>
-                                        <option value="Ər/Arvad">Ər/Arvad</option>
-                                        <option value="Oğul">Oğul</option>
-                                        <option value="Qız">Qız</option>
-                                        <option value="Digər">Digər</option>
+                                        <template x-for="opt in ['Ata','Ana','Qardaş','Bacı','Dost','Ər/Arvad','Oğul','Qız','Digər']" :key="opt">
+                                            <option :value="opt" x-text="opt"
+                                                    :disabled="isRelationUsedByOther(idx, opt)"
+                                                    :class="isRelationUsedByOther(idx, opt) ? 'text-gray-300' : ''"></option>
+                                        </template>
                                     </select>
                                     <input type="text"
                                            x-model="contact.phone"
@@ -542,6 +539,12 @@
                         try { document.execCommand('copy'); } catch (_) {}
                         document.body.removeChild(ta);
                     }
+                },
+
+                // PR #127: münasibət başqa kontakt tərəfindən istifadə olunubmu?
+                isRelationUsedByOther(currentIdx, relation) {
+                    if (!relation) return false;
+                    return this.contacts.some((c, i) => i !== currentIdx && c.relation === relation);
                 },
 
                 // PR #101: telefon nömrəsinin formatını tənzimlə
