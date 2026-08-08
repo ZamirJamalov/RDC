@@ -258,7 +258,8 @@
                                     <span class="text-xs font-bold text-gray-400 w-5 text-center" x-text="(idx+1)"></span>
                                     <select x-model="contact.relation"
                                             @blur="saveContactIfChanged(idx)"
-                                            class="field-input !py-1.5 !px-2 w-28 text-xs">
+                                            :disabled="contact.saved && contact.relation"
+                                            class="field-input !py-1.5 !px-2 w-28 text-xs disabled:opacity-60 disabled:cursor-not-allowed">
                                         <option value="">Münasibət...</option>
                                         <option value="Ata">Ata</option>
                                         <option value="Ana">Ana</option>
