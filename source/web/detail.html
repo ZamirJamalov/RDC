@@ -252,26 +252,58 @@
                     </div>
                     <div class="space-y-2 flex-1">
                         <template x-for="(contact, idx) in contacts" :key="idx">
-                            <div class="flex gap-2 items-center">
-                                <span class="text-xs font-bold text-gray-400 w-5 text-center" x-text="(idx+1)"></span>
-                                <select x-model="contact.relation" class="field-input !py-1.5 !px-2 w-28 text-xs">
-                                    <option value="">Münasibət...</option>
-                                    <option value="Ata">Ata</option>
-                                    <option value="Ana">Ana</option>
-                                    <option value="Qardaş">Qardaş</option>
-                                    <option value="Bacı">Bacı</option>
-                                    <option value="Dost">Dost</option>
-                                    <option value="Ər/Arvad">Ər/Arvad</option>
-                                    <option value="Oğul">Oğul</option>
-                                    <option value="Qız">Qız</option>
-                                    <option value="Digər">Digər</option>
-                                </select>
-                                <input type="text"
-                                       x-model="contact.phone"
-                                       @input="contact.phone = formatPhone(contact.phone)"
-                                       maxlength="13"
-                                       placeholder="+994 __ ___ __ __"
-                                       class="field-input !py-1.5 flex-1 text-xs">
+                            <div class="flex flex-col gap-1.5">
+                                <!-- Input row -->
+                                <div class="flex gap-2 items-center">
+                                    <span class="text-xs font-bold text-gray-400 w-5 text-center" x-text="(idx+1)"></span>
+                                    <select x-model="contact.relation"
+                                            @blur="saveContactIfChanged(idx)"
+                                            class="field-input !py-1.5 !px-2 w-28 text-xs">
+                                        <option value="">Münasibət...</option>
+                                        <option value="Ata">Ata</option>
+                                        <option value="Ana">Ana</option>
+                                        <option value="Qardaş">Qardaş</option>
+                                        <option value="Bacı">Bacı</option>
+                                        <option value="Dost">Dost</option>
+                                        <option value="Ər/Arvad">Ər/Arvad</option>
+                                        <option value="Oğul">Oğul</option>
+                                        <option value="Qız">Qız</option>
+                                        <option value="Digər">Digər</option>
+                                    </select>
+                                    <input type="text"
+                                           x-model="contact.phone"
+                                           @input="contact.phone = formatPhone(contact.phone)"
+                                           @blur="saveContactIfChanged(idx)"
+                                           maxlength="13"
+                                           placeholder="+994 __ ___ __ __"
+                                           class="field-input !py-1.5 flex-1 text-xs">
+                                    <!-- Save indicator -->
+                                    <span x-show="contact.saving" class="text-xs text-gray-400 animate-pulse shrink-0">...</span>
+                                    <svg x-show="contact.saved && !contact.saving" class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                                </div>
+                                <!-- Verification buttons row -->
+                                <div class="flex gap-2 items-center pl-7">
+                                    <!-- Verified badge -->
+                                    <span x-show="contact.verified === true" class="badge text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-700">✓ Təsdiqləndi</span>
+                                    <span x-show="contact.verified === false" class="badge text-[10px] px-2 py-0.5 bg-rose-100 text-rose-700">✗ İmtina</span>
+                                    <span x-show="contact.verified === null || contact.verified === undefined" class="badge text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500">Yoxlanılmayıb</span>
+
+                                    <!-- Verify/reject buttons -->
+                                    <button x-show="contact.phone && contact.verified !== true"
+                                            @click="verifyContact(idx, true)"
+                                            class="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 px-2 py-1 rounded transition"
+                                            title="Nömrə doğrulandı">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                                        Təsdiq
+                                    </button>
+                                    <button x-show="contact.phone && contact.verified !== false"
+                                            @click="verifyContact(idx, false)"
+                                            class="inline-flex items-center gap-1 text-[11px] font-medium text-rose-600 hover:text-rose-800 hover:bg-rose-50 px-2 py-1 rounded transition"
+                                            title="Nömrə yanlışdır">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                                        İmtina
+                                    </button>
+                                </div>
                             </div>
                         </template>
                     </div>
@@ -467,11 +499,11 @@
                 rejectReasonCustom: '',
                 theme: localStorage.getItem('alpul_theme') || 'light',
 
-                // Contacts (PR #84)
+                // Contacts (PR #84, PR #125: verified status + auto-save)
                 contacts: [
-                    { relation: '', phone: '', saved: false },
-                    { relation: '', phone: '', saved: false },
-                    { relation: '', phone: '', saved: false },
+                    { relation: '', phone: '', saved: false, saving: false, savedPhone: '', savedRelation: '', verified: null },
+                    { relation: '', phone: '', saved: false, saving: false, savedPhone: '', savedRelation: '', verified: null },
+                    { relation: '', phone: '', saved: false, saving: false, savedPhone: '', savedRelation: '', verified: null },
                 ],
 
                 // MyGov verification
@@ -537,6 +569,77 @@
                     return v;
                 },
 
+                // PR #125: blur-da avtomatik saxla (yalnız dəyişiklik olarsa)
+                async saveContactIfChanged(idx) {
+                    const c = this.contacts[idx];
+                    if (!c) return;
+                    // Dəyişiklik yoxdursa — skip
+                    if (c.phone === c.savedPhone && c.relation === c.savedRelation) return;
+                    // Boş telefon varsa — skip
+                    if (!c.phone) return;
+
+                    c.saving = true;
+                    try {
+                        const resp = await fetch('/api/applications/' + this.id + '/contacts', {
+                            method: 'PUT',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                contact1_phone: this.contacts[0]?.phone || '',
+                                contact1_relation: this.contacts[0]?.relation || '',
+                                contact1_verified: this.contacts[0]?.verified ?? null,
+                                contact2_phone: this.contacts[1]?.phone || '',
+                                contact2_relation: this.contacts[1]?.relation || '',
+                                contact2_verified: this.contacts[1]?.verified ?? null,
+                                contact3_phone: this.contacts[2]?.phone || '',
+                                contact3_relation: this.contacts[2]?.relation || '',
+                                contact3_verified: this.contacts[2]?.verified ?? null,
+                            }),
+                        });
+                        if (!resp.ok) throw new Error('Saxlanilmadi');
+                        c.saved = true;
+                        c.savedPhone = c.phone;
+                        c.savedRelation = c.relation;
+                    } catch (e) {
+                        this.actionError = 'Kontakt saxlanilmadi: ' + e.message;
+                        setTimeout(() => { this.actionError = ''; }, 5000);
+                    } finally {
+                        c.saving = false;
+                    }
+                },
+
+                // PR #125: yoxlama düymələri (verify/reject)
+                async verifyContact(idx, verified) {
+                    const c = this.contacts[idx];
+                    if (!c || !c.phone) return;
+
+                    c.verified = verified;
+                    c.saving = true;
+                    try {
+                        const resp = await fetch('/api/applications/' + this.id + '/contacts', {
+                            method: 'PUT',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({
+                                contact1_phone: this.contacts[0]?.phone || '',
+                                contact1_relation: this.contacts[0]?.relation || '',
+                                contact1_verified: this.contacts[0]?.verified ?? null,
+                                contact2_phone: this.contacts[1]?.phone || '',
+                                contact2_relation: this.contacts[1]?.relation || '',
+                                contact2_verified: this.contacts[1]?.verified ?? null,
+                                contact3_phone: this.contacts[2]?.phone || '',
+                                contact3_relation: this.contacts[2]?.relation || '',
+                                contact3_verified: this.contacts[2]?.verified ?? null,
+                            }),
+                        });
+                        if (!resp.ok) throw new Error('Saxlanilmadi');
+                        c.saved = true;
+                    } catch (e) {
+                        this.actionError = 'Yoxlama saxlanilmadi: ' + e.message;
+                        setTimeout(() => { this.actionError = ''; }, 5000);
+                    } finally {
+                        c.saving = false;
+                    }
+                },
+
                 get id() {
                     return new URLSearchParams(window.location.search).get('id');
                 },
@@ -550,14 +653,35 @@
                         this.app = await resp.json();
 
                         // Load existing contacts if present
-                        if (this.app.contact1_phone) {
-                            this.contacts[0] = { relation: '', phone: this.app.contact1_phone, saved: true };
+                        if (this.app.contact1_phone || this.app.contact1_relation) {
+                            this.contacts[0] = {
+                                relation: this.app.contact1_relation || '',
+                                phone: this.app.contact1_phone || '',
+                                saved: true, saving: false,
+                                savedPhone: this.app.contact1_phone || '',
+                                savedRelation: this.app.contact1_relation || '',
+                                verified: this.app.contact1_verified === true ? true : (this.app.contact1_verified === false ? false : null)
+                            };
                         }
-                        if (this.app.contact2_phone) {
-                            this.contacts[1] = { relation: '', phone: this.app.contact2_phone, saved: true };
+                        if (this.app.contact2_phone || this.app.contact2_relation) {
+                            this.contacts[1] = {
+                                relation: this.app.contact2_relation || '',
+                                phone: this.app.contact2_phone || '',
+                                saved: true, saving: false,
+                                savedPhone: this.app.contact2_phone || '',
+                                savedRelation: this.app.contact2_relation || '',
+                                verified: this.app.contact2_verified === true ? true : (this.app.contact2_verified === false ? false : null)
+                            };
                         }
-                        if (this.app.contact3_phone) {
-                            this.contacts[2] = { relation: '', phone: this.app.contact3_phone, saved: true };
+                        if (this.app.contact3_phone || this.app.contact3_relation) {
+                            this.contacts[2] = {
+                                relation: this.app.contact3_relation || '',
+                                phone: this.app.contact3_phone || '',
+                                saved: true, saving: false,
+                                savedPhone: this.app.contact3_phone || '',
+                                savedRelation: this.app.contact3_relation || '',
+                                verified: this.app.contact3_verified === true ? true : (this.app.contact3_verified === false ? false : null)
+                            };
                         }
                     } catch (e) {
                         this.error = e.message;
