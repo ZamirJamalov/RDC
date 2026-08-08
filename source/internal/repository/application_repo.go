@@ -80,6 +80,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                        customer_confirmed_at, card_ownership_confirmed,
                        discount_code, discount_amount,
                        kyc_id, partner_id, card_id, lw_application_id,
+                       timer_seconds,
                        created_at, updated_at
                 FROM loan_applications WHERE id = ?`, id).Scan(
                 &app.ID,
@@ -121,6 +122,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                 &partnerID,
                 &cardID,
                 &lwApplicationID,
+                &app.TimerSeconds,
                 &app.CreatedAt,
                 &app.UpdatedAt,
         )
@@ -413,4 +415,19 @@ func nullableBool(b *bool) interface{} {
                 return nil
         }
         return *b
+}
+
+// UpdateTimer saves the elapsed timer seconds for an application.
+// PR #134: ekspert müraciəti açandan təsdiq/imtinaya qədər vaxt saxlanır.
+func (r *ApplicationRepo) UpdateTimer(ctx context.Context, id int, seconds int) error {
+        _, err := r.db.ExecContext(ctx, `
+                UPDATE loan_applications
+                SET timer_seconds = ?,
+                    updated_at = GETDATE()
+                WHERE id = ?`,
+                seconds, id)
+        if err != nil {
+                return fmt.Errorf("failed to update timer: %w", err)
+        }
+        return nil
 }

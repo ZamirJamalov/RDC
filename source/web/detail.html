@@ -139,6 +139,13 @@
                   x-text="app?.status || ''">
             </span>
 
+            <!-- PR #134: Timer -->
+            <div x-show="app && app.status === 'pending_approval'"
+                 class="flex items-center gap-1.5 shrink-0 bg-gray-900 text-teal-400 px-3 py-1.5 rounded-lg font-mono text-sm font-bold tabular-nums">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="2"/><polyline points="12 6 12 12 16 14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span x-text="timerDisplay"></span>
+            </div>
+
             <!-- Theme toggle -->
             <button @click="toggleTheme()" class="w-9 h-9 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-100 transition shrink-0" title="Theme dəyiş">
                 <svg x-show="theme === 'light'" class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/></svg>
@@ -448,7 +455,7 @@
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <!-- Copy düyməsi -->
-                        <button @click="copyToClipboard(app?.customer_full_name)"
+                        <button @click="complianceChecked = true; copyToClipboard(app?.customer_full_name)"
                                 class="sub-card flex items-center gap-3 p-3 text-left hover:border-teal-300 transition group">
                             <div class="w-9 h-9 rounded-lg bg-teal-500/10 flex items-center justify-center group-hover:bg-teal-500/20 transition shrink-0">
                                 <svg class="w-5 h-5 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -519,8 +526,13 @@
                     { relation: '', phone: '', name: '', saved: false, saving: false, savedPhone: '', savedRelation: '', savedName: '', verified: null, editing: false },
                 ],
 
-                // MyGov verification
-                employmentLoading: false,
+                // PR #134: Timer
+                timerSeconds: 0,
+                timerInterval: null,
+                timerStopped: false,
+
+                // PR #134: Precondition yoxlamaları
+                complianceChecked: false,
                 employmentVerifying: false,
                 employmentResult: '',
                 employmentMessage: '',
@@ -561,6 +573,78 @@
                 isRelationUsedByOther(currentIdx, relation) {
                     if (!relation) return false;
                     return this.contacts.some((c, i) => i !== currentIdx && c.relation === relation);
+                },
+
+                // PR #134: Timer display (00:00:00 format)
+                get timerDisplay() {
+                    const s = this.timerSeconds;
+                    const h = String(Math.floor(s / 3600)).padStart(2, '0');
+                    const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+                    const sec = String(s % 60).padStart(2, '0');
+                    return `${h}:${m}:${sec}`;
+                },
+
+                // PR #134: Timer start
+                startTimer() {
+                    if (this.timerInterval) return;
+                    if (this.app && this.app.timer_seconds) {
+                        this.timerSeconds = this.app.timer_seconds;
+                    }
+                    this.timerStopped = false;
+                    this.timerInterval = setInterval(() => {
+                        if (this.timerStopped) return;
+                        this.timerSeconds++;
+                        if (this.timerSeconds % 10 === 0) {
+                            this.saveTimerToDB();
+                        }
+                    }, 1000);
+                },
+
+                // PR #134: Timer stop
+                stopTimer() {
+                    this.timerStopped = true;
+                    if (this.timerInterval) {
+                        clearInterval(this.timerInterval);
+                        this.timerInterval = null;
+                    }
+                    this.saveTimerToDB();
+                },
+
+                // PR #134: Timer DB-yə saxla
+                async saveTimerToDB() {
+                    if (!this.id) return;
+                    try {
+                        await fetch('/api/applications/' + this.id + '/timer', {
+                            method: 'PUT',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ timer_seconds: this.timerSeconds }),
+                        });
+                    } catch (e) { /* silent fail */ }
+                },
+
+                // PR #134: Approve precondition yoxlamaları
+                checkApprovePreconditions() {
+                    const errors = [];
+                    for (let i = 0; i < 3; i++) {
+                        const c = this.contacts[i];
+                        if (!c || !c.phone) {
+                            errors.push(`Kontakt ${i+1}: Nömrə daxil edilməyib`);
+                        } else if (c.verified !== true) {
+                            errors.push(`Kontakt ${i+1}: Təsdiq olunmayıb`);
+                        }
+                    }
+                    if (this.app?.status === 'pending_approval') {
+                        if (this.employmentResult !== 'passed') {
+                            errors.push('MyGov İş Yeri: Yoxlanılmayıb və ya uğursuz');
+                        }
+                        if (this.pensionResult !== 'passed') {
+                            errors.push('MyGov Pensiya: Yoxlanılmayıb və ya uğursuz');
+                        }
+                    }
+                    if (!this.complianceChecked) {
+                        errors.push('Komplyans: HMS və OpenSanctions yoxlanılmayıb');
+                    }
+                    return errors;
                 },
 
                 // PR #101/#129: telefon nömrəsinin formatını tənzimlə
@@ -751,6 +835,12 @@
                         this.error = e.message;
                     } finally {
                         this.loading = false;
+                        // PR #134: Timer — pending_approval statusunda başlat
+                        if (this.app && this.app.status === 'pending_approval' && !this.timerStopped) {
+                            this.startTimer();
+                        } else if (this.app && (this.app.status === 'approved' || this.app.status === 'rejected')) {
+                            this.stopTimer();
+                        }
                     }
                 },
 
@@ -758,11 +848,16 @@
                     this.actionLoading = true;
                     this.actionMessage = '';
                     this.actionError = '';
-                    try {
-                        // PR #133: kontaktlar artıq blur-da avtomatik saxlanılır (PUT /contacts)
-                        // köhnə /complete endpoint-inə ehtiyac yoxdur — o, pending_expert tələb edir
-                        // və pending_approval statusunda xəta verirdi.
 
+                    // PR #134: Precondition yoxlamaları
+                    const errors = this.checkApprovePreconditions();
+                    if (errors.length > 0) {
+                        this.actionError = 'Təsdiq edilə bilməz:\n• ' + errors.join('\n• ');
+                        this.actionLoading = false;
+                        return; // Timer dayanmır
+                    }
+
+                    try {
                         const resp = await fetch('/api/expert/' + this.id + '/approve', {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
@@ -773,9 +868,11 @@
                             throw new Error(err.error || 'Tesdiq ugursuz');
                         }
                         this.actionMessage = 'Muraciet tesdiq edildi!';
+                        this.stopTimer(); // PR #134: təsdiq uğurlu — timer dayan
                         await this.load();
                     } catch (e) {
                         this.actionError = e.message;
+                        // Timer dayanmır — xəta var, ekspert yenidən cəhd edə bilər
                     } finally {
                         this.actionLoading = false;
                     }
@@ -800,6 +897,7 @@
                             throw new Error(err.error || 'Imtina ugursuz');
                         }
                         this.actionMessage = 'Muraciet imtina edildi.';
+                        this.stopTimer(); // PR #134: imtina uğurlu — timer dayan
                         await this.load();
                     } catch (e) {
                         this.actionError = e.message;

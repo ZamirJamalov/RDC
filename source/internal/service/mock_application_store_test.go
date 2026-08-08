@@ -289,6 +289,14 @@ func (m *mockApplicationStore) UpdateContacts(_ context.Context, id int, app *mo
         return nil
 }
 
+// UpdateTimer — PR #134: mock implementation.
+func (m *mockApplicationStore) UpdateTimer(_ context.Context, id int, seconds int) error {
+        if existing, ok := m.appByID[id]; ok {
+                existing.TimerSeconds = seconds
+        }
+        return nil
+}
+
 // --- Tx-aware variants (T-1.3) ---
 //
 // These accept a repository.TxRunner but ignore it — the mock doesn't actually

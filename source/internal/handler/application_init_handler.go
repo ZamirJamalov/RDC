@@ -112,6 +112,32 @@ func (h *ApplicationHandler) UpdateContacts(w http.ResponseWriter, r *http.Reque
         writeJSON(w, http.StatusOK, app)
 }
 
+// UpdateTimer handles PUT /api/applications/{id}/timer.
+// PR #134: müraciət üzərində işləmə vaxtını saxlayır.
+func (h *ApplicationHandler) UpdateTimer(w http.ResponseWriter, r *http.Request) {
+        id, err := strconv.Atoi(r.PathValue("id"))
+        if err != nil || id <= 0 {
+                writeError(w, http.StatusBadRequest, "invalid application id")
+                return
+        }
+
+        var req struct {
+                TimerSeconds int `json:"timer_seconds"`
+        }
+        if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+                writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+                return
+        }
+
+        if err := h.service.UpdateTimer(r.Context(), id, req.TimerSeconds); err != nil {
+                slog.Error("update timer failed", "application_id", id, "error", err)
+                writeError(w, http.StatusBadRequest, err.Error())
+                return
+        }
+
+        writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // CustomerConfirm handles POST /api/applications/{id}/customer-confirm (PR #58).
 // Customer (on the public website) confirms their credit offer by:
 //   - selecting an amount from the offered range
