@@ -97,6 +97,9 @@ type ApplicationStore interface {
         // approval (to store the computed discount amount).
         UpdateApplicationDiscount(ctx context.Context, id int, discountCode string, discountAmount *float64) error
 
+        // PR #124: kontakt nömrələri və yoxlanma statusu (pending_approval-da da işləyir)
+        UpdateContacts(ctx context.Context, id int, app *model.LoanApplication) error
+
         // --- Tx-aware variants (used by ProcessApplication for atomicity) ---
 
         UpdateApplicationStatusTx(ctx context.Context, runner repository.TxRunner, id int, status string) error

@@ -86,6 +86,32 @@ func (h *ApplicationHandler) CompleteApplication(w http.ResponseWriter, r *http.
         writeJSON(w, http.StatusOK, app)
 }
 
+// UpdateContacts handles PUT /api/applications/{id}/contacts.
+// PR #124: ekspert kontakt nömrələrini və yoxlanma statusunu saxlayır.
+// pending_approval statusunda da işləyir (CompleteApplication-a alternativ).
+func (h *ApplicationHandler) UpdateContacts(w http.ResponseWriter, r *http.Request) {
+        id, err := strconv.Atoi(r.PathValue("id"))
+        if err != nil || id <= 0 {
+                writeError(w, http.StatusBadRequest, "invalid application id")
+                return
+        }
+
+        var req service.UpdateContactsRequest
+        if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+                writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+                return
+        }
+
+        app, err := h.service.UpdateContacts(r.Context(), id, &req)
+        if err != nil {
+                slog.Error("update contacts failed", "application_id", id, "error", err)
+                writeError(w, http.StatusBadRequest, err.Error())
+                return
+        }
+
+        writeJSON(w, http.StatusOK, app)
+}
+
 // CustomerConfirm handles POST /api/applications/{id}/customer-confirm (PR #58).
 // Customer (on the public website) confirms their credit offer by:
 //   - selecting an amount from the offered range

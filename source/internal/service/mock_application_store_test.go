@@ -270,6 +270,22 @@ func (m *mockApplicationStore) UpdateApplicationDiscount(_ context.Context, id i
         return nil
 }
 
+// UpdateContacts — PR #124: mock implementation.
+func (m *mockApplicationStore) UpdateContacts(_ context.Context, id int, app *model.LoanApplication) error {
+        if existing, ok := m.appByID[id]; ok {
+                existing.Contact1Phone = app.Contact1Phone
+                existing.Contact2Phone = app.Contact2Phone
+                existing.Contact3Phone = app.Contact3Phone
+                existing.Contact1Relation = app.Contact1Relation
+                existing.Contact2Relation = app.Contact2Relation
+                existing.Contact3Relation = app.Contact3Relation
+                existing.Contact1Verified = app.Contact1Verified
+                existing.Contact2Verified = app.Contact2Verified
+                existing.Contact3Verified = app.Contact3Verified
+        }
+        return nil
+}
+
 // --- Tx-aware variants (T-1.3) ---
 //
 // These accept a repository.TxRunner but ignore it — the mock doesn't actually
