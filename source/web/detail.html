@@ -266,7 +266,7 @@
                                     <div class="relative">
                                         <select x-model="contact.relation"
                                                 @blur="onRelationBlur(idx)"
-                                                :disabled="contact.saved && contact.relation && !contact.editing"
+                                                :disabled="isReadOnly || (contact.saved && contact.relation && !contact.editing)"
                                                 class="field-input !py-1.5 !px-2 w-24 text-xs disabled:opacity-60 disabled:cursor-not-allowed">
                                             <option value="">Əlaqə *</option>
                                             <template x-for="opt in ['Ata','Ana','Qardaş','Bacı','Dost','Ər','Arvad','Oğul','Qız','Qaynata','Qaynana','Qayın','Bacanaq','Baldız','Yeznə','Qonşu','Digər']" :key="opt">
@@ -276,8 +276,8 @@
                                             </template>
                                         </select>
                                     </div>
-                                    <!-- PR #132: Edit button — əlaqə dəyişdirmək üçün -->
-                                    <button x-show="contact.saved && contact.relation && !contact.editing"
+                                    <!-- PR #132: Edit button — əlaqə dəyişdirmək üçün (read-only olanda gizlən) -->
+                                    <button x-show="!isReadOnly && contact.saved && contact.relation && !contact.editing"
                                             @click="contact.editing = true"
                                             class="text-gray-400 hover:text-teal-600 transition shrink-0"
                                             title="Əlaqə növünü dəyiş">
@@ -287,7 +287,7 @@
                                            x-model="contact.phone"
                                            @input="contact.phone = formatPhone(contact.phone)"
                                            @blur="saveContactIfChanged(idx)"
-                                           :disabled="!contact.relation"
+                                           :disabled="isReadOnly || !contact.relation"
                                            maxlength="17"
                                            placeholder="+994 XX XXX XX XX"
                                            class="field-input !py-1.5 flex-1 text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100">
@@ -300,7 +300,7 @@
                                     <input type="text"
                                            x-model="contact.name"
                                            @blur="saveContactIfChanged(idx)"
-                                           :disabled="!contact.relation"
+                                           :disabled="isReadOnly || !contact.relation"
                                            placeholder="Ad Soyad"
                                            class="field-input !py-1.5 flex-1 text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100">
                                     <!-- Verified badge -->
@@ -308,15 +308,17 @@
                                     <span x-show="contact.verified === false" class="badge text-[10px] px-2 py-0.5 bg-rose-100 text-rose-700 shrink-0">✗ İmtina</span>
                                     <span x-show="contact.verified === null || contact.verified === undefined" class="badge text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 shrink-0">Yoxlanılmayıb</span>
 
-                                    <!-- Verify/reject buttons — disabled olaraq əlaqə seçilmədən klik oluna bilmir -->
-                                    <button @click="verifyContact(idx, true)"
+                                    <!-- Verify/reject buttons — read-only olanda və ya əlaqə/telefon yoxdanda disabled -->
+                                    <button x-show="!isReadOnly"
+                                            @click="verifyContact(idx, true)"
                                             :disabled="!contact.relation || !contact.phone"
                                             :class="!contact.relation || !contact.phone ? 'opacity-30 cursor-not-allowed' : 'text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50'"
                                             class="inline-flex items-center gap-0.5 text-[11px] font-medium px-1.5 py-1 rounded transition shrink-0"
                                             title="Nömrə doğrulandı — zəng etdiniz və doğru şəxs cavab verdi">
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                                     </button>
-                                    <button @click="verifyContact(idx, false)"
+                                    <button x-show="!isReadOnly"
+                                            @click="verifyContact(idx, false)"
                                             :disabled="!contact.relation || !contact.phone"
                                             :class="!contact.relation || !contact.phone ? 'opacity-30 cursor-not-allowed' : 'text-rose-600 hover:text-rose-800 hover:bg-rose-50'"
                                             class="inline-flex items-center gap-0.5 text-[11px] font-medium px-1.5 py-1 rounded transition shrink-0"
@@ -573,6 +575,11 @@
                 isRelationUsedByOther(currentIdx, relation) {
                     if (!relation) return false;
                     return this.contacts.some((c, i) => i !== currentIdx && c.relation === relation);
+                },
+
+                // PR #135: read-only status — approved/rejected olanda bütün kontakt inputları disabled
+                get isReadOnly() {
+                    return this.app && (this.app.status === 'approved' || this.app.status === 'rejected');
                 },
 
                 // PR #134: Timer display (00:00:00 format)
