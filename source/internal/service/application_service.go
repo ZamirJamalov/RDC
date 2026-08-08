@@ -85,6 +85,10 @@ type UpdateContactsRequest struct {
         Contact1Relation string `json:"contact1_relation,omitempty"`
         Contact2Relation string `json:"contact2_relation,omitempty"`
         Contact3Relation string `json:"contact3_relation,omitempty"`
+        // PR #128: kontakt şəxslərinin ad soyadı
+        Contact1Name string `json:"contact1_name,omitempty"`
+        Contact2Name string `json:"contact2_name,omitempty"`
+        Contact3Name string `json:"contact3_name,omitempty"`
         // Verification: nil=yoxlanılmayıb, true=təsdiq, false=imtina
         Contact1Verified *bool `json:"contact1_verified,omitempty"`
         Contact2Verified *bool `json:"contact2_verified,omitempty"`
@@ -110,6 +114,9 @@ func (s *ApplicationService) UpdateContacts(ctx context.Context, appID int, req 
         app.Contact1Relation = req.Contact1Relation
         app.Contact2Relation = req.Contact2Relation
         app.Contact3Relation = req.Contact3Relation
+        app.Contact1Name = req.Contact1Name
+        app.Contact2Name = req.Contact2Name
+        app.Contact3Name = req.Contact3Name
         app.Contact1Verified = req.Contact1Verified
         app.Contact2Verified = req.Contact2Verified
         app.Contact3Verified = req.Contact3Verified

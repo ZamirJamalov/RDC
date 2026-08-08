@@ -25,6 +25,10 @@ type LoanApplication struct {
         Contact1Phone  string  `json:"contact1_phone,omitempty"`  // 3 contact numbers (T-5.5)
         Contact2Phone  string  `json:"contact2_phone,omitempty"`
         Contact3Phone  string  `json:"contact3_phone,omitempty"`
+        // PR #128: kontakt şəxslərinin ad soyadı
+        Contact1Name   string  `json:"contact1_name,omitempty"`
+        Contact2Name   string  `json:"contact2_name,omitempty"`
+        Contact3Name   string  `json:"contact3_name,omitempty"`
         Contact1Relation string `json:"contact1_relation,omitempty"` // PR #85: Ata, Ana, Qardaş, etc.
         Contact2Relation string `json:"contact2_relation,omitempty"`
         Contact3Relation string `json:"contact3_relation,omitempty"`

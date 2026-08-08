@@ -58,7 +58,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
         var approvedAmount, approvedRate, totalAmount sql.NullFloat64
         var akbScore sql.NullInt64
         var officialIncome sql.NullFloat64
-        var contact1, contact2, contact3, contact1Rel, contact2Rel, contact3Rel, address, customerPhone, customerSerial sql.NullString
+        var contact1, contact2, contact3, contact1Rel, contact2Rel, contact3Rel, contact1Name, contact2Name, contact3Name, address, customerPhone, customerSerial sql.NullString
         var customerConfirmedAt sql.NullString
         // PR #94: discount fields
         var discountCode sql.NullString
@@ -74,6 +74,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                        rejection_reason_id, rejection_reason, akb_score,
                        official_income, contact1_phone, contact2_phone, contact3_phone, actual_address,
                        contact1_relation, contact2_relation, contact3_relation,
+                       contact1_name, contact2_name, contact3_name,
                        contact1_verified, contact2_verified, contact3_verified,
                        card_number, customer_phone, customer_serial,
                        customer_confirmed_at, card_ownership_confirmed,
@@ -103,6 +104,9 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                 &contact1Rel,
                 &contact2Rel,
                 &contact3Rel,
+                &contact1Name,
+                &contact2Name,
+                &contact3Name,
                 &contact1Verified,
                 &contact2Verified,
                 &contact3Verified,
@@ -139,6 +143,10 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
         app.Contact1Relation = contact1Rel.String
         app.Contact2Relation = contact2Rel.String
         app.Contact3Relation = contact3Rel.String
+        // PR #128: kontakt adları
+        app.Contact1Name = contact1Name.String
+        app.Contact2Name = contact2Name.String
+        app.Contact3Name = contact3Name.String
         // PR #124: kontakt yoxlanma statusu
         if contact1Verified.Valid { v := contact1Verified.Bool; app.Contact1Verified = &v }
         if contact2Verified.Valid { v := contact2Verified.Bool; app.Contact2Verified = &v }
@@ -371,6 +379,9 @@ func (r *ApplicationRepo) UpdateContacts(ctx context.Context, id int, app *model
                     contact1_relation = ?,
                     contact2_relation = ?,
                     contact3_relation = ?,
+                    contact1_name = ?,
+                    contact2_name = ?,
+                    contact3_name = ?,
                     contact1_verified = ?,
                     contact2_verified = ?,
                     contact3_verified = ?,
@@ -382,6 +393,9 @@ func (r *ApplicationRepo) UpdateContacts(ctx context.Context, id int, app *model
                 nullableString(app.Contact1Relation),
                 nullableString(app.Contact2Relation),
                 nullableString(app.Contact3Relation),
+                nullableString(app.Contact1Name),
+                nullableString(app.Contact2Name),
+                nullableString(app.Contact3Name),
                 nullableBool(app.Contact1Verified),
                 nullableBool(app.Contact2Verified),
                 nullableBool(app.Contact3Verified),

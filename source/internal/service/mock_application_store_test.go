@@ -279,6 +279,9 @@ func (m *mockApplicationStore) UpdateContacts(_ context.Context, id int, app *mo
                 existing.Contact1Relation = app.Contact1Relation
                 existing.Contact2Relation = app.Contact2Relation
                 existing.Contact3Relation = app.Contact3Relation
+                existing.Contact1Name = app.Contact1Name
+                existing.Contact2Name = app.Contact2Name
+                existing.Contact3Name = app.Contact3Name
                 existing.Contact1Verified = app.Contact1Verified
                 existing.Contact2Verified = app.Contact2Verified
                 existing.Contact3Verified = app.Contact3Verified
