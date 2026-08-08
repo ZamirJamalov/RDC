@@ -298,12 +298,21 @@
                                 </div>
                                 <!-- Input row 2: name + verification buttons -->
                                 <div class="flex gap-2 items-center pl-7">
-                                    <input type="text"
-                                           x-model.trim="contact.name"
-                                           @blur="saveContactIfChanged(idx)"
-                                           :disabled="isReadOnly || !contact.relation"
-                                           placeholder="Ad Soyad"
-                                           class="field-input !py-1.5 flex-1 text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100">
+                                    <div class="relative flex-1">
+                                        <input type="text"
+                                               x-model.trim="contact.name"
+                                               @blur="saveContactIfChanged(idx)"
+                                               :disabled="isReadOnly || !contact.relation"
+                                               placeholder="Ad Soyad"
+                                               :class="isNameUsedByOther(idx, contact.name) ? 'border-rose-400 focus:border-rose-500 bg-rose-50' : ''"
+                                               class="field-input !py-1.5 w-full text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100">
+                                        <!-- PR #137: təkrar ad xəbərdarlıq ikonu -->
+                                        <span x-show="isNameUsedByOther(idx, contact.name)"
+                                              class="absolute right-2 top-1/2 -translate-y-1/2 text-rose-500"
+                                              title="Bu ad digər əlaqədə artıq istifadə olunub">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                        </span>
+                                    </div>
                                     <!-- Verified badge -->
                                     <span x-show="contact.verified === true" class="badge text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-700 shrink-0">✓ Təsdiq</span>
                                     <span x-show="contact.verified === false" class="badge text-[10px] px-2 py-0.5 bg-rose-100 text-rose-700 shrink-0">✗ İmtina</span>
@@ -584,6 +593,20 @@
                     return this.contacts.some((c, i) => i !== currentIdx && c.relation === relation);
                 },
 
+                // PR #137: kontakt adı (Ad Soyad) başqa kontakt tərəfindən istifadə olunubmu?
+                // Case-insensitive + trim müqayisə. Boş adlar yoxlanılmır.
+                // UI-dan daxil edilən zaman təkrarın qarşısını alır (DB-də yox).
+                isNameUsedByOther(currentIdx, name) {
+                    if (!name) return false;
+                    const n = String(name).trim().toLowerCase();
+                    if (!n) return false;
+                    return this.contacts.some((c, i) =>
+                        i !== currentIdx &&
+                        c.name &&
+                        String(c.name).trim().toLowerCase() === n
+                    );
+                },
+
                 // PR #136: köhnə DB dəyərlərini yeni oxunaqlı formaya normalizə edir
                 // (Ata → Atası, Qaynata → Qayınatası, və s.) — load() zamanı çağrılır
                 normalizeRelation(r) {
@@ -661,6 +684,7 @@
                 },
 
                 // PR #134: Approve precondition yoxlamaları
+                // PR #137: kontakt adlarının təkrarı da approve üçün maneədir
                 checkApprovePreconditions() {
                     const errors = [];
                     for (let i = 0; i < 3; i++) {
@@ -669,6 +693,10 @@
                             errors.push(`Kontakt ${i+1}: Nömrə daxil edilməyib`);
                         } else if (c.verified !== true) {
                             errors.push(`Kontakt ${i+1}: Təsdiq olunmayıb`);
+                        }
+                        // PR #137: ad təkrarı yoxlaması
+                        if (c && c.name && this.isNameUsedByOther(i, c.name)) {
+                            errors.push(`Kontakt ${i+1}: Adı digər əlaqədə təkrarlanır`);
                         }
                     }
                     if (this.app?.status === 'pending_approval') {
@@ -741,6 +769,7 @@
                 // PR #128: name field də dəyişiklik yoxlamasına daxil
                 // PR #131: əlaqə seçilmədən input disabled olduğu üçün burada ekstra yoxlama yoxdur
                 // PR #136: ad sahəsinə trim tətbiq olunur (x-model.trim + burada explicit .trim())
+                // PR #137: təkrar ad yoxlaması — eyni ad başqa kontakt-da varsa saxlamaq olmaz
                 async saveContactIfChanged(idx) {
                     const c = this.contacts[idx];
                     if (!c) return;
@@ -750,6 +779,16 @@
                     if (c.phone === c.savedPhone && c.relation === c.savedRelation && c.name === c.savedName) return;
                     // Boş telefon və ya əlaqə yoxdursa — skip
                     if (!c.phone || !c.relation) return;
+                    // PR #137: təkrar ad yoxlaması — başqa kontakt-da eyni ad varsa saxlama
+                    if (c.name && this.isNameUsedByOther(idx, c.name)) {
+                        this.actionError = `Kontakt ${idx + 1}: "${c.name}" adı artıq digər əlaqədə istifadə olunub. Təkrar ad daxil edilə bilməz.`;
+                        setTimeout(() => {
+                            if (this.actionError && this.actionError.startsWith(`Kontakt ${idx + 1}:`)) this.actionError = '';
+                        }, 6000);
+                        // Köhnə saxlanmış dəyəri qaytar — yeni dəyəri DB-yə yazma
+                        c.name = c.savedName || '';
+                        return;
+                    }
 
                     c.saving = true;
                     try {
@@ -785,9 +824,18 @@
                 },
 
                 // PR #125: yoxlama düymələri (verify/reject)
+                // PR #137: təkrar ad varsa verify/reject etmək olmaz
                 async verifyContact(idx, verified) {
                     const c = this.contacts[idx];
                     if (!c || !c.phone) return;
+                    // PR #137: ad təkrarı varsa — yoxlamağa icazə vermə
+                    if (c.name && this.isNameUsedByOther(idx, c.name)) {
+                        this.actionError = `Kontakt ${idx + 1}: adı digər əlaqədə təkrarlanır. Əvvəlcə adı düzəlt.`;
+                        setTimeout(() => {
+                            if (this.actionError && this.actionError.startsWith(`Kontakt ${idx + 1}:`)) this.actionError = '';
+                        }, 6000);
+                        return;
+                    }
 
                     c.verified = verified;
                     c.saving = true;
