@@ -256,17 +256,26 @@
                                 <!-- Input row 1: relation + phone -->
                                 <div class="flex gap-2 items-center">
                                     <span class="text-xs font-bold text-gray-400 w-5 text-center" x-text="(idx+1)"></span>
-                                    <select x-model="contact.relation"
-                                            @blur="saveContactIfChanged(idx)"
-                                            :disabled="contact.saved && contact.relation"
-                                            class="field-input !py-1.5 !px-2 w-24 text-xs disabled:opacity-60 disabled:cursor-not-allowed">
-                                        <option value="">Əlaqə *</option>
-                                        <template x-for="opt in ['Ata','Ana','Qardaş','Bacı','Dost','Ər','Arvad','Oğul','Qız','Qaynata','Qaynana','Qayın','Bacanaq','Baldız','Yeznə','Qonşu','Digər']" :key="opt">
-                                            <option :value="opt" x-text="opt"
-                                                    :disabled="isRelationUsedByOther(idx, opt)"
-                                                    :class="isRelationUsedByOther(idx, opt) ? 'text-gray-300' : ''"></option>
-                                        </template>
-                                    </select>
+                                    <div class="relative">
+                                        <select x-model="contact.relation"
+                                                @blur="onRelationBlur(idx)"
+                                                :disabled="contact.saved && contact.relation && !contact.editing"
+                                                class="field-input !py-1.5 !px-2 w-24 text-xs disabled:opacity-60 disabled:cursor-not-allowed">
+                                            <option value="">Əlaqə *</option>
+                                            <template x-for="opt in ['Ata','Ana','Qardaş','Bacı','Dost','Ər','Arvad','Oğul','Qız','Qaynata','Qaynana','Qayın','Bacanaq','Baldız','Yeznə','Qonşu','Digər']" :key="opt">
+                                                <option :value="opt" x-text="opt"
+                                                        :disabled="isRelationUsedByOther(idx, opt)"
+                                                        :class="isRelationUsedByOther(idx, opt) ? 'text-gray-300' : ''"></option>
+                                            </template>
+                                        </select>
+                                    </div>
+                                    <!-- PR #132: Edit button — əlaqə dəyişdirmək üçün -->
+                                    <button x-show="contact.saved && contact.relation && !contact.editing"
+                                            @click="contact.editing = true"
+                                            class="text-gray-400 hover:text-teal-600 transition shrink-0"
+                                            title="Əlaqə növünü dəyiş">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                    </button>
                                     <input type="text"
                                            x-model="contact.phone"
                                            @input="contact.phone = formatPhone(contact.phone)"
@@ -503,11 +512,11 @@
                 rejectReasonCustom: '',
                 theme: localStorage.getItem('alpul_theme') || 'light',
 
-                // Contacts (PR #84, PR #125: verified status + auto-save, PR #128: name field)
+                // Contacts (PR #84, PR #125: verified status + auto-save, PR #128: name field, PR #132: editing)
                 contacts: [
-                    { relation: '', phone: '', name: '', saved: false, saving: false, savedPhone: '', savedRelation: '', savedName: '', verified: null },
-                    { relation: '', phone: '', name: '', saved: false, saving: false, savedPhone: '', savedRelation: '', savedName: '', verified: null },
-                    { relation: '', phone: '', name: '', saved: false, saving: false, savedPhone: '', savedRelation: '', savedName: '', verified: null },
+                    { relation: '', phone: '', name: '', saved: false, saving: false, savedPhone: '', savedRelation: '', savedName: '', verified: null, editing: false },
+                    { relation: '', phone: '', name: '', saved: false, saving: false, savedPhone: '', savedRelation: '', savedName: '', verified: null, editing: false },
+                    { relation: '', phone: '', name: '', saved: false, saving: false, savedPhone: '', savedRelation: '', savedName: '', verified: null, editing: false },
                 ],
 
                 // MyGov verification
@@ -588,6 +597,22 @@
                         return formatted;
                     }
                     return v;
+                },
+
+                // PR #132: əlaqə blur — edit bitdi, saxla və editing-i bağla
+                async onRelationBlur(idx) {
+                    const c = this.contacts[idx];
+                    if (!c) return;
+                    // Əgər editing varsa və əlaqə boşdursa — köhnə dəyəri qaytar
+                    if (c.editing && !c.relation && c.savedRelation) {
+                        c.relation = c.savedRelation;
+                        c.editing = false;
+                        return;
+                    }
+                    // Saxla
+                    await this.saveContactIfChanged(idx);
+                    // Editing-i bağla
+                    c.editing = false;
                 },
 
                 // PR #125: blur-da avtomatik saxla (yalnız dəyişiklik olarsa)
@@ -692,7 +717,8 @@
                                 savedPhone: this.app.contact1_phone || '',
                                 savedRelation: this.app.contact1_relation || '',
                                 savedName: this.app.contact1_name || '',
-                                verified: this.app.contact1_verified === true ? true : (this.app.contact1_verified === false ? false : null)
+                                verified: this.app.contact1_verified === true ? true : (this.app.contact1_verified === false ? false : null),
+                                editing: false
                             };
                         }
                         if (this.app.contact2_phone || this.app.contact2_relation) {
@@ -704,7 +730,8 @@
                                 savedPhone: this.app.contact2_phone || '',
                                 savedRelation: this.app.contact2_relation || '',
                                 savedName: this.app.contact2_name || '',
-                                verified: this.app.contact2_verified === true ? true : (this.app.contact2_verified === false ? false : null)
+                                verified: this.app.contact2_verified === true ? true : (this.app.contact2_verified === false ? false : null),
+                                editing: false
                             };
                         }
                         if (this.app.contact3_phone || this.app.contact3_relation) {
@@ -716,7 +743,8 @@
                                 savedPhone: this.app.contact3_phone || '',
                                 savedRelation: this.app.contact3_relation || '',
                                 savedName: this.app.contact3_name || '',
-                                verified: this.app.contact3_verified === true ? true : (this.app.contact3_verified === false ? false : null)
+                                verified: this.app.contact3_verified === true ? true : (this.app.contact3_verified === false ? false : null),
+                                editing: false
                             };
                         }
                     } catch (e) {
