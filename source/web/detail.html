@@ -267,12 +267,13 @@
                                         <select x-model="contact.relation"
                                                 @blur="onRelationBlur(idx)"
                                                 :disabled="isReadOnly || (contact.saved && contact.relation && !contact.editing)"
-                                                class="field-input !py-1.5 !px-2 w-24 text-xs disabled:opacity-60 disabled:cursor-not-allowed">
+                                                class="field-input !py-1.5 !px-2 w-28 text-xs disabled:opacity-60 disabled:cursor-not-allowed">
                                             <option value="">Əlaqə *</option>
-                                            <template x-for="opt in ['Ata','Ana','Qardaş','Bacı','Dost','Ər','Arvad','Oğul','Qız','Qaynata','Qaynana','Qayın','Bacanaq','Baldız','Yeznə','Qonşu','Digər']" :key="opt">
+                                            <!-- PR #136: yeni oxunaqlı relation adları + unique məhdudiyyət (Atası/Anası/Qayınatası/Qayınanası) -->
+                                            <template x-for="opt in ['Atası','Anası','Qayınatası','Qayınanası','Əri','Arvadı','Oğlu','Qızı','Qardaşı','Bacısı','Bacanağı','Yeznəsi','Baldızı','Qayını','Dostu','Qohumu','Qonşusu','Həmkarı','Digər']" :key="opt">
                                                 <option :value="opt" x-text="opt"
-                                                        :disabled="isRelationUsedByOther(idx, opt)"
-                                                        :class="isRelationUsedByOther(idx, opt) ? 'text-gray-300' : ''"></option>
+                                                        :disabled="isUniqueRelationUsedByOther(idx, opt)"
+                                                        :class="isUniqueRelationUsedByOther(idx, opt) ? 'text-gray-300' : ''"></option>
                                             </template>
                                         </select>
                                     </div>
@@ -298,7 +299,7 @@
                                 <!-- Input row 2: name + verification buttons -->
                                 <div class="flex gap-2 items-center pl-7">
                                     <input type="text"
-                                           x-model="contact.name"
+                                           x-model.trim="contact.name"
                                            @blur="saveContactIfChanged(idx)"
                                            :disabled="isReadOnly || !contact.relation"
                                            placeholder="Ad Soyad"
@@ -571,10 +572,40 @@
                     }
                 },
 
-                // PR #127: münasibət başqa kontakt tərəfindən istifadə olunubmu?
-                isRelationUsedByOther(currentIdx, relation) {
+                // PR #136: yalnız bu 4 əlaqə növü unikaldır — 3 kontakt arasında yalnız 1 dənə ola bilər
+                // (Atası, Anası, Qayınatası, Qayınanası). Digər əlaqələr (Qardaşı, Dostu, və s.) təkrarlana bilər.
+                uniqueRelations: ['Atası', 'Anası', 'Qayınatası', 'Qayınanası'],
+
+                // PR #136: unique relation başqa kontakt tərəfindən istifadə olunubmu?
+                // Yalnız uniqueRelations massivində olan əlaqələr üçün yoxlama edilir.
+                isUniqueRelationUsedByOther(currentIdx, relation) {
                     if (!relation) return false;
+                    if (!this.uniqueRelations.includes(relation)) return false;
                     return this.contacts.some((c, i) => i !== currentIdx && c.relation === relation);
+                },
+
+                // PR #136: köhnə DB dəyərlərini yeni oxunaqlı formaya normalizə edir
+                // (Ata → Atası, Qaynata → Qayınatası, və s.) — load() zamanı çağrılır
+                normalizeRelation(r) {
+                    if (!r) return '';
+                    const map = {
+                        'Ata': 'Atası',
+                        'Ana': 'Anası',
+                        'Qardaş': 'Qardaşı',
+                        'Bacı': 'Bacısı',
+                        'Dost': 'Dostu',
+                        'Ər': 'Əri',
+                        'Arvad': 'Arvadı',
+                        'Oğul': 'Oğlu',
+                        'Qız': 'Qızı',
+                        'Qaynata': 'Qayınatası',
+                        'Qaynana': 'Qayınanası',
+                        'Qayın': 'Qayını',
+                        'Bacanaq': 'Bacanağı',
+                        'Baldız': 'Baldızı',
+                        'Yeznə': 'Yeznəsi',
+                    };
+                    return map[r] || r;
                 },
 
                 // PR #135: read-only status — approved/rejected olanda bütün kontakt inputları disabled
@@ -709,9 +740,12 @@
                 // PR #125: blur-da avtomatik saxla (yalnız dəyişiklik olarsa)
                 // PR #128: name field də dəyişiklik yoxlamasına daxil
                 // PR #131: əlaqə seçilmədən input disabled olduğu üçün burada ekstra yoxlama yoxdur
+                // PR #136: ad sahəsinə trim tətbiq olunur (x-model.trim + burada explicit .trim())
                 async saveContactIfChanged(idx) {
                     const c = this.contacts[idx];
                     if (!c) return;
+                    // PR #136: adı hər halda trim et — DB-yə boşluqsuz yaz
+                    c.name = (c.name || '').trim();
                     // Dəyişiklik yoxdursa — skip
                     if (c.phone === c.savedPhone && c.relation === c.savedRelation && c.name === c.savedName) return;
                     // Boş telefon və ya əlaqə yoxdursa — skip
@@ -799,41 +833,49 @@
                         this.app = await resp.json();
 
                         // Load existing contacts if present
+                        // PR #136: normalizeRelation — köhnə DB dəyərlərini yeni formaya çevir (Ata → Atası)
+                        // PR #136: name-i trim et — DB-də boşluqlu gələ bilər
                         if (this.app.contact1_phone || this.app.contact1_relation) {
+                            const rel1 = this.normalizeRelation(this.app.contact1_relation || '');
+                            const name1 = (this.app.contact1_name || '').trim();
                             this.contacts[0] = {
-                                relation: this.app.contact1_relation || '',
+                                relation: rel1,
                                 phone: this.app.contact1_phone || '',
-                                name: this.app.contact1_name || '',
+                                name: name1,
                                 saved: true, saving: false,
                                 savedPhone: this.app.contact1_phone || '',
-                                savedRelation: this.app.contact1_relation || '',
-                                savedName: this.app.contact1_name || '',
+                                savedRelation: rel1,
+                                savedName: name1,
                                 verified: this.app.contact1_verified === true ? true : (this.app.contact1_verified === false ? false : null),
                                 editing: false
                             };
                         }
                         if (this.app.contact2_phone || this.app.contact2_relation) {
+                            const rel2 = this.normalizeRelation(this.app.contact2_relation || '');
+                            const name2 = (this.app.contact2_name || '').trim();
                             this.contacts[1] = {
-                                relation: this.app.contact2_relation || '',
+                                relation: rel2,
                                 phone: this.app.contact2_phone || '',
-                                name: this.app.contact2_name || '',
+                                name: name2,
                                 saved: true, saving: false,
                                 savedPhone: this.app.contact2_phone || '',
-                                savedRelation: this.app.contact2_relation || '',
-                                savedName: this.app.contact2_name || '',
+                                savedRelation: rel2,
+                                savedName: name2,
                                 verified: this.app.contact2_verified === true ? true : (this.app.contact2_verified === false ? false : null),
                                 editing: false
                             };
                         }
                         if (this.app.contact3_phone || this.app.contact3_relation) {
+                            const rel3 = this.normalizeRelation(this.app.contact3_relation || '');
+                            const name3 = (this.app.contact3_name || '').trim();
                             this.contacts[2] = {
-                                relation: this.app.contact3_relation || '',
+                                relation: rel3,
                                 phone: this.app.contact3_phone || '',
-                                name: this.app.contact3_name || '',
+                                name: name3,
                                 saved: true, saving: false,
                                 savedPhone: this.app.contact3_phone || '',
-                                savedRelation: this.app.contact3_relation || '',
-                                savedName: this.app.contact3_name || '',
+                                savedRelation: rel3,
+                                savedName: name3,
                                 verified: this.app.contact3_verified === true ? true : (this.app.contact3_verified === false ? false : null),
                                 editing: false
                             };
