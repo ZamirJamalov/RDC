@@ -759,20 +759,9 @@
                     this.actionMessage = '';
                     this.actionError = '';
                     try {
-                        const contactData = {};
-                        if (this.contacts[0].phone) contactData.contact1_phone = this.contacts[0].phone;
-                        if (this.contacts[1].phone) contactData.contact2_phone = this.contacts[1].phone;
-                        if (this.contacts[2].phone) contactData.contact3_phone = this.contacts[2].phone;
-
-                        const completeResp = await fetch('/api/applications/' + this.id + '/complete', {
-                            method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(contactData)
-                        });
-                        if (!completeResp.ok) {
-                            const err = await completeResp.json();
-                            throw new Error(err.error || 'Kontakt saxlanilmadi');
-                        }
+                        // PR #133: kontaktlar artıq blur-da avtomatik saxlanılır (PUT /contacts)
+                        // köhnə /complete endpoint-inə ehtiyac yoxdur — o, pending_expert tələb edir
+                        // və pending_approval statusunda xəta verirdi.
 
                         const resp = await fetch('/api/expert/' + this.id + '/approve', {
                             method: 'PUT',
