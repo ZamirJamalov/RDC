@@ -775,6 +775,8 @@ function applyApp() {
         },
 
         // PR #70: Save current state to localStorage
+        // PR #149: PII (FIN, serial, phone) removed from localStorage — privacy protection.
+        //   Only application_id, step, offer, and amount are saved (no sensitive data).
         saveState() {
             try {
                 localStorage.setItem('alpul_apply_step', String(this.currentStep));
@@ -787,16 +789,14 @@ function applyApp() {
                     localStorage.setItem('alpul_apply_range', JSON.stringify(this.selectedRange));
                 }
                 localStorage.setItem('alpul_apply_amount', String(this.form.amount));
-                localStorage.setItem('alpul_apply_form', JSON.stringify({
-                    fin: this.form.fin,
-                    serialPrefix: this.form.serialPrefix,
-                    serialNumber: this.form.serialNumber,
-                    phone: this.form.phone,
-                }));
+                // PR #149: Do NOT save FIN, serial, phone to localStorage.
+                // If the page is refreshed, the user must re-enter these fields.
+                // Only application_id is saved so the flow can resume from the offer step.
             } catch(e) { /* localStorage not available — ignore */ }
         },
 
         // PR #70: Restore state from localStorage
+        // PR #149: PII (FIN, serial, phone) is NOT restored — user must re-enter.
         restoreState() {
             try {
                 const savedStep = localStorage.getItem('alpul_apply_step');
@@ -823,14 +823,8 @@ function applyApp() {
                 if (savedAmount) {
                     this.form.amount = parseFloat(savedAmount);
                 }
-                const savedForm = localStorage.getItem('alpul_apply_form');
-                if (savedForm) {
-                    const f = JSON.parse(savedForm);
-                    this.form.fin = f.fin || '';
-                    this.form.serialPrefix = f.serialPrefix || 'AZE';
-                    this.form.serialNumber = f.serialNumber || '';
-                    this.form.phone = f.phone || '';
-                }
+                // PR #149: Do NOT restore FIN, serial, phone from localStorage.
+                // If the user refreshes the page, they must re-enter PII fields.
             } catch(e) { /* parse error — ignore, start fresh */ }
         },
 
@@ -926,8 +920,15 @@ function applyApp() {
                     this.kycLoadingMessage = 'Sizin kredit səviyyənizə uyğun təklif hazırlanır.';
                 }, 4000));
 
-                // 3. Fetch offer (customer_pin is required by the endpoint)
-                const offerResp = await fetch(`/api/applications/offer?customer_pin=${encodeURIComponent(this.form.fin)}&akb_score=0`);
+                // 3. Fetch offer — PR #149: Changed from GET to POST (FIN in body, not URL query param)
+                const offerResp = await fetch('/api/applications/offer', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        customer_pin: this.form.fin,
+                        akb_score: 0,
+                    }),
+                });
                 const offerData = await offerResp.json();
                 if (!offerResp.ok) throw new Error(offerData.error || 'Təklif əldə edilə bilmədi');
 
@@ -986,6 +987,7 @@ function applyApp() {
                         card_ownership_confirmed: this.form.cardConfirmed,
                         rules_confirmed: this.form.rulesConfirmed, // PR #92: internal rules ack
                         discount_code: this.form.discountCode.trim(), // PR #96: endirim kodu
+                        customer_phone: '+994' + this.form.phone, // PR #149: IDOR check
                     }),
                 });
                 const data = await resp.json();

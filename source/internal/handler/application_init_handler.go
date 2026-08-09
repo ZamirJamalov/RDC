@@ -13,17 +13,33 @@ import (
 // InitApplication handles POST /api/applications/init.
 // Customer fills in FIN, serial, and phone. An OTP is sent to the phone.
 // The application is created with status "pending_customer".
+// PR #149: Input validation added (FIN, serial, phone format).
 func (h *ApplicationHandler) InitApplication(w http.ResponseWriter, r *http.Request) {
         var req service.InitApplicationRequest
         if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-                writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+                writeError(w, http.StatusBadRequest, "yanlış request body")
+                return
+        }
+
+        // PR #149: Input validation
+        if !isValidPIN(req.CustomerPIN) {
+                writeError(w, http.StatusBadRequest, "FIN kodu 7 simvol olmalıdır (yalnız hərf və rəqəm)")
+                return
+        }
+        if req.CustomerSerial != "" && !isValidSerialNumber(req.CustomerSerial) {
+                writeError(w, http.StatusBadRequest, "Seriya nömrəsi 7-8 rəqəm olmalıdır")
+                return
+        }
+        if !isValidPhone(req.CustomerPhone) {
+                writeError(w, http.StatusBadRequest, "Telefon nömrəsi düzgün deyil (format: +994XXXXXXXXX)")
                 return
         }
 
         app, err := h.service.InitApplication(r.Context(), &req)
         if err != nil {
                 slog.Error("init application failed", "error", err)
-                writeError(w, http.StatusBadRequest, err.Error())
+                // PR #149: sanitize error
+                writeError(w, http.StatusBadRequest, sanitizeError(err))
                 return
         }
 
@@ -33,6 +49,7 @@ func (h *ApplicationHandler) InitApplication(w http.ResponseWriter, r *http.Requ
 // VerifyInitApplication handles POST /api/applications/init/verify.
 // Customer enters the OTP code. If valid, application transitions to
 // "pending_expert" status (waiting for expert to complete the application).
+// PR #149: OTP attempt limit — 3 wrong attempts blocks the application.
 func (h *ApplicationHandler) VerifyInitApplication(w http.ResponseWriter, r *http.Request) {
         // Use local struct with flexInt so application_id accepts both int and string
         var local struct {
@@ -41,7 +58,18 @@ func (h *ApplicationHandler) VerifyInitApplication(w http.ResponseWriter, r *htt
                 OTPCode       string  `json:"otp_code"`
         }
         if err := json.NewDecoder(r.Body).Decode(&local); err != nil {
-                writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+                writeError(w, http.StatusBadRequest, "yanlış request body")
+                return
+        }
+
+        // PR #149: Input validation
+        if !isValidPhone(local.Phone) {
+                writeError(w, http.StatusBadRequest, "Telefon nömrəsi düzgün deyil")
+                return
+        }
+        // OTP code: 6 digits
+        if len(local.OTPCode) != 6 {
+                writeError(w, http.StatusBadRequest, "OTP kodu 6 rəqəm olmalıdır")
                 return
         }
 
@@ -54,7 +82,8 @@ func (h *ApplicationHandler) VerifyInitApplication(w http.ResponseWriter, r *htt
         app, err := h.service.VerifyInitApplication(r.Context(), req)
         if err != nil {
                 slog.Error("verify init application failed", "application_id", req.ApplicationID, "error", err)
-                writeError(w, http.StatusBadRequest, err.Error())
+                // PR #149: sanitize error
+                writeError(w, http.StatusBadRequest, sanitizeError(err))
                 return
         }
 
@@ -164,6 +193,10 @@ func (h *ApplicationHandler) UpdateTimer(w http.ResponseWriter, r *http.Request)
 // router, derives term_months from the offer, and saves everything. Application
 // stays in pending_expert — the expert will later add contact phones via
 // CompleteApplication.
+//
+// PR #149: IDOR protection — verify that the application's customer_phone matches
+// the phone in the request body. This prevents user A from confirming user B's
+// application by changing the ID in the URL.
 func (h *ApplicationHandler) CustomerConfirm(w http.ResponseWriter, r *http.Request) {
         id, err := strconv.Atoi(r.PathValue("id"))
         if err != nil || id <= 0 {
@@ -173,14 +206,39 @@ func (h *ApplicationHandler) CustomerConfirm(w http.ResponseWriter, r *http.Requ
 
         var req service.CustomerConfirmRequest
         if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-                writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+                writeError(w, http.StatusBadRequest, "yanlış request body")
+                return
+        }
+
+        // PR #149: IDOR check — fetch application first, verify ownership
+        existingApp, err := h.service.GetApplication(r.Context(), id)
+        if err != nil {
+                slog.Error("customer confirm: application not found", "application_id", id, "error", err)
+                writeError(w, http.StatusNotFound, "müraciət tapılmadı")
+                return
+        }
+        // Verify the phone in the request matches the application's customer_phone
+        if existingApp.CustomerPhone != "" && req.CustomerPhone != existingApp.CustomerPhone {
+                slog.Warn("IDOR attempt blocked",
+                        "application_id", id,
+                        "app_phone", existingApp.CustomerPhone,
+                        "request_phone", req.CustomerPhone,
+                )
+                writeError(w, http.StatusForbidden, "bu müraciəti təsdiqləmək hüququnuz yoxdur")
+                return
+        }
+        // Verify application is in correct status (pending_expert)
+        if existingApp.Status != "pending_expert" {
+                slog.Warn("customer confirm: wrong status", "application_id", id, "status", existingApp.Status)
+                writeError(w, http.StatusBadRequest, "bu müraciət artıq təsdiqlənib və ya redd edilib")
                 return
         }
 
         app, err := h.service.CustomerConfirmApplication(r.Context(), id, &req)
         if err != nil {
                 slog.Error("customer confirm failed", "application_id", id, "error", err)
-                writeError(w, http.StatusBadRequest, err.Error())
+                // PR #149: sanitize error
+                writeError(w, http.StatusBadRequest, sanitizeError(err))
                 return
         }
 

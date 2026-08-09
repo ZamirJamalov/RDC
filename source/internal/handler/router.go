@@ -43,6 +43,10 @@ func NewRouter(
         authHandler *AuthHandler,                 // PR #142
         userHandler *UserHandler,                 // PR #142
         authSvc *service.AuthService,             // PR #142
+        allowedOrigin string,                     // PR #149: CORS
+        apiLimiter *middleware.RateLimiter,       // PR #149: generic API rate limit
+        otpLimiter *middleware.RateLimiter,       // PR #149: OTP rate limit
+        discountLimiter *middleware.RateLimiter,  // PR #149: discount code rate limit
 ) http.Handler {
         mux := http.NewServeMux()
 
@@ -71,11 +75,13 @@ func NewRouter(
         mux.HandleFunc("GET /api/mock/lw/query", lwMockHandler.QueryLoans)
 
         // --- Loan application endpoints (PUBLIC — used by apply.html customer form) ---
+        // PR #149: Rate-limited public endpoints
+        mux.Handle("POST /api/applications/init", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.InitApplication)))
+        mux.Handle("POST /api/applications/init/verify", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.VerifyInitApplication)))
         mux.HandleFunc("POST /api/applications", appHandler.Create)
-        mux.HandleFunc("POST /api/applications/init", appHandler.InitApplication)
-        mux.HandleFunc("POST /api/applications/init/verify", appHandler.VerifyInitApplication)
         mux.HandleFunc("POST /api/applications/{id}/customer-confirm", appHandler.CustomerConfirm) // PR #58
-        mux.HandleFunc("GET /api/applications/offer", appHandler.GetOffer)
+        // PR #149: Changed GET → POST (FIN in body, not URL query param)
+        mux.Handle("POST /api/applications/offer", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.GetOffer)))
         mux.HandleFunc("GET /api/applications/{id}", appHandler.GetByID)
         mux.HandleFunc("GET /api/applications/{id}/status", appHandler.GetStatus)
 
@@ -106,8 +112,9 @@ func NewRouter(
         mux.HandleFunc("POST /api/rdc/callback/lw-loan-status", lwLoanStatusHandler.Callback)
 
         // --- OTP endpoints (T-3.8) — public, used by apply.html ---
-        mux.HandleFunc("POST /api/otp/send", otpHandler.Send)
-        mux.HandleFunc("POST /api/otp/verify", otpHandler.Verify)
+        // PR #149: Rate-limited (stricter — otpLimiter)
+        mux.Handle("POST /api/otp/send", middleware.RateLimit(otpLimiter)(http.HandlerFunc(otpHandler.Send)))
+        mux.Handle("POST /api/otp/verify", middleware.RateLimit(otpLimiter)(http.HandlerFunc(otpHandler.Verify)))
 
         // --- MyGov endpoints (T-4.11) — protected, used by detail.html ---
         mux.Handle("POST /api/mygov/permission-link", protectedAuth(http.HandlerFunc(mygovHandler.PermissionLink)))
@@ -126,18 +133,21 @@ func NewRouter(
         mux.Handle("PUT /api/expert/{id}/reject", protectedAuth(http.HandlerFunc(expertHandler.Reject)))
 
         // --- PR #96: Discount code validation (public endpoint, used by apply.html) ---
-        mux.HandleFunc("GET /api/discount-codes/validate", discountCodeHandler.Validate)
+        // PR #149: Rate-limited to prevent brute-force abuse
+        mux.Handle("GET /api/discount-codes/validate", middleware.RateLimit(discountLimiter)(http.HandlerFunc(discountCodeHandler.Validate)))
 
         // --- PR #98: Feature flag management (admin endpoints) — now protected ---
         mux.Handle("GET /api/admin/feature-flags", protectedAuth(adminAuth(http.HandlerFunc(featureFlagHandler.List))))
         mux.Handle("GET /api/admin/feature-flags/{key}", protectedAuth(adminAuth(http.HandlerFunc(featureFlagHandler.Get))))
         mux.Handle("PUT /api/admin/feature-flags/{key}", protectedAuth(adminAuth(http.HandlerFunc(featureFlagHandler.Toggle))))
 
-        // Wrap with middleware: RequestID → Recovery → Logger → mux
+        // Wrap with middleware: CORS → RequestID → Recovery → Logger → mux
+        // PR #149: CORS added as outermost middleware
         var handler http.Handler = mux
         handler = middleware.Logger(slog.Default())(handler)
         handler = middleware.Recovery(slog.Default())(handler)
         handler = middleware.RequestID(handler)
+        handler = middleware.CORS(allowedOrigin)(handler)
 
         return handler
 }

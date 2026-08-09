@@ -30,6 +30,8 @@ type CustomerConfirmRequest struct {
         CardNumber              string  `json:"card_number"`
         ActualAddress           string  `json:"actual_address"`
         CardOwnershipConfirmed  bool    `json:"card_ownership_confirmed"`
+        // PR #149: CustomerPhone for IDOR check — must match the application's customer_phone.
+        CustomerPhone           string  `json:"customer_phone"`
         // PR #95: optional discount/referral code entered by the customer.
         // Validated against the discount_codes table (must exist, belong to a
         // different customer, and be in 'active' status). If valid, the code is
