@@ -79,6 +79,9 @@ func dropAllTables(db *sql.DB) error {
                 "DROP TABLE IF EXISTS system_settings",
                 // PR #116: azmk_online_lending sütunları loan_applications-a əlavə olunub,
                 // ayrıca cədvəl yoxdur — dropAllTables-də nəsə lazım deyil.
+                // PR #142: sessions must be dropped before users (FK dependency).
+                "DROP TABLE IF EXISTS sessions",
+                "DROP TABLE IF EXISTS users",
         }
         for _, stmt := range dropStatements {
                 if _, err := db.Exec(stmt); err != nil {

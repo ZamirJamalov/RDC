@@ -90,6 +90,10 @@ type Config struct {
         // PR #123: AZMK Basic Auth
         AzmkUsername      string  // AZMK servisinə qoşulma üçün username
         AzmkPassword      string  // AZMK servisinə qoşulma üçün password
+
+        // PR #142: Authentication
+        AdminInitialPassword string // default admin password (used only on first startup when no users exist)
+        AuthSessionTTLHours  int    // session token validity in hours (default: 8)
 }
 
 // Load reads configuration from environment variables. Required fields (DB_HOST,
@@ -139,6 +143,10 @@ func Load() *Config {
                 AzmkTimeoutS:        getEnvInt("AZMK_TIMEOUT_S", 30),
                 AzmkUsername:        getEnv("AZMK_USERNAME", ""),
                 AzmkPassword:        getEnv("AZMK_PASSWORD", ""),
+
+                // PR #142: Authentication
+                AdminInitialPassword: getEnv("ADMIN_INITIAL_PASSWORD", ""),
+                AuthSessionTTLHours:  getEnvInt("AUTH_SESSION_TTL_HOURS", 8),
         }
 
         if cfg.MigrationsDropRecreate {

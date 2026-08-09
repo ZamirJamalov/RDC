@@ -72,6 +72,7 @@ func main() {
         lwEventRepo := repository.NewLWLoanEventRepo(db)
         discountCodeRepo := repository.NewDiscountCodeRepo(db)           // PR #94/95: discount codes
         systemSettingsRepo := repository.NewSystemSettingsRepo(db)       // PR #98: feature flags
+        userRepo := repository.NewUserRepo(db)                           // PR #142: auth users
 
         // --- LW Provider (T-2.13) ---
         // In mock mode: reads from local DB (mock_lms_loans table) + canned responses.
@@ -136,8 +137,23 @@ func main() {
         discountCodeHandler := handler.NewDiscountCodeHandler(discountCodeService) // PR #96
         featureFlagHandler := handler.NewFeatureFlagHandler(featureFlagService)    // PR #98
 
+        // PR #142: Auth service + handlers
+        authCfg := service.DefaultAuthConfig()
+        if cfg.AuthSessionTTLHours > 0 {
+                authCfg.SessionTTL = time.Duration(cfg.AuthSessionTTLHours) * time.Hour
+        }
+        authService := service.NewAuthService(userRepo, authCfg)
+        authHandler := handler.NewAuthHandler(authService)
+        userHandler := handler.NewUserHandler(authService)
+
+        // PR #142: Ensure default admin user exists on first startup
+        if err := authService.EnsureAdminUser(context.Background(), cfg.AdminInitialPassword); err != nil {
+                slog.Error("failed to ensure admin user", "error", err)
+                os.Exit(1)
+        }
+
         // --- Route registration + middleware chain ---
-        router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler, lwLoanStatusHandler, discountCodeHandler, featureFlagHandler)
+        router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler, lwLoanStatusHandler, discountCodeHandler, featureFlagHandler, authHandler, userHandler, authService)
 
         // UI: serve embedded static files from web/ directory.
         // fs.Sub strips the "web/" prefix so /detail.html maps to web/detail.html.
