@@ -169,8 +169,10 @@ func main() {
                         return
                 }
                 // PR #143: Clean URL rewrite — /login → /login.html, /dashboard → /index.html, etc.
-                // This allows users to access pages without the .html extension.
-                // / kök route → /landing.html (müştəri qapısı), /dashboard → ekspert queue
+                // PR #146: Fix — serve file directly instead of rewriting path + FileServer.
+                //   http.FileServer automatically redirects /index.html → / (Go stdlib behavior),
+                //   which caused /dashboard to redirect to / → /landing.html.
+                //   Now we read the file from embed.FS and write it directly, bypassing FileServer.
                 cleanURLMap := map[string]string{
                         "/":          "/landing.html",
                         "/login":     "/login.html",
@@ -181,7 +183,16 @@ func main() {
                         "/landing":   "/landing.html",
                 }
                 if target, ok := cleanURLMap[r.URL.Path]; ok {
-                        r.URL.Path = target
+                        filePath := strings.TrimPrefix(target, "/")
+                        data, err := fs.ReadFile(webFS, filePath)
+                        if err != nil {
+                                slog.Error("clean URL file not found", "path", r.URL.Path, "target", target, "error", err)
+                                http.NotFound(w, r)
+                                return
+                        }
+                        w.Header().Set("Content-Type", "text/html; charset=utf-8")
+                        w.Write(data)
+                        return
                 }
                 fileServer.ServeHTTP(w, r)
         })
