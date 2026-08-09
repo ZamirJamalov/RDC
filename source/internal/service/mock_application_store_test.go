@@ -307,6 +307,34 @@ func (m *mockApplicationStore) UpdateProcessedBy(_ context.Context, id int, user
         return nil
 }
 
+// PR #148: audit mock implementations
+func (m *mockApplicationStore) UpdateContactsAudit(_ context.Context, id int, userID int, username string) error {
+        if existing, ok := m.appByID[id]; ok {
+                uid := userID
+                existing.ContactsUpdatedByUserID = &uid
+                existing.ContactsUpdatedByUsername = username
+        }
+        return nil
+}
+
+func (m *mockApplicationStore) UpdateTimerAudit(_ context.Context, id int, userID int, username string) error {
+        if existing, ok := m.appByID[id]; ok {
+                uid := userID
+                existing.TimerUpdatedByUserID = &uid
+                existing.TimerUpdatedByUsername = username
+        }
+        return nil
+}
+
+func (m *mockApplicationStore) UpdateMyGovAudit(_ context.Context, id int, userID int, username string) error {
+        if existing, ok := m.appByID[id]; ok {
+                uid := userID
+                existing.MyGovCheckedByUserID = &uid
+                existing.MyGovCheckedByUsername = username
+        }
+        return nil
+}
+
 // --- Tx-aware variants (T-1.3) ---
 //
 // These accept a repository.TxRunner but ignore it — the mock doesn't actually

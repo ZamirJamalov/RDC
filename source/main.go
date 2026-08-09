@@ -131,7 +131,7 @@ func main() {
         lwRouterHandler := handler.NewLWRouterHandler(lwProvider)
         lwCallbackHandler := handler.NewLWCallbackHandler(simaService)
         otpHandler := handler.NewOTPHandler(otpService)
-        mygovHandler := handler.NewMyGovHandler(mygovService)
+        mygovHandler := handler.NewMyGovHandler(mygovService, appService) // PR #148: appSvc for audit
         expertHandler := handler.NewExpertHandler(appService)
         lwLoanStatusHandler := handler.NewLWLoanStatusHandler(lwEventRepo)
         discountCodeHandler := handler.NewDiscountCodeHandler(discountCodeService) // PR #96

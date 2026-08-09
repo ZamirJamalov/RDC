@@ -106,6 +106,11 @@ type ApplicationStore interface {
         // PR #142: hansı dashboard istifadəçisi tərəfindən təsdiq/redd edilib
         UpdateProcessedBy(ctx context.Context, id int, userID int, username string) error
 
+        // PR #148: audit fields — hansı ekspert hansı əməliyyatı etdi
+        UpdateContactsAudit(ctx context.Context, id int, userID int, username string) error
+        UpdateTimerAudit(ctx context.Context, id int, userID int, username string) error
+        UpdateMyGovAudit(ctx context.Context, id int, userID int, username string) error
+
         // --- Tx-aware variants (used by ProcessApplication for atomicity) ---
 
         UpdateApplicationStatusTx(ctx context.Context, runner repository.TxRunner, id int, status string) error

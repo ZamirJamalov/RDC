@@ -6,6 +6,7 @@ import (
         "net/http"
         "strconv"
 
+        "rdc-source/internal/middleware"
         "rdc-source/internal/service"
 )
 
@@ -109,6 +110,13 @@ func (h *ApplicationHandler) UpdateContacts(w http.ResponseWriter, r *http.Reque
                 return
         }
 
+        // PR #148: audit — hansı ekspert kontaktları yenilədi
+        if user := middleware.PrincipalFromContext(r.Context()); user != nil {
+                if err := h.service.SetContactsAudit(r.Context(), id, user.ID, user.Username); err != nil {
+                        slog.Error("failed to set contacts audit", "application_id", id, "error", err)
+                }
+        }
+
         writeJSON(w, http.StatusOK, app)
 }
 
@@ -133,6 +141,13 @@ func (h *ApplicationHandler) UpdateTimer(w http.ResponseWriter, r *http.Request)
                 slog.Error("update timer failed", "application_id", id, "error", err)
                 writeError(w, http.StatusBadRequest, err.Error())
                 return
+        }
+
+        // PR #148: audit — hansı ekspert timer-ı saxladı
+        if user := middleware.PrincipalFromContext(r.Context()); user != nil {
+                if err := h.service.SetTimerAudit(r.Context(), id, user.ID, user.Username); err != nil {
+                        slog.Error("failed to set timer audit", "application_id", id, "error", err)
+                }
         }
 
         writeJSON(w, http.StatusOK, map[string]bool{"ok": true})

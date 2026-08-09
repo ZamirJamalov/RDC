@@ -239,8 +239,27 @@
                         </div>
                         <!-- PR #142: Processed by display -->
                         <div x-show="app?.processed_by_username" class="col-span-2">
-                            <div class="label-soft text-[11px] uppercase tracking-wide">İşləyən istifadəçi</div>
+                            <div class="label-soft text-[11px] uppercase tracking-wide">Təsdiq/İmtina edən</div>
                             <div class="value-strong font-semibold text-sm" x-text="app?.processed_by_username || '-'"></div>
+                        </div>
+                        <!-- PR #148: Audit fields -->
+                        <div x-show="app?.contacts_updated_by_username" class="col-span-2">
+                            <div class="label-soft text-[11px] uppercase tracking-wide">Kontaktları yeniləyən</div>
+                            <div class="value-strong font-semibold text-sm">
+                                <span x-text="app?.contacts_updated_by_username || '-'"></span>
+                                <span x-show="app?.contacts_updated_at" class="text-xs text-gray-400 ml-1" x-text="app?.contacts_updated_at ? new Date(app.contacts_updated_at).toLocaleString('az') : ''"></span>
+                            </div>
+                        </div>
+                        <div x-show="app?.timer_updated_by_username" class="col-span-2">
+                            <div class="label-soft text-[11px] uppercase tracking-wide">Timer saxlayan</div>
+                            <div class="value-strong font-semibold text-sm" x-text="app?.timer_updated_by_username || '-'"></div>
+                        </div>
+                        <div x-show="app?.mygov_checked_by_username" class="col-span-2">
+                            <div class="label-soft text-[11px] uppercase tracking-wide">MyGov yoxlayan</div>
+                            <div class="value-strong font-semibold text-sm">
+                                <span x-text="app?.mygov_checked_by_username || '-'"></span>
+                                <span x-show="app?.mygov_checked_at" class="text-xs text-gray-400 ml-1" x-text="app?.mygov_checked_at ? new Date(app.mygov_checked_at).toLocaleString('az') : ''"></span>
+                            </div>
                         </div>
                     </div>
                 </section>
