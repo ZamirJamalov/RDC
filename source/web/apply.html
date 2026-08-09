@@ -272,13 +272,13 @@
                     <label class="text-sm text-gray-400 mb-2 block">Seriya nömrəsi <span class="text-red-400">*</span></label>
                     <div class="flex gap-2">
                         <select x-model="form.serialPrefix" :disabled="otpSent"
-                                class="input-field w-24 px-3 py-3.5 rounded-xl text-lg font-semibold">
+                                class="input-field w-20 sm:w-24 px-2 sm:px-3 py-3 sm:py-3.5 rounded-xl text-base sm:text-lg font-semibold shrink-0">
                             <option value="AZE">AZE</option>
                             <option value="AA">AA</option>
                             <option value="AB">AB</option>
                         </select>
                         <input type="text" x-model="form.serialNumber" placeholder="1234567" maxlength="8"
-                               class="input-field flex-1 px-4 py-3.5 rounded-xl text-lg font-semibold"
+                               class="input-field flex-1 min-w-0 px-3 sm:px-4 py-3 sm:py-3.5 rounded-xl text-base sm:text-lg font-semibold"
                                :disabled="otpSent"
                                @input="form.serialNumber = form.serialNumber.replace(/[^0-9]/g, '')">
                     </div>
@@ -288,9 +288,9 @@
                 <div>
                     <label class="text-sm text-gray-400 mb-2 block">Telefon nömrəsi <span class="text-red-400">*</span></label>
                     <div class="flex gap-2">
-                        <input type="text" value="+994" disabled class="input-field w-20 px-3 py-3.5 rounded-xl text-center font-semibold">
+                        <input type="text" value="+994" disabled class="input-field w-16 sm:w-20 px-2 sm:px-3 py-3 sm:py-3.5 rounded-xl text-center text-sm sm:text-base font-semibold shrink-0">
                         <input type="tel" x-model="form.phone" placeholder="50 123 45 67" maxlength="9"
-                               class="input-field flex-1 px-4 py-3.5 rounded-xl text-lg font-semibold"
+                               class="input-field flex-1 min-w-0 px-3 sm:px-4 py-3 sm:py-3.5 rounded-xl text-base sm:text-lg font-semibold"
                                :disabled="otpSent"
                                @input="form.phone = form.phone.replace(/[^0-9]/g, '')">
                     </div>
