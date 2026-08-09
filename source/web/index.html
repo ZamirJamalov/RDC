@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RDC — Muraciet Siyahisi</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/auth.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
@@ -170,6 +171,7 @@
                     try {
                         const resp = await fetch('/api/auth/me');
                         if (resp.status === 401) {
+                        window.clearAuthToken();
                             window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
                             return;
                         }
@@ -187,6 +189,7 @@
                 async logout() {
                     try {
                         await fetch('/api/auth/logout', { method: 'POST' });
+                    window.clearAuthToken();
                     } catch (e) { /* ignore */ }
                     window.location.href = '/login';
                 },
@@ -197,6 +200,7 @@
                     try {
                         const resp = await fetch('/api/expert/queue');
                         if (resp.status === 401) {
+                        window.clearAuthToken();
                             window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
                             return;
                         }
