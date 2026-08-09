@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ALPUL — Giriş</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/auth.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -198,11 +199,13 @@ function loginApp() {
                     this.password = ''; // clear password on failure
                     return;
                 }
-                // Success — redirect to dashboard
-                // Use a small delay to ensure cookie is set
-                setTimeout(() => {
-                    window.location.href = this.redirect;
-                }, 100);
+                // PR #144: Store token in localStorage (alongside cookie)
+                // auth.js intercept will add it as Bearer header to all /api/ calls
+                if (data.token) {
+                    window.setAuthToken(data.token);
+                }
+                // Success — redirect
+                window.location.href = this.redirect;
             } catch (e) {
                 this.error = 'Bağlantı xətası. Yenidən cəhd edin.';
             } finally {
