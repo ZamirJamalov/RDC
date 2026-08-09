@@ -67,6 +67,16 @@ type LoanApplication struct {
         ProcessedByUserID   *int   `json:"processed_by_user_id,omitempty"`
         ProcessedByUsername string `json:"processed_by_username,omitempty"`
 
+        // PR #148: Audit fields — hansı ekspert hansı əməliyyatı etdi
+        ContactsUpdatedByUserID   *int   `json:"contacts_updated_by_user_id,omitempty"`
+        ContactsUpdatedByUsername string  `json:"contacts_updated_by_username,omitempty"`
+        ContactsUpdatedAt         string  `json:"contacts_updated_at,omitempty"`
+        TimerUpdatedByUserID      *int   `json:"timer_updated_by_user_id,omitempty"`
+        TimerUpdatedByUsername    string  `json:"timer_updated_by_username,omitempty"`
+        MyGovCheckedByUserID      *int   `json:"mygov_checked_by_user_id,omitempty"`
+        MyGovCheckedByUsername    string  `json:"mygov_checked_by_username,omitempty"`
+        MyGovCheckedAt            string  `json:"mygov_checked_at,omitempty"`
+
         CreatedAt string `json:"created_at"`
         UpdatedAt string `json:"updated_at"`
 }

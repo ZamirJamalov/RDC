@@ -152,6 +152,33 @@ func (s *ApplicationService) SetProcessedBy(ctx context.Context, appID int, user
         return s.repo.UpdateProcessedBy(ctx, appID, userID, username)
 }
 
+// SetContactsAudit records which expert updated contact numbers.
+// PR #148: audit fields.
+func (s *ApplicationService) SetContactsAudit(ctx context.Context, appID int, userID int, username string) error {
+        if appID <= 0 {
+                return fmt.Errorf("invalid application id")
+        }
+        return s.repo.UpdateContactsAudit(ctx, appID, userID, username)
+}
+
+// SetTimerAudit records which expert saved the timer.
+// PR #148: audit fields.
+func (s *ApplicationService) SetTimerAudit(ctx context.Context, appID int, userID int, username string) error {
+        if appID <= 0 {
+                return fmt.Errorf("invalid application id")
+        }
+        return s.repo.UpdateTimerAudit(ctx, appID, userID, username)
+}
+
+// SetMyGovAudit records which expert performed MyGov verification.
+// PR #148: audit fields.
+func (s *ApplicationService) SetMyGovAudit(ctx context.Context, appID int, userID int, username string) error {
+        if appID <= 0 {
+                return fmt.Errorf("invalid application id")
+        }
+        return s.repo.UpdateMyGovAudit(ctx, appID, userID, username)
+}
+
 // CreateApplication creates a new loan application with "pending" status and triggers the credit engine.
 func (s *ApplicationService) CreateApplication(ctx context.Context, req *model.CreateApplicationRequest) (*model.LoanApplication, error) {
         if req.CustomerPIN == "" {

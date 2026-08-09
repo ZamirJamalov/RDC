@@ -70,6 +70,10 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
         // PR #142: processed_by fields
         var processedByUserID sql.NullInt64
         var processedByUsername sql.NullString
+        // PR #148: audit fields
+        var contactsUpdatedByUserID, timerUpdatedByUserID, mygovCheckedByUserID sql.NullInt64
+        var contactsUpdatedByUsername, timerUpdatedByUsername, mygovCheckedByUsername sql.NullString
+        var contactsUpdatedAt, mygovCheckedAt sql.NullString
 
         err := r.db.QueryRowContext(ctx, `
                 SELECT id, customer_pin, customer_full_name, amount, term_months, loan_purpose,
@@ -85,6 +89,9 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                        kyc_id, partner_id, card_id, lw_application_id,
                        timer_seconds,
                        processed_by_user_id, processed_by_username,
+                       contacts_updated_by_user_id, contacts_updated_by_username, contacts_updated_at,
+                       timer_updated_by_user_id, timer_updated_by_username,
+                       mygov_checked_by_user_id, mygov_checked_by_username, mygov_checked_at,
                        created_at, updated_at
                 FROM loan_applications WHERE id = ?`, id).Scan(
                 &app.ID,
@@ -129,6 +136,14 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                 &app.TimerSeconds,
                 &processedByUserID,
                 &processedByUsername,
+                &contactsUpdatedByUserID,
+                &contactsUpdatedByUsername,
+                &contactsUpdatedAt,
+                &timerUpdatedByUserID,
+                &timerUpdatedByUsername,
+                &mygovCheckedByUserID,
+                &mygovCheckedByUsername,
+                &mygovCheckedAt,
                 &app.CreatedAt,
                 &app.UpdatedAt,
         )
@@ -187,6 +202,24 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
             app.ProcessedByUserID = &uid
         }
         app.ProcessedByUsername = processedByUsername.String
+        // PR #148: audit fields
+        if contactsUpdatedByUserID.Valid {
+            uid := int(contactsUpdatedByUserID.Int64)
+            app.ContactsUpdatedByUserID = &uid
+        }
+        app.ContactsUpdatedByUsername = contactsUpdatedByUsername.String
+        app.ContactsUpdatedAt = contactsUpdatedAt.String
+        if timerUpdatedByUserID.Valid {
+            uid := int(timerUpdatedByUserID.Int64)
+            app.TimerUpdatedByUserID = &uid
+        }
+        app.TimerUpdatedByUsername = timerUpdatedByUsername.String
+        if mygovCheckedByUserID.Valid {
+            uid := int(mygovCheckedByUserID.Int64)
+            app.MyGovCheckedByUserID = &uid
+        }
+        app.MyGovCheckedByUsername = mygovCheckedByUsername.String
+        app.MyGovCheckedAt = mygovCheckedAt.String
 
         return &app, nil
 }
@@ -235,6 +268,56 @@ func (r *ApplicationRepo) UpdateProcessedBy(ctx context.Context, id int, userID 
                 userID, username, id)
         if err != nil {
                 return fmt.Errorf("failed to update processed_by: %w", err)
+        }
+        return nil
+}
+
+// UpdateContactsAudit sets the contacts_updated_by fields.
+// PR #148: called when an expert updates contact numbers.
+func (r *ApplicationRepo) UpdateContactsAudit(ctx context.Context, id int, userID int, username string) error {
+        _, err := r.db.ExecContext(ctx, `
+                UPDATE loan_applications
+                SET contacts_updated_by_user_id = ?,
+                    contacts_updated_by_username = ?,
+                    contacts_updated_at = GETDATE(),
+                    updated_at = GETDATE()
+                WHERE id = ?`,
+                userID, username, id)
+        if err != nil {
+                return fmt.Errorf("failed to update contacts audit: %w", err)
+        }
+        return nil
+}
+
+// UpdateTimerAudit sets the timer_updated_by fields.
+// PR #148: called when an expert saves the timer.
+func (r *ApplicationRepo) UpdateTimerAudit(ctx context.Context, id int, userID int, username string) error {
+        _, err := r.db.ExecContext(ctx, `
+                UPDATE loan_applications
+                SET timer_updated_by_user_id = ?,
+                    timer_updated_by_username = ?,
+                    updated_at = GETDATE()
+                WHERE id = ?`,
+                userID, username, id)
+        if err != nil {
+                return fmt.Errorf("failed to update timer audit: %w", err)
+        }
+        return nil
+}
+
+// UpdateMyGovAudit sets the mygov_checked_by fields.
+// PR #148: called when an expert performs a MyGov verification.
+func (r *ApplicationRepo) UpdateMyGovAudit(ctx context.Context, id int, userID int, username string) error {
+        _, err := r.db.ExecContext(ctx, `
+                UPDATE loan_applications
+                SET mygov_checked_by_user_id = ?,
+                    mygov_checked_by_username = ?,
+                    mygov_checked_at = GETDATE(),
+                    updated_at = GETDATE()
+                WHERE id = ?`,
+                userID, username, id)
+        if err != nil {
+                return fmt.Errorf("failed to update mygov audit: %w", err)
         }
         return nil
 }

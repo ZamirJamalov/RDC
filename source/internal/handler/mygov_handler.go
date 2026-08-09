@@ -6,17 +6,19 @@ import (
         "net/http"
         "strconv"
 
+        "rdc-source/internal/middleware"
         "rdc-source/internal/service"
 )
 
 // MyGovHandler handles HTTP requests for MyGov endpoints (T-4.11).
 type MyGovHandler struct {
-        svc *service.MyGovService
+        svc    *service.MyGovService
+        appSvc *service.ApplicationService // PR #148: for audit
 }
 
 // NewMyGovHandler creates a new MyGovHandler.
-func NewMyGovHandler(svc *service.MyGovService) *MyGovHandler {
-        return &MyGovHandler{svc: svc}
+func NewMyGovHandler(svc *service.MyGovService, appSvc *service.ApplicationService) *MyGovHandler {
+        return &MyGovHandler{svc: svc, appSvc: appSvc}
 }
 
 // myGovPermissionRequest is the request body for POST /api/mygov/permission-link.
@@ -132,6 +134,15 @@ func (h *MyGovHandler) VerifyEmployment(w http.ResponseWriter, r *http.Request) 
                 return
         }
 
+        // PR #148: audit — hansı ekspert MyGov yoxlaması etdi
+        if h.appSvc != nil {
+                if user := middleware.PrincipalFromContext(r.Context()); user != nil {
+                        if err := h.appSvc.SetMyGovAudit(r.Context(), id, user.ID, user.Username); err != nil {
+                                slog.Error("failed to set mygov audit", "application_id", id, "error", err)
+                        }
+                }
+        }
+
         writeMyGovJSON(w, http.StatusOK, resp)
 }
 
@@ -179,6 +190,15 @@ func (h *MyGovHandler) VerifyPension(w http.ResponseWriter, r *http.Request) {
                 slog.Error("pension verify failed", "application_id", id, "error", err)
                 writeMyGovError(w, http.StatusBadRequest, err.Error())
                 return
+        }
+
+        // PR #148: audit — hansı ekspert MyGov yoxlaması etdi
+        if h.appSvc != nil {
+                if user := middleware.PrincipalFromContext(r.Context()); user != nil {
+                        if err := h.appSvc.SetMyGovAudit(r.Context(), id, user.ID, user.Username); err != nil {
+                                slog.Error("failed to set mygov audit", "application_id", id, "error", err)
+                        }
+                }
         }
 
         writeMyGovJSON(w, http.StatusOK, resp)
