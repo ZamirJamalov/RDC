@@ -21,13 +21,14 @@ func (h *ApplicationHandler) InitApplication(w http.ResponseWriter, r *http.Requ
                 return
         }
 
-        // PR #149: Input validation
+        // PR #149/#150: Input validation
         if !isValidPIN(req.CustomerPIN) {
                 writeError(w, http.StatusBadRequest, "FIN kodu 7 simvol olmalıdır (yalnız hərf və rəqəm)")
                 return
         }
-        if req.CustomerSerial != "" && !isValidSerialNumber(req.CustomerSerial) {
-                writeError(w, http.StatusBadRequest, "Seriya nömrəsi 7-8 rəqəm olmalıdır")
+        // PR #150: serial validation — combined format (prefix + 7 digits)
+        if req.CustomerSerial != "" && !isValidSerial(req.CustomerSerial) {
+                writeError(w, http.StatusBadRequest, "Seriya nömrəsi düzgün deyil (format: AZE/AA/AB + 7 rəqəm, məs: AZE1234567)")
                 return
         }
         if !isValidPhone(req.CustomerPhone) {
