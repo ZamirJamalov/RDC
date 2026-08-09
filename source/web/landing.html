@@ -262,7 +262,7 @@
 
 <!-- ============ NAV ============ -->
 <nav class="fixed top-0 inset-x-0 z-50 backdrop-blur-xl bg-black/40 border-b border-white/5">
-    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
         <a href="#" class="flex items-center gap-2">
             <div class="w-9 h-9 rounded-xl gradient-accent flex items-center justify-center font-black text-white text-lg">A</div>
             <span class="text-xl font-bold tracking-tight">ALPUL</span>
@@ -273,21 +273,35 @@
             <a href="#calc" class="hover:text-white transition">Kalkulyator</a>
             <a href="#faq" class="hover:text-white transition">SSS</a>
         </div>
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 sm:gap-3">
             <!-- PR #83: Theme toggle -->
             <button @click="toggleTheme()" class="w-9 h-9 rounded-lg border border-white/10 flex items-center justify-center hover:bg-white/5 transition" title="Theme dəyiş">
                 <svg x-show="theme === 'dark'" class="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/></svg>
                 <svg x-show="theme === 'light'" class="w-5 h-5 text-indigo-500" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
             </button>
-            <a href="/apply.html?from=landing" class="cta-btn text-white text-sm font-semibold px-5 py-2.5 rounded-xl">
+            <a href="/apply.html?from=landing" class="cta-btn text-white text-sm font-semibold px-4 sm:px-5 py-2.5 rounded-xl">
                 Müraciət et
             </a>
+            <!-- PR #139: Mobile hamburger menu -->
+            <button @click="mobileNavOpen = !mobileNavOpen" class="md:hidden w-9 h-9 rounded-lg border border-white/10 flex items-center justify-center hover:bg-white/5 transition" title="Menyu">
+                <svg x-show="!mobileNavOpen" class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+                <svg x-show="mobileNavOpen" class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+    </div>
+    <!-- PR #139: Mobile dropdown menu -->
+    <div x-show="mobileNavOpen" x-transition x-cloak class="md:hidden border-t border-white/5 bg-black/80 backdrop-blur-xl">
+        <div class="px-6 py-4 space-y-3 text-sm text-gray-300">
+            <a href="#how"    @click="mobileNavOpen = false" class="block hover:text-white transition py-1">Necə işləyir</a>
+            <a href="#levels" @click="mobileNavOpen = false" class="block hover:text-white transition py-1">Səviyyələr</a>
+            <a href="#calc"   @click="mobileNavOpen = false" class="block hover:text-white transition py-1">Kalkulyator</a>
+            <a href="#faq"    @click="mobileNavOpen = false" class="block hover:text-white transition py-1">SSS</a>
         </div>
     </div>
 </nav>
 
 <!-- ============ HERO + CALCULATOR ============ -->
-<section class="relative hero-bg pt-32 pb-20 px-6 overflow-hidden">
+<section class="relative hero-bg pt-24 sm:pt-32 pb-20 px-4 sm:px-6 overflow-hidden">
     <div class="grid-deco absolute inset-0 opacity-30 pointer-events-none"></div>
 
     <div class="relative max-w-7xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
@@ -430,7 +444,7 @@
     <div class="max-w-7xl mx-auto">
         <div class="text-center mb-16">
             <div class="text-xs uppercase tracking-widest text-teal-400 font-semibold mb-3">Necə işləyir</div>
-            <h2 class="text-4xl md:text-5xl font-bold tracking-tight mb-4">3 addımda ucuzlaşan kredit</h2>
+            <h2 class="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-4">3 addımda ucuzlaşan kredit</h2>
             <p class="text-gray-400 max-w-xl mx-auto">ALPUL sadə bir prinsiplə işləyir: nə qədər düzgün ödəsən, bir sonrakı kredit o qədər ucuz olur.</p>
         </div>
 
@@ -473,7 +487,7 @@
     <div class="max-w-7xl mx-auto">
         <div class="text-center mb-16">
             <div class="text-xs uppercase tracking-widest text-teal-400 font-semibold mb-3">Səviyyələr</div>
-            <h2 class="text-4xl md:text-5xl font-bold tracking-tight mb-4">Pilləkən yuxarı</h2>
+            <h2 class="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-4">Pilləkən yuxarı</h2>
             <p class="text-gray-400 max-w-xl mx-auto">Hər pillədə faiz düşür, qənaət artır.</p>
         </div>
 
@@ -484,10 +498,10 @@
             <div class="grid md:grid-cols-4 gap-6 relative">
                 <!-- NEW -->
                 <div class="level-card level-new card-glow rounded-2xl p-6 text-center">
-                    <div class="text-4xl mb-3">🥉</div>
+                    <div class="text-3xl sm:text-4xl mb-3">🥉</div>
                     <div class="text-xs uppercase tracking-widest text-gray-400 mb-1">Level 1</div>
                     <h3 class="text-2xl font-bold mb-2 text-slate-300">NEW</h3>
-                    <div class="text-4xl font-extrabold text-slate-300 mb-1">30<span class="text-xl">%</span></div>
+                    <div class="text-3xl sm:text-4xl font-extrabold text-slate-300 mb-1">30<span class="text-xl">%</span></div>
                     <div class="text-xs text-gray-500 mb-4">Başlanğıc faiz</div>
                     <div class="text-sm px-3 py-2 rounded-lg bg-black/30 border border-white/5">
                         300₼ kredit = <span class="font-semibold text-slate-300">342.86₼</span>
@@ -496,10 +510,10 @@
 
                 <!-- TRUSTED -->
                 <div class="level-card level-trusted card-glow rounded-2xl p-6 text-center">
-                    <div class="text-4xl mb-3">🥈</div>
+                    <div class="text-3xl sm:text-4xl mb-3">🥈</div>
                     <div class="text-xs uppercase tracking-widest text-gray-400 mb-1">Level 2</div>
                     <h3 class="text-2xl font-bold mb-2 text-slate-400">TRUSTED</h3>
-                    <div class="text-4xl font-extrabold text-slate-400 mb-1">27<span class="text-xl">%</span></div>
+                    <div class="text-3xl sm:text-4xl font-extrabold text-slate-400 mb-1">27<span class="text-xl">%</span></div>
                     <div class="text-xs text-gray-500 mb-4">1 vaxtında ödənişdən sonra</div>
                     <div class="text-sm px-3 py-2 rounded-lg bg-black/30 border border-white/5">
                         300₼ = <span class="font-semibold text-slate-400">336.99₼</span>
@@ -509,10 +523,10 @@
 
                 <!-- VALUABLE -->
                 <div class="level-card level-valuable card-glow rounded-2xl p-6 text-center">
-                    <div class="text-4xl mb-3">🥇</div>
+                    <div class="text-3xl sm:text-4xl mb-3">🥇</div>
                     <div class="text-xs uppercase tracking-widest text-gray-400 mb-1">Level 3</div>
                     <h3 class="text-2xl font-bold mb-2 text-amber-500">VALUABLE</h3>
-                    <div class="text-4xl font-extrabold text-amber-500 mb-1">24<span class="text-xl">%</span></div>
+                    <div class="text-3xl sm:text-4xl font-extrabold text-amber-500 mb-1">24<span class="text-xl">%</span></div>
                     <div class="text-xs text-gray-500 mb-4">3 vaxtında ödənişdən sonra</div>
                     <div class="text-sm px-3 py-2 rounded-lg bg-black/30 border border-white/5">
                         300₼ = <span class="font-semibold text-amber-500">331.58₼</span>
@@ -522,10 +536,10 @@
 
                 <!-- ELITE -->
                 <div class="level-card level-elite card-glow rounded-2xl p-6 text-center ring-1 ring-emerald-500/40">
-                    <div class="text-4xl mb-3">💎</div>
+                    <div class="text-3xl sm:text-4xl mb-3">💎</div>
                     <div class="text-xs uppercase tracking-widest text-emerald-400 mb-1">Level 4 — Max</div>
                     <h3 class="text-2xl font-bold mb-2 text-emerald-400">ELITE</h3>
-                    <div class="text-4xl font-extrabold text-emerald-400 mb-1">20<span class="text-xl">%</span></div>
+                    <div class="text-3xl sm:text-4xl font-extrabold text-emerald-400 mb-1">20<span class="text-xl">%</span></div>
                     <div class="text-xs text-gray-500 mb-4">Ən yüksək etimad</div>
                     <div class="text-sm px-3 py-2 rounded-lg bg-black/30 border border-white/5">
                         300₼ = <span class="font-semibold text-emerald-400">325.00₼</span>
@@ -646,14 +660,14 @@
 <section id="apply" class="py-24 px-6 border-t border-white/5 relative overflow-hidden">
     <div class="absolute inset-0 hero-bg opacity-50"></div>
     <div class="relative max-w-4xl mx-auto text-center">
-        <h2 class="text-4xl md:text-6xl font-extrabold tracking-tight mb-6">
+        <h2 class="text-3xl sm:text-4xl md:text-6xl font-extrabold tracking-tight mb-6">
             <span class="gradient-text">Bu gün başla.</span><br>
             <span class="text-white">Sabah ucuz kredit al.</span>
         </h2>
-        <p class="text-lg text-gray-400 mb-10 max-w-xl mx-auto">
+        <p class="text-base sm:text-lg text-gray-400 mb-10 max-w-xl mx-auto">
             İlk müraciət 5 dəqiqə çəkir. Vaxtında ödəsən, bir sonrakı dəfə daha ucuz.
         </p>
-        <a href="#" class="cta-btn inline-block text-white font-bold text-lg px-10 py-4 rounded-xl">
+        <a href="#" class="cta-btn inline-block text-white font-bold text-base sm:text-lg px-6 sm:px-10 py-3.5 sm:py-4 rounded-xl">
             Müraciət et →
         </a>
         <p class="text-xs text-gray-500 mt-6">Müraciət üçün 18+, FIN kodu və aktiv telefon tələb olunur.</p>
@@ -717,6 +731,8 @@ function alpulLanding() {
         amount: 300,
         term: 3,
         theme: localStorage.getItem('alpul_theme') || 'dark',
+        // PR #139: mobile nav menu state
+        mobileNavOpen: false,
 
         // Level definitions with max amounts and available terms
         levels: [

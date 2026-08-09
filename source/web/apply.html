@@ -254,9 +254,9 @@
         </div>
 
         <!-- STEP 1: Init + OTP -->
-        <div x-show="currentStep === 0" x-transition class="card-glow rounded-3xl p-8">
-            <h2 class="text-3xl font-bold mb-2">Kredit müraciəti</h2>
-            <p class="text-gray-400 mb-8">Məlumatlarınızı daxil edin və OTP kodu ilə təsdiqləyin.</p>
+        <div x-show="currentStep === 0" x-transition class="card-glow rounded-3xl p-5 sm:p-8">
+            <h2 class="text-2xl sm:text-3xl font-bold mb-2">Kredit müraciəti</h2>
+            <p class="text-gray-400 mb-6 sm:mb-8">Məlumatlarınızı daxil edin və OTP kodu ilə təsdiqləyin.</p>
 
             <div class="space-y-5">
                 <!-- FIN -->
@@ -338,16 +338,16 @@
         </div>
 
         <!-- STEP 2: Loading / KYC + Cutoff Reviewing -->
-        <div x-show="currentStep === 1" x-transition class="card-glow rounded-3xl p-12 text-center">
+        <div x-show="currentStep === 1" x-transition class="card-glow rounded-3xl p-6 sm:p-12 text-center">
             <div class="spinner mx-auto mb-6"></div>
-            <h2 class="text-2xl font-bold mb-3" x-text="kycLoadingTitle"></h2>
+            <h2 class="text-xl sm:text-2xl font-bold mb-3" x-text="kycLoadingTitle"></h2>
             <p class="text-gray-400 max-w-md mx-auto pulse-soft" x-text="kycLoadingMessage"></p>
             <p class="text-xs text-gray-600 mt-6">Muraciət №: <span class="font-mono text-gray-400" x-text="applicationId"></span></p>
         </div>
 
         <!-- STEP 3: Offer + Customer Confirm -->
-        <div x-show="currentStep === 2" x-transition class="card-glow rounded-3xl p-8">
-            <h2 class="text-3xl font-bold mb-2">Təklif</h2>
+        <div x-show="currentStep === 2" x-transition class="card-glow rounded-3xl p-5 sm:p-8">
+            <h2 class="text-2xl sm:text-3xl font-bold mb-2">Təklif</h2>
             <p class="text-gray-400 mb-8">Sizin <span class="font-semibold text-white" x-text="levelNameAz(offer?.credit_level)"></span> kredit səviyyənizə uyğun təklif aşağıdadır.</p>
 
             <div x-show="offer" class="grid md:grid-cols-5 gap-6">
@@ -422,7 +422,7 @@
                     <div>
                         <div class="flex justify-between items-baseline mb-3">
                             <label class="text-sm text-gray-400">Köçürüləcək məbləği seçin</label>
-                            <div class="text-3xl font-extrabold">
+                            <div class="text-2xl sm:text-3xl font-extrabold">
                                 <span x-text="form.amount"></span>
                                 <span class="text-base text-gray-400">AZN</span>
                             </div>
@@ -526,7 +526,7 @@
         </div>
 
         <!-- STEP 4: Result (success / rejection / pending) — PR #63 Variant B -->
-        <div x-show="currentStep === 3" x-transition class="card-glow rounded-3xl p-12 text-center">
+        <div x-show="currentStep === 3" x-transition class="card-glow rounded-3xl p-6 sm:p-12 text-center">
 
             <!-- REJECTED -->
             <div x-show="engineStatus === 'rejected'">
@@ -535,7 +535,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/>
                     </svg>
                 </div>
-                <h2 class="text-3xl font-bold mb-3">Müraciətiniz rədd edildi</h2>
+                <h2 class="text-2xl sm:text-3xl font-bold mb-3">Müraciətiniz rədd edildi</h2>
                 <p class="text-gray-400 max-w-md mx-auto mb-6">
                     Təəssüf ki, müraciətiniz bizim kəsim nöqtələrimizdən keçə bilmədi.
                 </p>
@@ -558,7 +558,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
                     </svg>
                 </div>
-                <h2 class="text-3xl font-bold mb-3">Müraciətiniz qəbul olundu!</h2>
+                <h2 class="text-2xl sm:text-3xl font-bold mb-3">Müraciətiniz qəbul olundu!</h2>
                 <p class="text-gray-400 max-w-md mx-auto mb-8">
                     Müraciət nömrəniz: <span class="font-mono font-semibold text-white" x-text="applicationId"></span>
                 </p>
@@ -591,7 +591,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
                 </div>
-                <h2 class="text-3xl font-bold mb-3">Müraciətiniz qeydə alındı</h2>
+                <h2 class="text-2xl sm:text-3xl font-bold mb-3">Müraciətiniz qeydə alındı</h2>
                 <p class="text-gray-400 max-w-md mx-auto mb-8">
                     Müraciət nömrəniz: <span class="font-mono font-semibold text-white" x-text="applicationId"></span>
                 </p>
@@ -1169,84 +1169,84 @@ function applyApp() {
             <div class="border border-[var(--alpul-border)] rounded-lg overflow-hidden">
 
                 <!-- Row 1 -->
-                <div class="grid grid-cols-12 gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
-                    <div class="col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
+                <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
+                    <div class="sm:col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
                         İş yeri, vəzifəsi və digər gəlir mənbələri olmadığı təqdirdə müştərini maliyyələşdirən şəxs (sponsor) var?
                     </div>
-                    <div class="col-span-3 flex items-center justify-end">
+                    <div class="sm:col-span-3 flex items-center justify-start sm:justify-end">
                         <span class="px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">Xeyr</span>
                     </div>
                 </div>
 
                 <!-- Row 2 -->
-                <div class="grid grid-cols-12 gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
-                    <div class="col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
+                <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
+                    <div class="sm:col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
                         Müştərinin səlahiyyətli nümayəndəsi (məhsul üzərində sərəncam vermək hüququ olan digər şəxslər) var?
                     </div>
-                    <div class="col-span-3 flex items-center justify-end">
+                    <div class="sm:col-span-3 flex items-center justify-start sm:justify-end">
                         <span class="px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">Xeyr</span>
                     </div>
                 </div>
 
                 <!-- Row 3 -->
-                <div class="grid grid-cols-12 gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
-                    <div class="col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
+                <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
+                    <div class="sm:col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
                         Siz xarici ölkədə təsis edilən hüquqi şəxsin, xarici ölkədə qüvvədə olan qanunvericiliyə uyğun olaraq hüquqi şəxs yaratmadan təsis edilən trastın və ya analoji xüsusiyyətlərə malik digər növ hüquqi təsisatın kənar idarəçisi qismində çıxış edirsinizmi?
                     </div>
-                    <div class="col-span-3 flex items-center justify-end">
+                    <div class="sm:col-span-3 flex items-center justify-start sm:justify-end">
                         <span class="px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">Xeyr</span>
                     </div>
                 </div>
 
                 <!-- Row 4 — PEP (with explanation) -->
-                <div class="grid grid-cols-12 gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
-                    <div class="col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
+                <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
+                    <div class="sm:col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
                         <p class="font-medium">Siz siyasi nüfuzlu şəxs, onun yaxın qohumu və ya onunla yaxın münasibətdə olan şəxsinizmi?</p>
                         <p class="text-xs text-[var(--alpul-text-soft)] mt-1.5 leading-relaxed">
                             <span class="font-semibold">Siyasi xadim</span> — xarici dövlətdə mühüm ictimai vəzifə tutan və ya əvvəllər belə vəzifəni tutmuş şəxslər (dövlət və ya hökumət başçıları, nüfuzlu siyasətçilər, hökumət üzvləri, yuxarı instansiya məhkəmələrinin hakimləri, yüksək rütbəli hərbi qulluqçular, dövlət mülkiyyətində olan müəssisələrin rəhbər vəzifəli şəxsləri, siyasi partiya vəzifəli şəxsləri), onların ailə üzvləri və yaxın qohumları.
                         </p>
                     </div>
-                    <div class="col-span-3 flex items-start justify-end pt-0.5">
+                    <div class="sm:col-span-3 flex items-start justify-start sm:justify-end pt-0.5">
                         <span class="px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">Xeyr</span>
                     </div>
                 </div>
 
                 <!-- Row 5 -->
-                <div class="grid grid-cols-12 gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
-                    <div class="col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
+                <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
+                    <div class="sm:col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
                         Kart, ödəniş və ya digər bank hesabları yalnız öz şəxsi məqsədləriniz üçün istifadə ediləcək?
                     </div>
-                    <div class="col-span-3 flex items-center justify-end">
+                    <div class="sm:col-span-3 flex items-center justify-start sm:justify-end">
                         <span class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">Bəli</span>
                     </div>
                 </div>
 
                 <!-- Row 6 -->
-                <div class="grid grid-cols-12 gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
-                    <div class="col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
+                <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
+                    <div class="sm:col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
                         Kart, ödəniş və ya digər bank hesabları üçüncü şəxslərin, ailə üzvləri istisna olmaqla, istifadəsinə məqsədilə əldə edilir?
                     </div>
-                    <div class="col-span-3 flex items-center justify-end">
+                    <div class="sm:col-span-3 flex items-center justify-start sm:justify-end">
                         <span class="px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">Xeyr</span>
                     </div>
                 </div>
 
                 <!-- Row 7 -->
-                <div class="grid grid-cols-12 gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
-                    <div class="col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
+                <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-3 p-3 border-b border-[var(--alpul-border)] hover:bg-white/[0.02] transition">
+                    <div class="sm:col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
                         Kart, ödəniş və ya digər bank hesabları üçüncü şəxslərin istifadəsinə verildiyi halda narkotik vasitələrin dövriyyəsi, qanunsuz qumar/mərc oyunları və ya digər qanunsuz əməliyyatlarda istifadə olunacaq?
                     </div>
-                    <div class="col-span-3 flex items-center justify-end">
+                    <div class="sm:col-span-3 flex items-center justify-start sm:justify-end">
                         <span class="px-3 py-1 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-400 border border-rose-500/30">Xeyr</span>
                     </div>
                 </div>
 
                 <!-- Row 8 -->
-                <div class="grid grid-cols-12 gap-3 p-3 hover:bg-white/[0.02] transition">
-                    <div class="col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
+                <div class="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-3 p-3 hover:bg-white/[0.02] transition">
+                    <div class="sm:col-span-9 text-sm text-[var(--alpul-text)] leading-relaxed">
                         Kart, ödəniş və ya digər bank hesablarının üçüncü şəxslərin istifadəsinə verildiyi halda narkotik vasitələrin dövriyyəsi, qanunsuz qumar/mərc oyunları və ya digər qanunsuz əməliyyatlarda istifadə oluna biləcəyindən məlumatlısınız?
                     </div>
-                    <div class="col-span-3 flex items-center justify-end">
+                    <div class="sm:col-span-3 flex items-center justify-start sm:justify-end">
                         <span class="px-3 py-1 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">Bəli</span>
                     </div>
                 </div>
