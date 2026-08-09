@@ -63,6 +63,10 @@ type LoanApplication struct {
         // PR #134: Muraciət üzərində işləmə vaxtı (saniyə)
         TimerSeconds int `json:"timer_seconds,omitempty"`
 
+        // PR #142: Hansı dashboard istifadəçisi tərəfindən təsdiq/redd edilib
+        ProcessedByUserID   *int   `json:"processed_by_user_id,omitempty"`
+        ProcessedByUsername string `json:"processed_by_username,omitempty"`
+
         CreatedAt string `json:"created_at"`
         UpdatedAt string `json:"updated_at"`
 }

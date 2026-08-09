@@ -67,6 +67,9 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
         var kycID, partnerID, cardID, lwApplicationID sql.NullString
         // PR #124: kontakt yoxlanma statusu
         var contact1Verified, contact2Verified, contact3Verified sql.NullBool
+        // PR #142: processed_by fields
+        var processedByUserID sql.NullInt64
+        var processedByUsername sql.NullString
 
         err := r.db.QueryRowContext(ctx, `
                 SELECT id, customer_pin, customer_full_name, amount, term_months, loan_purpose,
@@ -81,6 +84,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                        discount_code, discount_amount,
                        kyc_id, partner_id, card_id, lw_application_id,
                        timer_seconds,
+                       processed_by_user_id, processed_by_username,
                        created_at, updated_at
                 FROM loan_applications WHERE id = ?`, id).Scan(
                 &app.ID,
@@ -123,6 +127,8 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                 &cardID,
                 &lwApplicationID,
                 &app.TimerSeconds,
+                &processedByUserID,
+                &processedByUsername,
                 &app.CreatedAt,
                 &app.UpdatedAt,
         )
@@ -175,6 +181,12 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
         app.PartnerID = partnerID.String
         app.CardID = cardID.String
         app.LwApplicationID = lwApplicationID.String
+        // PR #142: processed_by fields
+        if processedByUserID.Valid {
+            uid := int(processedByUserID.Int64)
+            app.ProcessedByUserID = &uid
+        }
+        app.ProcessedByUsername = processedByUsername.String
 
         return &app, nil
 }
@@ -207,6 +219,22 @@ func (r *ApplicationRepo) UpdateApplicationDecision(ctx context.Context, id int,
                 status, creditLevel, approvedAmount, approvedRate, totalAmount, rejectionReason, id)
         if err != nil {
                 return fmt.Errorf("failed to update application decision: %w", err)
+        }
+        return nil
+}
+
+// UpdateProcessedBy sets the processed_by_user_id and processed_by_username fields.
+// PR #142: called when an expert approves or rejects an application.
+func (r *ApplicationRepo) UpdateProcessedBy(ctx context.Context, id int, userID int, username string) error {
+        _, err := r.db.ExecContext(ctx, `
+                UPDATE loan_applications
+                SET processed_by_user_id = ?,
+                    processed_by_username = ?,
+                    updated_at = GETDATE()
+                WHERE id = ?`,
+                userID, username, id)
+        if err != nil {
+                return fmt.Errorf("failed to update processed_by: %w", err)
         }
         return nil
 }

@@ -34,24 +34,51 @@
         [data-theme="dark"] .text-gray-500 { color: var(--text-soft) !important; }
         [data-theme="dark"] .border-gray-200 { border-color: var(--border) !important; }
         [data-theme="dark"] .hover\:border-teal-300:hover { border-color: #3FB0A7 !important; }
+        [x-cloak] { display: none !important; }
     </style>
 </head>
-<body class="bg-gray-50 min-h-screen" data-theme="light">
-    <div x-data="appList()" x-init="initTheme(); load()" class="max-w-4xl mx-auto py-8 px-4">
-        
+<body class="bg-gray-50 min-h-screen" x-data="appList()" x-init="init()" x-cloak data-theme="light">
+
+    <!-- PR #142: Auth check loading screen -->
+    <div x-show="authChecking" class="fixed inset-0 flex items-center justify-center bg-gray-50">
+        <div class="text-gray-500">Yoxlanılır...</div>
+    </div>
+
+    <div x-show="!authChecking" x-cloak class="max-w-4xl mx-auto py-8 px-4">
+
         <!-- Header -->
-        <div class="flex justify-between items-center mb-6">
+        <div class="flex justify-between items-center mb-6 flex-wrap gap-3">
             <div class="flex items-center gap-3">
                 <div class="w-10 h-10 rounded-xl alpul-btn flex items-center justify-center font-black text-white text-lg">A</div>
                 <h1 class="text-2xl font-bold text-gray-800">RDC — Muraciet Siyahisi</h1>
             </div>
             <div class="flex items-center gap-3">
+                <!-- PR #142: User info -->
+                <div class="flex items-center gap-2 text-sm">
+                    <div class="w-8 h-8 rounded-full bg-teal-500/20 border border-teal-500/30 flex items-center justify-center font-bold text-teal-600 text-xs"
+                         x-text="currentUser ? currentUser.username.charAt(0).toUpperCase() : '?'"></div>
+                    <div class="hidden sm:block">
+                        <div class="font-medium text-gray-800" x-text="currentUser?.username"></div>
+                        <div class="text-xs text-gray-500" x-text="currentUser?.role === 'admin' ? 'Admin' : 'Ekspert'"></div>
+                    </div>
+                </div>
+                <!-- PR #142: Admin panel link (admin only) -->
+                <a x-show="currentUser?.role === 'admin'" href="/admin.html"
+                   class="text-sm px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 transition"
+                   title="İstifadəçi idarəetməsi">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                </a>
                 <button @click="toggleTheme()" class="w-9 h-9 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-100 transition" title="Theme dəyiş">
                     <svg x-show="theme === 'light'" class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/></svg>
                     <svg x-show="theme === 'dark'" class="w-5 h-5 text-indigo-400" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
                 </button>
                 <button @click="load()" class="alpul-btn text-white px-4 py-2 rounded-lg font-medium transition">
                     Yenile
+                </button>
+                <!-- PR #142: Logout button -->
+                <button @click="logout()" class="px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-red-50 hover:border-red-300 hover:text-red-600 transition text-sm font-medium"
+                        title="Çıxış">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
                 </button>
             </div>
         </div>
@@ -85,6 +112,10 @@
                                 <p><span class="font-medium">PIN:</span> <span x-text="app.customer_pin"></span></p>
                                 <p><span class="font-medium">Mebleg:</span> <span x-text="app.amount + ' AZN'"></span></p>
                                 <p><span class="font-medium">Muddet:</span> <span x-text="app.term_months + ' ay'"></span></p>
+                                <!-- PR #142: Processed by display -->
+                                <p x-show="app.processed_by_username" class="text-xs text-gray-400 mt-1">
+                                    <span class="font-medium">İşləyən:</span> <span x-text="app.processed_by_username"></span>
+                                </p>
                             </div>
                         </div>
                         <div class="text-right">
@@ -112,7 +143,18 @@
                 applications: [],
                 loading: false,
                 error: '',
+                authChecking: true,
+                currentUser: null,
                 theme: localStorage.getItem('alpul_theme') || 'light',
+
+                async init() {
+                    this.initTheme();
+                    // PR #142: Check auth before loading
+                    await this.checkAuth();
+                    if (this.currentUser) {
+                        this.load();
+                    }
+                },
 
                 initTheme() {
                     document.body.setAttribute('data-theme', this.theme);
@@ -123,11 +165,41 @@
                     localStorage.setItem('alpul_theme', this.theme);
                 },
 
+                // PR #142: Auth check
+                async checkAuth() {
+                    try {
+                        const resp = await fetch('/api/auth/me');
+                        if (resp.status === 401) {
+                            window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+                            return;
+                        }
+                        if (!resp.ok) throw new Error('Auth yoxlanıla bilmədi');
+                        this.currentUser = await resp.json();
+                    } catch (e) {
+                        window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+                        return;
+                    } finally {
+                        this.authChecking = false;
+                    }
+                },
+
+                // PR #142: Logout
+                async logout() {
+                    try {
+                        await fetch('/api/auth/logout', { method: 'POST' });
+                    } catch (e) { /* ignore */ }
+                    window.location.href = '/login.html';
+                },
+
                 async load() {
                     this.loading = true;
                     this.error = '';
                     try {
                         const resp = await fetch('/api/expert/queue');
+                        if (resp.status === 401) {
+                            window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+                            return;
+                        }
                         if (!resp.ok) throw new Error('Sorgu ugursuz: ' + resp.status);
                         const data = await resp.json();
                         this.applications = data.applications || [];

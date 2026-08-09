@@ -143,6 +143,15 @@ func (s *ApplicationService) UpdateTimer(ctx context.Context, appID int, seconds
         return s.repo.UpdateTimer(ctx, appID, seconds)
 }
 
+// SetProcessedBy records which dashboard user approved/rejected the application.
+// PR #142: ekspert əməliyyatları istifadəçiyə bağlanır.
+func (s *ApplicationService) SetProcessedBy(ctx context.Context, appID int, userID int, username string) error {
+        if appID <= 0 {
+                return fmt.Errorf("invalid application id")
+        }
+        return s.repo.UpdateProcessedBy(ctx, appID, userID, username)
+}
+
 // CreateApplication creates a new loan application with "pending" status and triggers the credit engine.
 func (s *ApplicationService) CreateApplication(ctx context.Context, req *model.CreateApplicationRequest) (*model.LoanApplication, error) {
         if req.CustomerPIN == "" {

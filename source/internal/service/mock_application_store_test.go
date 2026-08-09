@@ -297,6 +297,16 @@ func (m *mockApplicationStore) UpdateTimer(_ context.Context, id int, seconds in
         return nil
 }
 
+// PR #142: UpdateProcessedBy — mock implementation (no-op, just records)
+func (m *mockApplicationStore) UpdateProcessedBy(_ context.Context, id int, userID int, username string) error {
+        if existing, ok := m.appByID[id]; ok {
+                uid := userID
+                existing.ProcessedByUserID = &uid
+                existing.ProcessedByUsername = username
+        }
+        return nil
+}
+
 // --- Tx-aware variants (T-1.3) ---
 //
 // These accept a repository.TxRunner but ignore it — the mock doesn't actually

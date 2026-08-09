@@ -6,6 +6,7 @@ import (
         "net/http"
         "strconv"
 
+        "rdc-source/internal/middleware"
         "rdc-source/internal/model"
         "rdc-source/internal/service"
 )
@@ -70,6 +71,7 @@ type ApproveRequest struct {
 
 // Approve handles PUT /api/expert/{id}/approve.
 // Approves a pending_approval application. Requires credit_level in the body.
+// PR #142: records which dashboard user approved the application.
 func (h *ExpertHandler) Approve(w http.ResponseWriter, r *http.Request) {
         id, err := strconv.Atoi(r.PathValue("id"))
         if err != nil || id <= 0 {
@@ -104,6 +106,13 @@ func (h *ExpertHandler) Approve(w http.ResponseWriter, r *http.Request) {
                 return
         }
 
+        // PR #142: record which user approved this application
+        if user := middleware.PrincipalFromContext(r.Context()); user != nil {
+                if err := h.appSvc.SetProcessedBy(r.Context(), id, user.ID, user.Username); err != nil {
+                        slog.Error("failed to set processed_by", "application_id", id, "error", err)
+                }
+        }
+
         slog.Info("application approved by expert", "application_id", id, "credit_level", req.CreditLevel)
         writeExpertJSON(w, http.StatusOK, app)
 }
@@ -115,6 +124,7 @@ type RejectRequest struct {
 
 // Reject handles PUT /api/expert/{id}/reject.
 // Rejects a pending_approval application.
+// PR #142: records which dashboard user rejected the application.
 func (h *ExpertHandler) Reject(w http.ResponseWriter, r *http.Request) {
         id, err := strconv.Atoi(r.PathValue("id"))
         if err != nil || id <= 0 {
@@ -138,6 +148,13 @@ func (h *ExpertHandler) Reject(w http.ResponseWriter, r *http.Request) {
                 slog.Error("expert reject failed", "application_id", id, "error", err)
                 writeExpertError(w, http.StatusBadRequest, err.Error())
                 return
+        }
+
+        // PR #142: record which user rejected this application
+        if user := middleware.PrincipalFromContext(r.Context()); user != nil {
+                if err := h.appSvc.SetProcessedBy(r.Context(), id, user.ID, user.Username); err != nil {
+                        slog.Error("failed to set processed_by", "application_id", id, "error", err)
+                }
         }
 
         reason := req.Reason
