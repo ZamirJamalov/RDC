@@ -11,25 +11,25 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         :root {
-            --alpul-bg: #0a0b14;
-            --alpul-card: #12141f;
-            --alpul-border: #1e2130;
-            --alpul-text: #e2e8f0;
-            --alpul-text-soft: #94a3b8;
-            --alpul-input-bg: #0f111a;
-            --alpul-teal: #3FB0A7;
-            --alpul-indigo: #6163A4;
-        }
-        [data-theme="light"] {
             --alpul-bg: #f8fafc;
             --alpul-card: #ffffff;
             --alpul-border: #e2e8f0;
             --alpul-text: #1e293b;
             --alpul-text-soft: #64748b;
             --alpul-input-bg: #f1f5f9;
+            --alpul-teal: #3FB0A7;
+            --alpul-indigo: #6163A4;
+        }
+        [data-theme="dark"] {
+            --alpul-bg: #0a0b14;
+            --alpul-card: #12141f;
+            --alpul-border: #1e2130;
+            --alpul-text: #e2e8f0;
+            --alpul-text-soft: #94a3b8;
+            --alpul-input-bg: #0f111a;
         }
         * { font-family: 'Inter', sans-serif; }
-        body { background: var(--alpul-bg); color: var(--alpul-text); }
+        body { background: var(--alpul-bg); color: var(--alpul-text); transition: background 0.2s ease, color 0.2s ease; }
         .gradient-accent { background: linear-gradient(135deg, #3FB0A7 0%, #6163A4 100%); }
         .gradient-text { background: linear-gradient(135deg, #3FB0A7 0%, #6163A4 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
         .input-field {
@@ -51,58 +51,63 @@
         [x-cloak] { display: none !important; }
         .spinner { border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; width: 16px; height: 16px; animation: spin 0.6s linear infinite; display: inline-block; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        .card { background: var(--alpul-card); border: 1px solid var(--alpul-border); }
     </style>
 </head>
-<body x-data="loginApp()" x-init="init()" x-cloak data-theme="dark">
+<body x-data="loginApp()" x-init="init()" x-cloak data-theme="light">
 
 <div class="min-h-screen flex items-center justify-center px-4">
     <div class="w-full max-w-sm">
-        <!-- Logo -->
-        <div class="text-center mb-8">
-            <div class="inline-flex items-center gap-2 mb-2">
+        <!-- Logo + Theme toggle -->
+        <div class="flex justify-between items-center mb-6">
+            <div class="flex items-center gap-2">
                 <div class="w-12 h-12 rounded-xl gradient-accent flex items-center justify-center font-black text-white text-2xl">A</div>
                 <span class="text-2xl font-bold tracking-tight">ALPUL</span>
             </div>
-            <p class="text-sm text-[var(--alpul-text-soft)]">RDC Dashboard</p>
+            <button @click="toggleTheme()" class="w-9 h-9 rounded-lg border flex items-center justify-center transition hover:bg-gray-100 dark:hover:bg-gray-800"
+                    :style="`border-color: var(--alpul-border)`"
+                    title="Theme dəyiş">
+                <svg x-show="theme === 'light'" class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/></svg>
+                <svg x-show="theme === 'dark'" class="w-5 h-5 text-indigo-400" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
+            </button>
         </div>
 
         <!-- Login card -->
-        <div class="rounded-2xl p-6 sm:p-8" style="background: var(--alpul-card); border: 1px solid var(--alpul-border);">
+        <div class="card rounded-2xl p-6 sm:p-8">
             <h1 class="text-xl font-bold mb-1">Giriş</h1>
-            <p class="text-sm text-[var(--alpul-text-soft)] mb-6">Dashboard-a daxil olmaq üçün istifadəçi adı və şifrənizi daxil edin.</p>
+            <p class="text-sm mb-6" style="color: var(--alpul-text-soft);">Dashboard-a daxil olmaq üçün istifadəçi adı və şifrənizi daxil edin.</p>
 
             <!-- Error message -->
-            <div x-show="error" x-transition class="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+            <div x-show="error" x-transition class="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-500 text-sm">
                 <span x-text="error"></span>
             </div>
 
             <form @submit.prevent="login()" class="space-y-4">
                 <!-- Username -->
                 <div>
-                    <label class="text-sm text-[var(--alpul-text-soft)] mb-1.5 block">İstifadəçi adı</label>
+                    <label class="text-sm mb-1.5 block" style="color: var(--alpul-text-soft);">İstifadəçi adı</label>
                     <input type="text"
                            x-model="username"
                            :disabled="loading"
                            autocomplete="username"
                            placeholder="admin"
-                           class="input-field w-full px-4 py-3 rounded-xl text-base font-medium"
-                           @keydown.enter="login()">
+                           class="input-field w-full px-4 py-3 rounded-xl text-base font-medium">
                 </div>
 
                 <!-- Password -->
                 <div>
-                    <label class="text-sm text-[var(--alpul-text-soft)] mb-1.5 block">Şifrə</label>
+                    <label class="text-sm mb-1.5 block" style="color: var(--alpul-text-soft);">Şifrə</label>
                     <div class="relative">
                         <input :type="showPassword ? 'text' : 'password'"
                                x-model="password"
                                :disabled="loading"
                                autocomplete="current-password"
                                placeholder="••••••"
-                               class="input-field w-full px-4 py-3 pr-10 rounded-xl text-base font-medium"
-                               @keydown.enter="login()">
+                               class="input-field w-full px-4 py-3 pr-10 rounded-xl text-base font-medium">
                         <button type="button"
                                 @click="showPassword = !showPassword"
-                                class="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--alpul-text-soft)] hover:text-[var(--alpul-text)] transition"
+                                class="absolute right-3 top-1/2 -translate-y-1/2 transition"
+                                style="color: var(--alpul-text-soft);"
                                 tabindex="-1">
                             <svg x-show="!showPassword" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                             <svg x-show="showPassword" class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
@@ -128,7 +133,7 @@
 
         <!-- Footer -->
         <div class="text-center mt-6">
-            <a href="/landing.html" class="text-sm text-[var(--alpul-text-soft)] hover:text-[var(--alpul-teal)] transition">
+            <a href="/landing" class="text-sm transition" style="color: var(--alpul-text-soft);">
                 ← Ana səhifəyə qayıt
             </a>
         </div>
@@ -143,24 +148,36 @@ function loginApp() {
         showPassword: false,
         loading: false,
         error: '',
-        redirect: '',
+        redirect: '/dashboard',
+        theme: localStorage.getItem('alpul_theme') || 'light',
 
         init() {
-            // Check if already logged in
-            this.checkAuth();
+            // Apply theme
+            document.body.setAttribute('data-theme', this.theme);
             // Get redirect param
             const params = new URLSearchParams(window.location.search);
-            this.redirect = params.get('redirect') || '/index.html';
+            const r = params.get('redirect');
+            if (r) {
+                this.redirect = decodeURIComponent(r);
+            }
+            // Check if already logged in (async, non-blocking)
+            this.checkAuth();
+        },
+
+        toggleTheme() {
+            this.theme = this.theme === 'light' ? 'dark' : 'light';
+            document.body.setAttribute('data-theme', this.theme);
+            localStorage.setItem('alpul_theme', this.theme);
         },
 
         async checkAuth() {
             try {
                 const resp = await fetch('/api/auth/me');
                 if (resp.ok) {
-                    // Already logged in — redirect
+                    // Already logged in — redirect to dashboard
                     window.location.href = this.redirect;
                 }
-            } catch (e) { /* not logged in */ }
+            } catch (e) { /* not logged in — stay on login page */ }
         },
 
         async login() {
@@ -178,10 +195,14 @@ function loginApp() {
                 const data = await resp.json();
                 if (!resp.ok) {
                     this.error = data.error || 'Giriş uğursuz';
+                    this.password = ''; // clear password on failure
                     return;
                 }
-                // Success — redirect
-                window.location.href = this.redirect;
+                // Success — redirect to dashboard
+                // Use a small delay to ensure cookie is set
+                setTimeout(() => {
+                    window.location.href = this.redirect;
+                }, 100);
             } catch (e) {
                 this.error = 'Bağlantı xətası. Yenidən cəhd edin.';
             } finally {

@@ -46,7 +46,7 @@
         <!-- Header -->
         <div class="flex justify-between items-center mb-6 flex-wrap gap-3">
             <div class="flex items-center gap-3">
-                <a href="/index.html" class="text-teal-600 hover:text-teal-800 transition text-sm font-medium flex items-center gap-1">
+                <a href="/dashboard" class="text-teal-600 hover:text-teal-800 transition text-sm font-medium flex items-center gap-1">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
                     Siyahı
                 </a>
@@ -178,7 +178,7 @@
             <svg class="w-12 h-12 text-red-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <h2 class="text-lg font-bold text-red-800 mb-1">Giriş qadağandır</h2>
             <p class="text-sm text-red-600 mb-4">Bu səhifəyə yalnız admin istifadəçilər daxil ola bilər.</p>
-            <a href="/index.html" class="inline-block text-teal-600 hover:text-teal-800 text-sm font-medium">← Siyahıya qayıt</a>
+            <a href="/dashboard" class="inline-block text-teal-600 hover:text-teal-800 text-sm font-medium">← Siyahıya qayıt</a>
         </div>
     </div>
 
@@ -279,13 +279,13 @@
                     try {
                         const resp = await fetch('/api/auth/me');
                         if (resp.status === 401) {
-                            window.location.href = '/login.html?redirect=/admin.html';
+                            window.location.href = '/login?redirect=/admin';
                             return;
                         }
                         if (!resp.ok) throw new Error('Auth failed');
                         this.currentUser = await resp.json();
                     } catch (e) {
-                        window.location.href = '/login.html?redirect=/admin.html';
+                        window.location.href = '/login?redirect=/admin';
                         return;
                     } finally {
                         this.authChecking = false;
@@ -294,7 +294,7 @@
 
                 async logout() {
                     try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
-                    window.location.href = '/login.html';
+                    window.location.href = '/login';
                 },
 
                 async load() {
