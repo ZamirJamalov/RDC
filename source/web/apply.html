@@ -277,10 +277,10 @@
                             <option value="AA">AA</option>
                             <option value="AB">AB</option>
                         </select>
-                        <input type="text" x-model="form.serialNumber" placeholder="1234567" maxlength="8"
+                        <input type="text" x-model="form.serialNumber" placeholder="1234567" maxlength="7"
                                class="input-field flex-1 min-w-0 px-3 sm:px-4 py-3 sm:py-3.5 rounded-xl text-base sm:text-lg font-semibold"
                                :disabled="otpSent"
-                               @input="form.serialNumber = form.serialNumber.replace(/[^0-9]/g, '')">
+                               @input="form.serialNumber = form.serialNumber.replace(/[^0-9]/g, '').slice(0, 7)">
                     </div>
                 </div>
 
