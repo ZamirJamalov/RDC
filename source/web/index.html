@@ -63,7 +63,7 @@
                     </div>
                 </div>
                 <!-- PR #142: Admin panel link (admin only) -->
-                <a x-show="currentUser?.role === 'admin'" href="/admin.html"
+                <a x-show="currentUser?.role === 'admin'" href="/admin"
                    class="text-sm px-3 py-2 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-100 transition"
                    title="İstifadəçi idarəetməsi">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
@@ -101,7 +101,7 @@
         <div x-show="!loading && applications.length > 0" class="space-y-4">
             <template x-for="app in applications" :key="app.id">
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md hover:border-teal-300 transition-all cursor-pointer"
-                     @click="window.location.href='/detail.html?id=' + app.id">
+                     @click="window.location.href='/detail?id=' + app.id">
                     <div class="flex justify-between items-start">
                         <div>
                             <div class="flex items-center gap-2 mb-2">
@@ -170,13 +170,13 @@
                     try {
                         const resp = await fetch('/api/auth/me');
                         if (resp.status === 401) {
-                            window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+                            window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
                             return;
                         }
                         if (!resp.ok) throw new Error('Auth yoxlanıla bilmədi');
                         this.currentUser = await resp.json();
                     } catch (e) {
-                        window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+                        window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
                         return;
                     } finally {
                         this.authChecking = false;
@@ -188,7 +188,7 @@
                     try {
                         await fetch('/api/auth/logout', { method: 'POST' });
                     } catch (e) { /* ignore */ }
-                    window.location.href = '/login.html';
+                    window.location.href = '/login';
                 },
 
                 async load() {
@@ -197,7 +197,7 @@
                     try {
                         const resp = await fetch('/api/expert/queue');
                         if (resp.status === 401) {
-                            window.location.href = '/login.html?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
+                            window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
                             return;
                         }
                         if (!resp.ok) throw new Error('Sorgu ugursuz: ' + resp.status);

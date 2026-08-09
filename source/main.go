@@ -168,6 +168,21 @@ func main() {
                         router.ServeHTTP(w, r)
                         return
                 }
+                // PR #143: Clean URL rewrite — /login → /login.html, /dashboard → /index.html, etc.
+                // This allows users to access pages without the .html extension.
+                // / kök route → /landing.html (müştəri qapısı), /dashboard → ekspert queue
+                cleanURLMap := map[string]string{
+                        "/":          "/landing.html",
+                        "/login":     "/login.html",
+                        "/dashboard": "/index.html",
+                        "/admin":     "/admin.html",
+                        "/detail":    "/detail.html",
+                        "/apply":     "/apply.html",
+                        "/landing":   "/landing.html",
+                }
+                if target, ok := cleanURLMap[r.URL.Path]; ok {
+                        r.URL.Path = target
+                }
                 fileServer.ServeHTTP(w, r)
         })
 
