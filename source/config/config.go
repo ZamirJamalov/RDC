@@ -94,6 +94,13 @@ type Config struct {
         // PR #142: Authentication
         AdminInitialPassword string // default admin password (used only on first startup when no users exist)
         AuthSessionTTLHours  int    // session token validity in hours (default: 8)
+
+        // PR #149: Security hardening
+        AllowedOrigin       string // CORS allowed origin (default: http://localhost:8000, prod: https://alpul.az)
+        RateLimitPerMinute  int    // generic API rate limit per IP per minute (default: 60)
+        OTPRateLimitPerMin  int    // OTP send rate limit per phone per minute (default: 1, already in service)
+        OTPMaxAttempts      int    // max wrong OTP attempts before blocking application (default: 3)
+        DiscountRatePerMin  int    // discount code validation rate limit per IP per minute (default: 5)
 }
 
 // Load reads configuration from environment variables. Required fields (DB_HOST,
@@ -147,6 +154,13 @@ func Load() *Config {
                 // PR #142: Authentication
                 AdminInitialPassword: getEnv("ADMIN_INITIAL_PASSWORD", ""),
                 AuthSessionTTLHours:  getEnvInt("AUTH_SESSION_TTL_HOURS", 8),
+
+                // PR #149: Security hardening
+                AllowedOrigin:      getEnv("ALLOWED_ORIGIN", "http://localhost:8000"),
+                RateLimitPerMinute: getEnvInt("RATE_LIMIT_PER_MINUTE", 60),
+                OTPRateLimitPerMin: getEnvInt("OTP_RATE_LIMIT_PER_MIN", 1),
+                OTPMaxAttempts:     getEnvInt("OTP_MAX_ATTEMPTS", 3),
+                DiscountRatePerMin: getEnvInt("DISCOUNT_RATE_PER_MIN", 5),
         }
 
         if cfg.MigrationsDropRecreate {

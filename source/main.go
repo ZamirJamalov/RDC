@@ -15,6 +15,7 @@ import (
 
         "rdc-source/config"
         "rdc-source/internal/handler"
+        "rdc-source/internal/middleware"
         "rdc-source/internal/migration"
         "rdc-source/internal/repository"
         "rdc-source/internal/service"
@@ -152,8 +153,19 @@ func main() {
                 os.Exit(1)
         }
 
+        // PR #149: Create rate limiters
+        apiLimiter := middleware.NewRateLimiter(cfg.RateLimitPerMinute)
+        otpLimiter := middleware.NewRateLimiter(cfg.OTPRateLimitPerMin)
+        discountLimiter := middleware.NewRateLimiter(cfg.DiscountRatePerMin)
+        slog.Info("rate limiters configured",
+                "api_per_min", cfg.RateLimitPerMinute,
+                "otp_per_min", cfg.OTPRateLimitPerMin,
+                "discount_per_min", cfg.DiscountRatePerMin,
+                "allowed_origin", cfg.AllowedOrigin,
+        )
+
         // --- Route registration + middleware chain ---
-        router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler, lwLoanStatusHandler, discountCodeHandler, featureFlagHandler, authHandler, userHandler, authService)
+        router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler, lwLoanStatusHandler, discountCodeHandler, featureFlagHandler, authHandler, userHandler, authService, cfg.AllowedOrigin, apiLimiter, otpLimiter, discountLimiter)
 
         // UI: serve embedded static files from web/ directory.
         // fs.Sub strips the "web/" prefix so /detail.html maps to web/detail.html.

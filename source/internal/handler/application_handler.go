@@ -3,6 +3,7 @@ package handler
 import (
         "encoding/json"
         "fmt"
+        "log/slog"
         "net/http"
         "strconv"
         "strings"
@@ -113,30 +114,45 @@ func (h *ApplicationHandler) GetChecks(w http.ResponseWriter, r *http.Request) {
         writeJSON(w, http.StatusOK, checks)
 }
 
-// GetOffer handles GET /api/applications/offer?customer_pin=...&akb_score=...
+// offerRequest is the body for POST /api/applications/offer.
+// PR #149: FIN moved from URL query param to POST body to avoid logging in access logs.
+type offerRequest struct {
+        CustomerPIN string `json:"customer_pin"`
+        AKBScore    int    `json:"akb_score"`
+}
+
+// GetOffer handles POST /api/applications/offer.
+// PR #149: Changed from GET to POST — FIN kodu URL-də query param kimi deyil,
+// body-də JSON kimi göndərilir ki access log-larda görünməsin.
 // Returns the available amount/term ranges for the customer's credit level (T-6.5).
-// The frontend uses this to show the customer what they can borrow before
-// creating an application.
 func (h *ApplicationHandler) GetOffer(w http.ResponseWriter, r *http.Request) {
-        customerPIN := r.URL.Query().Get("customer_pin")
-        if customerPIN == "" {
-                writeError(w, http.StatusBadRequest, "customer_pin query parameter is required")
+        var req offerRequest
+        if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+                writeError(w, http.StatusBadRequest, "yanlış request body")
                 return
         }
 
-        akbScore := 0
-        if akbStr := r.URL.Query().Get("akb_score"); akbStr != "" {
-                var err error
-                akbScore, err = strconv.Atoi(akbStr)
-                if err != nil || akbScore < 0 {
-                        writeError(w, http.StatusBadRequest, "akb_score must be a non-negative integer")
-                        return
-                }
+        if req.CustomerPIN == "" {
+                writeError(w, http.StatusBadRequest, "customer_pin tələb olunur")
+                return
         }
 
-        offer, err := h.service.GetOffer(r.Context(), customerPIN, akbScore)
+        // PR #149: Input validation — FIN yalnız 7 hərf/rəqəm olmalıdır
+        if !isValidPIN(req.CustomerPIN) {
+                writeError(w, http.StatusBadRequest, "FIN kodu 7 simvol olmalıdır (yalnız hərf və rəqəm)")
+                return
+        }
+
+        if req.AKBScore < 0 {
+                writeError(w, http.StatusBadRequest, "akb_score mənfi ola bilməz")
+                return
+        }
+
+        offer, err := h.service.GetOffer(r.Context(), req.CustomerPIN, req.AKBScore)
         if err != nil {
-                writeError(w, http.StatusBadRequest, err.Error())
+                // PR #149: sanitize error — don't expose internal details
+                slog.Error("get offer failed", "customer_pin", req.CustomerPIN, "error", err)
+                writeError(w, http.StatusBadRequest, "təklif əldə edilə bilmədi")
                 return
         }
 
