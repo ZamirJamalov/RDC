@@ -113,6 +113,20 @@ func main() {
         }
         appService.SetAzmkProvider(azmkProvider, cfg.AzmkBranchCode, cfg.AzmkCardExpiring, cfg.AzmkProductID, cfg.AzmkDisbursementFee)
 
+        // PR #152: AZMK CustomerDataService (yaş yoxlaması üçün)
+        // Mock mode: AZMK_CUSTOMER_DATA_USE_MOCK=true (default) → MockCustomerDataProvider
+        //   FIN koduna görə fərqli şəxslər imitasiya olunur (finScenarios map)
+        // Real mode: AZMK_CUSTOMER_DATA_USE_MOCK=false → HTTPCustomerDataProvider
+        var customerDataProvider azmk.CustomerDataProvider
+        if cfg.AzmkCustomerDataUseMock {
+                slog.Info("using mock AZMK CustomerDataService (dev/test mode — FIN-based scenarios)")
+                customerDataProvider = azmk.NewMockCustomerDataProvider()
+        } else {
+                slog.Info("using HTTP AZMK CustomerDataService", "url", cfg.AzmkCustomerDataURL)
+                customerDataProvider = azmk.NewHTTPCustomerDataProvider(cfg.AzmkCustomerDataURL, cfg.AzmkUsername, cfg.AzmkPassword, cfg.AzmkTimeoutS)
+        }
+        appService.SetCustomerDataProvider(customerDataProvider)
+
 
         // --- SIMA Provider + Service (T-4.1 to T-4.5) ---
         // PR #120: SIMA KYC artıq customer-confirm-da çağrılmır (AZMK KYC əvəzlədi).

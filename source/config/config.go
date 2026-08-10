@@ -91,6 +91,10 @@ type Config struct {
         AzmkUsername      string  // AZMK servisinə qoşulma üçün username
         AzmkPassword      string  // AZMK servisinə qoşulma üçün password
 
+        // PR #152: AZMK CustomerDataService (yaş yoxlaması üçün)
+        AzmkCustomerDataURL      string // CustomerDataService URL (separate from OnlineLendingService)
+        AzmkCustomerDataUseMock  bool   // mock mode (default: true)
+
         // PR #142: Authentication
         AdminInitialPassword string // default admin password (used only on first startup when no users exist)
         AuthSessionTTLHours  int    // session token validity in hours (default: 8)
@@ -150,6 +154,10 @@ func Load() *Config {
                 AzmkTimeoutS:        getEnvInt("AZMK_TIMEOUT_S", 30),
                 AzmkUsername:        getEnv("AZMK_USERNAME", ""),
                 AzmkPassword:        getEnv("AZMK_PASSWORD", ""),
+
+                // PR #152: AZMK CustomerDataService
+                AzmkCustomerDataURL:     getEnv("AZMK_CUSTOMER_DATA_URL", "https://web.azmk.az:7077/LW_CREDIT_HOUSE/services/CustomerDataService"),
+                AzmkCustomerDataUseMock: getEnvBool("AZMK_CUSTOMER_DATA_USE_MOCK", true),
 
                 // PR #142: Authentication
                 AdminInitialPassword: getEnv("ADMIN_INITIAL_PASSWORD", ""),
