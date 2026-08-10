@@ -195,21 +195,22 @@ func NewMockCustomerDataProvider() *MockCustomerDataProvider {
 }
 
 // defaultFinScenarios maps FIN codes to scenario names.
+// PR #153: Bütün FIN kodları 7 simvol olmalıdır (validation: ^[A-Za-z0-9]{7}$).
 // İstifadəçi bu map-ə öz FIN-lərini əlavə edə bilər.
 var defaultFinScenarios = map[string]string{
-        // Yaş ssenariləri
-        "YAS18": "young_adult",      // 18 yaş
-        "YAS25": "young_adult_25",   // 25 yaş
-        "YAS35": "adult",            // 35 yaş (default)
-        "YAS50": "middle_aged",      // 50 yaş
-        "YAS65": "senior",           // 65 yaş
-        "YAS70": "old_customer",     // 70 yaş → AGE_OVER_69 cutoff
-        "YAS80": "very_old",         // 80 yaş → AGE_OVER_69 cutoff
+        // Yaş ssenariləri (hər biri 7 simvol)
+        "YAS1800": "young_adult",      // 18 yaş
+        "YAS2500": "young_adult_25",   // 25 yaş
+        "YAS3500": "adult",            // 35 yaş (default)
+        "YAS5000": "middle_aged",      // 50 yaş
+        "YAS6500": "senior",           // 65 yaş
+        "YAS7000": "old_customer",     // 70 yaş → AGE_OVER_69 cutoff
+        "YAS8000": "very_old",         // 80 yaş → AGE_OVER_69 cutoff
 
-        // Real FIN nümunəsi (istifadəçinin verdiyi)
+        // Real FIN nümunəsi (istifadəçinin verdiyi) — artıq 7 simvol
         "60R99CP": "real_example",   // 1993-08-09 doğum — ~33 yaş
 
-        // Error ssenarisi
+        // Error ssenarisi (7 simvol)
         "ERROR01": "error",
 }
 
