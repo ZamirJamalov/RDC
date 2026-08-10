@@ -308,7 +308,14 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
         }
 
         // 3. Yaş yoxlaması
-        age := s.creditEngine.resolveCustomerAge(ctx, customerPIN, serial)
+        // PR #152: əgər AZMK CustomerDataProvider varsa, ondan istifadə et (daha dəqiq).
+        // Əks halda LW provider-dən (köhnə metod) istifadə et — backward compatible.
+        age := 0
+        if s.customerDataProvider != nil {
+                age = s.resolveCustomerAgeFromAzmk(ctx, customerPIN, serial)
+        } else {
+                age = s.creditEngine.resolveCustomerAge(ctx, customerPIN, serial)
+        }
         if age > 69 {
                 return "AGE_OVER_69", nil
         }

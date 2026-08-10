@@ -25,6 +25,9 @@ type ApplicationService struct {
         azmkCardExpiring string        // AZMK_CARD_EXPIRING (məs. "2030-01-01")
         azmkProductID    string        // AZMK_PRODUCT_ID (məs. "L07", config-dən dəyişilə bilər)
         azmkDisbursementFee float64    // AZMK_DISBURSEMENT_FEE (həmişə 0)
+
+        // PR #152: AZMK CustomerDataService (yaş yoxlaması üçün)
+        customerDataProvider azmk.CustomerDataProvider // set via SetCustomerDataProvider (nil = skip age check)
 }
 
 // NewApplicationService creates a new ApplicationService.
@@ -73,6 +76,35 @@ func (s *ApplicationService) SetAzmkProvider(provider azmk.Provider, branchCode,
         s.azmkCardExpiring = cardExpiring
         s.azmkProductID = productID
         s.azmkDisbursementFee = disbursementFee
+}
+
+// SetCustomerDataProvider injects the AZMK CustomerDataService provider (PR #152).
+// When set, runEarlyCutoffChecks will fetch customer data from AZMK and check age.
+// When nil, age check uses the existing LW provider (backward compatible).
+func (s *ApplicationService) SetCustomerDataProvider(provider azmk.CustomerDataProvider) {
+        s.customerDataProvider = provider
+}
+
+// resolveCustomerAgeFromAzmk fetches customer data from AZMK CustomerDataService
+// and calculates age from BirthDate. Returns 0 on error (fail-soft — no rejection).
+// PR #152
+func (s *ApplicationService) resolveCustomerAgeFromAzmk(ctx context.Context, customerPIN, serial string) int {
+        data, err := s.customerDataProvider.GetPersonalInfo(ctx, customerPIN, serial)
+        if err != nil {
+                slog.Warn("failed to fetch customer data from AZMK — age unknown (fail-soft)",
+                        "customer_pin", customerPIN, "error", err)
+                return 0
+        }
+        if data == nil {
+                return 0
+        }
+        age := data.Age()
+        slog.Info("customer age resolved from AZMK",
+                "customer_pin", customerPIN,
+                "birth_date", data.BirthDate,
+                "age", age,
+                "name", data.FullName())
+        return age
 }
 
 // UpdateContactsRequest is the body for PUT /api/applications/{id}/contacts.
