@@ -393,7 +393,7 @@ var defaultFinScenarios = map[string]string{
 
         // PR #160: MKR skor ssenariləri
         "SCR0150": "low_score",      // point=150 → AKB_SCORE_LOW (< 200)
-        "SCR0500": "stop_factor",    // response="D" → AKB_STOP_FACTOR
+        "SCR0500": "stop_factor",    // response="AB" → AKB_STOP_FACTOR
         "SCR0839": "good_score",     // point=839, response="B" → keçir
 
         // Error ssenarisi (7 simvol)
@@ -548,7 +548,7 @@ func (m *MockCustomerDataProvider) GetMkrScore(_ context.Context, finCode, seria
                 return &MkrScore{
                         Score: MkrScoreDetail{
                                 Point:      500,
-                                Response:   "D",  // stop-faktor → AKB_STOP_FACTOR
+                                Response:   "AB", // stop-faktor → AKB_STOP_FACTOR
                                 PdRate:     0.45,
                                 Calculated: true,
                         },

@@ -357,9 +357,9 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
                                         "point", mkrScore.Score.Point)
                                 return "AKB_SCORE_LOW", nil
                         }
-                        // PR #160: response = "D" və ya "E" → stop-faktor
+                        // PR #162: stop-faktor response dəyərləri: AB, NI, NU, TY
                         resp := strings.ToUpper(mkrScore.Score.Response)
-                        if resp == "D" || resp == "E" {
+                        if resp == "AB" || resp == "NI" || resp == "NU" || resp == "TY" {
                                 slog.Info("early cutoff: AKB stop factor triggered",
                                         "application_id", app.ID,
                                         "customer_pin", customerPIN,
