@@ -305,9 +305,9 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
         customerPIN := app.CustomerPIN
         serial := app.CustomerSerial
 
-        // 1. Qara siyahı yoxlaması
-        // PR #159: əgər AZMK CustomerDataProvider varsa, getOwnerData istifadə et.
-        // Əks halda LW provider-dən (köhnə metod) istifadə et — backward compatible.
+        // 1. Qara siyahı və aktiv kredit yoxlaması
+        // PR #159/#160: yalnız AZMK getOwnerData istifadə olunur.
+        // LW GetAzmkBlacklist və LW CheckBlacklist artıq istifadə olunmur.
         if s.customerDataProvider != nil {
                 ownerData, err := s.customerDataProvider.GetOwnerData(ctx, customerPIN, serial)
                 if err != nil {
@@ -319,7 +319,6 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
                                         "customer_pin", customerPIN)
                                 return "AZMK_BLACKLIST", nil
                         }
-                        // PR #159: aktiv kredit yoxlaması
                         if ownerData.CustomerCheck.HasActiveCredit {
                                 slog.Info("early cutoff: AZMK active credit detected",
                                         "application_id", app.ID,
@@ -333,19 +332,12 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
                                 "total_delay_days", ownerData.CustomerCheck.TotalDelayDaysCumulative)
                 }
         } else {
-                // Backward compatible: LW provider istifadə et
+                // Backward compatible: yalnız LW CheckBlacklist (GetAzmkBlacklist silindi)
                 blacklisted, err := s.creditEngine.lwProvider.CheckBlacklist(ctx, customerPIN)
                 if err != nil {
                         slog.Warn("early cutoff: LW blacklist check failed — fail-soft (skip)", "error", err)
                 } else if blacklisted {
                         return "LW_BLACKLIST", nil
-                }
-
-                azmkBlacklisted, azmkErr := s.creditEngine.lwProvider.GetAzmkBlacklist(ctx, customerPIN)
-                if azmkErr != nil {
-                        slog.Warn("early cutoff: AZMK blacklist check failed — fail-soft (skip)", "error", azmkErr)
-                } else if azmkBlacklisted {
-                        return "AZMK_BLACKLIST", nil
                 }
         }
 
