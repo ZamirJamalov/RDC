@@ -167,14 +167,29 @@ func (p *HTTPProvider) setAuthHeaders(req *http.Request) {
 
 // doPost sends a POST request and returns the response body as string.
 func (p *HTTPProvider) doPost(ctx context.Context, path string, body interface{}) (string, error) {
+        return p.doRequest(ctx, http.MethodPost, path, body)
+}
+
+// doPut sends a PUT request and returns the response body as string.
+// PR #156: AZMK /partner endpoint PUT metodu tələb edir.
+func (p *HTTPProvider) doPut(ctx context.Context, path string, body interface{}) (string, error) {
+        return p.doRequest(ctx, http.MethodPut, path, body)
+}
+
+// doRequest sends an HTTP request with the given method and returns the response body.
+func (p *HTTPProvider) doRequest(ctx context.Context, method, path string, body interface{}) (string, error) {
         url := p.baseURL + path
 
-        jsonBody, err := json.Marshal(body)
-        if err != nil {
-                return "", fmt.Errorf("azmk: failed to marshal request: %w", err)
+        var reqBody *strings.Reader
+        if body != nil {
+                jsonBody, err := json.Marshal(body)
+                if err != nil {
+                        return "", fmt.Errorf("azmk: failed to marshal request: %w", err)
+                }
+                reqBody = strings.NewReader(string(jsonBody))
         }
 
-        req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(jsonBody)))
+        req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
         if err != nil {
                 return "", fmt.Errorf("azmk: failed to create request: %w", err)
         }
@@ -313,8 +328,9 @@ func (p *HTTPProvider) VerifyKYC(ctx context.Context, kycID string) (bool, error
 }
 
 // RegisterPartner registers a partner and returns the Partner ID.
+// PR #156: AZMK /partner endpoint PUT metodu tələb edir (POST yox).
 func (p *HTTPProvider) RegisterPartner(ctx context.Context, req *PartnerRequest) (string, error) {
-        body, err := p.doPost(ctx, "/partner", req)
+        body, err := p.doPut(ctx, "/partner", req)
         if err != nil {
                 return "", err
         }
