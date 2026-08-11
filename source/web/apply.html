@@ -263,6 +263,7 @@
                 <div>
                     <label class="text-sm text-gray-400 mb-2 block">FIN kodu <span class="text-red-400">*</span></label>
                     <input type="text" x-model="form.fin" maxlength="7" placeholder="7 simvol"
+                           @input="form.fin = form.fin.toUpperCase()"
                            class="input-field w-full px-4 py-3.5 rounded-xl text-lg font-semibold uppercase tracking-wider"
                            :disabled="otpSent">
                 </div>
