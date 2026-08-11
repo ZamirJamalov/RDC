@@ -799,6 +799,10 @@ function applyApp() {
             } else {
                 // PR #70: Restore state from localStorage on page load
                 this.restoreState();
+                // PR #157: əgər KYC verify aktivdirsə, backend polling yenidən başlat
+                if (this.kycVerifyActive && this.applicationId) {
+                    this.resumeKYCVerify();
+                }
             }
         },
 
@@ -922,6 +926,45 @@ function applyApp() {
             const m = Math.floor(this.kycVerifyCountdown / 60);
             const s = this.kycVerifyCountdown % 60;
             return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+        },
+
+        // PR #157: Page refresh olanda KYC verify-i davam etdir
+        // Backend fetch bağlantısı kəsilib, amma application status yoxlaya bilərik.
+        // Əgər status pending_expert dirsə → KYC verify uğurlu olub, offer fetch et.
+        // Əgər status rejected dirsə → rədd ekranını göstər.
+        // Əgər status pending_customer dirsə → KYC hələ verify olunmayıb, countdown davam etsin.
+        async resumeKYCVerify() {
+            if (!this.applicationId) return;
+            try {
+                const resp = await fetch(`/api/applications/${this.applicationId}`);
+                if (!resp.ok) return;
+                const app = await resp.json();
+
+                if (app.status === 'pending_expert' || app.status === 'pending_approval') {
+                    // KYC verify uğurlu olub — countdown dayandır və offer fetch et
+                    this.stopKYCCountdown();
+                    this.kycLoadingTitle = 'Təklif hazırlanır...';
+                    this.kycLoadingMessage = 'Sizin kredit səviyyənizə uyğun təklif hazırlanır.';
+                    // Offer fetch et — amma FIN localStorage-da yoxdur (PR #149)
+                    // İstifadəçiyə məlumat ver
+                    this.kycLoadingTitle = 'Kimlik təsdiq olundu';
+                    this.kycLoadingMessage = 'Zəhmət olmasa, müraciəti yenidən başladın (FIN kodu tələb olunur).';
+                    setTimeout(() => {
+                        this.clearState();
+                        window.location.href = '/apply';
+                    }, 3000);
+                } else if (app.status === 'rejected') {
+                    // Rədd edilib
+                    this.stopKYCCountdown();
+                    this.engineStatus = 'rejected';
+                    this.engineRejectionReason = app.rejection_reason || '';
+                    this.currentStep = 3;
+                    this.clearState();
+                }
+                // Əgər pending_customer dirsə — heç nə etmə, countdown davam etsin
+            } catch (e) {
+                // Backend catılmadı — countdown davam etsin
+            }
         },
 
         // PR #70: Format card number with space every 4 digits
