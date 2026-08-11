@@ -305,19 +305,48 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
         customerPIN := app.CustomerPIN
         serial := app.CustomerSerial
 
-        // 1. Qara siyahı yoxlaması (LW + AZMK)
-        blacklisted, err := s.creditEngine.lwProvider.CheckBlacklist(ctx, customerPIN)
-        if err != nil {
-                slog.Warn("early cutoff: LW blacklist check failed — fail-soft (skip)", "error", err)
-        } else if blacklisted {
-                return "LW_BLACKLIST", nil
-        }
+        // 1. Qara siyahı yoxlaması
+        // PR #159: əgər AZMK CustomerDataProvider varsa, getOwnerData istifadə et.
+        // Əks halda LW provider-dən (köhnə metod) istifadə et — backward compatible.
+        if s.customerDataProvider != nil {
+                ownerData, err := s.customerDataProvider.GetOwnerData(ctx, customerPIN, serial)
+                if err != nil {
+                        slog.Warn("early cutoff: AZMK getOwnerData failed — fail-soft (skip)", "error", err)
+                } else if ownerData != nil {
+                        if ownerData.CustomerCheck.BlacklistStatus {
+                                slog.Info("early cutoff: AZMK blacklist triggered",
+                                        "application_id", app.ID,
+                                        "customer_pin", customerPIN)
+                                return "AZMK_BLACKLIST", nil
+                        }
+                        // PR #159: aktiv kredit yoxlaması
+                        if ownerData.CustomerCheck.HasActiveCredit {
+                                slog.Info("early cutoff: AZMK active credit detected",
+                                        "application_id", app.ID,
+                                        "customer_pin", customerPIN)
+                                return "ACTIVE_CREDIT", nil
+                        }
+                        slog.Info("AZMK getOwnerData — customer is clean",
+                                "application_id", app.ID,
+                                "customer_pin", customerPIN,
+                                "is_existing_customer", ownerData.CustomerCheck.IsExistingCustomer,
+                                "total_delay_days", ownerData.CustomerCheck.TotalDelayDaysCumulative)
+                }
+        } else {
+                // Backward compatible: LW provider istifadə et
+                blacklisted, err := s.creditEngine.lwProvider.CheckBlacklist(ctx, customerPIN)
+                if err != nil {
+                        slog.Warn("early cutoff: LW blacklist check failed — fail-soft (skip)", "error", err)
+                } else if blacklisted {
+                        return "LW_BLACKLIST", nil
+                }
 
-        azmkBlacklisted, azmkErr := s.creditEngine.lwProvider.GetAzmkBlacklist(ctx, customerPIN)
-        if azmkErr != nil {
-                slog.Warn("early cutoff: AZMK blacklist check failed — fail-soft (skip)", "error", azmkErr)
-        } else if azmkBlacklisted {
-                return "AZMK_BLACKLIST", nil
+                azmkBlacklisted, azmkErr := s.creditEngine.lwProvider.GetAzmkBlacklist(ctx, customerPIN)
+                if azmkErr != nil {
+                        slog.Warn("early cutoff: AZMK blacklist check failed — fail-soft (skip)", "error", azmkErr)
+                } else if azmkBlacklisted {
+                        return "AZMK_BLACKLIST", nil
+                }
         }
 
         // 2. AKB skoru və stop-faktor

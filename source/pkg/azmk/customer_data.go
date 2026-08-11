@@ -22,6 +22,45 @@ import (
 // CustomerDataProvider is the interface for AZMK CustomerDataService.
 type CustomerDataProvider interface {
         GetPersonalInfo(ctx context.Context, finCode, serialNumber string) (*CustomerData, error)
+        // PR #159: getOwnerData — qara siyahı, aktiv kredit, gecikmə məlumatları
+        GetOwnerData(ctx context.Context, finCode, serialNumber string) (*OwnerData, error)
+}
+
+// OwnerDataRequest is the request body for getOwnerData.
+// PR #159: qara siyahı və kredit məlumatları üçün.
+type OwnerDataRequest struct {
+        RequestType  string `json:"requestType"`
+        RequestID    string `json:"requestId"`
+        FinCode      string `json:"finCode"`
+        SerialNumber string `json:"serialNumber"`
+}
+
+// OwnerDataResponse is the response from getOwnerData.
+type OwnerDataResponse struct {
+        Result    int       `json:"result"`
+        RequestID string    `json:"requestId"`
+        Message   string    `json:"message"`
+        Data      *OwnerCheckData `json:"data"`
+}
+
+// OwnerCheckData contains the customerCheck object from getOwnerData response.
+type OwnerCheckData struct {
+        CustomerCheck CustomerCheck `json:"customerCheck"`
+}
+
+// CustomerCheck contains blacklist, active credits, and delay information.
+type CustomerCheck struct {
+        PinCode                    string        `json:"Pin_code"`
+        ActiveCredits              []interface{} `json:"activeCredits"`
+        IsExistingCustomer         bool          `json:"isExistingCustomer"`
+        BlacklistStatus            bool          `json:"blacklistStatus"`
+        TotalDelayDaysCumulative   int           `json:"totalDelayDaysCumulative"`
+        HasActiveCredit            bool          `json:"hasActiveCredit"`
+}
+
+// OwnerData wraps CustomerCheck for convenience.
+type OwnerData struct {
+        CustomerCheck CustomerCheck
 }
 
 // CustomerDataRequest is the request body for GetPersonalInfo.
@@ -174,6 +213,56 @@ func (p *HTTPCustomerDataProvider) GetPersonalInfo(ctx context.Context, finCode,
         return cdResp.Data, nil
 }
 
+// GetOwnerData calls the real AZMK CustomerDataService with getOwnerData request type.
+// PR #159: qara siyahı (blacklistStatus), aktiv kredit, gecikmə məlumatları üçün.
+func (p *HTTPCustomerDataProvider) GetOwnerData(ctx context.Context, finCode, serialNumber string) (*OwnerData, error) {
+        reqBody := OwnerDataRequest{
+                RequestType:  "getOwnerData",
+                RequestID:    "1",
+                FinCode:      finCode,
+                SerialNumber: serialNumber,
+        }
+        jsonBody, _ := json.Marshal(reqBody)
+        url := p.baseURL
+        req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(jsonBody)))
+        if err != nil {
+                return nil, fmt.Errorf("failed to create request: %w", err)
+        }
+        req.Header.Set("Content-Type", "application/json")
+        if p.username != "" && p.password != "" {
+                auth := p.username + ":" + p.password
+                req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(auth)))
+        }
+
+        resp, err := p.httpClient.Do(req)
+        if err != nil {
+                return nil, fmt.Errorf("AZMK CustomerDataService getOwnerData request failed: %w", err)
+        }
+        defer resp.Body.Close()
+
+        var odResp OwnerDataResponse
+        if err := json.NewDecoder(resp.Body).Decode(&odResp); err != nil {
+                return nil, fmt.Errorf("failed to decode getOwnerData response: %w", err)
+        }
+
+        if odResp.Result != 1 {
+                return nil, fmt.Errorf("AZMK getOwnerData error: %s (result=%d)", odResp.Message, odResp.Result)
+        }
+
+        if odResp.Data == nil {
+                return nil, fmt.Errorf("AZMK getOwnerData returned no data")
+        }
+
+        slog.Info("AZMK getOwnerData success",
+                "fin", finCode,
+                "blacklist_status", odResp.Data.CustomerCheck.BlacklistStatus,
+                "is_existing_customer", odResp.Data.CustomerCheck.IsExistingCustomer,
+                "has_active_credit", odResp.Data.CustomerCheck.HasActiveCredit,
+                "total_delay_days", odResp.Data.CustomerCheck.TotalDelayDaysCumulative,
+        )
+        return &OwnerData{CustomerCheck: odResp.Data.CustomerCheck}, nil
+}
+
 // --- Mock Provider ---
 
 // MockCustomerDataProvider returns canned data based on FIN code.
@@ -209,6 +298,11 @@ var defaultFinScenarios = map[string]string{
 
         // Real FIN nümunəsi (istifadəçinin verdiyi) — artıq 7 simvol
         "60R99CP": "real_example",   // 1993-08-09 doğum — ~33 yaş
+
+        // PR #159: Qara siyahı ssenariləri
+        "BLK0001": "blacklisted",    // qara siyahıdadır
+        "ACT0001": "active_credit",  // aktiv kredit var
+        "DLY0001": "delay_history",  // gecikmə tarixçəsi var
 
         // Error ssenarisi (7 simvol)
         "ERROR01": "error",
@@ -282,5 +376,60 @@ func mockCustomerData(fin, serial, name, surname, patronymic, birthDate, city, g
                 GivenDate:           "2020-01-15",
                 ExpireDate:          "2030-01-14",
                 GivenOrganization:   "Asan 1",
+        }
+}
+
+// GetOwnerData returns mock owner data (blacklist, active credits, delays) based on FIN code.
+// PR #159: FIN koduna görə fərqli ssenarilər imitasiya olunur.
+func (m *MockCustomerDataProvider) GetOwnerData(_ context.Context, finCode, serialNumber string) (*OwnerData, error) {
+        scenario, ok := m.finScenarios[finCode]
+        if !ok {
+                scenario = "adult" // default
+        }
+
+        switch scenario {
+        case "blacklisted":
+                return &OwnerData{
+                        CustomerCheck: CustomerCheck{
+                                PinCode:                  finCode,
+                                IsExistingCustomer:       true,
+                                BlacklistStatus:          true, // qara siyahıdadır
+                                HasActiveCredit:          false,
+                                TotalDelayDaysCumulative: 0,
+                        },
+                }, nil
+        case "active_credit":
+                return &OwnerData{
+                        CustomerCheck: CustomerCheck{
+                                PinCode:                  finCode,
+                                IsExistingCustomer:       true,
+                                BlacklistStatus:          false,
+                                HasActiveCredit:          true, // aktiv kredit var
+                                TotalDelayDaysCumulative: 0,
+                        },
+                }, nil
+        case "delay_history":
+                return &OwnerData{
+                        CustomerCheck: CustomerCheck{
+                                PinCode:                  finCode,
+                                IsExistingCustomer:       true,
+                                BlacklistStatus:          false,
+                                HasActiveCredit:          false,
+                                TotalDelayDaysCumulative: 45, // gecikmə tarixçəsi var
+                        },
+                }, nil
+        case "error":
+                return nil, fmt.Errorf("mock: simulated AZMK getOwnerData error for FIN %s", finCode)
+        default:
+                // Default: təmiz müştəri
+                return &OwnerData{
+                        CustomerCheck: CustomerCheck{
+                                PinCode:                  finCode,
+                                IsExistingCustomer:       false,
+                                BlacklistStatus:          false,
+                                HasActiveCredit:          false,
+                                TotalDelayDaysCumulative: 0,
+                        },
+                }, nil
         }
 }
