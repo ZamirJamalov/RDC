@@ -216,24 +216,45 @@ func (s *ApplicationService) runAzmkKycAndPartner(ctx context.Context, app *mode
                 "application_id", app.ID,
                 "kyc_id", kycID)
 
-        // 2. Verify KYC
-        verified, err := s.azmkProvider.VerifyKYC(ctx, kycID)
-        if err != nil {
-                slog.Error("AZMK KYC verify failed",
+        // 2. Verify KYC — PR #154: polling mexanizmi
+        // AZMK status: SENT → VERIFIED (və ya Invalidid)
+        // SENT olanda polling edirik (maksimum 5 cəhd, 2 san. fasilə)
+        const maxKYCAttempts = 5
+        const kycPollInterval = 2 * time.Second
+        var verified bool
+        for attempt := 1; attempt <= maxKYCAttempts; attempt++ {
+                verified, err = s.azmkProvider.VerifyKYC(ctx, kycID)
+                if err != nil {
+                        slog.Error("AZMK KYC verify failed",
+                                "application_id", app.ID,
+                                "kyc_id", kycID,
+                                "attempt", attempt,
+                                "error", err)
+                        return fmt.Errorf("KYC yoxlanıla bilmədi: %w", err)
+                }
+                if verified {
+                        slog.Info("AZMK KYC verified",
+                                "application_id", app.ID,
+                                "kyc_id", kycID,
+                                "attempt", attempt)
+                        break
+                }
+                slog.Info("AZMK KYC not verified yet, polling...",
                         "application_id", app.ID,
                         "kyc_id", kycID,
-                        "error", err)
-                return fmt.Errorf("KYC yoxlanıla bilmədi: %w", err)
+                        "attempt", attempt,
+                        "max_attempts", maxKYCAttempts)
+                if attempt < maxKYCAttempts {
+                        time.Sleep(kycPollInterval)
+                }
         }
         if !verified {
-                slog.Info("AZMK KYC not verified",
+                slog.Info("AZMK KYC not verified after polling",
                         "application_id", app.ID,
-                        "kyc_id", kycID)
-                return fmt.Errorf("KYC təsdiq olunmadı")
+                        "kyc_id", kycID,
+                        "attempts", maxKYCAttempts)
+                return fmt.Errorf("KYC təsdiq olunmadı (maksimum %d cəhd edildi)", maxKYCAttempts)
         }
-        slog.Info("AZMK KYC verified",
-                "application_id", app.ID,
-                "kyc_id", kycID)
 
         // 3. Register Partner (with kycId)
         pd.KycID = kycID

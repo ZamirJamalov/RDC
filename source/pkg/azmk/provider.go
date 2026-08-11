@@ -267,14 +267,49 @@ func (p *HTTPProvider) KYC(ctx context.Context, req *KYCRequest) (string, error)
 }
 
 // VerifyKYC checks if the KYC session is verified.
+// PR #154: AZMK GET /kyc/{id} response formats:
+//   - {"status": "SENT"}     — KYC göndərilib, hələ verify olunmayıb
+//   - {"status": "VERIFIED"} — müştəri verify edib
+//   - "Invalidid"             — yanlış KYC ID (plain string, JSON struktursuz)
+//
+// VerifyKYC true qaytarır yalnız "VERIFIED" halında.
+// "SENT" halında false qaytarır (hələ verify olunmayıb).
+// "Invalidid" halında error qaytarır.
 func (p *HTTPProvider) VerifyKYC(ctx context.Context, kycID string) (bool, error) {
         body, err := p.doGet(ctx, "/kyc/"+kycID)
         if err != nil {
                 return false, err
         }
-        verified := strings.Contains(strings.ToUpper(body), "VERIFIED")
-        slog.Info("AZMK KYC verify", "kyc_id", kycID, "verified", verified, "response", body)
-        return verified, nil
+
+        // PR #154: "Invalidid" yoxlaması — plain string, JSON struktursuz
+        if strings.Contains(body, "Invalidid") {
+                slog.Warn("AZMK KYC verify failed — invalid ID", "kyc_id", kycID, "response", body)
+                return false, fmt.Errorf("AZMK KYC invalid id: %s", kycID)
+        }
+
+        // Status parse — JSON format: {"status": "SENT"} və ya {"status": "VERIFIED"}
+        var resp struct {
+                Status string `json:"status"`
+        }
+        if err := json.Unmarshal([]byte(body), &resp); err != nil {
+                // JSON parse xətası — fallback to string contains (backward compatible)
+                slog.Warn("AZMK KYC verify: failed to parse JSON, using string match",
+                        "kyc_id", kycID, "response", body, "error", err)
+                verified := strings.Contains(strings.ToUpper(body), "VERIFIED")
+                slog.Info("AZMK KYC verify", "kyc_id", kycID, "verified", verified, "response", body)
+                return verified, nil
+        }
+
+        slog.Info("AZMK KYC verify", "kyc_id", kycID, "status", resp.Status, "response", body)
+
+        switch strings.ToUpper(resp.Status) {
+        case "VERIFIED":
+                return true, nil
+        case "SENT":
+                return false, nil // hələ verify olunmayıb — polling davam etməli
+        default:
+                return false, nil // naməlum status — təhlükəsiz olaraq false
+        }
 }
 
 // RegisterPartner registers a partner and returns the Partner ID.
