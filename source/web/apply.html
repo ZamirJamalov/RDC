@@ -342,6 +342,29 @@
             <div class="spinner mx-auto mb-6"></div>
             <h2 class="text-xl sm:text-2xl font-bold mb-3" x-text="kycLoadingTitle"></h2>
             <p class="text-gray-400 max-w-md mx-auto pulse-soft" x-text="kycLoadingMessage"></p>
+
+            <!-- PR #155: KYC verify countdown — 3 dəqiqə geri sayım -->
+            <div x-show="kycVerifyActive" x-transition class="mt-6 max-w-md mx-auto">
+                <div class="bg-teal-500/10 border border-teal-500/30 rounded-xl p-4">
+                    <div class="flex items-center justify-center gap-3 mb-2">
+                        <svg class="w-6 h-6 text-teal-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10" stroke-width="2"/>
+                            <polyline points="12 6 12 12 16 14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        <span class="text-2xl font-bold font-mono text-teal-400 tabular-nums" x-text="kycCountdownDisplay"></span>
+                    </div>
+                    <p class="text-sm text-teal-300">Kimlik təsdiqi gözlənilir — zəhmət olmasa telefondan təsdiqləyin</p>
+                    <p class="text-xs text-gray-500 mt-2">Bu vaxt ərzində səhifə yenilənsə belə, proses davam edəcək</p>
+                </div>
+            </div>
+
+            <!-- KYC timeout xətası -->
+            <div x-show="!kycVerifyActive && kycLoadingTitle.includes('KYC')" x-transition class="mt-6 max-w-md mx-auto">
+                <div class="bg-red-500/10 border border-red-500/30 rounded-xl p-4">
+                    <p class="text-sm text-red-300">Kimlik təsdiqi 3 dəqiqə ərzində tamamlanmadı. Zəhmət olmasa yenidən cəhd edin.</p>
+                </div>
+            </div>
+
             <p class="text-xs text-gray-600 mt-6">Muraciət №: <span class="font-mono text-gray-400" x-text="applicationId"></span></p>
         </div>
 
@@ -661,6 +684,11 @@ function applyApp() {
         kycLoadingMessage: 'Sistem sizin kredit səviyyənizi təhlil edir. Bu, bir neçə saniyə çəkə bilər.',
         _kycLoadingTimers: [],
 
+        // PR #155: KYC verify countdown (3 dəq = 180 san)
+        kycVerifyCountdown: 0,
+        kycVerifyInterval: null,
+        kycVerifyActive: false,
+
         // OTP/UI state
         otpSent: false,
 
@@ -789,9 +817,13 @@ function applyApp() {
                     localStorage.setItem('alpul_apply_range', JSON.stringify(this.selectedRange));
                 }
                 localStorage.setItem('alpul_apply_amount', String(this.form.amount));
+                // PR #155: KYC verify countdown saxla (page refresh olanda davam etsin)
+                if (this.kycVerifyActive) {
+                    localStorage.setItem('alpul_apply_kyc_countdown', String(this.kycVerifyCountdown));
+                } else {
+                    localStorage.removeItem('alpul_apply_kyc_countdown');
+                }
                 // PR #149: Do NOT save FIN, serial, phone to localStorage.
-                // If the page is refreshed, the user must re-enter these fields.
-                // Only application_id is saved so the flow can resume from the offer step.
             } catch(e) { /* localStorage not available — ignore */ }
         },
 
@@ -823,8 +855,24 @@ function applyApp() {
                 if (savedAmount) {
                     this.form.amount = parseFloat(savedAmount);
                 }
+                // PR #155: KYC countdown restore (page refresh olanda davam etsin)
+                const savedKycCountdown = localStorage.getItem('alpul_apply_kyc_countdown');
+                if (savedKycCountdown && parseInt(savedKycCountdown) > 0) {
+                    this.kycVerifyCountdown = parseInt(savedKycCountdown);
+                    this.kycVerifyActive = true;
+                    // Interval yenidən başlat
+                    if (this.kycVerifyInterval) clearInterval(this.kycVerifyInterval);
+                    this.kycVerifyInterval = setInterval(() => {
+                        this.kycVerifyCountdown--;
+                        if (this.kycVerifyCountdown <= 0) {
+                            this.stopKYCCountdown();
+                        }
+                        if (this.kycVerifyCountdown % 10 === 0) {
+                            this.saveState();
+                        }
+                    }, 1000);
+                }
                 // PR #149: Do NOT restore FIN, serial, phone from localStorage.
-                // If the user refreshes the page, they must re-enter PII fields.
             } catch(e) { /* parse error — ignore, start fresh */ }
         },
 
@@ -837,6 +885,43 @@ function applyApp() {
             localStorage.removeItem('alpul_apply_range');
             localStorage.removeItem('alpul_apply_amount');
             localStorage.removeItem('alpul_apply_form');
+            localStorage.removeItem('alpul_apply_kyc_countdown'); // PR #155
+        },
+
+        // PR #155: KYC verify countdown — 3 dəqiqə (180 san) geri sayım
+        startKYCCountdown() {
+            this.kycVerifyCountdown = 180; // 3 dəqiqə
+            this.kycVerifyActive = true;
+            this.saveState();
+            if (this.kycVerifyInterval) clearInterval(this.kycVerifyInterval);
+            this.kycVerifyInterval = setInterval(() => {
+                this.kycVerifyCountdown--;
+                if (this.kycVerifyCountdown <= 0) {
+                    this.stopKYCCountdown();
+                }
+                // Hər 10 saniyədən bir save et (performance)
+                if (this.kycVerifyCountdown % 10 === 0) {
+                    this.saveState();
+                }
+            }, 1000);
+        },
+
+        // PR #155: KYC countdown dayandır
+        stopKYCCountdown() {
+            this.kycVerifyActive = false;
+            this.kycVerifyCountdown = 0;
+            if (this.kycVerifyInterval) {
+                clearInterval(this.kycVerifyInterval);
+                this.kycVerifyInterval = null;
+            }
+            localStorage.removeItem('alpul_apply_kyc_countdown');
+        },
+
+        // PR #155: KYC countdown format (MM:SS)
+        get kycCountdownDisplay() {
+            const m = Math.floor(this.kycVerifyCountdown / 60);
+            const s = this.kycVerifyCountdown % 60;
+            return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
         },
 
         // PR #70: Format card number with space every 4 digits
@@ -880,7 +965,13 @@ function applyApp() {
             this.error = '';
             this.loading = true;
             try {
-                // 1. Verify OTP
+                // PR #155: KYC loading ekranına keç və countdown başlat
+                this.currentStep = 1;
+                this.kycLoadingTitle = 'Kimlik təsdiqi...';
+                this.kycLoadingMessage = 'Sistem sizin kimliyinizi AZMK KYC ilə təsdiqləyir. Bu, bir neçə saniyə çəkə bilər.';
+                this.startKYCCountdown(); // 3 dəqiqə geri sayım
+
+                // 1. Verify OTP — backend KYC verify + cutoff-ları edir (3 dəqiqə polling)
                 const resp = await fetch('/api/applications/init/verify', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -893,6 +984,9 @@ function applyApp() {
                 const data = await resp.json();
                 if (!resp.ok) throw new Error(data.error || 'OTP təsdiq olunmadı');
 
+                // KYC verify tamamlandı — countdown dayandır
+                this.stopKYCCountdown();
+
                 // PR #115: əgər early cutoff rədd etdisə, rədd ekranını göstər
                 if (data.status === 'rejected') {
                     this.engineStatus = 'rejected';
@@ -902,23 +996,15 @@ function applyApp() {
                     return;
                 }
 
-                // PR #121: KYC loading state-ləri
-                // Backend artıq OTP verify zamanı KYC + Partner + cutoff edir.
-                // Loading ekranında mərhələləri göstəririk.
-                this.currentStep = 1;
-                this.kycLoadingTitle = 'Kimlik təsdiqi...';
-                this.kycLoadingMessage = 'Sistem sizin kimliyinizi AZMK KYC ilə təsdiqləyir. Bu, bir neçə saniyə çəkə bilər.';
+                // PR #121: KYC loading state-ləri — cutoff yoxlamaları
+                this.kycLoadingTitle = 'Kredit tarixçəniz yoxlanılır...';
+                this.kycLoadingMessage = 'AKB skor, qara siyahı və gecikmə tarixçəniz yoxlanılır.';
 
                 // Animasiya üçün mərhələləri yenilə (timer-ləri track et)
                 this._kycLoadingTimers.push(setTimeout(() => {
-                    this.kycLoadingTitle = 'Kredit tarixçəniz yoxlanılır...';
-                    this.kycLoadingMessage = 'AKB skor, qara siyahı və gecikmə tarixçəniz yoxlanılır.';
-                }, 2000));
-
-                this._kycLoadingTimers.push(setTimeout(() => {
                     this.kycLoadingTitle = 'Təklif hazırlanır...';
                     this.kycLoadingMessage = 'Sizin kredit səviyyənizə uyğun təklif hazırlanır.';
-                }, 4000));
+                }, 2000));
 
                 // 3. Fetch offer — PR #149: Changed from GET to POST (FIN in body, not URL query param)
                 const offerResp = await fetch('/api/applications/offer', {
@@ -945,8 +1031,16 @@ function applyApp() {
                 this.currentStep = 2;
                 this.saveState();
             } catch (e) {
+                this.stopKYCCountdown(); // PR #155: countdown dayandır
                 this.error = e.message;
-                this.currentStep = 0; // back to init on error
+                // PR #155: KYC verify xətası olanda loading ekranında qal və xəta göstər
+                if (e.message.includes('KYC') || e.message.includes('təsdiq olunmadı')) {
+                    this.kycLoadingTitle = 'KYC təsdiq olunmadı';
+                    this.kycLoadingMessage = e.message;
+                    // currentStep = 1-də qal (loading ekranı)
+                } else {
+                    this.currentStep = 0; // back to init on error
+                }
                 this.saveState();
             } finally {
                 // PR #121: KYC loading timer-ləri təmizlə
