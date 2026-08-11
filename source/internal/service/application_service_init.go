@@ -342,12 +342,47 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
         }
 
         // 2. AKB skoru və stop-faktor
-        akbScore, stopFactorCode, hasStopFactor := s.creditEngine.resolveAkbScoreAndStopFactors(ctx, customerPIN, 0)
-        if hasStopFactor {
-                return fmt.Sprintf("AKB_STOP_FACTOR:%s", stopFactorCode), nil
-        }
-        if akbScore > 0 && akbScore < 200 {
-                return "AKB_SCORE_LOW", nil
+        // PR #160: əgər AZMK CustomerDataProvider varsa, getMkrScore istifadə et.
+        // Əks halda LW provider-dən (köhnə metod) istifadə et — backward compatible.
+        if s.customerDataProvider != nil {
+                mkrScore, err := s.customerDataProvider.GetMkrScore(ctx, customerPIN, serial)
+                if err != nil {
+                        slog.Warn("early cutoff: AZMK getMkrScore failed — fail-soft (skip)", "error", err)
+                } else if mkrScore != nil {
+                        // PR #160: point < 200 → AKB_SCORE_LOW
+                        if mkrScore.Score.Point > 0 && mkrScore.Score.Point < 200 {
+                                slog.Info("early cutoff: AKB score low",
+                                        "application_id", app.ID,
+                                        "customer_pin", customerPIN,
+                                        "point", mkrScore.Score.Point)
+                                return "AKB_SCORE_LOW", nil
+                        }
+                        // PR #162: stop-faktor response dəyərləri: AB, NI, NU, TY
+                        resp := strings.ToUpper(mkrScore.Score.Response)
+                        if resp == "AB" || resp == "NI" || resp == "NU" || resp == "TY" {
+                                slog.Info("early cutoff: AKB stop factor triggered",
+                                        "application_id", app.ID,
+                                        "customer_pin", customerPIN,
+                                        "response", mkrScore.Score.Response,
+                                        "point", mkrScore.Score.Point)
+                                return fmt.Sprintf("AKB_STOP_FACTOR:%s", mkrScore.Score.Response), nil
+                        }
+                        slog.Info("AZMK getMkrScore — score passed",
+                                "application_id", app.ID,
+                                "customer_pin", customerPIN,
+                                "point", mkrScore.Score.Point,
+                                "response", mkrScore.Score.Response,
+                                "pd_rate", mkrScore.Score.PdRate)
+                }
+        } else {
+                // Backward compatible: LW provider
+                akbScore, stopFactorCode, hasStopFactor := s.creditEngine.resolveAkbScoreAndStopFactors(ctx, customerPIN, 0)
+                if hasStopFactor {
+                        return fmt.Sprintf("AKB_STOP_FACTOR:%s", stopFactorCode), nil
+                }
+                if akbScore > 0 && akbScore < 200 {
+                        return "AKB_SCORE_LOW", nil
+                }
         }
 
         // 3. Yaş yoxlaması
@@ -412,7 +447,6 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
         slog.Info("early cutoff: all checks passed",
                 "application_id", app.ID,
                 "customer_pin", customerPIN,
-                "akb_score", akbScore,
                 "age", age,
                 "akb_history_available", analytics.akbHistoryAvailable,
                 "delay_ratio", analytics.delayRatio,

@@ -24,6 +24,43 @@ type CustomerDataProvider interface {
         GetPersonalInfo(ctx context.Context, finCode, serialNumber string) (*CustomerData, error)
         // PR #159: getOwnerData — qara siyahı, aktiv kredit, gecikmə məlumatları
         GetOwnerData(ctx context.Context, finCode, serialNumber string) (*OwnerData, error)
+        // PR #160: getMkrScore — AKB skoru və stop-faktor (response) yoxlaması
+        GetMkrScore(ctx context.Context, finCode, serialNumber string) (*MkrScore, error)
+}
+
+// MkrScoreRequest is the request body for getMkrScore.
+// PR #160: AKB skoru və stop-faktor yoxlaması üçün.
+type MkrScoreRequest struct {
+        RequestType  string `json:"requestType"`
+        RequestID    string `json:"requestId"`
+        FinCode      string `json:"finCode"`
+        SerialNumber string `json:"serialNumber"`
+}
+
+// MkrScoreResponse is the response from getMkrScore.
+type MkrScoreResponse struct {
+        Result    int       `json:"result"`
+        RequestID string    `json:"requestId"`
+        Message   string    `json:"message"`
+        Data      *MkrScoreData `json:"data"`
+}
+
+// MkrScoreData contains the score object from getMkrScore response.
+type MkrScoreData struct {
+        Score MkrScoreDetail `json:"score"`
+}
+
+// MkrScoreDetail contains the actual score details.
+type MkrScoreDetail struct {
+        Response   string  `json:"response"`   // "A", "B", "C" — stop-faktor yoxlaması
+        Point      int     `json:"point"`      // 839 — skor müqayisəsi üçün (< 200?)
+        PdRate     float64 `json:"pdRate"`     // 0.01 — probability of default
+        Calculated bool    `json:"calculated"` // true — hesablanıb mı?
+}
+
+// MkrScore wraps MkrScoreDetail for convenience.
+type MkrScore struct {
+        Score MkrScoreDetail
 }
 
 // OwnerDataRequest is the request body for getOwnerData.
@@ -263,6 +300,56 @@ func (p *HTTPCustomerDataProvider) GetOwnerData(ctx context.Context, finCode, se
         return &OwnerData{CustomerCheck: odResp.Data.CustomerCheck}, nil
 }
 
+// GetMkrScore calls the real AZMK CustomerDataService with getMkrScore request type.
+// PR #160: AKB skoru (point) və stop-faktor (response) yoxlaması üçün.
+func (p *HTTPCustomerDataProvider) GetMkrScore(ctx context.Context, finCode, serialNumber string) (*MkrScore, error) {
+        reqBody := MkrScoreRequest{
+                RequestType:  "getMkrScore",
+                RequestID:    "1",
+                FinCode:      finCode,
+                SerialNumber: serialNumber,
+        }
+        jsonBody, _ := json.Marshal(reqBody)
+        url := p.baseURL
+        req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(jsonBody)))
+        if err != nil {
+                return nil, fmt.Errorf("failed to create request: %w", err)
+        }
+        req.Header.Set("Content-Type", "application/json")
+        if p.username != "" && p.password != "" {
+                auth := p.username + ":" + p.password
+                req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(auth)))
+        }
+
+        resp, err := p.httpClient.Do(req)
+        if err != nil {
+                return nil, fmt.Errorf("AZMK getMkrScore request failed: %w", err)
+        }
+        defer resp.Body.Close()
+
+        var msResp MkrScoreResponse
+        if err := json.NewDecoder(resp.Body).Decode(&msResp); err != nil {
+                return nil, fmt.Errorf("failed to decode getMkrScore response: %w", err)
+        }
+
+        if msResp.Result != 1 {
+                return nil, fmt.Errorf("AZMK getMkrScore error: %s (result=%d)", msResp.Message, msResp.Result)
+        }
+
+        if msResp.Data == nil {
+                return nil, fmt.Errorf("AZMK getMkrScore returned no data")
+        }
+
+        slog.Info("AZMK getMkrScore success",
+                "fin", finCode,
+                "point", msResp.Data.Score.Point,
+                "response", msResp.Data.Score.Response,
+                "pd_rate", msResp.Data.Score.PdRate,
+                "calculated", msResp.Data.Score.Calculated,
+        )
+        return &MkrScore{Score: msResp.Data.Score}, nil
+}
+
 // --- Mock Provider ---
 
 // MockCustomerDataProvider returns canned data based on FIN code.
@@ -303,6 +390,11 @@ var defaultFinScenarios = map[string]string{
         "BLK0001": "blacklisted",    // qara siyahıdadır
         "ACT0001": "active_credit",  // aktiv kredit var
         "DLY0001": "delay_history",  // gecikmə tarixçəsi var
+
+        // PR #160: MKR skor ssenariləri
+        "SCR0150": "low_score",      // point=150 → AKB_SCORE_LOW (< 200)
+        "SCR0500": "stop_factor",    // response="AB" → AKB_STOP_FACTOR
+        "SCR0839": "good_score",     // point=839, response="B" → keçir
 
         // Error ssenarisi (7 simvol)
         "ERROR01": "error",
@@ -429,6 +521,57 @@ func (m *MockCustomerDataProvider) GetOwnerData(_ context.Context, finCode, seri
                                 BlacklistStatus:          false,
                                 HasActiveCredit:          false,
                                 TotalDelayDaysCumulative: 0,
+                        },
+                }, nil
+        }
+}
+
+// GetMkrScore returns mock MKR score data based on FIN code.
+// PR #160: AKB skoru (point) və stop-faktor (response) yoxlaması üçün.
+func (m *MockCustomerDataProvider) GetMkrScore(_ context.Context, finCode, serialNumber string) (*MkrScore, error) {
+        scenario, ok := m.finScenarios[finCode]
+        if !ok {
+                scenario = "adult" // default
+        }
+
+        switch scenario {
+        case "low_score":
+                return &MkrScore{
+                        Score: MkrScoreDetail{
+                                Point:      150,  // < 200 → AKB_SCORE_LOW
+                                Response:   "C",
+                                PdRate:     0.85,
+                                Calculated: true,
+                        },
+                }, nil
+        case "stop_factor":
+                return &MkrScore{
+                        Score: MkrScoreDetail{
+                                Point:      500,
+                                Response:   "AB", // stop-faktor → AKB_STOP_FACTOR
+                                PdRate:     0.45,
+                                Calculated: true,
+                        },
+                }, nil
+        case "good_score":
+                return &MkrScore{
+                        Score: MkrScoreDetail{
+                                Point:      839,  // > 200 → keçir
+                                Response:   "B",  // stop-faktor yox
+                                PdRate:     0.01,
+                                Calculated: true,
+                        },
+                }, nil
+        case "error":
+                return nil, fmt.Errorf("mock: simulated AZMK getMkrScore error for FIN %s", finCode)
+        default:
+                // Default: yaxşı skor
+                return &MkrScore{
+                        Score: MkrScoreDetail{
+                                Point:      750,
+                                Response:   "B",
+                                PdRate:     0.02,
+                                Calculated: true,
                         },
                 }, nil
         }
