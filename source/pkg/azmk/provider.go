@@ -3,6 +3,7 @@ package azmk
 import (
         "context"
         "crypto/tls"
+        "database/sql"
         "encoding/base64"
         "encoding/json"
         "fmt"
@@ -132,6 +133,9 @@ type HTTPProvider struct {
         password   string
         timeout    time.Duration
         httpClient *http.Client
+        // PR #163: audit log
+        auditDB  *sql.DB
+        appID    *int
 }
 
 // NewHTTPProvider creates a new AZMK HTTPProvider.
@@ -155,7 +159,27 @@ func NewHTTPProvider(baseURL, username, password string, timeoutS int) *HTTPProv
         }
 }
 
-// setAuthHeaders adds Basic Auth and Content-Type headers to the request.
+// SetAuditDB sets the DB connection and application ID for audit logging.
+// PR #163: hər AZMK HTTP çağırış üçün audit log yazmaq.
+func (p *HTTPProvider) SetAuditDB(db *sql.DB, appID *int) {
+        p.auditDB = db
+        p.appID = appID
+}
+
+// auditLog writes a service call audit log to the database.
+func (p *HTTPProvider) auditLog(serviceName, method, url, reqBody, respBody string, statusCode int, durationMs int, errMsg string) {
+        if p.auditDB == nil {
+                return // audit logging disabled
+        }
+        _, err := p.auditDB.Exec(`
+                INSERT INTO service_audit_logs
+                        (application_id, service_name, method, url, request_body, response_body, status_code, duration_ms, error)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                p.appID, serviceName, method, url, reqBody, respBody, statusCode, durationMs, errMsg)
+        if err != nil {
+                slog.Warn("failed to write audit log", "error", err, "service", serviceName)
+        }
+}
 // PR #123: AZMK servisi username/password tələb edir.
 func (p *HTTPProvider) setAuthHeaders(req *http.Request) {
         req.Header.Set("Content-Type", "application/json")
@@ -179,66 +203,92 @@ func (p *HTTPProvider) doPut(ctx context.Context, path string, body interface{})
 // doRequest sends an HTTP request with the given method and returns the response body.
 func (p *HTTPProvider) doRequest(ctx context.Context, method, path string, body interface{}) (string, error) {
         url := p.baseURL + path
+        serviceName := "AZMK_" + strings.ToUpper(strings.Trim(path, "/"))
 
+        var reqBodyStr string
         var reqBody *strings.Reader
         if body != nil {
                 jsonBody, err := json.Marshal(body)
                 if err != nil {
                         return "", fmt.Errorf("azmk: failed to marshal request: %w", err)
                 }
-                reqBody = strings.NewReader(string(jsonBody))
+                reqBodyStr = string(jsonBody)
+                reqBody = strings.NewReader(reqBodyStr)
         }
 
         req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
         if err != nil {
+                p.auditLog(serviceName, method, url, reqBodyStr, "", 0, 0, err.Error())
                 return "", fmt.Errorf("azmk: failed to create request: %w", err)
         }
-        p.setAuthHeaders(req) // PR #123: Basic Auth + Content-Type
+        p.setAuthHeaders(req)
 
+        start := time.Now()
         resp, err := p.httpClient.Do(req)
+        durationMs := int(time.Since(start).Milliseconds())
         if err != nil {
+                p.auditLog(serviceName, method, url, reqBodyStr, "", 0, durationMs, err.Error())
                 return "", fmt.Errorf("azmk: HTTP request failed: %w", err)
         }
         defer resp.Body.Close()
 
         respBody, err := io.ReadAll(resp.Body)
         if err != nil {
+                p.auditLog(serviceName, method, url, reqBodyStr, "", resp.StatusCode, durationMs, err.Error())
                 return "", fmt.Errorf("azmk: failed to read response: %w", err)
         }
 
+        respBodyStr := string(respBody)
+
         if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-                return "", fmt.Errorf("azmk: %s returned HTTP %d: %s", path, resp.StatusCode, string(respBody))
+                errMsg := fmt.Sprintf("azmk: %s returned HTTP %d: %s", path, resp.StatusCode, respBodyStr)
+                p.auditLog(serviceName, method, url, reqBodyStr, respBodyStr, resp.StatusCode, durationMs, errMsg)
+                return "", fmt.Errorf("%s", errMsg)
         }
 
-        return string(respBody), nil
+        // PR #163: audit log — uğurlu çağırış
+        p.auditLog(serviceName, method, url, reqBodyStr, respBodyStr, resp.StatusCode, durationMs, "")
+
+        return respBodyStr, nil
 }
 
 // doGet sends a GET request and returns the response body as string.
 func (p *HTTPProvider) doGet(ctx context.Context, path string) (string, error) {
         url := p.baseURL + path
+        serviceName := "AZMK_" + strings.ToUpper(strings.Trim(path, "/"))
 
         req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
         if err != nil {
+                p.auditLog(serviceName, "GET", url, "", "", 0, 0, err.Error())
                 return "", fmt.Errorf("azmk: failed to create request: %w", err)
         }
-        p.setAuthHeaders(req) // PR #123: Basic Auth + Content-Type
+        p.setAuthHeaders(req)
 
+        start := time.Now()
         resp, err := p.httpClient.Do(req)
+        durationMs := int(time.Since(start).Milliseconds())
         if err != nil {
+                p.auditLog(serviceName, "GET", url, "", "", 0, durationMs, err.Error())
                 return "", fmt.Errorf("azmk: HTTP request failed: %w", err)
         }
         defer resp.Body.Close()
 
         respBody, err := io.ReadAll(resp.Body)
         if err != nil {
+                p.auditLog(serviceName, "GET", url, "", "", resp.StatusCode, durationMs, err.Error())
                 return "", fmt.Errorf("azmk: failed to read response: %w", err)
         }
 
+        respBodyStr := string(respBody)
+
         if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-                return "", fmt.Errorf("azmk: %s returned HTTP %d: %s", path, resp.StatusCode, string(respBody))
+                errMsg := fmt.Sprintf("azmk: %s returned HTTP %d: %s", path, resp.StatusCode, respBodyStr)
+                p.auditLog(serviceName, "GET", url, "", respBodyStr, resp.StatusCode, durationMs, errMsg)
+                return "", fmt.Errorf("%s", errMsg)
         }
 
-        return string(respBody), nil
+        p.auditLog(serviceName, "GET", url, "", respBodyStr, resp.StatusCode, durationMs, "")
+        return respBodyStr, nil
 }
 
 // parseIDResponse extracts the ID from AZMK responses.
@@ -322,6 +372,11 @@ func (p *HTTPProvider) VerifyKYC(ctx context.Context, kycID string) (bool, error
                 return true, nil
         case "SENT":
                 return false, nil // hələ verify olunmayıb — polling davam etməli
+        case "PIN_MISMATCH":
+                // PR #163: PIN uyğun gəlmir — polling-i dayandır və error qaytar
+                slog.Warn("AZMK KYC verify failed — PIN mismatch",
+                        "kyc_id", kycID, "response", body)
+                return false, fmt.Errorf("KYC PIN uyğun gəlmir — göndərilən FIN kodu sənədlə uyğun deyil")
         default:
                 return false, nil // naməlum status — təhlükəsiz olaraq false
         }

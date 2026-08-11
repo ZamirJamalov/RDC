@@ -82,6 +82,8 @@ func dropAllTables(db *sql.DB) error {
                 // PR #142: sessions must be dropped before users (FK dependency).
                 "DROP TABLE IF EXISTS sessions",
                 "DROP TABLE IF EXISTS users",
+                // PR #163: service audit logs
+                "DROP TABLE IF EXISTS service_audit_logs",
         }
         for _, stmt := range dropStatements {
                 if _, err := db.Exec(stmt); err != nil {
