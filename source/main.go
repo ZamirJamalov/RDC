@@ -113,6 +113,11 @@ func main() {
         }
         appService.SetAzmkProvider(azmkProvider, cfg.AzmkBranchCode, cfg.AzmkCardExpiring, cfg.AzmkProductID, cfg.AzmkDisbursementFee)
 
+        // PR #163: Audit log — AZMK provider-lara DB əlaqəsi ver
+        if httpProvider, ok := azmkProvider.(*azmk.HTTPProvider); ok {
+                httpProvider.SetAuditDB(db, nil)
+        }
+
         // PR #152: AZMK CustomerDataService (yaş yoxlaması üçün)
         // Mock mode: AZMK_CUSTOMER_DATA_USE_MOCK=true (default) → MockCustomerDataProvider
         //   FIN koduna görə fərqli şəxslər imitasiya olunur (finScenarios map)
@@ -126,6 +131,11 @@ func main() {
                 customerDataProvider = azmk.NewHTTPCustomerDataProvider(cfg.AzmkCustomerDataURL, cfg.AzmkUsername, cfg.AzmkPassword, cfg.AzmkTimeoutS)
         }
         appService.SetCustomerDataProvider(customerDataProvider)
+
+        // PR #163: Audit log — CustomerData provider-a DB əlaqəsi ver
+        if httpCDP, ok := customerDataProvider.(*azmk.HTTPCustomerDataProvider); ok {
+                httpCDP.SetAuditDB(db, nil)
+        }
 
 
         // --- SIMA Provider + Service (T-4.1 to T-4.5) ---

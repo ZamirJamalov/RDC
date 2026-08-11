@@ -2,9 +2,11 @@ package azmk
 
 import (
         "context"
+        "database/sql"
         "encoding/base64"
         "encoding/json"
         "fmt"
+        "io"
         "log/slog"
         "net/http"
         "strings"
@@ -185,6 +187,31 @@ type HTTPCustomerDataProvider struct {
         password   string
         timeout    time.Duration
         httpClient *http.Client
+        // PR #163: audit log
+        auditDB *sql.DB
+        appID   *int
+}
+
+// SetAuditDB sets the DB connection and application ID for audit logging.
+// PR #163: hər AZMK CustomerDataService çağırış üçün audit log yazmaq.
+func (p *HTTPCustomerDataProvider) SetAuditDB(db *sql.DB, appID *int) {
+        p.auditDB = db
+        p.appID = appID
+}
+
+// auditLog writes a service call audit log to the database.
+func (p *HTTPCustomerDataProvider) auditLog(serviceName, method, url, reqBody, respBody string, statusCode int, durationMs int, errMsg string) {
+        if p.auditDB == nil {
+                return
+        }
+        _, err := p.auditDB.Exec(`
+                INSERT INTO service_audit_logs
+                        (application_id, service_name, method, url, request_body, response_body, status_code, duration_ms, error)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                p.appID, serviceName, method, url, reqBody, respBody, statusCode, durationMs, errMsg)
+        if err != nil {
+                slog.Warn("failed to write audit log", "error", err, "service", serviceName)
+        }
 }
 
 // NewHTTPCustomerDataProvider creates a new HTTPCustomerDataProvider.
@@ -213,34 +240,46 @@ func (p *HTTPCustomerDataProvider) GetPersonalInfo(ctx context.Context, finCode,
         url := p.baseURL
         req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(jsonBody)))
         if err != nil {
+                p.auditLog("AZMK_GET_PERSONAL_INFO", "POST", url, string(jsonBody), "", 0, 0, err.Error())
                 return nil, fmt.Errorf("failed to create request: %w", err)
         }
         req.Header.Set("Content-Type", "application/json")
         if p.username != "" && p.password != "" {
-                // Basic Auth (same as existing AZMK provider)
                 auth := p.username + ":" + p.password
                 req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(auth)))
         }
 
+        start := time.Now()
         resp, err := p.httpClient.Do(req)
+        durationMs := int(time.Since(start).Milliseconds())
         if err != nil {
+                p.auditLog("AZMK_GET_PERSONAL_INFO", "POST", url, string(jsonBody), "", 0, durationMs, err.Error())
                 return nil, fmt.Errorf("AZMK CustomerDataService request failed: %w", err)
         }
         defer resp.Body.Close()
 
+        respBodyBytes, _ := io.ReadAll(resp.Body)
+        respBodyStr := string(respBodyBytes)
+
+        // Re-decode from the bytes we read
         var cdResp CustomerDataResponse
-        if err := json.NewDecoder(resp.Body).Decode(&cdResp); err != nil {
+        if err := json.Unmarshal(respBodyBytes, &cdResp); err != nil {
+                p.auditLog("AZMK_GET_PERSONAL_INFO", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, err.Error())
                 return nil, fmt.Errorf("failed to decode response: %w", err)
         }
 
         if cdResp.Result != 1 {
-                return nil, fmt.Errorf("AZMK CustomerDataService error: %s (result=%d)", cdResp.Message, cdResp.Result)
+                errMsg := fmt.Sprintf("AZMK CustomerDataService error: %s (result=%d)", cdResp.Message, cdResp.Result)
+                p.auditLog("AZMK_GET_PERSONAL_INFO", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, errMsg)
+                return nil, fmt.Errorf("%s", errMsg)
         }
 
         if cdResp.Data == nil {
+                p.auditLog("AZMK_GET_PERSONAL_INFO", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, "no data")
                 return nil, fmt.Errorf("AZMK CustomerDataService returned no data")
         }
 
+        p.auditLog("AZMK_GET_PERSONAL_INFO", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, "")
         slog.Info("AZMK CustomerDataService success",
                 "fin", finCode,
                 "name", cdResp.Data.FullName(),
@@ -263,6 +302,7 @@ func (p *HTTPCustomerDataProvider) GetOwnerData(ctx context.Context, finCode, se
         url := p.baseURL
         req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(jsonBody)))
         if err != nil {
+                p.auditLog("AZMK_GET_OWNER_DATA", "POST", url, string(jsonBody), "", 0, 0, err.Error())
                 return nil, fmt.Errorf("failed to create request: %w", err)
         }
         req.Header.Set("Content-Type", "application/json")
@@ -271,25 +311,36 @@ func (p *HTTPCustomerDataProvider) GetOwnerData(ctx context.Context, finCode, se
                 req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(auth)))
         }
 
+        start := time.Now()
         resp, err := p.httpClient.Do(req)
+        durationMs := int(time.Since(start).Milliseconds())
         if err != nil {
+                p.auditLog("AZMK_GET_OWNER_DATA", "POST", url, string(jsonBody), "", 0, durationMs, err.Error())
                 return nil, fmt.Errorf("AZMK CustomerDataService getOwnerData request failed: %w", err)
         }
         defer resp.Body.Close()
 
+        respBodyBytes, _ := io.ReadAll(resp.Body)
+        respBodyStr := string(respBodyBytes)
+
         var odResp OwnerDataResponse
-        if err := json.NewDecoder(resp.Body).Decode(&odResp); err != nil {
+        if err := json.Unmarshal(respBodyBytes, &odResp); err != nil {
+                p.auditLog("AZMK_GET_OWNER_DATA", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, err.Error())
                 return nil, fmt.Errorf("failed to decode getOwnerData response: %w", err)
         }
 
         if odResp.Result != 1 {
-                return nil, fmt.Errorf("AZMK getOwnerData error: %s (result=%d)", odResp.Message, odResp.Result)
+                errMsg := fmt.Sprintf("AZMK getOwnerData error: %s (result=%d)", odResp.Message, odResp.Result)
+                p.auditLog("AZMK_GET_OWNER_DATA", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, errMsg)
+                return nil, fmt.Errorf("%s", errMsg)
         }
 
         if odResp.Data == nil {
+                p.auditLog("AZMK_GET_OWNER_DATA", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, "no data")
                 return nil, fmt.Errorf("AZMK getOwnerData returned no data")
         }
 
+        p.auditLog("AZMK_GET_OWNER_DATA", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, "")
         slog.Info("AZMK getOwnerData success",
                 "fin", finCode,
                 "blacklist_status", odResp.Data.CustomerCheck.BlacklistStatus,
@@ -313,6 +364,7 @@ func (p *HTTPCustomerDataProvider) GetMkrScore(ctx context.Context, finCode, ser
         url := p.baseURL
         req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(jsonBody)))
         if err != nil {
+                p.auditLog("AZMK_GET_MKR_SCORE", "POST", url, string(jsonBody), "", 0, 0, err.Error())
                 return nil, fmt.Errorf("failed to create request: %w", err)
         }
         req.Header.Set("Content-Type", "application/json")
@@ -321,25 +373,36 @@ func (p *HTTPCustomerDataProvider) GetMkrScore(ctx context.Context, finCode, ser
                 req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(auth)))
         }
 
+        start := time.Now()
         resp, err := p.httpClient.Do(req)
+        durationMs := int(time.Since(start).Milliseconds())
         if err != nil {
+                p.auditLog("AZMK_GET_MKR_SCORE", "POST", url, string(jsonBody), "", 0, durationMs, err.Error())
                 return nil, fmt.Errorf("AZMK getMkrScore request failed: %w", err)
         }
         defer resp.Body.Close()
 
+        respBodyBytes, _ := io.ReadAll(resp.Body)
+        respBodyStr := string(respBodyBytes)
+
         var msResp MkrScoreResponse
-        if err := json.NewDecoder(resp.Body).Decode(&msResp); err != nil {
+        if err := json.Unmarshal(respBodyBytes, &msResp); err != nil {
+                p.auditLog("AZMK_GET_MKR_SCORE", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, err.Error())
                 return nil, fmt.Errorf("failed to decode getMkrScore response: %w", err)
         }
 
         if msResp.Result != 1 {
-                return nil, fmt.Errorf("AZMK getMkrScore error: %s (result=%d)", msResp.Message, msResp.Result)
+                errMsg := fmt.Sprintf("AZMK getMkrScore error: %s (result=%d)", msResp.Message, msResp.Result)
+                p.auditLog("AZMK_GET_MKR_SCORE", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, errMsg)
+                return nil, fmt.Errorf("%s", errMsg)
         }
 
         if msResp.Data == nil {
+                p.auditLog("AZMK_GET_MKR_SCORE", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, "no data")
                 return nil, fmt.Errorf("AZMK getMkrScore returned no data")
         }
 
+        p.auditLog("AZMK_GET_MKR_SCORE", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, "")
         slog.Info("AZMK getMkrScore success",
                 "fin", finCode,
                 "point", msResp.Data.Score.Point,
