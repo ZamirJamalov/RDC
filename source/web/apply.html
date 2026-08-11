@@ -803,6 +803,11 @@ function applyApp() {
                 if (this.kycVerifyActive && this.applicationId) {
                     this.resumeKYCVerify();
                 }
+                // PR #158: əgər STEP 2-dəyik (offer) və application varsa, application-dan
+                // customer_phone restore et (confirmApplication üçün lazımdır)
+                if (this.currentStep === 2 && this.applicationId && !this.form.phone) {
+                    this.restorePhoneFromApplication();
+                }
             }
         },
 
@@ -964,6 +969,25 @@ function applyApp() {
                 // Əgər pending_customer dirsə — heç nə etmə, countdown davam etsin
             } catch (e) {
                 // Backend catılmadı — countdown davam etsin
+            }
+        },
+
+        // PR #158: Application-dan customer_phone restore et
+        // Page refresh olanda form.phone boşdur (PII localStorage-da saxlanılmır).
+        // confirmApplication() üçün customer_phone lazımdır (IDOR check).
+        // Bu metod GET /api/applications/{id} çağırır və phone qaytarır.
+        async restorePhoneFromApplication() {
+            if (!this.applicationId) return;
+            try {
+                const resp = await fetch(`/api/applications/${this.applicationId}`);
+                if (!resp.ok) return;
+                const app = await resp.json();
+                // customer_phone format: +994XXXXXXXXX → form.phone üçün yalnız 9 rəqəm
+                if (app.customer_phone) {
+                    this.form.phone = app.customer_phone.replace('+994', '');
+                }
+            } catch (e) {
+                // Backend catılmadı — heç nə etmə
             }
         },
 
