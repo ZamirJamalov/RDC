@@ -28,6 +28,265 @@ type CustomerDataProvider interface {
         GetOwnerData(ctx context.Context, finCode, serialNumber string) (*OwnerData, error)
         // PR #160: getMkrScore — AKB skoru və stop-faktor (response) yoxlaması
         GetMkrScore(ctx context.Context, finCode, serialNumber string) (*MkrScore, error)
+        // PR #165: inquireByIdCard — kredit tarixçəsi və gecikmə kesim nöqtələri
+        InquireByIdCard(ctx context.Context, finCode, serialNumber string) (*CreditHistory, error)
+}
+
+// --- PR #165: inquireByIdCard ---
+
+// InquireByIdCardRequest is the request body for inquireByIdCard.
+type InquireByIdCardRequest struct {
+        RequestType  string `json:"requestType"`
+        RequestID    string `json:"requestId"`
+        FinCode      string `json:"finCode"`
+        SerialNumber string `json:"serialNumber"`
+}
+
+// InquireByIdCardResponse mirrors the real AZMK response structure.
+type InquireByIdCardResponse struct {
+        Result    json.Number `json:"result"`
+        RequestID string      `json:"requestId"`
+        Message   string      `json:"message"`
+        Data      *InquireData `json:"data"`
+}
+
+// InquireData contains the Request object.
+type InquireData struct {
+        Request *InquireRequest `json:"Request"`
+}
+
+// InquireRequest contains inquiryResult.
+type InquireRequest struct {
+        InquiryResult *InquiryResult `json:"inquiryResult"`
+}
+
+// InquiryResult contains borrower, liabilities, score, etc.
+type InquiryResult struct {
+        ReportID      string    `json:"reportId"`
+        ReportingDate string    `json:"reportingDate"`
+        Borrower      *Borrower `json:"borrower"`
+        Liabilities   *Liabilities `json:"liabilities"`
+        Score         *AkbScore  `json:"score"`
+}
+
+// Borrower contains the customer's personal info.
+type Borrower struct {
+        DocumentNo string `json:"documentNo"`
+        Name       string `json:"name"`
+        Fin        string `json:"fin"`
+        DateOfBirth string `json:"dateOfBirth"`
+}
+
+// Liabilities contains the liability array.
+type Liabilities struct {
+        Liability []Liability `json:"liability"`
+}
+
+// Liability represents a single credit/loan.
+type Liability struct {
+        ID                   string  `json:"id"`
+        BankName             string  `json:"bankName"`
+        CreditType           string  `json:"creditType"`
+        CreditTypeName       string  `json:"creditTypeName"`
+        GrantedOn            string  `json:"grantedOn"`
+        InitialAmount        float64 `json:"initialAmount"`
+        DaysInterestOverdue  int     `json:"daysInterestOverdue"`
+        DaysMainSumOverdue   int     `json:"daysMainSumOverdue"`
+        OutstandingDebtMain  float64 `json:"outstandingDebtMain"`
+        MonthlyPaymentAmount float64 `json:"monthlyPaymentAmount"`
+        CreditStatus         string  `json:"creditStatus"`
+        CreditStatusName     string  `json:"creditStatusName"`
+        History              *History `json:"history"`
+}
+
+// History contains the historyItem array.
+type History struct {
+        HistoryItem []HistoryItem `json:"historyItem"`
+}
+
+// HistoryItem represents a single month's delay record.
+type HistoryItem struct {
+        OverdueDays     int    `json:"overdueDays"`
+        ReportingPeriod string `json:"reportingPeriod"`
+        CreditStatus    string `json:"creditStatus"`
+}
+
+// AkbScore contains the score from the inquiry.
+type AkbScore struct {
+        Calculated bool   `json:"calculated"`
+        Point      int    `json:"point"`
+        Response   string `json:"response"`
+}
+
+// CreditHistory wraps InquiryResult for convenience and provides
+// helper methods for the cutoff checks (PR #165).
+type CreditHistory struct {
+        Inquiry *InquiryResult
+}
+
+// IsActive returns true if the liability is an active credit (creditStatus not "CLOSED").
+func (l *Liability) IsActive() bool {
+        s := strings.ToUpper(l.CreditStatus)
+        return s != "CLOSED" && s != ""
+}
+
+// CurrentDelayDays returns the max of DaysInterestOverdue and DaysMainSumOverdue.
+func (l *Liability) CurrentDelayDays() int {
+        if l.DaysInterestOverdue > l.DaysMainSumOverdue {
+                return l.DaysInterestOverdue
+        }
+        return l.DaysMainSumOverdue
+}
+
+// TotalDelayDays sums all overdueDays from history items.
+func (l *Liability) TotalDelayDays() int {
+        if l.History == nil {
+                return 0
+        }
+        total := 0
+        for _, h := range l.History.HistoryItem {
+                total += h.OverdueDays
+        }
+        return total
+}
+
+// PaymentMonths returns the number of history items (months with records).
+func (l *Liability) PaymentMonths() int {
+        if l.History == nil {
+                return 0
+        }
+        return len(l.History.HistoryItem)
+}
+
+// DelayRatio calculates: totalDelayDays / paymentMonths.
+// Returns 0 if paymentMonths is 0.
+func (l *Liability) DelayRatio() float64 {
+        pm := l.PaymentMonths()
+        if pm == 0 {
+                return 0
+        }
+        return float64(l.TotalDelayDays()) / float64(pm)
+}
+
+// MaxDelayInPeriod returns the highest single overdueDays from history items
+// within the last N months (based on reportingPeriod).
+func (l *Liability) MaxDelayInPeriod(months int) int {
+        if l.History == nil {
+                return 0
+        }
+        cutoff := time.Now().AddDate(0, -months, 0)
+        max := 0
+        for _, h := range l.History.HistoryItem {
+                // Try to parse reportingPeriod — format may vary
+                t, err := time.Parse("2006-01", h.ReportingPeriod)
+                if err != nil {
+                        t, err = time.Parse("2006-01-02", h.ReportingPeriod)
+                }
+                if err != nil {
+                        t, err = time.Parse(time.RFC3339, h.ReportingPeriod)
+                }
+                if err != nil {
+                        // Can't parse — include it (fail-safe)
+                        if h.OverdueDays > max {
+                                max = h.OverdueDays
+                        }
+                        continue
+                }
+                if t.After(cutoff) || t.Equal(cutoff) {
+                        if h.OverdueDays > max {
+                                max = h.OverdueDays
+                        }
+                }
+        }
+        return max
+}
+
+// --- CreditHistory helper methods for cutoff checks ---
+
+// MaxDelayRatio returns the highest delay ratio across all liabilities.
+// Kesim #1: əmsal 6-dən yüksək → imtina
+func (ch *CreditHistory) MaxDelayRatio() float64 {
+        if ch.Inquiry == nil || ch.Inquiry.Liabilities == nil {
+                return 0
+        }
+        max := 0.0
+        for _, l := range ch.Inquiry.Liabilities.Liability {
+                r := l.DelayRatio()
+                if r > max {
+                        max = r
+                }
+        }
+        return max
+}
+
+// MaxCurrentDelay returns the highest current delay days across active liabilities.
+// Kesim #2: cari gecikmə 5-dən artıq → imtina
+func (ch *CreditHistory) MaxCurrentDelay() int {
+        if ch.Inquiry == nil || ch.Inquiry.Liabilities == nil {
+                return 0
+        }
+        max := 0
+        for _, l := range ch.Inquiry.Liabilities.Liability {
+                if l.IsActive() && l.CurrentDelayDays() > max {
+                        max = l.CurrentDelayDays()
+                }
+        }
+        return max
+}
+
+// MaxDelay3M returns the highest single-delay in last 3 months.
+// Kesim #3: son 3 ay 20+ → imtina
+func (ch *CreditHistory) MaxDelay3M() int {
+        return ch.maxDelayInPeriod(3)
+}
+
+// MaxDelay6M returns the highest single-delay in last 6 months.
+// Kesim #4: son 6 ay 30+ → imtina
+func (ch *CreditHistory) MaxDelay6M() int {
+        return ch.maxDelayInPeriod(6)
+}
+
+// MaxDelay12M returns the highest single-delay in last 12 months.
+// Kesim #5: son 12 ay 45+ → imtina
+func (ch *CreditHistory) MaxDelay12M() int {
+        return ch.maxDelayInPeriod(12)
+}
+
+// MaxDelay18M returns the highest single-delay in last 18 months.
+// Kesim #6: son 18 ay 60+ → imtina
+func (ch *CreditHistory) MaxDelay18M() int {
+        return ch.maxDelayInPeriod(18)
+}
+
+// maxDelayInPeriod returns the highest single overdueDays across all liabilities
+// within the last N months.
+func (ch *CreditHistory) maxDelayInPeriod(months int) int {
+        if ch.Inquiry == nil || ch.Inquiry.Liabilities == nil {
+                return 0
+        }
+        max := 0
+        for _, l := range ch.Inquiry.Liabilities.Liability {
+                d := l.MaxDelayInPeriod(months)
+                if d > max {
+                        max = d
+                }
+        }
+        return max
+}
+
+// TotalActiveMonthlyPayments returns the sum of monthly payments for active liabilities.
+// Kesim #7: aktiv aylıq ödəniş 2000-dən artıq → imtina
+func (ch *CreditHistory) TotalActiveMonthlyPayments() float64 {
+        if ch.Inquiry == nil || ch.Inquiry.Liabilities == nil {
+                return 0
+        }
+        total := 0.0
+        for _, l := range ch.Inquiry.Liabilities.Liability {
+                if l.IsActive() {
+                        total += l.MonthlyPaymentAmount
+                }
+        }
+        return total
 }
 
 // MkrScoreRequest is the request body for getMkrScore.
@@ -413,6 +672,74 @@ func (p *HTTPCustomerDataProvider) GetMkrScore(ctx context.Context, finCode, ser
         return &MkrScore{Score: msResp.Data.Score}, nil
 }
 
+// InquireByIdCard calls the real AZMK CustomerDataService with inquireByIdCard request type.
+// PR #165: kredit tarixçəsi və gecikmə kesim nöqtələri üçün.
+// URL: https://web.azmk.az:7077/LW_AKP/services/CustomerDataService
+func (p *HTTPCustomerDataProvider) InquireByIdCard(ctx context.Context, finCode, serialNumber string) (*CreditHistory, error) {
+        reqBody := InquireByIdCardRequest{
+                RequestType:  "inquireByIdCard",
+                RequestID:    "1",
+                FinCode:      finCode,
+                SerialNumber: serialNumber,
+        }
+        jsonBody, _ := json.Marshal(reqBody)
+        url := p.baseURL
+        req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(jsonBody)))
+        if err != nil {
+                p.auditLog("AZMK_INQUIRE_BY_ID_CARD", "POST", url, string(jsonBody), "", 0, 0, err.Error())
+                return nil, fmt.Errorf("failed to create request: %w", err)
+        }
+        req.Header.Set("Content-Type", "application/json")
+        if p.username != "" && p.password != "" {
+                auth := p.username + ":" + p.password
+                req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(auth)))
+        }
+
+        start := time.Now()
+        resp, err := p.httpClient.Do(req)
+        durationMs := int(time.Since(start).Milliseconds())
+        if err != nil {
+                p.auditLog("AZMK_INQUIRE_BY_ID_CARD", "POST", url, string(jsonBody), "", 0, durationMs, err.Error())
+                return nil, fmt.Errorf("AZMK inquireByIdCard request failed: %w", err)
+        }
+        defer resp.Body.Close()
+
+        respBodyBytes, _ := io.ReadAll(resp.Body)
+        respBodyStr := string(respBodyBytes)
+
+        var inqResp InquireByIdCardResponse
+        if err := json.Unmarshal(respBodyBytes, &inqResp); err != nil {
+                p.auditLog("AZMK_INQUIRE_BY_ID_CARD", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, err.Error())
+                return nil, fmt.Errorf("failed to decode inquireByIdCard response: %w", err)
+        }
+
+        // Check result — may be string "1" or int 1
+        resultStr := inqResp.Result.String()
+        if resultStr != "1" {
+                errMsg := fmt.Sprintf("AZMK inquireByIdCard error: %s (result=%s)", inqResp.Message, resultStr)
+                p.auditLog("AZMK_INQUIRE_BY_ID_CARD", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, errMsg)
+                return nil, fmt.Errorf("%s", errMsg)
+        }
+
+        if inqResp.Data == nil || inqResp.Data.Request == nil || inqResp.Data.Request.InquiryResult == nil {
+                p.auditLog("AZMK_INQUIRE_BY_ID_CARD", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, "no data")
+                return nil, fmt.Errorf("AZMK inquireByIdCard returned no inquiry data")
+        }
+
+        p.auditLog("AZMK_INQUIRE_BY_ID_CARD", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, "")
+
+        liabCount := 0
+        if inqResp.Data.Request.InquiryResult.Liabilities != nil {
+                liabCount = len(inqResp.Data.Request.InquiryResult.Liabilities.Liability)
+        }
+        slog.Info("AZMK inquireByIdCard success",
+                "fin", finCode,
+                "liabilities_count", liabCount,
+        )
+
+        return &CreditHistory{Inquiry: inqResp.Data.Request.InquiryResult}, nil
+}
+
 // --- Mock Provider ---
 
 // MockCustomerDataProvider returns canned data based on FIN code.
@@ -458,6 +785,16 @@ var defaultFinScenarios = map[string]string{
         "SCR0150": "low_score",      // point=150 → AKB_SCORE_LOW (< 200)
         "SCR0500": "stop_factor",    // response="AB" → AKB_STOP_FACTOR
         "SCR0839": "good_score",     // point=839, response="B" → keçir
+
+        // PR #165: Kredit tarixçəsi kesim ssenariləri
+        "DLR0001": "delay_ratio_high",     // gecikmə əmsalı > 6
+        "ACTDLY1": "active_delay_high",    // aktiv kredit cari gecikmə > 5
+        "DLY3M01": "delay_3m_high",        // son 3 ay max gecikmə ≥ 20
+        "DLY6M01": "delay_6m_high",        // son 6 ay max gecikmə ≥ 30
+        "DLY12M01": "delay_12m_high",      // son 12 ay max gecikmə ≥ 45
+        "DLY18M01": "delay_18m_high",      // son 18 ay max gecikmə ≥ 60
+        "PAY2001": "monthly_payments_high", // aktiv aylıq ödəniş > 2000
+        "CLR0001": "clean_history",         // təmiz kredit tarixçəsi
 
         // Error ssenarisi (7 simvol)
         "ERROR01": "error",
@@ -637,5 +974,86 @@ func (m *MockCustomerDataProvider) GetMkrScore(_ context.Context, finCode, seria
                                 Calculated: true,
                         },
                 }, nil
+        }
+}
+
+// InquireByIdCard returns mock credit history data based on FIN code.
+// PR #165: kredit tarixçəsi və gecikmə kesim nöqtələri üçün.
+func (m *MockCustomerDataProvider) InquireByIdCard(_ context.Context, finCode, serialNumber string) (*CreditHistory, error) {
+        scenario, ok := m.finScenarios[finCode]
+        if !ok {
+                scenario = "clean_history"
+        }
+
+        now := time.Now()
+        m1 := now.AddDate(0, -1, 0).Format("2006-01")
+        m2 := now.AddDate(0, -2, 0).Format("2006-01")
+        m3 := now.AddDate(0, -3, 0).Format("2006-01")
+        m4 := now.AddDate(0, -4, 0).Format("2006-01")
+        m5 := now.AddDate(0, -5, 0).Format("2006-01")
+        m6 := now.AddDate(0, -6, 0).Format("2006-01")
+        m7 := now.AddDate(0, -7, 0).Format("2006-01")
+        m8 := now.AddDate(0, -8, 0).Format("2006-01")
+        m9 := now.AddDate(0, -9, 0).Format("2006-01")
+        m10 := now.AddDate(0, -10, 0).Format("2006-01")
+        m15 := now.AddDate(0, -15, 0).Format("2006-01")
+        m20 := now.AddDate(0, -20, 0).Format("2006-01")
+
+        switch scenario {
+        case "delay_ratio_high":
+                return mockCH([]Liability{
+                        mockL(70, 8, 0, 150, "ACTIVE", []HistoryItem{{7, m1, ""}, {7, m2, ""}, {7, m3, ""}, {7, m4, ""}, {7, m5, ""}, {7, m6, ""}, {7, m7, ""}, {7, m8, ""}, {7, m9, ""}, {7, m10, ""}}),
+                }), nil
+        case "active_delay_high":
+                return mockCH([]Liability{
+                        mockL(8, 8, 2, 200, "ACTIVE", []HistoryItem{{3, m1, ""}, {1, m2, ""}}),
+                }), nil
+        case "delay_3m_high":
+                return mockCH([]Liability{
+                        mockL(25, 25, 0, 200, "CLOSED", []HistoryItem{{25, m1, ""}, {5, m4, ""}}),
+                }), nil
+        case "delay_6m_high":
+                return mockCH([]Liability{
+                        mockL(35, 35, 0, 200, "CLOSED", []HistoryItem{{35, m3, ""}, {5, m8, ""}}),
+                }), nil
+        case "delay_12m_high":
+                return mockCH([]Liability{
+                        mockL(50, 50, 0, 200, "CLOSED", []HistoryItem{{50, m5, ""}, {5, m15, ""}}),
+                }), nil
+        case "delay_18m_high":
+                return mockCH([]Liability{
+                        mockL(65, 65, 0, 200, "CLOSED", []HistoryItem{{65, m10, ""}, {5, m20, ""}}),
+                }), nil
+        case "monthly_payments_high":
+                return mockCH([]Liability{
+                        mockL(0, 0, 0, 1200, "ACTIVE", []HistoryItem{{0, m1, ""}}),
+                        mockL(0, 0, 0, 900, "ACTIVE", []HistoryItem{{0, m1, ""}}),
+                }), nil
+        case "clean_history":
+                return mockCH([]Liability{
+                        mockL(5, 5, 0, 300, "CLOSED", []HistoryItem{{2, m5, ""}, {3, m8, ""}}),
+                }), nil
+        case "error":
+                return nil, fmt.Errorf("mock: simulated AZMK inquireByIdCard error for FIN %s", finCode)
+        default:
+                return mockCH(nil), nil
+        }
+}
+
+func mockL(delay, currentDelay, _ int, monthly float64, status string, hist []HistoryItem) Liability {
+        return Liability{
+                DaysInterestOverdue:  currentDelay,
+                DaysMainSumOverdue:   currentDelay,
+                MonthlyPaymentAmount: monthly,
+                CreditStatus:         status,
+                History:              &History{HistoryItem: hist},
+        }
+}
+
+func mockCH(liabs []Liability) *CreditHistory {
+        return &CreditHistory{
+                Inquiry: &InquiryResult{
+                        Liabilities: &Liabilities{Liability: liabs},
+                },
         }
 }
