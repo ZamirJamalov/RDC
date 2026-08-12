@@ -98,6 +98,11 @@ type Config struct {
         // PR #170: KYC verify toggle — true=KYC verify tələb olunur, false=skip
         AzmkKycVerifyEnabled     bool   // default: true
 
+        // PR #171: Cutoff stop-on-first-fail toggle
+        // true (default) = ilk kesim rədd edildikdə digərləri yoxlanılmır
+        // false = bütün kesimlər həmişə yoxlanılır (birinci rədd səbəbi qaytarılır)
+        CutoffStopOnFirstFail    bool   // default: true
+
         // PR #142: Authentication
         AdminInitialPassword string // default admin password (used only on first startup when no users exist)
         AuthSessionTTLHours  int    // session token validity in hours (default: 8)
@@ -164,6 +169,9 @@ func Load() *Config {
 
                 // PR #170: KYC verify toggle
                 AzmkKycVerifyEnabled: getEnvBool("AZMK_KYC_VERIFY_ENABLED", true),
+
+                // PR #171: Cutoff stop-on-first-fail toggle
+                CutoffStopOnFirstFail: getEnvBool("CUTOFF_STOP_ON_FIRST_FAIL", true),
 
                 // PR #142: Authentication
                 AdminInitialPassword: getEnv("ADMIN_INITIAL_PASSWORD", ""),
