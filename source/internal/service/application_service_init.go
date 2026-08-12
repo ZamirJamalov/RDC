@@ -126,7 +126,10 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
                         httpCDP.SetAuditAppID(&appID)
                 }
         }
-        if s.azmkProvider != nil {
+        // PR #170: KYC verify toggle — əgər enabled=false isə KYC skip olunur
+        if s.azmkProvider != nil && s.kycVerifyEnabled {
+                slog.Info("AZMK KYC verify enabled — starting KYC + Partner registration",
+                        "application_id", app.ID)
                 kycErr := s.runAzmkKycAndPartner(ctx, app)
                 if kycErr != nil {
                         // KYC rədd olundu — müştəriyə xəbər ver
@@ -142,6 +145,9 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
                                 "reason", app.RejectionReason)
                         return app, nil
                 }
+        } else if s.azmkProvider != nil && !s.kycVerifyEnabled {
+                slog.Info("AZMK KYC verify DISABLED — skipping KYC + Partner registration",
+                        "application_id", app.ID)
         }
 
         // 4. PR #112: Early AUTO cutoff yoxlamaları

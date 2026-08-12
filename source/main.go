@@ -132,7 +132,8 @@ func main() {
                 customerDataProvider = azmk.NewHTTPCustomerDataProvider(cfg.AzmkCustomerDataURL, cfg.AzmkUsername, cfg.AzmkPassword, cfg.AzmkTimeoutS)
         }
         appService.SetCustomerDataProvider(customerDataProvider)
-        appService.SetCutoffRepo(cutoffResultRepo) // PR #168
+        appService.SetCutoffRepo(cutoffResultRepo)   // PR #168
+        appService.SetKycVerifyEnabled(cfg.AzmkKycVerifyEnabled) // PR #170
 
         // PR #163: Audit log — CustomerData provider-a DB əlaqəsi ver
         if httpCDP, ok := customerDataProvider.(*azmk.HTTPCustomerDataProvider); ok {
