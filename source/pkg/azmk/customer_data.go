@@ -123,9 +123,9 @@ type CreditHistory struct {
 }
 
 // IsActive returns true if the liability is an active credit.
-// PR #166: real response-da creditStatus = "007" (aktiv), "001" (closed).
+// PR #174: yalnız creditStatus = "007" olanlar aktiv sayılır.
 func (l *Liability) IsActive() bool {
-        return l.CreditStatus != "001" && l.CreditStatus != ""
+        return l.CreditStatus == "007"
 }
 
 // CurrentDelayDays returns the max of DaysInterestOverdue and DaysMainSumOverdue.
@@ -303,6 +303,77 @@ func (ch *CreditHistory) TotalActiveMonthlyPayments() float64 {
                 }
         }
         return total
+}
+
+// MaxDelayRatioDetail returns a breakdown string showing how the max delay ratio was calculated.
+// PR #174: hər kredit üçün delayDays, paymentMonths və ratio göstərir.
+// Example: "Kredit[1677]: delay=70, months=10, ratio=7.00 | Kredit[1544]: delay=1, months=14, ratio=0.07 | MaxRatio=7.00"
+func (ch *CreditHistory) MaxDelayRatioDetail() string {
+        if ch.Inquiry == nil || ch.Inquiry.Liabilities == nil {
+                return ""
+        }
+        parts := []string{}
+        maxRatio := 0.0
+        for _, l := range ch.Inquiry.Liabilities.Liability {
+                if l.History == nil || len(l.History.HistoryItem) == 0 {
+                        continue
+                }
+                delay := l.TotalDelayDays()
+                months := l.PaymentMonths()
+                ratio := l.DelayRatio()
+                if ratio > maxRatio {
+                        maxRatio = ratio
+                }
+                parts = append(parts, fmt.Sprintf("Kredit[%s]: delay=%d, months=%d, ratio=%.2f", l.ID, delay, months, ratio))
+        }
+        if len(parts) == 0 {
+                return ""
+        }
+        return strings.Join(parts, " | ") + fmt.Sprintf(" | MaxRatio=%.2f", maxRatio)
+}
+
+// TotalActiveMonthlyPaymentsDetail returns a breakdown string showing which payments were summed.
+// PR #174: yalnız creditStatus=007 olan kreditlərin aylıq ödənişləri.
+// Example: "Kredit[1677]: 164.61 AZN (007) | Kredit[7662]: 143.33 AZN (007) | Total=307.94"
+func (ch *CreditHistory) TotalActiveMonthlyPaymentsDetail() string {
+        if ch.Inquiry == nil || ch.Inquiry.Liabilities == nil {
+                return ""
+        }
+        parts := []string{}
+        total := 0.0
+        for _, l := range ch.Inquiry.Liabilities.Liability {
+                if l.IsActive() {
+                        parts = append(parts, fmt.Sprintf("Kredit[%s]: %.2f AZN (%s)", l.ID, l.MonthlyPaymentAmount, l.CreditStatus))
+                        total += l.MonthlyPaymentAmount
+                }
+        }
+        if len(parts) == 0 {
+                return "No active credits (creditStatus=007)"
+        }
+        return strings.Join(parts, " | ") + fmt.Sprintf(" | Total=%.2f", total)
+}
+
+// MaxCurrentDelayDetail returns a breakdown string showing active credits and their current delay.
+// PR #174: yalnız creditStatus=007 olan kreditlərin cari gecikməsi.
+func (ch *CreditHistory) MaxCurrentDelayDetail() string {
+        if ch.Inquiry == nil || ch.Inquiry.Liabilities == nil {
+                return ""
+        }
+        parts := []string{}
+        maxDelay := 0
+        for _, l := range ch.Inquiry.Liabilities.Liability {
+                if l.IsActive() {
+                        delay := l.CurrentDelayDays()
+                        parts = append(parts, fmt.Sprintf("Kredit[%s]: delay=%d (%s)", l.ID, delay, l.CreditStatus))
+                        if delay > maxDelay {
+                                maxDelay = delay
+                        }
+                }
+        }
+        if len(parts) == 0 {
+                return "No active credits (creditStatus=007)"
+        }
+        return strings.Join(parts, " | ") + fmt.Sprintf(" | MaxDelay=%d", maxDelay)
 }
 
 // MkrScoreRequest is the request body for getMkrScore.

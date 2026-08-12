@@ -465,7 +465,7 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
                         ratio := creditHistory.MaxDelayRatio()
                         ratioPassed := ratio <= 6
                         s.logCutoff(ctx, appID, "DELAY_RATIO_HIGH", "Gecikmə günləri üzrə əmsal 6-dan yüksək olduqda imtina", "AZMK_INQUIRE_BY_ID_CARD", true, ratioPassed,
-                                fmt.Sprintf("maxRatio = %.2f", ratio), "ratio <= 6", "")
+                                fmt.Sprintf("maxRatio = %.2f", ratio), "ratio <= 6", "", creditHistory.MaxDelayRatioDetail())
                         if !ratioPassed {
                                 setRejection("DELAY_RATIO_HIGH")
                         }
@@ -475,7 +475,7 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
                                 curDelay := creditHistory.MaxCurrentDelay()
                                 curDelayPassed := curDelay <= 5
                                 s.logCutoff(ctx, appID, "ACTIVE_DELAY_HIGH", "Aktiv kreditlərində cari gün gecikməsi 5-dən artıq olanlara imtina", "AZMK_INQUIRE_BY_ID_CARD", true, curDelayPassed,
-                                        fmt.Sprintf("maxCurrentDelay = %d", curDelay), "delay <= 5", "")
+                                        fmt.Sprintf("maxCurrentDelay = %d", curDelay), "delay <= 5", "", creditHistory.MaxCurrentDelayDetail())
                                 if !curDelayPassed {
                                         setRejection("ACTIVE_DELAY_HIGH")
                                 }
@@ -532,7 +532,7 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
                                         monthlyPay := creditHistory.TotalActiveMonthlyPayments()
                                         monthlyPassed := monthlyPay <= 2000
                                         s.logCutoff(ctx, appID, "MONTHLY_PAYMENTS_HIGH", "Aktiv aylıq ödənişlərin cəmi 2000 AZN-dən artıq olduqda imtina", "AZMK_INQUIRE_BY_ID_CARD", true, monthlyPassed,
-                                                fmt.Sprintf("totalMonthly = %.2f", monthlyPay), "<= 2000", "")
+                                                fmt.Sprintf("totalMonthly = %.2f", monthlyPay), "<= 2000", "", creditHistory.TotalActiveMonthlyPaymentsDetail())
                                         if !monthlyPassed {
                                                 setRejection("MONTHLY_PAYMENTS_HIGH")
                                         }
@@ -594,20 +594,26 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
 
 // logCutoff writes a cutoff check result to the database.
 // PR #168: plan/fakt nəticələri hər müraciət üçün.
-func (s *ApplicationService) logCutoff(ctx context.Context, appID int, code, name, service string, checked, passed bool, actualValue, threshold, details string) {
+// PR #174: calculationDetails — variadic, kompleks hesablamaların detalları.
+func (s *ApplicationService) logCutoff(ctx context.Context, appID int, code, name, service string, checked, passed bool, actualValue, threshold, details string, calculationDetails ...string) {
         if s.cutoffRepo == nil {
                 return
         }
+        cd := ""
+        if len(calculationDetails) > 0 {
+                cd = calculationDetails[0]
+        }
         cr := &model.CutoffResult{
-                ApplicationID: appID,
-                CutoffCode:    code,
-                CutoffName:    name,
-                ServiceName:   service,
-                Checked:       checked,
-                Passed:        passed,
-                ActualValue:   actualValue,
-                Threshold:     threshold,
-                Details:       details,
+                ApplicationID:      appID,
+                CutoffCode:         code,
+                CutoffName:         name,
+                ServiceName:        service,
+                Checked:            checked,
+                Passed:             passed,
+                ActualValue:        actualValue,
+                Threshold:          threshold,
+                Details:            details,
+                CalculationDetails: cd,
         }
         if err := s.cutoffRepo.Insert(ctx, cr); err != nil {
                 slog.Warn("failed to log cutoff result", "error", err, "cutoff_code", code)
