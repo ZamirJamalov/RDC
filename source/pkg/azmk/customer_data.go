@@ -305,75 +305,219 @@ func (ch *CreditHistory) TotalActiveMonthlyPayments() float64 {
         return total
 }
 
-// MaxDelayRatioDetail returns a breakdown string showing how the max delay ratio was calculated.
+// --- PR #175: calculation_details JSON structures ---
+//
+// calculation_details sütununda məlumat JSON formatında saxlanılır.
+// Hər kompleks kesim növü üçün ayrı struct var — bu struct-lar
+// həm proqrammatically parse oluna bilər, həm də insanda oxunaqlıdır.
+
+// DelayRatioDetailJSON describes how MaxDelayRatio was calculated.
+// Kesim: DELAY_RATIO_HIGH — bütün kreditlər üzrə maksimal gecikmə əmsalı.
+type DelayRatioDetailJSON struct {
+        Calculation string                  `json:"calculation"`     // "max_delay_ratio"
+        MaxRatio    float64                 `json:"max_ratio"`       // yekun dəyər (thresholdla müqayisə olunan)
+        Formula     string                  `json:"formula"`         // hesablama düsturu (insan üçün)
+        Liabilities  []DelayRatioLiability  `json:"liabilities"`     // hər kreditin dəyərləri
+}
+
+// DelayRatioLiability is a single liability entry in DelayRatioDetailJSON.
+type DelayRatioLiability struct {
+        ID             string  `json:"id"`
+        BankName       string  `json:"bank_name"`
+        CreditStatus   string  `json:"credit_status"`
+        TotalDelayDays int     `json:"total_delay_days"`
+        PaymentMonths  int     `json:"payment_months"`
+        DelayRatio     float64 `json:"delay_ratio"`
+}
+
+// CurrentDelayDetailJSON describes how MaxCurrentDelay was calculated.
+// Kesim: ACTIVE_DELAY_HIGH — yalnız creditStatus=007 olan aktiv kreditlərin cari gecikməsi.
+type CurrentDelayDetailJSON struct {
+        Calculation         string                   `json:"calculation"`           // "max_current_delay"
+        MaxDelayDays        int                      `json:"max_delay_days"`        // yekun dəyər
+        CreditStatusFilter  string                   `json:"credit_status_filter"`  // "007"
+        Formula             string                   `json:"formula"`               // düstur
+        Liabilities         []CurrentDelayLiability  `json:"liabilities"`           // aktiv kreditlər
+}
+
+// CurrentDelayLiability is a single liability entry in CurrentDelayDetailJSON.
+type CurrentDelayLiability struct {
+        ID                  string `json:"id"`
+        BankName            string `json:"bank_name"`
+        CreditStatus        string `json:"credit_status"`
+        DaysInterestOverdue int    `json:"days_interest_overdue"`
+        DaysMainSumOverdue  int    `json:"days_main_sum_overdue"`
+        CurrentDelayDays    int    `json:"current_delay_days"`
+}
+
+// MonthlyPaymentsDetailJSON describes how TotalActiveMonthlyPayments was calculated.
+// Kesim: MONTHLY_PAYMENTS_HIGH — yalnız creditStatus=007 olan kreditlərin aylıq ödəniş cəmi.
+type MonthlyPaymentsDetailJSON struct {
+        Calculation        string                       `json:"calculation"`          // "total_active_monthly_payments"
+        Total              float64                      `json:"total"`                // yekun cəm
+        ActiveCount        int                          `json:"active_count"`         // aktiv kredit sayı
+        CreditStatusFilter string                       `json:"credit_status_filter"` // "007"
+        Formula            string                       `json:"formula"`              // düstur
+        Liabilities        []MonthlyPaymentLiability    `json:"liabilities"`          // aktiv kreditlər
+}
+
+// MonthlyPaymentLiability is a single liability entry in MonthlyPaymentsDetailJSON.
+type MonthlyPaymentLiability struct {
+        ID                   string  `json:"id"`
+        BankName             string  `json:"bank_name"`
+        CreditStatus         string  `json:"credit_status"`
+        MonthlyPaymentAmount float64 `json:"monthly_payment_amount"`
+}
+
+// MaxDelayRatioDetail returns a JSON string showing how the max delay ratio was calculated.
 // PR #174: hər kredit üçün delayDays, paymentMonths və ratio göstərir.
-// Example: "Kredit[1677]: delay=70, months=10, ratio=7.00 | Kredit[1544]: delay=1, months=14, ratio=0.07 | MaxRatio=7.00"
+// PR #175: JSON strukturuna keçid — artıq pipe-separated string yox.
+//
+// Example output:
+//
+//      {
+//        "calculation": "max_delay_ratio",
+//        "max_ratio": 7.00,
+//        "formula": "max(totalDelayDays / paymentMonths) across all liabilities",
+//        "liabilities": [
+//          {"id":"1677","bank_name":"...","credit_status":"007","total_delay_days":70,"payment_months":10,"delay_ratio":7.00},
+//          {"id":"1544","bank_name":"...","credit_status":"001","total_delay_days":1,"payment_months":14,"delay_ratio":0.07}
+//        ]
+//      }
 func (ch *CreditHistory) MaxDelayRatioDetail() string {
         if ch.Inquiry == nil || ch.Inquiry.Liabilities == nil {
                 return ""
         }
-        parts := []string{}
+        detail := DelayRatioDetailJSON{
+                Calculation: "max_delay_ratio",
+                Formula:     "max(totalDelayDays / paymentMonths) across all liabilities with history",
+        }
         maxRatio := 0.0
         for _, l := range ch.Inquiry.Liabilities.Liability {
                 if l.History == nil || len(l.History.HistoryItem) == 0 {
                         continue
                 }
-                delay := l.TotalDelayDays()
-                months := l.PaymentMonths()
                 ratio := l.DelayRatio()
                 if ratio > maxRatio {
                         maxRatio = ratio
                 }
-                parts = append(parts, fmt.Sprintf("Kredit[%s]: delay=%d, months=%d, ratio=%.2f", l.ID, delay, months, ratio))
+                detail.Liabilities = append(detail.Liabilities, DelayRatioLiability{
+                        ID:             l.ID,
+                        BankName:       l.BankName,
+                        CreditStatus:   l.CreditStatus,
+                        TotalDelayDays: l.TotalDelayDays(),
+                        PaymentMonths:  l.PaymentMonths(),
+                        DelayRatio:     ratio,
+                })
         }
-        if len(parts) == 0 {
+        if len(detail.Liabilities) == 0 {
                 return ""
         }
-        return strings.Join(parts, " | ") + fmt.Sprintf(" | MaxRatio=%.2f", maxRatio)
+        detail.MaxRatio = maxRatio
+        b, err := json.Marshal(detail)
+        if err != nil {
+                slog.Warn("MaxDelayRatioDetail: json marshal failed", "error", err)
+                return ""
+        }
+        return string(b)
 }
 
-// TotalActiveMonthlyPaymentsDetail returns a breakdown string showing which payments were summed.
+// TotalActiveMonthlyPaymentsDetail returns a JSON string showing which payments were summed.
 // PR #174: yalnız creditStatus=007 olan kreditlərin aylıq ödənişləri.
-// Example: "Kredit[1677]: 164.61 AZN (007) | Kredit[7662]: 143.33 AZN (007) | Total=307.94"
+// PR #175: JSON strukturuna keçid.
+//
+// Example output:
+//
+//      {
+//        "calculation": "total_active_monthly_payments",
+//        "total": 307.94,
+//        "active_count": 2,
+//        "credit_status_filter": "007",
+//        "formula": "sum(monthlyPaymentAmount) where creditStatus=007",
+//        "liabilities": [
+//          {"id":"1677","bank_name":"...","credit_status":"007","monthly_payment_amount":164.61},
+//          {"id":"7662","bank_name":"...","credit_status":"007","monthly_payment_amount":143.33}
+//        ]
+//      }
 func (ch *CreditHistory) TotalActiveMonthlyPaymentsDetail() string {
         if ch.Inquiry == nil || ch.Inquiry.Liabilities == nil {
                 return ""
         }
-        parts := []string{}
+        detail := MonthlyPaymentsDetailJSON{
+                Calculation:        "total_active_monthly_payments",
+                CreditStatusFilter: "007",
+                Formula:            "sum(monthlyPaymentAmount) where creditStatus=007",
+        }
         total := 0.0
         for _, l := range ch.Inquiry.Liabilities.Liability {
                 if l.IsActive() {
-                        parts = append(parts, fmt.Sprintf("Kredit[%s]: %.2f AZN (%s)", l.ID, l.MonthlyPaymentAmount, l.CreditStatus))
+                        detail.Liabilities = append(detail.Liabilities, MonthlyPaymentLiability{
+                                ID:                   l.ID,
+                                BankName:             l.BankName,
+                                CreditStatus:         l.CreditStatus,
+                                MonthlyPaymentAmount: l.MonthlyPaymentAmount,
+                        })
                         total += l.MonthlyPaymentAmount
                 }
         }
-        if len(parts) == 0 {
-                return "No active credits (creditStatus=007)"
+        detail.Total = total
+        detail.ActiveCount = len(detail.Liabilities)
+        b, err := json.Marshal(detail)
+        if err != nil {
+                slog.Warn("TotalActiveMonthlyPaymentsDetail: json marshal failed", "error", err)
+                return ""
         }
-        return strings.Join(parts, " | ") + fmt.Sprintf(" | Total=%.2f", total)
+        return string(b)
 }
 
-// MaxCurrentDelayDetail returns a breakdown string showing active credits and their current delay.
+// MaxCurrentDelayDetail returns a JSON string showing active credits and their current delay.
 // PR #174: yalnız creditStatus=007 olan kreditlərin cari gecikməsi.
+// PR #175: JSON strukturuna keçid.
+//
+// Example output:
+//
+//      {
+//        "calculation": "max_current_delay",
+//        "max_delay_days": 10,
+//        "credit_status_filter": "007",
+//        "formula": "max(currentDelayDays) where creditStatus=007",
+//        "liabilities": [
+//          {"id":"1677","bank_name":"...","credit_status":"007","days_interest_overdue":10,"days_main_sum_overdue":5,"current_delay_days":10}
+//        ]
+//      }
 func (ch *CreditHistory) MaxCurrentDelayDetail() string {
         if ch.Inquiry == nil || ch.Inquiry.Liabilities == nil {
                 return ""
         }
-        parts := []string{}
+        detail := CurrentDelayDetailJSON{
+                Calculation:        "max_current_delay",
+                CreditStatusFilter: "007",
+                Formula:            "max(currentDelayDays) where creditStatus=007; currentDelayDays = max(daysInterestOverdue, daysMainSumOverdue)",
+        }
         maxDelay := 0
         for _, l := range ch.Inquiry.Liabilities.Liability {
                 if l.IsActive() {
                         delay := l.CurrentDelayDays()
-                        parts = append(parts, fmt.Sprintf("Kredit[%s]: delay=%d (%s)", l.ID, delay, l.CreditStatus))
                         if delay > maxDelay {
                                 maxDelay = delay
                         }
+                        detail.Liabilities = append(detail.Liabilities, CurrentDelayLiability{
+                                ID:                  l.ID,
+                                BankName:            l.BankName,
+                                CreditStatus:        l.CreditStatus,
+                                DaysInterestOverdue: l.DaysInterestOverdue,
+                                DaysMainSumOverdue:  l.DaysMainSumOverdue,
+                                CurrentDelayDays:    delay,
+                        })
                 }
         }
-        if len(parts) == 0 {
-                return "No active credits (creditStatus=007)"
+        detail.MaxDelayDays = maxDelay
+        b, err := json.Marshal(detail)
+        if err != nil {
+                slog.Warn("MaxCurrentDelayDetail: json marshal failed", "error", err)
+                return ""
         }
-        return strings.Join(parts, " | ") + fmt.Sprintf(" | MaxDelay=%d", maxDelay)
+        return string(b)
 }
 
 // MkrScoreRequest is the request body for getMkrScore.
