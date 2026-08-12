@@ -474,6 +474,12 @@ func (p *HTTPCustomerDataProvider) SetAuditDB(db *sql.DB, appID *int) {
         p.appID = appID
 }
 
+// SetAuditAppID sets the current application ID for audit logging.
+// PR #168: hər müraciət üçün dinamik olaraq appID set etmək.
+func (p *HTTPCustomerDataProvider) SetAuditAppID(appID *int) {
+        p.appID = appID
+}
+
 // auditLog writes a service call audit log to the database.
 func (p *HTTPCustomerDataProvider) auditLog(serviceName, method, url, reqBody, respBody string, statusCode int, durationMs int, errMsg string) {
         if p.auditDB == nil {

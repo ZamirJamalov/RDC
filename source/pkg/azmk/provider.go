@@ -159,10 +159,16 @@ func NewHTTPProvider(baseURL, username, password string, timeoutS int) *HTTPProv
         }
 }
 
-// SetAuditDB sets the DB connection and application ID for audit logging.
+// SetAuditDB sets the DB connection for audit logging.
 // PR #163: hər AZMK HTTP çağırış üçün audit log yazmaq.
 func (p *HTTPProvider) SetAuditDB(db *sql.DB, appID *int) {
         p.auditDB = db
+        p.appID = appID
+}
+
+// SetAuditAppID sets the current application ID for audit logging.
+// PR #168: hər müraciət üçün dinamik olaraq appID set etmək.
+func (p *HTTPProvider) SetAuditAppID(appID *int) {
         p.appID = appID
 }
 
