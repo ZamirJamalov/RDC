@@ -305,10 +305,12 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
         customerPIN := app.CustomerPIN
         serial := app.CustomerSerial
 
-        // 1. Qara siyahı və aktiv kredit yoxlaması
-        // PR #159/#160: yalnız AZMK getOwnerData istifadə olunur.
-        // LW GetAzmkBlacklist və LW CheckBlacklist artıq istifadə olunmur.
+        // 1. Qara siyahı və aktiv kredit yoxlaması (AZMK getOwnerData)
+        // Kesim #5: Müştəri AZMK-da qara siyahıdadırsa imtina olunsun
+        // Kesim #6: Aktiv kreditlərində cari gün gecikməsi 5-dən artıq → imtina
         if s.customerDataProvider != nil {
+                slog.Info("early cutoff: calling AZMK getOwnerData",
+                        "application_id", app.ID, "customer_pin", customerPIN)
                 ownerData, err := s.customerDataProvider.GetOwnerData(ctx, customerPIN, serial)
                 if err != nil {
                         slog.Warn("early cutoff: AZMK getOwnerData failed — fail-soft (skip)", "error", err)
@@ -341,10 +343,12 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
                 }
         }
 
-        // 2. AKB skoru və stop-faktor
-        // PR #160: əgər AZMK CustomerDataProvider varsa, getMkrScore istifadə et.
-        // Əks halda LW provider-dən (köhnə metod) istifadə et — backward compatible.
+        // 2. AKB skoru və stop-faktor (AZMK getMkrScore)
+        // Kesim #1: Skor bali 200-dən aşağı olduqda imtina olunsun
+        // Kesim #4: AKB stop faktoruna düşən müştərilərə imtina olunsun
         if s.customerDataProvider != nil {
+                slog.Info("early cutoff: calling AZMK getMkrScore",
+                        "application_id", app.ID, "customer_pin", customerPIN)
                 mkrScore, err := s.customerDataProvider.GetMkrScore(ctx, customerPIN, serial)
                 if err != nil {
                         slog.Warn("early cutoff: AZMK getMkrScore failed — fail-soft (skip)", "error", err)
@@ -385,11 +389,12 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
                 }
         }
 
-        // 3. Yaş yoxlaması
-        // PR #152: əgər AZMK CustomerDataProvider varsa, ondan istifadə et (daha dəqiq).
-        // Əks halda LW provider-dən (köhnə metod) istifadə et — backward compatible.
+        // 3. Yaş yoxlaması (AZMK GetPersonalInfo)
+        // Kesim #3: Yaşı 69+ olduqda imtina olunsun
         age := 0
         if s.customerDataProvider != nil {
+                slog.Info("early cutoff: calling AZMK GetPersonalInfo (age check)",
+                        "application_id", app.ID, "customer_pin", customerPIN)
                 age = s.resolveCustomerAgeFromAzmk(ctx, customerPIN, serial)
         } else {
                 age = s.creditEngine.resolveCustomerAge(ctx, customerPIN, serial)
@@ -398,9 +403,14 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
                 return "AGE_OVER_69", nil
         }
 
-        // 4. Kredit tarixçəsi kesim nöqtələri (PR #165)
-        // AZMK inquireByIdCard ilə yoxlanılır — liabilities.liability[].history.historyItem[]
+        // 4. Kredit tarixçəsi kesim nöqtələri (AZMK inquireByIdCard)
+        // Kesim #2: Gecikmə əmsalı 6%-dən yüksək → imtina
+        // Kesim #7: Aktiv kreditlərində cari gün gecikməsi 5-dən artıq → imtina
+        // Kesim #8-#11: Son 3/6/12/18 ay maksimal gecikmə → imtina
+        // Kesim #12: Aktiv aylıq ödənişlər 2000 AZN-dən artıq → imtina
         if s.customerDataProvider != nil {
+                slog.Info("early cutoff: calling AZMK inquireByIdCard",
+                        "application_id", app.ID, "customer_pin", customerPIN)
                 creditHistory, err := s.customerDataProvider.InquireByIdCard(ctx, customerPIN, serial)
                 if err != nil {
                         slog.Warn("early cutoff: AZMK inquireByIdCard failed — fail-soft (skip)", "error", err)

@@ -156,7 +156,7 @@ func Load() *Config {
                 AzmkPassword:        getEnv("AZMK_PASSWORD", ""),
 
                 // PR #152: AZMK CustomerDataService
-                AzmkCustomerDataURL:     getEnv("AZMK_CUSTOMER_DATA_URL", "https://web.azmk.az:7077/LW_CREDIT_HOUSE/services/CustomerDataService"),
+                AzmkCustomerDataURL:     getEnv("AZMK_CUSTOMER_DATA_URL", "https://web.azmk.az:7077/LW_AKP/services/CustomerDataService"),
                 AzmkCustomerDataUseMock: getEnvBool("AZMK_CUSTOMER_DATA_USE_MOCK", true),
 
                 // PR #142: Authentication
