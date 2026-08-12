@@ -9,6 +9,7 @@ import (
         "io"
         "log/slog"
         "net/http"
+        "strconv"
         "strings"
         "time"
 )
@@ -44,29 +45,26 @@ type InquireByIdCardRequest struct {
 
 // InquireByIdCardResponse mirrors the real AZMK response structure.
 type InquireByIdCardResponse struct {
-        Result    json.Number `json:"result"`
-        RequestID string      `json:"requestId"`
-        Message   string      `json:"message"`
+        Result    json.Number  `json:"result"`
+        RequestID string       `json:"requestId"`
+        Message   string       `json:"message"`
         Data      *InquireData `json:"data"`
 }
 
-// InquireData contains the Request object.
+// InquireData contains the "return" object (PR #166: real response uses "return" not "Request").
 type InquireData struct {
-        Request *InquireRequest `json:"Request"`
-}
-
-// InquireRequest contains inquiryResult.
-type InquireRequest struct {
-        InquiryResult *InquiryResult `json:"inquiryResult"`
+        Return *InquiryResult `json:"return"`
 }
 
 // InquiryResult contains borrower, liabilities, score, etc.
+// PR #166: real response-dan — data.return obyektidir.
 type InquiryResult struct {
-        ReportID      string    `json:"reportId"`
-        ReportingDate string    `json:"reportingDate"`
-        Borrower      *Borrower `json:"borrower"`
+        ReportID      string       `json:"reportId"`
+        ReportingDate string       `json:"reportingDate"`
+        Borrower      *Borrower    `json:"borrower"`
         Liabilities   *Liabilities `json:"liabilities"`
-        Score         *AkbScore  `json:"score"`
+        Score         *AkbScore    `json:"score"`
+        Balance       float64      `json:"balance"`
 }
 
 // Borrower contains the customer's personal info.
@@ -124,10 +122,10 @@ type CreditHistory struct {
         Inquiry *InquiryResult
 }
 
-// IsActive returns true if the liability is an active credit (creditStatus not "CLOSED").
+// IsActive returns true if the liability is an active credit.
+// PR #166: real response-da creditStatus = "007" (aktiv), "001" (closed).
 func (l *Liability) IsActive() bool {
-        s := strings.ToUpper(l.CreditStatus)
-        return s != "CLOSED" && s != ""
+        return l.CreditStatus != "001" && l.CreditStatus != ""
 }
 
 // CurrentDelayDays returns the max of DaysInterestOverdue and DaysMainSumOverdue.
@@ -170,6 +168,7 @@ func (l *Liability) DelayRatio() float64 {
 
 // MaxDelayInPeriod returns the highest single overdueDays from history items
 // within the last N months (based on reportingPeriod).
+// PR #166: reportingPeriod format is "08x2026" (month x year).
 func (l *Liability) MaxDelayInPeriod(months int) int {
         if l.History == nil {
                 return 0
@@ -177,15 +176,8 @@ func (l *Liability) MaxDelayInPeriod(months int) int {
         cutoff := time.Now().AddDate(0, -months, 0)
         max := 0
         for _, h := range l.History.HistoryItem {
-                // Try to parse reportingPeriod — format may vary
-                t, err := time.Parse("2006-01", h.ReportingPeriod)
-                if err != nil {
-                        t, err = time.Parse("2006-01-02", h.ReportingPeriod)
-                }
-                if err != nil {
-                        t, err = time.Parse(time.RFC3339, h.ReportingPeriod)
-                }
-                if err != nil {
+                t := parseReportingPeriod(h.ReportingPeriod)
+                if t.IsZero() {
                         // Can't parse — include it (fail-safe)
                         if h.OverdueDays > max {
                                 max = h.OverdueDays
@@ -199,6 +191,30 @@ func (l *Liability) MaxDelayInPeriod(months int) int {
                 }
         }
         return max
+}
+
+// parseReportingPeriod parses "08x2026" format → time.Time (2026-08-01).
+// PR #166: real AZMK response uses "MMxYYYY" format.
+func parseReportingPeriod(s string) time.Time {
+        s = strings.TrimSpace(s)
+        // Try "08x2026" format
+        parts := strings.Split(s, "x")
+        if len(parts) == 2 {
+                month, err1 := strconv.Atoi(parts[0])
+                year, err2 := strconv.Atoi(parts[1])
+                if err1 == nil && err2 == nil && month >= 1 && month <= 12 {
+                        return time.Date(year, time.Month(month), 1, 0, 0, 0, 0, time.UTC)
+                }
+        }
+        // Try "2006-01" format (fallback)
+        if t, err := time.Parse("2006-01", s); err == nil {
+                return t
+        }
+        // Try "2006-01-02" format
+        if t, err := time.Parse("2006-01-02", s); err == nil {
+                return t
+        }
+        return time.Time{}
 }
 
 // --- CreditHistory helper methods for cutoff checks ---
@@ -721,7 +737,7 @@ func (p *HTTPCustomerDataProvider) InquireByIdCard(ctx context.Context, finCode,
                 return nil, fmt.Errorf("%s", errMsg)
         }
 
-        if inqResp.Data == nil || inqResp.Data.Request == nil || inqResp.Data.Request.InquiryResult == nil {
+        if inqResp.Data == nil || inqResp.Data.Return == nil {
                 p.auditLog("AZMK_INQUIRE_BY_ID_CARD", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, "no data")
                 return nil, fmt.Errorf("AZMK inquireByIdCard returned no inquiry data")
         }
@@ -729,15 +745,15 @@ func (p *HTTPCustomerDataProvider) InquireByIdCard(ctx context.Context, finCode,
         p.auditLog("AZMK_INQUIRE_BY_ID_CARD", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, "")
 
         liabCount := 0
-        if inqResp.Data.Request.InquiryResult.Liabilities != nil {
-                liabCount = len(inqResp.Data.Request.InquiryResult.Liabilities.Liability)
+        if inqResp.Data.Return.Liabilities != nil {
+                liabCount = len(inqResp.Data.Return.Liabilities.Liability)
         }
         slog.Info("AZMK inquireByIdCard success",
                 "fin", finCode,
                 "liabilities_count", liabCount,
         )
 
-        return &CreditHistory{Inquiry: inqResp.Data.Request.InquiryResult}, nil
+        return &CreditHistory{Inquiry: inqResp.Data.Return}, nil
 }
 
 // --- Mock Provider ---
@@ -986,52 +1002,52 @@ func (m *MockCustomerDataProvider) InquireByIdCard(_ context.Context, finCode, s
         }
 
         now := time.Now()
-        m1 := now.AddDate(0, -1, 0).Format("2006-01")
-        m2 := now.AddDate(0, -2, 0).Format("2006-01")
-        m3 := now.AddDate(0, -3, 0).Format("2006-01")
-        m4 := now.AddDate(0, -4, 0).Format("2006-01")
-        m5 := now.AddDate(0, -5, 0).Format("2006-01")
-        m6 := now.AddDate(0, -6, 0).Format("2006-01")
-        m7 := now.AddDate(0, -7, 0).Format("2006-01")
-        m8 := now.AddDate(0, -8, 0).Format("2006-01")
-        m9 := now.AddDate(0, -9, 0).Format("2006-01")
-        m10 := now.AddDate(0, -10, 0).Format("2006-01")
-        m15 := now.AddDate(0, -15, 0).Format("2006-01")
-        m20 := now.AddDate(0, -20, 0).Format("2006-01")
+        m1 := now.AddDate(0, -1, 0).Format("01x2006")
+        m2 := now.AddDate(0, -2, 0).Format("01x2006")
+        m3 := now.AddDate(0, -3, 0).Format("01x2006")
+        m4 := now.AddDate(0, -4, 0).Format("01x2006")
+        m5 := now.AddDate(0, -5, 0).Format("01x2006")
+        m6 := now.AddDate(0, -6, 0).Format("01x2006")
+        m7 := now.AddDate(0, -7, 0).Format("01x2006")
+        m8 := now.AddDate(0, -8, 0).Format("01x2006")
+        m9 := now.AddDate(0, -9, 0).Format("01x2006")
+        m10 := now.AddDate(0, -10, 0).Format("01x2006")
+        m15 := now.AddDate(0, -15, 0).Format("01x2006")
+        m20 := now.AddDate(0, -20, 0).Format("01x2006")
 
         switch scenario {
         case "delay_ratio_high":
                 return mockCH([]Liability{
-                        mockL(70, 8, 0, 150, "ACTIVE", []HistoryItem{{7, m1, ""}, {7, m2, ""}, {7, m3, ""}, {7, m4, ""}, {7, m5, ""}, {7, m6, ""}, {7, m7, ""}, {7, m8, ""}, {7, m9, ""}, {7, m10, ""}}),
+                        mockL(70, 8, 0, 150, "007", []HistoryItem{{7, m1, ""}, {7, m2, ""}, {7, m3, ""}, {7, m4, ""}, {7, m5, ""}, {7, m6, ""}, {7, m7, ""}, {7, m8, ""}, {7, m9, ""}, {7, m10, ""}}),
                 }), nil
         case "active_delay_high":
                 return mockCH([]Liability{
-                        mockL(8, 8, 2, 200, "ACTIVE", []HistoryItem{{3, m1, ""}, {1, m2, ""}}),
+                        mockL(8, 8, 2, 200, "007", []HistoryItem{{3, m1, ""}, {1, m2, ""}}),
                 }), nil
         case "delay_3m_high":
                 return mockCH([]Liability{
-                        mockL(25, 25, 0, 200, "CLOSED", []HistoryItem{{25, m1, ""}, {5, m4, ""}}),
+                        mockL(25, 25, 0, 200, "001", []HistoryItem{{25, m1, ""}, {5, m4, ""}}),
                 }), nil
         case "delay_6m_high":
                 return mockCH([]Liability{
-                        mockL(35, 35, 0, 200, "CLOSED", []HistoryItem{{35, m3, ""}, {5, m8, ""}}),
+                        mockL(35, 35, 0, 200, "001", []HistoryItem{{35, m3, ""}, {5, m8, ""}}),
                 }), nil
         case "delay_12m_high":
                 return mockCH([]Liability{
-                        mockL(50, 50, 0, 200, "CLOSED", []HistoryItem{{50, m5, ""}, {5, m15, ""}}),
+                        mockL(50, 50, 0, 200, "001", []HistoryItem{{50, m5, ""}, {5, m15, ""}}),
                 }), nil
         case "delay_18m_high":
                 return mockCH([]Liability{
-                        mockL(65, 65, 0, 200, "CLOSED", []HistoryItem{{65, m10, ""}, {5, m20, ""}}),
+                        mockL(65, 65, 0, 200, "001", []HistoryItem{{65, m10, ""}, {5, m20, ""}}),
                 }), nil
         case "monthly_payments_high":
                 return mockCH([]Liability{
-                        mockL(0, 0, 0, 1200, "ACTIVE", []HistoryItem{{0, m1, ""}}),
-                        mockL(0, 0, 0, 900, "ACTIVE", []HistoryItem{{0, m1, ""}}),
+                        mockL(0, 0, 0, 1200, "007", []HistoryItem{{0, m1, ""}}),
+                        mockL(0, 0, 0, 900, "007", []HistoryItem{{0, m1, ""}}),
                 }), nil
         case "clean_history":
                 return mockCH([]Liability{
-                        mockL(5, 5, 0, 300, "CLOSED", []HistoryItem{{2, m5, ""}, {3, m8, ""}}),
+                        mockL(5, 5, 0, 300, "001", []HistoryItem{{2, m5, ""}, {3, m8, ""}}),
                 }), nil
         case "error":
                 return nil, fmt.Errorf("mock: simulated AZMK inquireByIdCard error for FIN %s", finCode)
