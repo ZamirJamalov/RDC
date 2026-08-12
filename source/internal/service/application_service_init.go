@@ -398,64 +398,108 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
                 return "AGE_OVER_69", nil
         }
 
-        // 4. AKB History yoxlamaları (gecikmə, aktiv kredit, aylıq ödəniş)
-        // Bu yoxlamalar loanAnalytics strukturunu doldurur
-        var analytics loanAnalytics
-        s.creditEngine.resolveAkbHistory(ctx, customerPIN, serial, &analytics)
-
-        // 4a. Gecikmə tarixçəsi (yalnız AKB history available olanda)
-        if analytics.akbHistoryAvailable {
-                if analytics.delayRatio > 6 {
-                        return "DELAY_RATIO_HIGH", nil
+        // 4. Kredit tarixçəsi kesim nöqtələri (PR #165)
+        // AZMK inquireByIdCard ilə yoxlanılır — liabilities.liability[].history.historyItem[]
+        if s.customerDataProvider != nil {
+                creditHistory, err := s.customerDataProvider.InquireByIdCard(ctx, customerPIN, serial)
+                if err != nil {
+                        slog.Warn("early cutoff: AZMK inquireByIdCard failed — fail-soft (skip)", "error", err)
+                } else if creditHistory != nil {
+                        // Kesim #1: Gecikmə əmsalı > 6
+                        if ratio := creditHistory.MaxDelayRatio(); ratio > 6 {
+                                slog.Info("early cutoff: delay ratio high",
+                                        "application_id", app.ID, "customer_pin", customerPIN, "ratio", ratio)
+                                return "DELAY_RATIO_HIGH", nil
+                        }
+                        // Kesim #2: Aktiv kredit cari gecikmə > 5
+                        if delay := creditHistory.MaxCurrentDelay(); delay > 5 {
+                                slog.Info("early cutoff: active delay high",
+                                        "application_id", app.ID, "customer_pin", customerPIN, "delay_days", delay)
+                                return "ACTIVE_DELAY_HIGH", nil
+                        }
+                        // Kesim #3: Son 3 ay max gecikmə ≥ 20
+                        if d := creditHistory.MaxDelay3M(); d >= 20 {
+                                slog.Info("early cutoff: delay 3m high", "application_id", app.ID, "max_delay", d)
+                                return "DELAY_3M", nil
+                        }
+                        // Kesim #4: Son 6 ay max gecikmə ≥ 30
+                        if d := creditHistory.MaxDelay6M(); d >= 30 {
+                                slog.Info("early cutoff: delay 6m high", "application_id", app.ID, "max_delay", d)
+                                return "DELAY_6M", nil
+                        }
+                        // Kesim #5: Son 12 ay max gecikmə ≥ 45
+                        if d := creditHistory.MaxDelay12M(); d >= 45 {
+                                slog.Info("early cutoff: delay 12m high", "application_id", app.ID, "max_delay", d)
+                                return "DELAY_12M", nil
+                        }
+                        // Kesim #6: Son 18 ay max gecikmə ≥ 60
+                        if d := creditHistory.MaxDelay18M(); d >= 60 {
+                                slog.Info("early cutoff: delay 18m high", "application_id", app.ID, "max_delay", d)
+                                return "DELAY_18M", nil
+                        }
+                        // Kesim #7: Aktiv aylıq ödəniş > 2000
+                        if pay := creditHistory.TotalActiveMonthlyPayments(); pay > 2000 {
+                                slog.Info("early cutoff: monthly payments high",
+                                        "application_id", app.ID, "customer_pin", customerPIN, "total", pay)
+                                return "MONTHLY_PAYMENTS_HIGH", nil
+                        }
+                        slog.Info("AZMK inquireByIdCard — all delay checks passed",
+                                "application_id", app.ID,
+                                "customer_pin", customerPIN,
+                                "max_delay_ratio", creditHistory.MaxDelayRatio(),
+                                "max_current_delay", creditHistory.MaxCurrentDelay(),
+                                "max_3m", creditHistory.MaxDelay3M(),
+                                "max_6m", creditHistory.MaxDelay6M(),
+                                "max_12m", creditHistory.MaxDelay12M(),
+                                "max_18m", creditHistory.MaxDelay18M(),
+                                "total_monthly", creditHistory.TotalActiveMonthlyPayments())
                 }
-                if analytics.activeMaxDelayDays > 5 {
-                        return "ACTIVE_DELAY_HIGH", nil
-                }
-                if analytics.maxDelayLast3Months >= 20 {
-                        return "DELAY_3M", nil
-                }
-                if analytics.maxDelayLast6Months >= 30 {
-                        return "DELAY_6M", nil
-                }
-                if analytics.maxDelayLast12Months >= 45 {
-                        return "DELAY_12M", nil
-                }
-                if analytics.maxDelayLast18Months >= 60 {
-                        return "DELAY_18M", nil
-                }
-                if analytics.totalMonthlyPayments > 2000 {
-                        return "MONTHLY_PAYMENTS_HIGH", nil
-                }
-        }
-
-        // 5. Aktiv kredit və gecikməli ödəniş (LW loans)
-        customerLoans, loansErr := s.creditEngine.lwProvider.GetCustomerLoans(ctx, customerPIN)
-        if loansErr != nil {
-                slog.Warn("early cutoff: failed to fetch customer loans — fail-soft (skip)",
-                        "customer_pin", customerPIN,
-                        "error", loansErr)
         } else {
-                loanAnalytics := computeAnalytics(customerLoans.Loans)
-                if loanAnalytics.hasActive {
-                        return "ACTIVE_LOAN", nil
+                // Backward compatible: LW provider (köhnə metod)
+                var analytics loanAnalytics
+                s.creditEngine.resolveAkbHistory(ctx, customerPIN, serial, &analytics)
+                if analytics.akbHistoryAvailable {
+                        if analytics.delayRatio > 6 {
+                                return "DELAY_RATIO_HIGH", nil
+                        }
+                        if analytics.activeMaxDelayDays > 5 {
+                                return "ACTIVE_DELAY_HIGH", nil
+                        }
+                        if analytics.maxDelayLast3Months >= 20 {
+                                return "DELAY_3M", nil
+                        }
+                        if analytics.maxDelayLast6Months >= 30 {
+                                return "DELAY_6M", nil
+                        }
+                        if analytics.maxDelayLast12Months >= 45 {
+                                return "DELAY_12M", nil
+                        }
+                        if analytics.maxDelayLast18Months >= 60 {
+                                return "DELAY_18M", nil
+                        }
+                        if analytics.totalMonthlyPayments > 2000 {
+                                return "MONTHLY_PAYMENTS_HIGH", nil
+                        }
                 }
-                if loanAnalytics.completedCount > 0 && !loanAnalytics.allOnTime {
-                        return "LATE_PAYMENT", nil
+                // LW loans yoxlaması
+                customerLoans, loansErr := s.creditEngine.lwProvider.GetCustomerLoans(ctx, customerPIN)
+                if loansErr != nil {
+                        slog.Warn("early cutoff: failed to fetch customer loans — fail-soft (skip)", "error", loansErr)
+                } else {
+                        loanAnalytics := computeAnalytics(customerLoans.Loans)
+                        if loanAnalytics.hasActive {
+                                return "ACTIVE_LOAN", nil
+                        }
+                        if loanAnalytics.completedCount > 0 && !loanAnalytics.allOnTime {
+                                return "LATE_PAYMENT", nil
+                        }
                 }
         }
 
         slog.Info("early cutoff: all checks passed",
                 "application_id", app.ID,
                 "customer_pin", customerPIN,
-                "age", age,
-                "akb_history_available", analytics.akbHistoryAvailable,
-                "delay_ratio", analytics.delayRatio,
-                "active_delay", analytics.activeMaxDelayDays,
-                "max_3m", analytics.maxDelayLast3Months,
-                "max_6m", analytics.maxDelayLast6Months,
-                "max_12m", analytics.maxDelayLast12Months,
-                "max_18m", analytics.maxDelayLast18Months,
-                "monthly_payments", analytics.totalMonthlyPayments)
+                "age", age)
 
         return "", nil
 }
