@@ -7,15 +7,30 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="/auth.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        body { font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+        /* PR #176: AZMK fonts — Geist for headings/numbers, Geist Mono for calculator */
+        h1, h2, h3, h4, h5, h6,
+        .font-extrabold, .font-black,
+        .gradient-text, .gradient-accent-text,
+        .calc-num, .num-shift,
+        .alpul-grad-text {
+            font-family: 'Geist', 'IBM Plex Sans', sans-serif;
+        }
+        .font-mono, .tabular-nums, input[type="number"], input[inputmode="decimal"], input[inputmode="numeric"] {
+            font-family: 'Geist Mono', 'IBM Plex Sans', monospace;
+            font-variant-numeric: tabular-nums;
+        }
 
         /* Brand */
-        .alpul-btn { background: linear-gradient(135deg, #3FB0A7 0%, #6163A4 100%); }
-        .alpul-btn:hover { box-shadow: 0 4px 14px rgba(63, 176, 167, 0.45); }
+        .alpul-btn { background: linear-gradient(135deg, #2D9CDB 0%, #1d5a8f 100%); }
+        .alpul-btn:hover { box-shadow: 0 4px 14px rgba(45, 156, 219, 0.45); }
         .alpul-grad-text {
-            background: linear-gradient(135deg, #3FB0A7 0%, #6163A4 100%);
+            background: linear-gradient(135deg, #2D9CDB 0%, #F2C94C 100%);
             -webkit-background-clip: text; background-clip: text;
             -webkit-text-fill-color: transparent;
         }
@@ -25,7 +40,7 @@
             --bg: #F0F4F8; --card: #FFFFFF; --text: #1E293B; --text-soft: #64748B; --border: #E2E8F0;
         }
         [data-theme="dark"] {
-            --bg: #0A0A0F; --card: #181822; --text: #F5F5F7; --text-soft: #9CA3AF; --border: #26263A;
+            --bg: #081a33; --card: #112d52; --text: #F5F5F7; --text-soft: #A3B3CC; --border: #1d3b66;
         }
         [data-theme="dark"] body { background: var(--bg) !important; }
         [data-theme="dark"] .panel { background: var(--card) !important; border-color: var(--border) !important; }
@@ -34,12 +49,12 @@
         [data-theme="dark"] .value-strong { color: var(--text) !important; }
         [data-theme="dark"] .panel-divider { border-color: var(--border) !important; }
         [data-theme="dark"] .field-input {
-            background: #0F0F18 !important;
+            background: #0d2444 !important;
             border-color: var(--border) !important;
             color: var(--text) !important;
         }
-        [data-theme="dark"] .field-input::placeholder { color: #4B5563 !important; }
-        [data-theme="dark"] .sub-card { background: #0F0F18 !important; border-color: var(--border) !important; }
+        [data-theme="dark"] .field-input::placeholder { color: #5a6b87 !important; }
+        [data-theme="dark"] .sub-card { background: #0d2444 !important; border-color: var(--border) !important; }
         [data-theme="dark"] .sub-card-title { color: var(--text-soft) !important; }
 
         /* Sticky compact header */
@@ -48,7 +63,7 @@
             background: rgba(255,255,255,0.85);
             border-bottom: 1px solid var(--border);
         }
-        [data-theme="dark"] .top-header { background: rgba(15,15,24,0.85) !important; }
+        [data-theme="dark"] .top-header { background: rgba(13, 36, 68, 0.85) !important; }
 
         /* Panel */
         .panel {
@@ -77,8 +92,8 @@
         }
         .field-input:focus {
             outline: none;
-            border-color: #3FB0A7;
-            box-shadow: 0 0 0 3px rgba(63,176,167,0.15);
+            border-color: #2D9CDB;
+            box-shadow: 0 0 0 3px rgba(45, 156, 219,0.15);
         }
 
         .sub-card {
@@ -97,8 +112,8 @@
             width: 28px; height: 28px; border-radius: 8px;
             display: inline-flex; align-items: center; justify-content: center;
             font-size: 14px;
-            background: linear-gradient(135deg, rgba(63,176,167,0.12), rgba(97,99,164,0.12));
-            color: #3FB0A7;
+            background: linear-gradient(135deg, rgba(45, 156, 219,0.12), rgba(242, 201, 76,0.12));
+            color: #2D9CDB;
         }
 
         /* Make body scrollable on all sizes (3-row layout may overflow) */

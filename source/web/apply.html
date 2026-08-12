@@ -11,27 +11,28 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 
     <style>
         /* PR #83: Theme variables — dark (default) and light */
         :root, [data-theme="dark"] {
-            --alpul-bg: #0A0A0F;
-            --alpul-bg-soft: #12121A;
-            --alpul-card: #181822;
-            --alpul-border: #26263A;
-            --alpul-text: #F5F5F7;
-            --alpul-text-soft: #9CA3AF;
-            --alpul-accent: #3FB0A7;
-            --alpul-accent-2: #6163A4;
+            /* PR #176: AZMK Dark Navy palette */
+            --alpul-bg: #081a33;           /* AZMK əsas tünd mavi */
+            --alpul-bg-soft: #0d2444;      /* navbar/cards üçün bir ton açıq */
+            --alpul-card: #112d52;         /* kalkulyator kartı */
+            --alpul-border: #1d3b66;       /* incə mavi sərhəd */
+            --alpul-text: #F5F5F7;         /* ağ mətn */
+            --alpul-text-soft: #A3B3CC;    /* yumşaq mavi-boz */
+            --alpul-accent: #2D9CDB;       /* canlı maliyyə mavisi */
+            --alpul-accent-2: #F2C94C;     /* AZMK qızılı aksent */
             --alpul-success: #10B981;
             --alpul-gold: #F59E0B;
             --alpul-error: #EF4444;
-            --alpul-input-bg: #12121A;
-            --alpul-hover: rgba(255,255,255,0.05);
-            --alpul-shadow: rgba(63, 176, 167, 0.15);
-            --alpul-divider: rgba(255,255,255,0.1);
-            --alpul-card-inner: rgba(0,0,0,0.3);
+            --alpul-input-bg: #0d2444;
+            --alpul-hover: rgba(45, 156, 219, 0.1);
+            --alpul-shadow: rgba(45, 156, 219, 0.15);
+            --alpul-divider: rgba(255,255,255,0.08);
+            --alpul-card-inner: rgba(0,0,0,0.25);
         }
 
         [data-theme="light"] {
@@ -41,14 +42,14 @@
             --alpul-border: #CBD5E1;
             --alpul-text: #1E293B;
             --alpul-text-soft: #64748B;
-            --alpul-accent: #3FB0A7;
-            --alpul-accent-2: #6163A4;
+            --alpul-accent: #2D9CDB;
+            --alpul-accent-2: #F2C94C;
             --alpul-success: #059669;
             --alpul-gold: #D97706;
             --alpul-error: #DC2626;
             --alpul-input-bg: #F8FAFC;
             --alpul-hover: rgba(0,0,0,0.03);
-            --alpul-shadow: rgba(63, 176, 167, 0.1);
+            --alpul-shadow: rgba(45, 156, 219, 0.1);
             --alpul-divider: rgba(0,0,0,0.08);
             --alpul-card-inner: rgba(0,0,0,0.02);
         }
@@ -56,11 +57,24 @@
         * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
             background: var(--alpul-bg);
             color: var(--alpul-text);
             font-feature-settings: 'tnum' on, 'lnum' on;
             min-height: 100vh;
+        }
+
+        /* PR #176: AZMK fonts — Geist for headings/numbers, Geist Mono for calculator */
+        h1, h2, h3, h4, h5, h6,
+        .font-extrabold, .font-black,
+        .gradient-text, .gradient-accent-text,
+        .calc-num, .num-shift,
+        .alpul-grad-text {
+            font-family: 'Geist', 'IBM Plex Sans', sans-serif;
+        }
+        .font-mono, .tabular-nums, input[type="number"], input[inputmode="decimal"], input[inputmode="numeric"] {
+            font-family: 'Geist Mono', 'IBM Plex Sans', monospace;
+            font-variant-numeric: tabular-nums;
         }
 
         .gradient-text {
@@ -71,11 +85,11 @@
         }
 
         .gradient-accent {
-            background: linear-gradient(135deg, #3FB0A7 0%, #6163A4 100%);
+            background: linear-gradient(135deg, #2D9CDB 0%, #1d5a8f 100%);
         }
 
         .gradient-accent-text {
-            background: linear-gradient(135deg, #3FB0A7 0%, #6163A4 100%);
+            background: linear-gradient(135deg, #2D9CDB 0%, #F2C94C 100%);
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -95,8 +109,8 @@
         }
         .input-field:focus {
             outline: none;
-            border-color: #3FB0A7;
-            box-shadow: 0 0 0 3px rgba(63, 176, 167, 0.15);
+            border-color: #2D9CDB;
+            box-shadow: 0 0 0 3px rgba(45, 156, 219, 0.15);
         }
         .input-field::placeholder { color: var(--alpul-text-soft); opacity: 0.5; }
 
@@ -118,8 +132,8 @@
             height: 22px; width: 22px;
             margin-top: -8px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #3FB0A7, #6163A4);
-            box-shadow: 0 0 0 4px rgba(63, 176, 167, 0.2);
+            background: linear-gradient(135deg, #2D9CDB, #F2C94C);
+            box-shadow: 0 0 0 4px rgba(45, 156, 219, 0.2);
             border: 2px solid #fff;
         }
         input[type="range"]::-moz-range-track {
@@ -131,16 +145,16 @@
             height: 22px; width: 22px;
             border: 2px solid #fff;
             border-radius: 50%;
-            background: linear-gradient(135deg, #3FB0A7, #6163A4);
+            background: linear-gradient(135deg, #2D9CDB, #F2C94C);
         }
 
         .cta-btn {
-            background: linear-gradient(135deg, #3FB0A7 0%, #6163A4 100%);
+            background: linear-gradient(135deg, #2D9CDB 0%, #1d5a8f 100%);
             transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
         }
         .cta-btn:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: 0 15px 40px -10px rgba(63, 176, 167, 0.5);
+            box-shadow: 0 15px 40px -10px rgba(45, 156, 219, 0.5);
         }
         .cta-btn:active:not(:disabled) { transform: translateY(0); }
         .cta-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -149,7 +163,7 @@
             transition: all 0.3s ease;
         }
         .step-dot.active {
-            background: linear-gradient(135deg, #3FB0A7, #6163A4);
+            background: linear-gradient(135deg, #2D9CDB, #F2C94C);
             color: white;
         }
         .step-dot.done {
@@ -188,9 +202,9 @@
         [data-theme="light"] .text-white { color: var(--alpul-text) !important; }
         [data-theme="light"] .bg-white\/5 { background: var(--alpul-hover) !important; }
         [data-theme="light"] .border-white\/20 { border-color: var(--alpul-border) !important; }
-        [data-theme="light"] .from-teal-500\/10 { --tw-gradient-from: rgba(63,176,167,0.05) !important; }
-        [data-theme="light"] .to-indigo-500\/10 { --tw-gradient-to: rgba(97,99,164,0.05) !important; }
-        [data-theme="light"] .border-teal-500\/20 { border-color: rgba(63,176,167,0.2) !important; }
+        [data-theme="light"] .from-teal-500\/10 { --tw-gradient-from: rgba(45, 156, 219,0.05) !important; }
+        [data-theme="light"] .to-indigo-500\/10 { --tw-gradient-to: rgba(242, 201, 76,0.05) !important; }
+        [data-theme="light"] .border-teal-500\/20 { border-color: rgba(45, 156, 219,0.2) !important; }
     </style>
 </head>
 <body x-data="applyApp()" x-init="init()" x-cloak data-theme="dark">

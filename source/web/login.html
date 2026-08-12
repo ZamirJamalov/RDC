@@ -9,7 +9,7 @@
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --alpul-bg: #f8fafc;
@@ -18,21 +18,35 @@
             --alpul-text: #1e293b;
             --alpul-text-soft: #64748b;
             --alpul-input-bg: #f1f5f9;
-            --alpul-teal: #3FB0A7;
-            --alpul-indigo: #6163A4;
+            --alpul-teal: #2D9CDB;   /* PR #176: AZMK finance blue */
+            --alpul-indigo: #F2C94C; /* PR #176: AZMK gold accent */
         }
         [data-theme="dark"] {
-            --alpul-bg: #0a0b14;
-            --alpul-card: #12141f;
-            --alpul-border: #1e2130;
-            --alpul-text: #e2e8f0;
-            --alpul-text-soft: #94a3b8;
-            --alpul-input-bg: #0f111a;
+            /* PR #176: AZMK Dark Navy palette */
+            --alpul-bg: #081a33;
+            --alpul-card: #112d52;
+            --alpul-border: #1d3b66;
+            --alpul-text: #F5F5F7;
+            --alpul-text-soft: #A3B3CC;
+            --alpul-input-bg: #0d2444;
         }
-        * { font-family: 'Inter', sans-serif; }
+        * { font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+        /* PR #176: AZMK fonts — Geist for headings/numbers, Geist Mono for calculator */
+        h1, h2, h3, h4, h5, h6,
+        .font-extrabold, .font-black,
+        .gradient-text, .gradient-accent-text,
+        .calc-num, .num-shift,
+        .alpul-grad-text {
+            font-family: 'Geist', 'IBM Plex Sans', sans-serif;
+        }
+        .font-mono, .tabular-nums, input[type="number"], input[inputmode="decimal"], input[inputmode="numeric"] {
+            font-family: 'Geist Mono', 'IBM Plex Sans', monospace;
+            font-variant-numeric: tabular-nums;
+        }
         body { background: var(--alpul-bg); color: var(--alpul-text); transition: background 0.2s ease, color 0.2s ease; }
-        .gradient-accent { background: linear-gradient(135deg, #3FB0A7 0%, #6163A4 100%); }
-        .gradient-text { background: linear-gradient(135deg, #3FB0A7 0%, #6163A4 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+        .gradient-accent { background: linear-gradient(135deg, #2D9CDB 0%, #1d5a8f 100%); }
+        .gradient-text { background: linear-gradient(135deg, #FFFFFF 0%, #2D9CDB 50%, #F2C94C 100%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
         .input-field {
             background: var(--alpul-input-bg);
             border: 1px solid var(--alpul-border);
@@ -41,12 +55,12 @@
         }
         .input-field:focus {
             outline: none;
-            border-color: #3FB0A7;
-            box-shadow: 0 0 0 3px rgba(63, 176, 167, 0.15);
+            border-color: #2D9CDB;
+            box-shadow: 0 0 0 3px rgba(45, 156, 219, 0.15);
         }
         .input-field::placeholder { color: var(--alpul-text-soft); opacity: 0.5; }
-        .cta-btn { background: linear-gradient(135deg, #3FB0A7 0%, #6163A4 100%); transition: transform 0.15s ease, box-shadow 0.15s ease; }
-        .cta-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(63, 176, 167, 0.3); }
+        .cta-btn { background: linear-gradient(135deg, #2D9CDB 0%, #1d5a8f 100%); transition: transform 0.15s ease, box-shadow 0.15s ease; }
+        .cta-btn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(45, 156, 219, 0.3); }
         .cta-btn:active:not(:disabled) { transform: translateY(0); }
         .cta-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         [x-cloak] { display: none !important; }
