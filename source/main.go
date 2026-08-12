@@ -134,6 +134,7 @@ func main() {
         appService.SetCustomerDataProvider(customerDataProvider)
         appService.SetCutoffRepo(cutoffResultRepo)   // PR #168
         appService.SetKycVerifyEnabled(cfg.AzmkKycVerifyEnabled) // PR #170
+        appService.SetCutoffStopOnFirstFail(cfg.CutoffStopOnFirstFail) // PR #171
 
         // PR #163: Audit log — CustomerData provider-a DB əlaqəsi ver
         if httpCDP, ok := customerDataProvider.(*azmk.HTTPCustomerDataProvider); ok {

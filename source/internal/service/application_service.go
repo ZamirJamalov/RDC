@@ -35,6 +35,9 @@ type ApplicationService struct {
 
         // PR #170: KYC verify toggle — false=KYC verify skip olunur
         kycVerifyEnabled bool
+
+        // PR #171: Cutoff stop-on-first-fail — false=bütün kesimlər həmişə yoxlanılır
+        cutoffStopOnFirstFail bool
 }
 
 // NewApplicationService creates a new ApplicationService.
@@ -101,6 +104,13 @@ func (s *ApplicationService) SetCutoffRepo(repo *repository.CutoffResultRepo) {
 // false=KYC verify skip olunur, cutoff-lar birbaşa yoxlanılır.
 func (s *ApplicationService) SetKycVerifyEnabled(enabled bool) {
         s.kycVerifyEnabled = enabled
+}
+
+// SetCutoffStopOnFirstFail controls cutoff behavior (PR #171).
+// true (default) = ilk kesim rədd edildikdə digərləri yoxlanılmır
+// false = bütün kesimlər həmişə yoxlanılır
+func (s *ApplicationService) SetCutoffStopOnFirstFail(stop bool) {
+        s.cutoffStopOnFirstFail = stop
 }
 
 // resolveCustomerAgeFromAzmk fetches customer data from AZMK CustomerDataService
