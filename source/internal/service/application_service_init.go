@@ -595,6 +595,9 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
 // logCutoff writes a cutoff check result to the database.
 // PR #168: plan/fakt nəticələri hər müraciət üçün.
 // PR #174: calculationDetails — variadic, kompleks hesablamaların detalları.
+// PR #175: calculationDetails artıq JSON strukturundadır (DelayRatioDetailJSON,
+//
+//      CurrentDelayDetailJSON, MonthlyPaymentsDetailJSON — pkg/azmk/customer_data.go).
 func (s *ApplicationService) logCutoff(ctx context.Context, appID int, code, name, service string, checked, passed bool, actualValue, threshold, details string, calculationDetails ...string) {
         if s.cutoffRepo == nil {
                 return
