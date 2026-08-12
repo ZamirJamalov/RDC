@@ -74,6 +74,7 @@ func main() {
         discountCodeRepo := repository.NewDiscountCodeRepo(db)           // PR #94/95: discount codes
         systemSettingsRepo := repository.NewSystemSettingsRepo(db)       // PR #98: feature flags
         userRepo := repository.NewUserRepo(db)                           // PR #142: auth users
+        cutoffResultRepo := repository.NewCutoffResultRepo(db)           // PR #168: cutoff results
 
         // --- LW Provider (T-2.13) ---
         // In mock mode: reads from local DB (mock_lms_loans table) + canned responses.
@@ -131,6 +132,7 @@ func main() {
                 customerDataProvider = azmk.NewHTTPCustomerDataProvider(cfg.AzmkCustomerDataURL, cfg.AzmkUsername, cfg.AzmkPassword, cfg.AzmkTimeoutS)
         }
         appService.SetCustomerDataProvider(customerDataProvider)
+        appService.SetCutoffRepo(cutoffResultRepo) // PR #168
 
         // PR #163: Audit log — CustomerData provider-a DB əlaqəsi ver
         if httpCDP, ok := customerDataProvider.(*azmk.HTTPCustomerDataProvider); ok {

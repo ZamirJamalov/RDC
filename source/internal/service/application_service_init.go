@@ -116,6 +116,16 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
 
         // 3. PR #117: AZMK KYC + Partner registration
         // Müştəri kimliyini təsdiq etmədən cutoff yoxlamaq mənasızdır.
+        // PR #168: audit log üçün appID set et
+        appID := app.ID
+        if httpP, ok := s.azmkProvider.(*azmk.HTTPProvider); ok {
+                httpP.SetAuditAppID(&appID)
+        }
+        if s.customerDataProvider != nil {
+                if httpCDP, ok := s.customerDataProvider.(*azmk.HTTPCustomerDataProvider); ok {
+                        httpCDP.SetAuditAppID(&appID)
+                }
+        }
         if s.azmkProvider != nil {
                 kycErr := s.runAzmkKycAndPartner(ctx, app)
                 if kycErr != nil {
@@ -145,6 +155,8 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
                 // Fail-soft: cutoff xətası olanda müştərini bloklamırıq — normal flow davam edir
         } else if rejectionReason != "" {
                 // Cutoff rədd etdi — statusu rejected et və səbəbi yaz
+                // PR #168: cutoff nəticəsini log et
+                s.logCutoff(ctx, app.ID, rejectionReason, rejectionReason, "", true, false, "", "", "Müraciət bu kesim nöqtəsinə görə rədd edildi")
                 app.Status = model.StatusRejected
                 app.RejectionReason = rejectionReason
                 if err := s.repo.UpdateApplicationDecision(ctx, app.ID,
@@ -511,7 +523,32 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
                 "customer_pin", customerPIN,
                 "age", age)
 
+        // PR #168: Bütün kesim nöqtələri keçdi — logCutoff ilə qeyd et
+        s.logCutoff(ctx, app.ID, "ALL_CHECKS_PASSED", "Bütün kesim nöqtələri keçdi", "", true, true, "", "", "")
+
         return "", nil
+}
+
+// logCutoff writes a cutoff check result to the database.
+// PR #168: plan/fakt nəticələri hər müraciət üçün.
+func (s *ApplicationService) logCutoff(ctx context.Context, appID int, code, name, service string, checked, passed bool, actualValue, threshold, details string) {
+        if s.cutoffRepo == nil {
+                return
+        }
+        cr := &model.CutoffResult{
+                ApplicationID: appID,
+                CutoffCode:    code,
+                CutoffName:    name,
+                ServiceName:   service,
+                Checked:       checked,
+                Passed:        passed,
+                ActualValue:   actualValue,
+                Threshold:     threshold,
+                Details:       details,
+        }
+        if err := s.cutoffRepo.Insert(ctx, cr); err != nil {
+                slog.Warn("failed to log cutoff result", "error", err, "cutoff_code", code)
+        }
 }
 
 // CompleteApplicationRequest is the body for PUT /api/applications/{id}/complete.

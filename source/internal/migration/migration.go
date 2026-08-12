@@ -84,6 +84,8 @@ func dropAllTables(db *sql.DB) error {
                 "DROP TABLE IF EXISTS users",
                 // PR #163: service audit logs
                 "DROP TABLE IF EXISTS service_audit_logs",
+                // PR #168: cutoff results
+                "DROP TABLE IF EXISTS cutoff_results",
         }
         for _, stmt := range dropStatements {
                 if _, err := db.Exec(stmt); err != nil {

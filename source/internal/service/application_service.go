@@ -6,6 +6,7 @@ import (
         "log/slog"
 
         "rdc-source/internal/model"
+        "rdc-source/internal/repository"
         "rdc-source/pkg/azmk"
         "rdc-source/pkg/otp"
 )
@@ -28,6 +29,9 @@ type ApplicationService struct {
 
         // PR #152: AZMK CustomerDataService (yaş yoxlaması üçün)
         customerDataProvider azmk.CustomerDataProvider // set via SetCustomerDataProvider (nil = skip age check)
+
+        // PR #168: Cutoff results repo (plan/fakt nəticələri)
+        cutoffRepo *repository.CutoffResultRepo
 }
 
 // NewApplicationService creates a new ApplicationService.
@@ -83,6 +87,11 @@ func (s *ApplicationService) SetAzmkProvider(provider azmk.Provider, branchCode,
 // When nil, age check uses the existing LW provider (backward compatible).
 func (s *ApplicationService) SetCustomerDataProvider(provider azmk.CustomerDataProvider) {
         s.customerDataProvider = provider
+}
+
+// SetCutoffRepo injects the cutoff results repo (PR #168).
+func (s *ApplicationService) SetCutoffRepo(repo *repository.CutoffResultRepo) {
+        s.cutoffRepo = repo
 }
 
 // resolveCustomerAgeFromAzmk fetches customer data from AZMK CustomerDataService
