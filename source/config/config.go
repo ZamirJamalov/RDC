@@ -95,6 +95,9 @@ type Config struct {
         AzmkCustomerDataURL      string // CustomerDataService URL (separate from OnlineLendingService)
         AzmkCustomerDataUseMock  bool   // mock mode (default: true)
 
+        // PR #170: KYC verify toggle — true=KYC verify tələb olunur, false=skip
+        AzmkKycVerifyEnabled     bool   // default: true
+
         // PR #142: Authentication
         AdminInitialPassword string // default admin password (used only on first startup when no users exist)
         AuthSessionTTLHours  int    // session token validity in hours (default: 8)
@@ -158,6 +161,9 @@ func Load() *Config {
                 // PR #152: AZMK CustomerDataService
                 AzmkCustomerDataURL:     getEnv("AZMK_CUSTOMER_DATA_URL", "https://web.azmk.az:7077/LW_AKP/services/CustomerDataService"),
                 AzmkCustomerDataUseMock: getEnvBool("AZMK_CUSTOMER_DATA_USE_MOCK", true),
+
+                // PR #170: KYC verify toggle
+                AzmkKycVerifyEnabled: getEnvBool("AZMK_KYC_VERIFY_ENABLED", true),
 
                 // PR #142: Authentication
                 AdminInitialPassword: getEnv("ADMIN_INITIAL_PASSWORD", ""),

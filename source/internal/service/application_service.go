@@ -32,6 +32,9 @@ type ApplicationService struct {
 
         // PR #168: Cutoff results repo (plan/fakt nəticələri)
         cutoffRepo *repository.CutoffResultRepo
+
+        // PR #170: KYC verify toggle — false=KYC verify skip olunur
+        kycVerifyEnabled bool
 }
 
 // NewApplicationService creates a new ApplicationService.
@@ -92,6 +95,12 @@ func (s *ApplicationService) SetCustomerDataProvider(provider azmk.CustomerDataP
 // SetCutoffRepo injects the cutoff results repo (PR #168).
 func (s *ApplicationService) SetCutoffRepo(repo *repository.CutoffResultRepo) {
         s.cutoffRepo = repo
+}
+
+// SetKycVerifyEnabled enables/disables KYC verify (PR #170).
+// false=KYC verify skip olunur, cutoff-lar birbaşa yoxlanılır.
+func (s *ApplicationService) SetKycVerifyEnabled(enabled bool) {
+        s.kycVerifyEnabled = enabled
 }
 
 // resolveCustomerAgeFromAzmk fetches customer data from AZMK CustomerDataService
