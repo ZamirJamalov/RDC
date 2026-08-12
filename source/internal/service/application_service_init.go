@@ -316,84 +316,80 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
 
         customerPIN := app.CustomerPIN
         serial := app.CustomerSerial
+        appID := app.ID
 
         // 1. Qara siyahı və aktiv kredit yoxlaması (AZMK getOwnerData)
-        // Kesim #5: Müştəri AZMK-da qara siyahıdadırsa imtina olunsun
-        // Kesim #6: Aktiv kreditlərində cari gün gecikməsi 5-dən artıq → imtina
         if s.customerDataProvider != nil {
-                slog.Info("early cutoff: calling AZMK getOwnerData",
-                        "application_id", app.ID, "customer_pin", customerPIN)
+                slog.Info("early cutoff: calling AZMK getOwnerData", "application_id", appID, "customer_pin", customerPIN)
                 ownerData, err := s.customerDataProvider.GetOwnerData(ctx, customerPIN, serial)
                 if err != nil {
                         slog.Warn("early cutoff: AZMK getOwnerData failed — fail-soft (skip)", "error", err)
+                        s.logCutoff(ctx, appID, "AZMK_BLACKLIST", "Qara siyahı yoxlaması", "AZMK_GET_OWNER_DATA", false, true, "service error", "blacklistStatus = false", err.Error())
+                        s.logCutoff(ctx, appID, "ACTIVE_CREDIT", "Aktiv kredit yoxlaması", "AZMK_GET_OWNER_DATA", false, true, "service error", "hasActiveCredit = false", err.Error())
                 } else if ownerData != nil {
-                        if ownerData.CustomerCheck.BlacklistStatus {
-                                slog.Info("early cutoff: AZMK blacklist triggered",
-                                        "application_id", app.ID,
-                                        "customer_pin", customerPIN)
+                        // Kesim #5: Qara siyahı
+                        blacklisted := ownerData.CustomerCheck.BlacklistStatus
+                        s.logCutoff(ctx, appID, "AZMK_BLACKLIST", "Qara siyahı yoxlaması", "AZMK_GET_OWNER_DATA", true, !blacklisted,
+                                fmt.Sprintf("blacklistStatus = %v", blacklisted), "blacklistStatus = false", "")
+                        if blacklisted {
                                 return "AZMK_BLACKLIST", nil
                         }
-                        if ownerData.CustomerCheck.HasActiveCredit {
-                                slog.Info("early cutoff: AZMK active credit detected",
-                                        "application_id", app.ID,
-                                        "customer_pin", customerPIN)
+                        // Kesim #6: Aktiv kredit
+                        hasActive := ownerData.CustomerCheck.HasActiveCredit
+                        s.logCutoff(ctx, appID, "ACTIVE_CREDIT", "Aktiv kredit yoxlaması", "AZMK_GET_OWNER_DATA", true, !hasActive,
+                                fmt.Sprintf("hasActiveCredit = %v", hasActive), "hasActiveCredit = false", "")
+                        if hasActive {
                                 return "ACTIVE_CREDIT", nil
                         }
-                        slog.Info("AZMK getOwnerData — customer is clean",
-                                "application_id", app.ID,
-                                "customer_pin", customerPIN,
-                                "is_existing_customer", ownerData.CustomerCheck.IsExistingCustomer,
-                                "total_delay_days", ownerData.CustomerCheck.TotalDelayDaysCumulative)
                 }
         } else {
-                // Backward compatible: yalnız LW CheckBlacklist (GetAzmkBlacklist silindi)
                 blacklisted, err := s.creditEngine.lwProvider.CheckBlacklist(ctx, customerPIN)
                 if err != nil {
                         slog.Warn("early cutoff: LW blacklist check failed — fail-soft (skip)", "error", err)
-                } else if blacklisted {
-                        return "LW_BLACKLIST", nil
+                } else {
+                        s.logCutoff(ctx, appID, "LW_BLACKLIST", "LW Qara siyahı yoxlaması", "LW_CHECK_BLACKLIST", true, !blacklisted,
+                                fmt.Sprintf("blacklisted = %v", blacklisted), "blacklisted = false", "")
+                        if blacklisted {
+                                return "LW_BLACKLIST", nil
+                        }
                 }
         }
 
         // 2. AKB skoru və stop-faktor (AZMK getMkrScore)
-        // Kesim #1: Skor bali 200-dən aşağı olduqda imtina olunsun
-        // Kesim #4: AKB stop faktoruna düşən müştərilərə imtina olunsun
         if s.customerDataProvider != nil {
-                slog.Info("early cutoff: calling AZMK getMkrScore",
-                        "application_id", app.ID, "customer_pin", customerPIN)
+                slog.Info("early cutoff: calling AZMK getMkrScore", "application_id", appID, "customer_pin", customerPIN)
                 mkrScore, err := s.customerDataProvider.GetMkrScore(ctx, customerPIN, serial)
                 if err != nil {
                         slog.Warn("early cutoff: AZMK getMkrScore failed — fail-soft (skip)", "error", err)
+                        s.logCutoff(ctx, appID, "AKB_SCORE_LOW", "Skor balı yoxlaması", "AZMK_GET_MKR_SCORE", false, true, "service error", "point >= 200", err.Error())
+                        s.logCutoff(ctx, appID, "AKB_STOP_FACTOR", "Stop-faktor yoxlaması", "AZMK_GET_MKR_SCORE", false, true, "service error", "response ∉ {AB,NI,NU,TY}", err.Error())
                 } else if mkrScore != nil {
-                        // PR #160: point < 200 → AKB_SCORE_LOW
-                        if mkrScore.Score.Point > 0 && mkrScore.Score.Point < 200 {
-                                slog.Info("early cutoff: AKB score low",
-                                        "application_id", app.ID,
-                                        "customer_pin", customerPIN,
-                                        "point", mkrScore.Score.Point)
+                        point := mkrScore.Score.Point
+                        resp := strings.ToUpper(mkrScore.Score.Response)
+
+                        // Kesim #1: Skor < 200
+                        scorePassed := !(point > 0 && point < 200)
+                        s.logCutoff(ctx, appID, "AKB_SCORE_LOW", "Skor balı 200-dən aşağı olduqda imtina", "AZMK_GET_MKR_SCORE", true, scorePassed,
+                                fmt.Sprintf("point = %d", point), "point >= 200", fmt.Sprintf("response = %s", resp))
+                        if !scorePassed {
                                 return "AKB_SCORE_LOW", nil
                         }
-                        // PR #162: stop-faktor response dəyərləri: AB, NI, NU, TY
-                        resp := strings.ToUpper(mkrScore.Score.Response)
-                        if resp == "AB" || resp == "NI" || resp == "NU" || resp == "TY" {
-                                slog.Info("early cutoff: AKB stop factor triggered",
-                                        "application_id", app.ID,
-                                        "customer_pin", customerPIN,
-                                        "response", mkrScore.Score.Response,
-                                        "point", mkrScore.Score.Point)
-                                return fmt.Sprintf("AKB_STOP_FACTOR:%s", mkrScore.Score.Response), nil
+
+                        // Kesim #4: Stop-faktor
+                        stopFactor := resp == "AB" || resp == "NI" || resp == "NU" || resp == "TY"
+                        s.logCutoff(ctx, appID, "AKB_STOP_FACTOR", "AKB stop faktoruna düşən müştərilərə imtina", "AZMK_GET_MKR_SCORE", true, !stopFactor,
+                                fmt.Sprintf("response = %s", resp), "response ∉ {AB,NI,NU,TY}", fmt.Sprintf("point = %d", point))
+                        if stopFactor {
+                                return fmt.Sprintf("AKB_STOP_FACTOR:%s", resp), nil
                         }
-                        slog.Info("AZMK getMkrScore — score passed",
-                                "application_id", app.ID,
-                                "customer_pin", customerPIN,
-                                "point", mkrScore.Score.Point,
-                                "response", mkrScore.Score.Response,
-                                "pd_rate", mkrScore.Score.PdRate)
                 }
         } else {
-                // Backward compatible: LW provider
                 akbScore, stopFactorCode, hasStopFactor := s.creditEngine.resolveAkbScoreAndStopFactors(ctx, customerPIN, 0)
+                s.logCutoff(ctx, appID, "AKB_SCORE_LOW", "Skor balı 200-dən aşağı olduqda imtina", "LW_GET_AKB_SCORE", true, !(akbScore > 0 && akbScore < 200),
+                        fmt.Sprintf("score = %d", akbScore), "score >= 200", "")
                 if hasStopFactor {
+                        s.logCutoff(ctx, appID, "AKB_STOP_FACTOR", "Stop-faktor", "LW_GET_AKB_SCORE", true, false,
+                                fmt.Sprintf("code = %s", stopFactorCode), "no stop factor", "")
                         return fmt.Sprintf("AKB_STOP_FACTOR:%s", stopFactorCode), nil
                 }
                 if akbScore > 0 && akbScore < 200 {
@@ -402,130 +398,142 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
         }
 
         // 3. Yaş yoxlaması (AZMK GetPersonalInfo)
-        // Kesim #3: Yaşı 69+ olduqda imtina olunsun
         age := 0
         if s.customerDataProvider != nil {
-                slog.Info("early cutoff: calling AZMK GetPersonalInfo (age check)",
-                        "application_id", app.ID, "customer_pin", customerPIN)
+                slog.Info("early cutoff: calling AZMK GetPersonalInfo (age check)", "application_id", appID, "customer_pin", customerPIN)
                 age = s.resolveCustomerAgeFromAzmk(ctx, customerPIN, serial)
         } else {
                 age = s.creditEngine.resolveCustomerAge(ctx, customerPIN, serial)
         }
-        if age > 69 {
+        agePassed := age <= 69
+        s.logCutoff(ctx, appID, "AGE_OVER_69", "Yaşı 69+ olduqda imtina", "AZMK_GET_PERSONAL_INFO", true, agePassed,
+                fmt.Sprintf("age = %d", age), "age <= 69", "")
+        if !agePassed {
                 return "AGE_OVER_69", nil
         }
 
         // 4. Kredit tarixçəsi kesim nöqtələri (AZMK inquireByIdCard)
-        // Kesim #2: Gecikmə əmsalı 6%-dən yüksək → imtina
-        // Kesim #7: Aktiv kreditlərində cari gün gecikməsi 5-dən artıq → imtina
-        // Kesim #8-#11: Son 3/6/12/18 ay maksimal gecikmə → imtina
-        // Kesim #12: Aktiv aylıq ödənişlər 2000 AZN-dən artıq → imtina
         if s.customerDataProvider != nil {
-                slog.Info("early cutoff: calling AZMK inquireByIdCard",
-                        "application_id", app.ID, "customer_pin", customerPIN)
+                slog.Info("early cutoff: calling AZMK inquireByIdCard", "application_id", appID, "customer_pin", customerPIN)
                 creditHistory, err := s.customerDataProvider.InquireByIdCard(ctx, customerPIN, serial)
                 if err != nil {
                         slog.Warn("early cutoff: AZMK inquireByIdCard failed — fail-soft (skip)", "error", err)
+                        s.logCutoff(ctx, appID, "DELAY_RATIO_HIGH", "Gecikmə əmsalı yoxlaması", "AZMK_INQUIRE_BY_ID_CARD", false, true, "service error", "ratio <= 6", err.Error())
+                        s.logCutoff(ctx, appID, "ACTIVE_DELAY_HIGH", "Aktiv cari gecikmə yoxlaması", "AZMK_INQUIRE_BY_ID_CARD", false, true, "service error", "delay <= 5", err.Error())
+                        s.logCutoff(ctx, appID, "DELAY_3M", "Son 3 ay max gecikmə", "AZMK_INQUIRE_BY_ID_CARD", false, true, "service error", "< 20", err.Error())
+                        s.logCutoff(ctx, appID, "DELAY_6M", "Son 6 ay max gecikmə", "AZMK_INQUIRE_BY_ID_CARD", false, true, "service error", "< 30", err.Error())
+                        s.logCutoff(ctx, appID, "DELAY_12M", "Son 12 ay max gecikmə", "AZMK_INQUIRE_BY_ID_CARD", false, true, "service error", "< 45", err.Error())
+                        s.logCutoff(ctx, appID, "DELAY_18M", "Son 18 ay max gecikmə", "AZMK_INQUIRE_BY_ID_CARD", false, true, "service error", "< 60", err.Error())
+                        s.logCutoff(ctx, appID, "MONTHLY_PAYMENTS_HIGH", "Aktiv aylıq ödəniş yoxlaması", "AZMK_INQUIRE_BY_ID_CARD", false, true, "service error", "<= 2000", err.Error())
                 } else if creditHistory != nil {
-                        // Kesim #1: Gecikmə əmsalı > 6
-                        if ratio := creditHistory.MaxDelayRatio(); ratio > 6 {
-                                slog.Info("early cutoff: delay ratio high",
-                                        "application_id", app.ID, "customer_pin", customerPIN, "ratio", ratio)
+                        // Kesim #2: Gecikmə əmsalı > 6
+                        ratio := creditHistory.MaxDelayRatio()
+                        ratioPassed := ratio <= 6
+                        s.logCutoff(ctx, appID, "DELAY_RATIO_HIGH", "Gecikmə günləri üzrə əmsal 6-dan yüksək olduqda imtina", "AZMK_INQUIRE_BY_ID_CARD", true, ratioPassed,
+                                fmt.Sprintf("maxRatio = %.2f", ratio), "ratio <= 6", "")
+                        if !ratioPassed {
                                 return "DELAY_RATIO_HIGH", nil
                         }
-                        // Kesim #2: Aktiv kredit cari gecikmə > 5
-                        if delay := creditHistory.MaxCurrentDelay(); delay > 5 {
-                                slog.Info("early cutoff: active delay high",
-                                        "application_id", app.ID, "customer_pin", customerPIN, "delay_days", delay)
+
+                        // Kesim #7: Aktiv cari gecikmə > 5
+                        curDelay := creditHistory.MaxCurrentDelay()
+                        curDelayPassed := curDelay <= 5
+                        s.logCutoff(ctx, appID, "ACTIVE_DELAY_HIGH", "Aktiv kreditlərində cari gün gecikməsi 5-dən artıq olanlara imtina", "AZMK_INQUIRE_BY_ID_CARD", true, curDelayPassed,
+                                fmt.Sprintf("maxCurrentDelay = %d", curDelay), "delay <= 5", "")
+                        if !curDelayPassed {
                                 return "ACTIVE_DELAY_HIGH", nil
                         }
-                        // Kesim #3: Son 3 ay max gecikmə ≥ 20
-                        if d := creditHistory.MaxDelay3M(); d >= 20 {
-                                slog.Info("early cutoff: delay 3m high", "application_id", app.ID, "max_delay", d)
+
+                        // Kesim #8: Son 3 ay max gecikmə ≥ 20
+                        d3 := creditHistory.MaxDelay3M()
+                        d3Passed := d3 < 20
+                        s.logCutoff(ctx, appID, "DELAY_3M", "Son 3 ayda maksimal gecikmə 20+ olduqda imtina", "AZMK_INQUIRE_BY_ID_CARD", true, d3Passed,
+                                fmt.Sprintf("maxDelay3M = %d", d3), "< 20", "")
+                        if !d3Passed {
                                 return "DELAY_3M", nil
                         }
-                        // Kesim #4: Son 6 ay max gecikmə ≥ 30
-                        if d := creditHistory.MaxDelay6M(); d >= 30 {
-                                slog.Info("early cutoff: delay 6m high", "application_id", app.ID, "max_delay", d)
+
+                        // Kesim #9: Son 6 ay max gecikmə ≥ 30
+                        d6 := creditHistory.MaxDelay6M()
+                        d6Passed := d6 < 30
+                        s.logCutoff(ctx, appID, "DELAY_6M", "Son 6 ayda maksimal gecikmə 30+ olduqda imtina", "AZMK_INQUIRE_BY_ID_CARD", true, d6Passed,
+                                fmt.Sprintf("maxDelay6M = %d", d6), "< 30", "")
+                        if !d6Passed {
                                 return "DELAY_6M", nil
                         }
-                        // Kesim #5: Son 12 ay max gecikmə ≥ 45
-                        if d := creditHistory.MaxDelay12M(); d >= 45 {
-                                slog.Info("early cutoff: delay 12m high", "application_id", app.ID, "max_delay", d)
+
+                        // Kesim #10: Son 12 ay max gecikmə ≥ 45
+                        d12 := creditHistory.MaxDelay12M()
+                        d12Passed := d12 < 45
+                        s.logCutoff(ctx, appID, "DELAY_12M", "Son 12 ayda maksimal gecikmə 45+ olduqda imtina", "AZMK_INQUIRE_BY_ID_CARD", true, d12Passed,
+                                fmt.Sprintf("maxDelay12M = %d", d12), "< 45", "")
+                        if !d12Passed {
                                 return "DELAY_12M", nil
                         }
-                        // Kesim #6: Son 18 ay max gecikmə ≥ 60
-                        if d := creditHistory.MaxDelay18M(); d >= 60 {
-                                slog.Info("early cutoff: delay 18m high", "application_id", app.ID, "max_delay", d)
+
+                        // Kesim #11: Son 18 ay max gecikmə ≥ 60
+                        d18 := creditHistory.MaxDelay18M()
+                        d18Passed := d18 < 60
+                        s.logCutoff(ctx, appID, "DELAY_18M", "Son 18 ayda maksimal gecikmə 60+ olduqda imtina", "AZMK_INQUIRE_BY_ID_CARD", true, d18Passed,
+                                fmt.Sprintf("maxDelay18M = %d", d18), "< 60", "")
+                        if !d18Passed {
                                 return "DELAY_18M", nil
                         }
-                        // Kesim #7: Aktiv aylıq ödəniş > 2000
-                        if pay := creditHistory.TotalActiveMonthlyPayments(); pay > 2000 {
-                                slog.Info("early cutoff: monthly payments high",
-                                        "application_id", app.ID, "customer_pin", customerPIN, "total", pay)
+
+                        // Kesim #12: Aktiv aylıq ödəniş > 2000
+                        monthlyPay := creditHistory.TotalActiveMonthlyPayments()
+                        monthlyPassed := monthlyPay <= 2000
+                        s.logCutoff(ctx, appID, "MONTHLY_PAYMENTS_HIGH", "Aktiv aylıq ödənişlərin cəmi 2000 AZN-dən artıq olduqda imtina", "AZMK_INQUIRE_BY_ID_CARD", true, monthlyPassed,
+                                fmt.Sprintf("totalMonthly = %.2f", monthlyPay), "<= 2000", "")
+                        if !monthlyPassed {
                                 return "MONTHLY_PAYMENTS_HIGH", nil
                         }
-                        slog.Info("AZMK inquireByIdCard — all delay checks passed",
-                                "application_id", app.ID,
-                                "customer_pin", customerPIN,
-                                "max_delay_ratio", creditHistory.MaxDelayRatio(),
-                                "max_current_delay", creditHistory.MaxCurrentDelay(),
-                                "max_3m", creditHistory.MaxDelay3M(),
-                                "max_6m", creditHistory.MaxDelay6M(),
-                                "max_12m", creditHistory.MaxDelay12M(),
-                                "max_18m", creditHistory.MaxDelay18M(),
-                                "total_monthly", creditHistory.TotalActiveMonthlyPayments())
                 }
         } else {
-                // Backward compatible: LW provider (köhnə metod)
+                // Backward compatible: LW provider
                 var analytics loanAnalytics
                 s.creditEngine.resolveAkbHistory(ctx, customerPIN, serial, &analytics)
                 if analytics.akbHistoryAvailable {
+                        s.logCutoff(ctx, appID, "DELAY_RATIO_HIGH", "Gecikmə əmsalı", "LW_GET_AKB_HISTORY", true, analytics.delayRatio <= 6,
+                                fmt.Sprintf("ratio = %.2f", analytics.delayRatio), "<= 6", "")
                         if analytics.delayRatio > 6 {
                                 return "DELAY_RATIO_HIGH", nil
                         }
+                        s.logCutoff(ctx, appID, "ACTIVE_DELAY_HIGH", "Aktiv cari gecikmə", "LW_GET_AKB_HISTORY", true, analytics.activeMaxDelayDays <= 5,
+                                fmt.Sprintf("delay = %d", analytics.activeMaxDelayDays), "<= 5", "")
                         if analytics.activeMaxDelayDays > 5 {
                                 return "ACTIVE_DELAY_HIGH", nil
                         }
+                        s.logCutoff(ctx, appID, "DELAY_3M", "Son 3 ay", "LW_GET_AKB_HISTORY", true, analytics.maxDelayLast3Months < 20,
+                                fmt.Sprintf("max = %d", analytics.maxDelayLast3Months), "< 20", "")
                         if analytics.maxDelayLast3Months >= 20 {
                                 return "DELAY_3M", nil
                         }
+                        s.logCutoff(ctx, appID, "DELAY_6M", "Son 6 ay", "LW_GET_AKB_HISTORY", true, analytics.maxDelayLast6Months < 30,
+                                fmt.Sprintf("max = %d", analytics.maxDelayLast6Months), "< 30", "")
                         if analytics.maxDelayLast6Months >= 30 {
                                 return "DELAY_6M", nil
                         }
+                        s.logCutoff(ctx, appID, "DELAY_12M", "Son 12 ay", "LW_GET_AKB_HISTORY", true, analytics.maxDelayLast12Months < 45,
+                                fmt.Sprintf("max = %d", analytics.maxDelayLast12Months), "< 45", "")
                         if analytics.maxDelayLast12Months >= 45 {
                                 return "DELAY_12M", nil
                         }
+                        s.logCutoff(ctx, appID, "DELAY_18M", "Son 18 ay", "LW_GET_AKB_HISTORY", true, analytics.maxDelayLast18Months < 60,
+                                fmt.Sprintf("max = %d", analytics.maxDelayLast18Months), "< 60", "")
                         if analytics.maxDelayLast18Months >= 60 {
                                 return "DELAY_18M", nil
                         }
+                        s.logCutoff(ctx, appID, "MONTHLY_PAYMENTS_HIGH", "Aylıq ödəniş", "LW_GET_AKB_HISTORY", true, analytics.totalMonthlyPayments <= 2000,
+                                fmt.Sprintf("total = %.2f", analytics.totalMonthlyPayments), "<= 2000", "")
                         if analytics.totalMonthlyPayments > 2000 {
                                 return "MONTHLY_PAYMENTS_HIGH", nil
                         }
                 }
-                // LW loans yoxlaması
-                customerLoans, loansErr := s.creditEngine.lwProvider.GetCustomerLoans(ctx, customerPIN)
-                if loansErr != nil {
-                        slog.Warn("early cutoff: failed to fetch customer loans — fail-soft (skip)", "error", loansErr)
-                } else {
-                        loanAnalytics := computeAnalytics(customerLoans.Loans)
-                        if loanAnalytics.hasActive {
-                                return "ACTIVE_LOAN", nil
-                        }
-                        if loanAnalytics.completedCount > 0 && !loanAnalytics.allOnTime {
-                                return "LATE_PAYMENT", nil
-                        }
-                }
         }
 
-        slog.Info("early cutoff: all checks passed",
-                "application_id", app.ID,
-                "customer_pin", customerPIN,
-                "age", age)
-
-        // PR #168: Bütün kesim nöqtələri keçdi — logCutoff ilə qeyd et
-        s.logCutoff(ctx, app.ID, "ALL_CHECKS_PASSED", "Bütün kesim nöqtələri keçdi", "", true, true, "", "", "")
-
+        slog.Info("early cutoff: all checks passed", "application_id", appID, "customer_pin", customerPIN, "age", age)
+        s.logCutoff(ctx, appID, "ALL_CHECKS_PASSED", "Bütün kesim nöqtələri keçdi", "", true, true, "", "", "")
         return "", nil
 }
 
