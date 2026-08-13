@@ -24,6 +24,16 @@
             --alpul-accent: #2D9CDB;
             --alpul-accent-2: #F2C94C;
         }
+        [data-theme="light"] {
+            --alpul-bg: #F0F4F8;
+            --alpul-bg-soft: #FFFFFF;
+            --alpul-card: #FFFFFF;
+            --alpul-border: #E2E8F0;
+            --alpul-text: #1E293B;
+            --alpul-text-soft: #64748B;
+            --alpul-accent: #2D9CDB;
+            --alpul-accent-2: #D97706;
+        }
         body { background: var(--alpul-bg); color: var(--alpul-text); }
         .gradient-text {
             background: linear-gradient(135deg, #FFFFFF 0%, #2D9CDB 50%, #F2C94C 100%);
@@ -41,25 +51,29 @@
         [x-cloak] { display: none !important; }
     </style>
 </head>
-<body x-data="{ theme: localStorage.getItem('alpul_theme') || 'dark' }" x-init="document.body.setAttribute('data-theme', theme)" x-cloak data-theme="dark">
+<body x-data="{ theme: localStorage.getItem('alpul_theme') || 'light' }" x-init="document.body.setAttribute('data-theme', theme)" x-cloak data-theme="light">
 
-<nav class="fixed top-0 inset-x-0 z-50 backdrop-blur-xl bg-black/40 border-b border-white/5">
+<nav class="fixed top-0 inset-x-0 z-50 backdrop-blur-xl bg-[var(--alpul-bg-soft)]/80 border-b border-[var(--alpul-border)]">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-between">
         <a href="/index.html" class="flex items-center gap-2">
             <img src="/assets/alpul-logo.png" alt="ALPUL" class="w-24 h-24 object-contain">
             <span class="text-xl font-bold tracking-tight">ALPUL</span>
         </a>
-        <div class="hidden md:flex items-center gap-6 text-sm text-gray-300">
-            <a href="/how-to-get.html" class="hover:text-white transition">Necə əldə edim</a>
-            <a href="/how-to-pay.html" class="hover:text-white transition">Ödənişi necə edim</a>
-            <a href="/faq.html" class="hover:text-white transition">Sual-cavab</a>
-            <a href="/contact.html" class="hover:text-white transition">Əlaqə</a>
+        <div class="hidden md:flex items-center gap-6 text-sm text-[var(--alpul-text-soft)]">
+            <a href="/how-to-get.html" class="hover:text-[var(--alpul-text)] transition">Necə əldə edim</a>
+            <a href="/how-to-pay.html" class="hover:text-[var(--alpul-text)] transition">Ödənişi necə edim</a>
+            <a href="/faq.html" class="hover:text-[var(--alpul-text)] transition">Sual-cavab</a>
+            <a href="/contact.html" class="hover:text-[var(--alpul-text)] transition">Əlaqə</a>
         </div>
         <div class="flex items-center gap-2 sm:gap-3">
+            <button @click="theme = theme === 'light' ? 'dark' : 'light'; document.body.setAttribute('data-theme', theme); localStorage.setItem('alpul_theme', theme)" class="w-9 h-9 rounded-lg border border-[var(--alpul-border)] flex items-center justify-center hover:bg-[var(--alpul-bg-soft)] transition" title="Theme dəyiş">
+                <svg x-show="theme === 'light'" class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/></svg>
+                <svg x-show="theme === 'dark'" class="w-5 h-5 text-indigo-500" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
+            </button>
             <a href="/apply?from=info" class="cta-btn text-white text-sm font-semibold px-4 sm:px-5 py-2.5 rounded-xl">
                 Kredit al
             </a>
-            <a href="/how-to-pay.html" class="text-sm font-medium px-4 py-2.5 rounded-xl border border-white/15 hover:bg-white/5 hover:border-white/30 transition text-white">
+            <a href="/how-to-pay.html" class="text-sm font-medium px-4 py-2.5 rounded-xl border border-[var(--alpul-border)] hover:bg-[var(--alpul-bg-soft)] transition text-[var(--alpul-text)] hidden sm:inline-block">
                 Krediti ödə
             </a>
         </div>
@@ -156,16 +170,61 @@ Bazar günü: qeyri-iş günü</p>
     </div>
 </main>
 
-<footer class="border-t border-white/5 py-8 px-6 mt-16">
-    <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-gray-500">
-        <div class="flex items-center gap-4">
-            <a href="/privacy.html" class="hover:text-white transition">Əlavə sənədlər</a>
-            <span>·</span>
-            <a href="/contact.html" class="hover:text-white transition">Əlaqə</a>
-            <span>·</span>
-            <a href="/faq.html" class="hover:text-white transition">Sual-cavab</a>
+<footer class="border-t border-[var(--alpul-border)] py-12 px-4 sm:px-6 mt-16 bg-[var(--alpul-bg-soft)]">
+    <div class="max-w-7xl mx-auto">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <!-- Brand column -->
+            <div class="md:col-span-1">
+                <a href="/index.html" class="flex items-center gap-2 mb-4">
+                    <img src="/assets/alpul-logo.png" alt="Manato.az" class="w-16 h-16 object-contain">
+                    <span class="text-lg font-bold">Manato.az</span>
+                </a>
+                <div class="space-y-2 text-sm text-[var(--alpul-text-soft)]">
+                    <a href="tel:+994123110255" class="block hover:text-[var(--alpul-text)] transition">+994 12 311-02-55</a>
+                    <a href="mailto:info@azmk.az" class="block hover:text-[var(--alpul-text)] transition">info@azmk.az</a>
+                    <div class="flex items-center gap-3 pt-2">
+                        <a href="#" title="Instagram" class="w-8 h-8 rounded-lg border border-[var(--alpul-border)] flex items-center justify-center hover:bg-[var(--alpul-bg)] transition">
+                            <svg class="w-4 h-4 text-[var(--alpul-accent)]" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+                        </a>
+                        <a href="#" title="TikTok" class="w-8 h-8 rounded-lg border border-[var(--alpul-border)] flex items-center justify-center hover:bg-[var(--alpul-bg)] transition">
+                            <svg class="w-4 h-4 text-[var(--alpul-accent)]" fill="currentColor" viewBox="0 0 24 24"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5.8 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1.84-.1z"/></svg>
+                        </a>
+                        <a href="#" title="YouTube" class="w-8 h-8 rounded-lg border border-[var(--alpul-border)] flex items-center justify-center hover:bg-[var(--alpul-bg)] transition">
+                            <svg class="w-4 h-4 text-[var(--alpul-accent)]" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                        </a>
+                    </div>
+                    <p class="pt-2 text-xs">9:00 - 20:00</p>
+                </div>
+            </div>
+
+            <!-- Şirkət -->
+            <div>
+                <h4 class="text-sm font-semibold mb-4 text-[var(--alpul-text)]">Şirkət</h4>
+                <ul class="space-y-2 text-sm text-[var(--alpul-text-soft)]">
+                    <li><a href="#" class="hover:text-[var(--alpul-text)] transition">Manato.az haqqında</a></li>
+                    <li><a href="/contact.html" class="hover:text-[var(--alpul-text)] transition">Əlaqələr</a></li>
+                </ul>
+            </div>
+
+            <!-- Müştərilər üçün -->
+            <div class="md:col-span-2">
+                <h4 class="text-sm font-semibold mb-4 text-[var(--alpul-text)]">Müştərilər üçün</h4>
+                <ul class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-[var(--alpul-text-soft)]">
+                    <li><a href="/how-to-get.html" class="hover:text-[var(--alpul-text)] transition">Krediti necə almalı</a></li>
+                    <li><a href="/how-to-pay.html" class="hover:text-[var(--alpul-text)] transition">Krediti necə ödəməli</a></li>
+                    <li><a href="/privacy.html" class="hover:text-[var(--alpul-text)] transition">Sənədlər</a></li>
+                    <li><a href="/faq.html" class="hover:text-[var(--alpul-text)] transition">Sual-cavab</a></li>
+                    <li><a href="/privacy.html" class="hover:text-[var(--alpul-text)] transition">Şəxsi məlumatların emali siyasəti</a></li>
+                </ul>
+            </div>
         </div>
-        <div>© 2026 ALPUL · BOKT "Azərbaycan Mikro Kredit" ASC · BKT-17 lisenziya</div>
+
+        <!-- Bottom bar -->
+        <div class="mt-10 pt-6 border-t border-[var(--alpul-border)]">
+            <p class="text-xs text-[var(--alpul-text-soft)] text-center leading-relaxed">
+                © 2026 Manato.az | "SF Azerbaijan" bank olmayan kredit təşkilatı, 24.12.2021 tarixli BKT-44 saylı lisenziya, VOEN 1405686861
+            </p>
+        </div>
     </div>
 </footer>
 
