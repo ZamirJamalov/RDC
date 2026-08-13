@@ -233,37 +233,14 @@
         }
         .cta-btn:active { transform: translateY(0); }
 
-        /* PR #179: "Seçimi et" button — subtle background color fade (non-tiring, attention-grabbing) */
+        /* PR #180: "Seçimi et" button — static (no animation), AZMK blue→navy gradient */
         .cta-btn-hero {
-            position: relative;
             background: linear-gradient(135deg, #2D9CDB 0%, #1d5a8f 100%);
-            overflow: hidden;
-        }
-        .cta-btn-hero::before {
-            content: '';
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(135deg, #5BC0EF 0%, #2D9CDB 100%);
-            opacity: 0;
-            animation: cta-color-fade 4s ease-in-out infinite;
-            pointer-events: none;
-        }
-        @keyframes cta-color-fade {
-            0%, 100% { opacity: 0; }
-            50%      { opacity: 1; }
         }
         .cta-btn-hero:hover {
             transform: translateY(-2px);
             box-shadow: 0 14px 36px -10px rgba(45, 156, 219, 0.6);
             transition: transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .cta-btn-hero:hover::before {
-            animation-play-state: paused;
-            opacity: 1;
-        }
-        .cta-btn-hero > * {
-            position: relative;
-            z-index: 1;
         }
 
         /* Step number badge */
@@ -311,7 +288,7 @@
 <nav class="fixed top-0 inset-x-0 z-50 backdrop-blur-xl bg-black/40 border-b border-white/5">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
         <a href="#" class="flex items-center gap-2">
-            <div class="w-9 h-9 rounded-xl gradient-accent flex items-center justify-center font-black text-white text-lg">A</div>
+            <img src="/assets/alpul-logo.png" alt="ALPUL" class="w-9 h-9 object-contain">
             <span class="text-xl font-bold tracking-tight">ALPUL</span>
         </a>
         <div class="hidden md:flex items-center gap-8 text-sm text-gray-300">
@@ -384,7 +361,7 @@
         <div id="calc" class="card-glow rounded-3xl p-8">
             <div class="flex items-center justify-between mb-6">
                 <div>
-                    <h3 class="text-2xl font-bold">Səviyyən sənə nə qazandırır?</h3>
+                    <h3 class="text-2xl font-bold">Alpulda səviyyən sənə nə qazandırır?</h3>
                 </div>
             </div>
 
@@ -461,10 +438,6 @@
             <a href="/apply?from=landing" class="cta-btn block text-center text-white font-semibold py-3.5 rounded-xl">
                 Müraciət et →
             </a>
-
-            <p class="text-xs text-gray-500 text-center mt-3">
-                * Səviyyənizə uyğun yekun faiz dərəcəsi müraciətdən sonra təsdiqlənir.
-            </p>
         </div>
 
     </div>
@@ -711,7 +684,7 @@
         <div class="grid md:grid-cols-4 gap-8">
             <div>
                 <div class="flex items-center gap-2 mb-4">
-                    <div class="w-8 h-8 rounded-lg gradient-accent flex items-center justify-center font-black text-white text-sm">A</div>
+                    <img src="/assets/alpul-logo.png" alt="ALPUL" class="w-8 h-8 object-contain">
                     <span class="text-lg font-bold">ALPUL</span>
                 </div>
                 <p class="text-sm text-gray-500">Səviyyəli smart kredit platforması.</p>
