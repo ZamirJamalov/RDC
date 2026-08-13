@@ -214,12 +214,18 @@
     <!-- Header -->
     <header class="border-b border-white/5 backdrop-blur-xl bg-black/40 sticky top-0 z-40">
         <div class="max-w-5xl mx-auto px-6 py-2 flex items-center justify-between">
-            <a href="/landing" class="flex items-center gap-2">
+            <a href="/index.html" class="flex items-center gap-2">
                 <img src="/assets/alpul-logo.png" alt="ALPUL" class="w-24 h-24 object-contain">
                 <span class="text-xl font-bold tracking-tight">ALPUL</span>
             </a>
             <div class="flex items-center gap-4">
-                <div class="text-xs text-gray-500 hidden sm:block">Kredit müraciəti</div>
+                <a href="/how-to-get.html" class="text-sm text-gray-300 hidden md:inline hover:text-white transition">Necə əldə edim</a>
+                <a href="/how-to-pay.html" class="text-sm text-gray-300 hidden md:inline hover:text-white transition">Ödənişi necə edim</a>
+                <a href="/faq.html" class="text-sm text-gray-300 hidden md:inline hover:text-white transition">Sual-cavab</a>
+                <a href="/contact.html" class="text-sm text-gray-300 hidden md:inline hover:text-white transition">Əlaqə</a>
+                <a href="/how-to-pay.html" class="text-sm font-medium px-4 py-2.5 rounded-xl border border-white/15 hover:bg-white/5 hover:border-white/30 transition text-white hidden sm:inline-block">
+                    Krediti ödə
+                </a>
                 <!-- PR #83: Theme toggle -->
                 <button @click="toggleTheme()" class="w-9 h-9 rounded-lg border border-white/10 flex items-center justify-center hover:bg-white/5 transition" title="Theme dəyiş">
                     <svg x-show="theme === 'dark'" class="w-5 h-5 text-amber-400" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/></svg>

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sual-cavab — ALPUL</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        h1, h2, h3, h4, h5, h6, .font-extrabold, .font-black {
+            font-family: 'Geist', 'IBM Plex Sans', sans-serif;
+        }
+        :root, [data-theme="dark"] {
+            --alpul-bg: #081a33;
+            --alpul-bg-soft: #0d2444;
+            --alpul-card: #112d52;
+            --alpul-border: #1d3b66;
+            --alpul-text: #F5F5F7;
+            --alpul-text-soft: #A3B3CC;
+            --alpul-accent: #2D9CDB;
+            --alpul-accent-2: #F2C94C;
+        }
+        body { background: var(--alpul-bg); color: var(--alpul-text); }
+        .gradient-text {
+            background: linear-gradient(135deg, #FFFFFF 0%, #2D9CDB 50%, #F2C94C 100%);
+            -webkit-background-clip: text; background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .cta-btn {
+            background: linear-gradient(135deg, #2D9CDB 0%, #1d5a8f 100%);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .cta-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 36px -10px rgba(45, 156, 219, 0.6);
+        }
+        [x-cloak] { display: none !important; }
+        summary::-webkit-details-marker { display: none; }
+        summary { list-style: none; }
+    </style>
+</head>
+<body x-data="{ theme: localStorage.getItem('alpul_theme') || 'dark' }" x-init="document.body.setAttribute('data-theme', theme)" x-cloak data-theme="dark">
+
+<nav class="fixed top-0 inset-x-0 z-50 backdrop-blur-xl bg-black/40 border-b border-white/5">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-between">
+        <a href="/index.html" class="flex items-center gap-2">
+            <img src="/assets/alpul-logo.png" alt="ALPUL" class="w-24 h-24 object-contain">
+            <span class="text-xl font-bold tracking-tight">ALPUL</span>
+        </a>
+        <div class="hidden md:flex items-center gap-6 text-sm text-gray-300">
+            <a href="/how-to-get.html" class="hover:text-white transition">Necə əldə edim</a>
+            <a href="/how-to-pay.html" class="hover:text-white transition">Ödənişi necə edim</a>
+            <a href="/faq.html" class="hover:text-white transition">Sual-cavab</a>
+            <a href="/contact.html" class="hover:text-white transition">Əlaqə</a>
+        </div>
+        <div class="flex items-center gap-2 sm:gap-3">
+            <a href="/apply?from=info" class="cta-btn text-white text-sm font-semibold px-4 sm:px-5 py-2.5 rounded-xl">
+                Kredit al
+            </a>
+            <a href="/how-to-pay.html" class="text-sm font-medium px-4 py-2.5 rounded-xl border border-white/15 hover:bg-white/5 hover:border-white/30 transition text-white">
+                Krediti ödə
+            </a>
+        </div>
+    </div>
+</nav>
+
+<main class="pt-32 sm:pt-36 max-w-4xl mx-auto px-4 sm:px-6">
+    <header class="mb-12 text-center">
+        <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight">
+            <span class="gradient-text">Sual</span>-cavab
+        </h1>
+        <p class="mt-4 text-lg text-[var(--alpul-text-soft)]">
+            Kredit əldə etmə, ödəniş və loyallıq sistemi haqqında ən çox verilən suallar
+        </p>
+    </header>
+
+    <section class="mb-12">
+        <h2 class="text-2xl font-bold mb-5 text-white">Kreditin əldə olunması</h2>
+
+        <details class="border border-[var(--alpul-border)] rounded-xl p-5 bg-[var(--alpul-bg-soft)] mb-3 group">
+            <summary class="cursor-pointer font-semibold text-white flex items-start justify-between gap-3 list-none">
+                <span>Alpul.az-dan kredit almaq üçün nə lazımdır?</span>
+                <svg class="w-5 h-5 text-[var(--alpul-accent)] shrink-0 mt-0.5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <p class="mt-3 text-sm text-[var(--alpul-text-soft)] leading-relaxed">Siz Azərbaycan Respublikasının vətəndaşı olmalısınız; Minimum 18, maksimum 69 yaşınız olmalıdır; Aktiv mobil telefon nömrəsi və bank kartı lazımdır; Telefonunuzda SİMA və MyGov proqramı quraşdırılmalıdır.</p>
+        </details>
+
+        <details class="border border-[var(--alpul-border)] rounded-xl p-5 bg-[var(--alpul-bg-soft)] mb-3 group">
+            <summary class="cursor-pointer font-semibold text-white flex items-start justify-between gap-3 list-none">
+                <span>Alpul.az-da kreditin alınması üçün hansı sənədlər lazımdır?</span>
+                <svg class="w-5 h-5 text-[var(--alpul-accent)] shrink-0 mt-0.5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <p class="mt-3 text-sm text-[var(--alpul-text-soft)] leading-relaxed">Kredit almaq üçün Sizə yalnız mobil telefon, şəxsiyyət vəsiqəsi və Azərbaycan banklarının birinə məxsus bank kartı olmalıdır.</p>
+        </details>
+
+        <details class="border border-[var(--alpul-border)] rounded-xl p-5 bg-[var(--alpul-bg-soft)] mb-3 group">
+            <summary class="cursor-pointer font-semibold text-white flex items-start justify-between gap-3 list-none">
+                <span>Bankda və ya digər kredit təşkilatında artıq kreditim varsa, kredit götürə bilərəm?</span>
+                <svg class="w-5 h-5 text-[var(--alpul-accent)] shrink-0 mt-0.5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <p class="mt-3 text-sm text-[var(--alpul-text-soft)] leading-relaxed">Bəli, kredit üçün müraciət edə bilərsiniz, lakin kredit ödənişlərində gecikmələr olsa və ya adınız borclular siyahısında olsa, müraciətinizin imtina olma ehtimalı olacaq.</p>
+        </details>
+
+        <details class="border border-[var(--alpul-border)] rounded-xl p-5 bg-[var(--alpul-bg-soft)] mb-3 group">
+            <summary class="cursor-pointer font-semibold text-white flex items-start justify-between gap-3 list-none">
+                <span>Mənə kreditin verilməsində niyə imtina edilib?</span>
+                <svg class="w-5 h-5 text-[var(--alpul-accent)] shrink-0 mt-0.5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <p class="mt-3 text-sm text-[var(--alpul-text-soft)] leading-relaxed">Bunun səbəbləri aşağıdakılar ola bilər: mənfi kredit tarixçəsi; qeydiyyat zamanı səhv məlumat göstərildiyi halda; yaşınız uyğun olmadıqda.</p>
+        </details>
+
+        <details class="border border-[var(--alpul-border)] rounded-xl p-5 bg-[var(--alpul-bg-soft)] mb-3 group">
+            <summary class="cursor-pointer font-semibold text-white flex items-start justify-between gap-3 list-none">
+                <span>Kredit məbləği bank hesabıma nə dərəcədə tez köçürüləcək?</span>
+                <svg class="w-5 h-5 text-[var(--alpul-accent)] shrink-0 mt-0.5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <p class="mt-3 text-sm text-[var(--alpul-text-soft)] leading-relaxed">Təsdiq edildiyi halda pulları Sizə gün ərzində göndərəcəyik. Məbləğin bank hesabınıza daxil olması bank proseslərinin sürətindən asılıdır və 10 dəqiqədən 3 iş gününədək çəkə bilər.</p>
+        </details>
+
+        <details class="border border-[var(--alpul-border)] rounded-xl p-5 bg-[var(--alpul-bg-soft)] mb-3 group">
+            <summary class="cursor-pointer font-semibold text-white flex items-start justify-between gap-3 list-none">
+                <span>Hansı məbləğdə pul götürə bilərəm?</span>
+                <svg class="w-5 h-5 text-[var(--alpul-accent)] shrink-0 mt-0.5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <p class="mt-3 text-sm text-[var(--alpul-text-soft)] leading-relaxed">Loyallıq səviyyənizdən asılı olaraq 50 manatdan 3000 manata qədər kredit əldə edə bilərsiniz.</p>
+        </details>
+
+        <details class="border border-[var(--alpul-border)] rounded-xl p-5 bg-[var(--alpul-bg-soft)] mb-3 group">
+            <summary class="cursor-pointer font-semibold text-white flex items-start justify-between gap-3 list-none">
+                <span>Kredit hansı BOKT tərəfindən təqdim olunur?</span>
+                <svg class="w-5 h-5 text-[var(--alpul-accent)] shrink-0 mt-0.5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <p class="mt-3 text-sm text-[var(--alpul-text-soft)] leading-relaxed">Alpul platformasında online kredit müraciəti Bank Olmayan Kredit Təşkilatı "Azərbaycan Mikro Kredit" ASC ilə rəsmiləşdirilir. BOKT "Azərbaycan Mikro Kredit" ASC, Azərbaycan Respublikasının Mərkəzi Bankı tərəfindən verilmiş 25.06.2012 tarixli, BKT-17 saylı lisenziya əsasında fəaliyyət göstərir.</p>
+        </details>
+    </section>
+
+    <section class="mb-12">
+        <h2 class="text-2xl font-bold mb-5 text-white">Kreditin ödənişi</h2>
+
+        <details class="border border-[var(--alpul-border)] rounded-xl p-5 bg-[var(--alpul-bg-soft)] mb-3 group">
+            <summary class="cursor-pointer font-semibold text-white flex items-start justify-between gap-3 list-none">
+                <span>Kredit qaytarılan zaman ödənişləri harada ödəmək olar?</span>
+                <svg class="w-5 h-5 text-[var(--alpul-accent)] shrink-0 mt-0.5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <p class="mt-3 text-sm text-[var(--alpul-text-soft)] leading-relaxed">Ödənişləri aşağıdakı üsullarla edə bilərsiniz: saytdan birbaşa ödəniş pəncərəsinə daxil olaraq; MilliÖn ödəniş terminalları vasitəsilə.</p>
+        </details>
+
+        <details class="border border-[var(--alpul-border)] rounded-xl p-5 bg-[var(--alpul-bg-soft)] mb-3 group">
+            <summary class="cursor-pointer font-semibold text-white flex items-start justify-between gap-3 list-none">
+                <span>Krediti daha tez qaytara bilərəm?</span>
+                <svg class="w-5 h-5 text-[var(--alpul-accent)] shrink-0 mt-0.5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <p class="mt-3 text-sm text-[var(--alpul-text-soft)] leading-relaxed">Bəli, Siz krediti istənilən an qaytara bilərsiniz. Erken ödəniş heç bir əlavə komissiya tələb etmir.</p>
+        </details>
+    </section>
+
+    <section class="mb-12">
+        <h2 class="text-2xl font-bold mb-5 text-white">Digər suallar</h2>
+
+        <details class="border border-[var(--alpul-border)] rounded-xl p-5 bg-[var(--alpul-bg-soft)] mb-3 group">
+            <summary class="cursor-pointer font-semibold text-white flex items-start justify-between gap-3 list-none">
+                <span>Loyallıq sistemi necə çalışır?</span>
+                <svg class="w-5 h-5 text-[var(--alpul-accent)] shrink-0 mt-0.5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <p class="mt-3 text-sm text-[var(--alpul-text-soft)] leading-relaxed">Loyallıq sistemi sizin BOKT ilə münasibətlərinizə əsasən çalışır. Hər bir uğurlu və gecikməsiz kredit ödənişi sizi daha yüksək məbləğlərə və daha endirimli şərtlərə yaxınlaşdırır. Siz kreditləri vaxtında və gecikmə olmadan ödədikcə həm kredit limitiniz artır həm də kreditin komissiya və faizlərində endirimlər tətbiq olunur.</p>
+        </details>
+
+        <details class="border border-[var(--alpul-border)] rounded-xl p-5 bg-[var(--alpul-bg-soft)] mb-3 group">
+            <summary class="cursor-pointer font-semibold text-white flex items-start justify-between gap-3 list-none">
+                <span>Cari loyallıq səviyyəmdən növbəti səviyyəyə keçməyim üçün nə etməliyəm?</span>
+                <svg class="w-5 h-5 text-[var(--alpul-accent)] shrink-0 mt-0.5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <p class="mt-3 text-sm text-[var(--alpul-text-soft)] leading-relaxed">Hər bir yeni səviyyə üçün cari səviyyənizdə 2 ədəd uğurlu bağlanmış kreditiniz olmalıdır ki, növbəti səviyyənin üstünlüklərindən yararlana biləsiniz.</p>
+        </details>
+
+        <details class="border border-[var(--alpul-border)] rounded-xl p-5 bg-[var(--alpul-bg-soft)] mb-3 group">
+            <summary class="cursor-pointer font-semibold text-white flex items-start justify-between gap-3 list-none">
+                <span>Loyallıq səviyyələri hansılardır?</span>
+                <svg class="w-5 h-5 text-[var(--alpul-accent)] shrink-0 mt-0.5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <p class="mt-3 text-sm text-[var(--alpul-text-soft)] leading-relaxed">Loyallıq səviyyələri Yeni, Etibarlı, Dəyərli və Elit olaraq təyin olunmuşdur.</p>
+        </details>
+
+        <details class="border border-[var(--alpul-border)] rounded-xl p-5 bg-[var(--alpul-bg-soft)] mb-3 group">
+            <summary class="cursor-pointer font-semibold text-white flex items-start justify-between gap-3 list-none">
+                <span>Elit səviyyənin digər səviyyələrdən ən böyük fərqi nədir?</span>
+                <svg class="w-5 h-5 text-[var(--alpul-accent)] shrink-0 mt-0.5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <p class="mt-3 text-sm text-[var(--alpul-text-soft)] leading-relaxed">Elit səviyyə çatmış müştəri ən yüksək limitləri əldə edir və kredit rəsmiləşməsi tam avtomatik həyata keçirilir.</p>
+        </details>
+
+        <details class="border border-[var(--alpul-border)] rounded-xl p-5 bg-[var(--alpul-bg-soft)] mb-3 group">
+            <summary class="cursor-pointer font-semibold text-white flex items-start justify-between gap-3 list-none">
+                <span>Loyallıq səviyyəm dəyişmir, bu nə ilə bağlıdır?</span>
+                <svg class="w-5 h-5 text-[var(--alpul-accent)] shrink-0 mt-0.5 transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </summary>
+            <p class="mt-3 text-sm text-[var(--alpul-text-soft)] leading-relaxed">Demək ki, siz cari loyallıq səviyyənizdəki kredit ödənişlərini gecikmələrlə edirsiniz və bu sizin loyallıq səviyyənizi nəinki irəli hətta geriyə çəkə bilər.</p>
+        </details>
+    </section>
+</main>
+
+<footer class="border-t border-white/5 py-8 px-6 mt-16">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-gray-500">
+        <div class="flex items-center gap-4">
+            <a href="/privacy.html" class="hover:text-white transition">Əlavə sənədlər</a>
+            <span>·</span>
+            <a href="/contact.html" class="hover:text-white transition">Əlaqə</a>
+            <span>·</span>
+            <a href="/faq.html" class="hover:text-white transition">Sual-cavab</a>
+        </div>
+        <div>© 2026 ALPUL · BOKT "Azərbaycan Mikro Kredit" ASC · BKT-17 lisenziya</div>
+    </div>
+</footer>
+
+</body>
+</html>

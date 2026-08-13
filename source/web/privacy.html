@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Əlavə sənədlər — Məxfilik Siyasəti — ALPUL</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        h1, h2, h3, h4, h5, h6, .font-extrabold, .font-black {
+            font-family: 'Geist', 'IBM Plex Sans', sans-serif;
+        }
+        :root, [data-theme="dark"] {
+            --alpul-bg: #081a33;
+            --alpul-bg-soft: #0d2444;
+            --alpul-card: #112d52;
+            --alpul-border: #1d3b66;
+            --alpul-text: #F5F5F7;
+            --alpul-text-soft: #A3B3CC;
+            --alpul-accent: #2D9CDB;
+            --alpul-accent-2: #F2C94C;
+        }
+        body { background: var(--alpul-bg); color: var(--alpul-text); }
+        .gradient-text {
+            background: linear-gradient(135deg, #FFFFFF 0%, #2D9CDB 50%, #F2C94C 100%);
+            -webkit-background-clip: text; background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .cta-btn {
+            background: linear-gradient(135deg, #2D9CDB 0%, #1d5a8f 100%);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .cta-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 36px -10px rgba(45, 156, 219, 0.6);
+        }
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body x-data="{ theme: localStorage.getItem('alpul_theme') || 'dark' }" x-init="document.body.setAttribute('data-theme', theme)" x-cloak data-theme="dark">
+
+<nav class="fixed top-0 inset-x-0 z-50 backdrop-blur-xl bg-black/40 border-b border-white/5">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-between">
+        <a href="/index.html" class="flex items-center gap-2">
+            <img src="/assets/alpul-logo.png" alt="ALPUL" class="w-24 h-24 object-contain">
+            <span class="text-xl font-bold tracking-tight">ALPUL</span>
+        </a>
+        <div class="hidden md:flex items-center gap-6 text-sm text-gray-300">
+            <a href="/how-to-get.html" class="hover:text-white transition">Necə əldə edim</a>
+            <a href="/how-to-pay.html" class="hover:text-white transition">Ödənişi necə edim</a>
+            <a href="/faq.html" class="hover:text-white transition">Sual-cavab</a>
+            <a href="/contact.html" class="hover:text-white transition">Əlaqə</a>
+        </div>
+        <div class="flex items-center gap-2 sm:gap-3">
+            <a href="/apply?from=info" class="cta-btn text-white text-sm font-semibold px-4 sm:px-5 py-2.5 rounded-xl">
+                Kredit al
+            </a>
+            <a href="/how-to-pay.html" class="text-sm font-medium px-4 py-2.5 rounded-xl border border-white/15 hover:bg-white/5 hover:border-white/30 transition text-white">
+                Krediti ödə
+            </a>
+        </div>
+    </div>
+</nav>
+
+<main class="pt-32 sm:pt-36 max-w-4xl mx-auto px-4 sm:px-6">
+    <header class="mb-8">
+        <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight">
+            <span class="gradient-text">Məxfilik</span> Siyasəti
+        </h1>
+        <p class="mt-4 text-base text-[var(--alpul-text-soft)] leading-relaxed">
+            Hörmətli istifadəçi, internet platformasından istifadə etməzdən və borc müraciəti göndərməzdən əvvəl bu Məxfilik Siyasəti ilə diqqətlə tanış olmağınız xahiş olunur
+        </p>
+    </header>
+
+    <div class="mb-8">
+        <button onclick="window.print()" class="cta-btn text-white font-semibold px-5 py-2.5 rounded-xl inline-flex items-center gap-2 text-sm">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            PDF yüklə
+        </button>
+    </div>
+
+    <div class="space-y-8">
+        <p class="text-base text-[var(--alpul-text-soft)] leading-relaxed">
+            Bu Məxfilik Siyasəti, AZMİKRO ("Şirkət") tərəfindən istifadəçilərin fərdi məlumatlarının toplanması, işlənməsi, saxlanılması və qorunması qaydalarını Azərbaycan Respublikasının "Fərdi məlumatlar haqqında" Qanununa uyğun olaraq tənzimləyir.
+        </p>
+
+        <article class="rounded-2xl border border-[var(--alpul-border)] bg-[var(--alpul-bg-soft)] p-6 sm:p-8">
+            <h2 class="text-xl font-bold mb-4 text-white">1. Toplanılan Fərdi Məlumatlar</h2>
+            <p class="text-sm text-[var(--alpul-text-soft)] leading-relaxed mb-4">
+                Platformada qeydiyyatdan keçdiyiniz və ya borc müraciəti etdiyiniz zaman aşağıdakı fərdi məlumatlarınız toplana bilər:
+            </p>
+            <ul class="space-y-2 text-sm text-[var(--alpul-text-soft)] leading-relaxed">
+                <li class="flex gap-2"><span class="text-[var(--alpul-accent)] mt-0.5">•</span><span><strong class="text-white">Identifikasiya məlumatları:</strong> Ad, soyad, ata adı, FİN (Fərdi Identifikasiya Nömrəsi), şəxsiyyət vəsiqəsinin seriya və nömrəsi.</span></li>
+                <li class="flex gap-2"><span class="text-[var(--alpul-accent)] mt-0.5">•</span><span><strong class="text-white">Əlaqə məlumatları:</strong> Telefon nömrəsi, e-poçt ünvanı, faktiki və qeydiyyatda olduğunuz yaşayış ünvanı.</span></li>
+                <li class="flex gap-2"><span class="text-[var(--alpul-accent)] mt-0.5">•</span><span><strong class="text-white">Maliyyə və məşğulluq məlumatları:</strong> İş yeri, vəzifə, aylıq gəlir barədə məlumatlar, bank hesabı və ya kart məlumatları.</span></li>
+            </ul>
+        </article>
+
+        <article class="rounded-2xl border border-[var(--alpul-border)] bg-[var(--alpul-bg-soft)] p-6 sm:p-8">
+            <h2 class="text-xl font-bold mb-4 text-white">2. Məlumatların Toplanma və İşlənmə Məqsədləri</h2>
+            <p class="text-sm text-[var(--alpul-text-soft)] leading-relaxed mb-4">
+                Sizin fərdi məlumatlarınız aşağıdakı məqsədlər üçün işlənilir:
+            </p>
+            <ul class="space-y-2 text-sm text-[var(--alpul-text-soft)] leading-relaxed">
+                <li class="flex gap-2"><span class="text-[var(--alpul-accent)] mt-0.5">•</span><span>Borc müraciətinizin qiymətləndirilməsi (skorinq analizi) və ödəniş qabiliyyətinizin yoxlanılması;</span></li>
+                <li class="flex gap-2"><span class="text-[var(--alpul-accent)] mt-0.5">•</span><span>Sizinlə Onlayn Borc Müqaviləsinin bağlanması və icra edilməsi;</span></li>
+                <li class="flex gap-2"><span class="text-[var(--alpul-accent)] mt-0.5">•</span><span>Dövlət orqanları, Azərbaycan Kredit Bürosu (AKB) və digər qanuni reyestrlər vasitəsilə kredit tarixçənizin və gəlirlərinizin daxili risk siyasətinə uyğun yoxlanılması;</span></li>
+                <li class="flex gap-2"><span class="text-[var(--alpul-accent)] mt-0.5">•</span><span>Platformanın təhlükəsizliyinin təmin edilməsi və fırıldaqçılıq hallarının qarşısının alınması;</span></li>
+                <li class="flex gap-2"><span class="text-[var(--alpul-accent)] mt-0.5">•</span><span>Borc öhdəliklərinin yerinə yetirilməsi ilə bağlı sizinlə əlaqə saxlanılması.</span></li>
+            </ul>
+        </article>
+
+        <article class="rounded-2xl border border-[var(--alpul-border)] bg-[var(--alpul-bg-soft)] p-6 sm:p-8">
+            <h2 class="text-xl font-bold mb-4 text-white">3. Fərdi Məlumatların Üçüncü Şəxslərə Ötürülməsi</h2>
+            <p class="text-sm text-[var(--alpul-text-soft)] leading-relaxed mb-4">
+                Şirkət istifadəçinin fərdi məlumatlarını ciddi şəkildə məxfi saxlayır. Məlumatlar yalnız aşağıdakı hallarda üçüncü şəxslərə ötürülə bilər:
+            </p>
+            <ul class="space-y-2 text-sm text-[var(--alpul-text-soft)] leading-relaxed">
+                <li class="flex gap-2"><span class="text-[var(--alpul-accent)] mt-0.5">•</span><span>İstifadəçi tərəfindən platformada ayrıca elektron razılıq verildiyi təqdirdə (məsələn, Kredit Bürosuna sorğu göndərilməsi üçün);</span></li>
+                <li class="flex gap-2"><span class="text-[var(--alpul-accent)] mt-0.5">•</span><span>Azərbaycan Respublikasının qanunvericiliyi ilə birbaşa nəzərdə tutulmuş hallarda (məhkəmə, hüquq-mühafizə orqanları və digər səlahiyyətli dövlət qurumlarının rəsmi tələbi əsasında);</span></li>
+                <li class="flex gap-2"><span class="text-[var(--alpul-accent)] mt-0.5">•</span><span>Borc öhdəliyi gecikdirildikdə, borcun tələb edilməsi məqsədilə hüquq şirkətlərinə və ya kollektor xidmətlərinə.</span></li>
+            </ul>
+        </article>
+
+        <article class="rounded-2xl border border-[var(--alpul-border)] bg-[var(--alpul-bg-soft)] p-6 sm:p-8">
+            <h2 class="text-xl font-bold mb-4 text-white">4. Məlumatların Təhlükəsizliyi və Saxlanma Müddəti</h2>
+            <p class="text-sm text-[var(--alpul-text-soft)] leading-relaxed">
+                Şirkət fərdi məlumatların itməsi, qanunsuz istifadəsi və ya dəyişdirilməsinin qarşısını almaq üçün zəruri olan bütün təşkilati və texniki təhlükəsizlik tədbirlərini (SSL şifrələmə, təhlükəsiz serverlər və s.) həyata keçirir. Məlumatlar borc öhdəliyinin davam etdiyi müddətdə və ya qanunvericiliklə müəyyən edilmiş arxivləşdirmə müddəti ərzində saxlanılır.
+            </p>
+        </article>
+
+        <article class="rounded-2xl border border-[var(--alpul-border)] bg-[var(--alpul-bg-soft)] p-6 sm:p-8">
+            <h2 class="text-xl font-bold mb-4 text-white">5. İstifadəçinin Hüquqları</h2>
+            <p class="text-sm text-[var(--alpul-text-soft)] leading-relaxed">
+                İstifadəçi öz fərdi məlumatlarının işlənilməsi barədə məlumat almaq, məlumatlarda düzəlişlər edilməsini tələb etmək və qanunvericiliyin imkan verdiyi çərçivədə məlumatların silinməsini və ya işlənilməsinin dayandırılmasını tələb etmək hüququna malikdir.
+            </p>
+        </article>
+    </div>
+
+    <div class="mt-12 p-6 rounded-2xl border border-[var(--alpul-accent)] bg-[var(--alpul-bg-soft)]">
+        <label class="flex items-start gap-3 cursor-pointer">
+            <input type="checkbox" class="mt-1 w-5 h-5 accent-[var(--alpul-accent)]">
+            <span class="text-sm text-[var(--alpul-text-soft)]">
+                Məxfilik Siyasəti, İstifadəçi Razılaşması (Borc Ofertası) və fərdi məlumatlarımın sorğu edilməsi barədə Razılıq Ərizəsinin şərtləri ilə tanış oldum və qəbul edirəm.
+            </span>
+        </label>
+    </div>
+</main>
+
+<footer class="border-t border-white/5 py-8 px-6 mt-16">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-gray-500">
+        <div class="flex items-center gap-4">
+            <a href="/privacy.html" class="hover:text-white transition">Əlavə sənədlər</a>
+            <span>·</span>
+            <a href="/contact.html" class="hover:text-white transition">Əlaqə</a>
+            <span>·</span>
+            <a href="/faq.html" class="hover:text-white transition">Sual-cavab</a>
+        </div>
+        <div>© 2026 ALPUL · BOKT "Azərbaycan Mikro Kredit" ASC · BKT-17 lisenziya</div>
+    </div>
+</footer>
+
+</body>
+</html>
