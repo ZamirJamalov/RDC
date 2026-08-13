@@ -287,15 +287,15 @@
 <!-- ============ NAV ============ -->
 <nav class="fixed top-0 inset-x-0 z-50 backdrop-blur-xl bg-black/40 border-b border-white/5">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-between">
-        <a href="#" class="flex items-center gap-2">
+        <a href="/index.html" class="flex items-center gap-2">
             <img src="/assets/alpul-logo.png" alt="ALPUL" class="w-24 h-24 object-contain">
             <span class="text-xl font-bold tracking-tight">ALPUL</span>
         </a>
-        <div class="hidden md:flex items-center gap-8 text-sm text-gray-300">
-            <a href="#how" class="hover:text-white transition">Necə işləyir</a>
-            <a href="#levels" class="hover:text-white transition">Səviyyələr</a>
-            <a href="#calc" class="hover:text-white transition">Kalkulyator</a>
-            <a href="#faq" class="hover:text-white transition">SSS</a>
+        <div class="hidden md:flex items-center gap-6 text-sm text-gray-300">
+            <a href="/how-to-get.html" class="hover:text-white transition">Necə əldə edim</a>
+            <a href="/how-to-pay.html" class="hover:text-white transition">Ödənişi necə edim</a>
+            <a href="/faq.html" class="hover:text-white transition">Sual-cavab</a>
+            <a href="/contact.html" class="hover:text-white transition">Əlaqə</a>
         </div>
         <div class="flex items-center gap-2 sm:gap-3">
             <!-- PR #83: Theme toggle -->
@@ -304,7 +304,10 @@
                 <svg x-show="theme === 'light'" class="w-5 h-5 text-indigo-500" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
             </button>
             <a href="/apply?from=landing" class="cta-btn text-white text-sm font-semibold px-4 sm:px-5 py-2.5 rounded-xl">
-                Müraciət et
+                Kredit al
+            </a>
+            <a href="/how-to-pay.html" class="text-sm font-medium px-4 py-2.5 rounded-xl border border-white/15 hover:bg-white/5 hover:border-white/30 transition text-white hidden sm:inline-block">
+                Krediti ödə
             </a>
             <!-- PR #139: Mobile hamburger menu -->
             <button @click="mobileNavOpen = !mobileNavOpen" class="md:hidden w-9 h-9 rounded-lg border border-white/10 flex items-center justify-center hover:bg-white/5 transition" title="Menyu">
@@ -316,10 +319,11 @@
     <!-- PR #139: Mobile dropdown menu -->
     <div x-show="mobileNavOpen" x-transition x-cloak class="md:hidden border-t border-white/5 bg-black/80 backdrop-blur-xl">
         <div class="px-6 py-4 space-y-3 text-sm text-gray-300">
-            <a href="#how"    @click="mobileNavOpen = false" class="block hover:text-white transition py-1">Necə işləyir</a>
-            <a href="#levels" @click="mobileNavOpen = false" class="block hover:text-white transition py-1">Səviyyələr</a>
-            <a href="#calc"   @click="mobileNavOpen = false" class="block hover:text-white transition py-1">Kalkulyator</a>
-            <a href="#faq"    @click="mobileNavOpen = false" class="block hover:text-white transition py-1">SSS</a>
+            <a href="/how-to-get.html" @click="mobileNavOpen = false" class="block hover:text-white transition py-1">Necə əldə edim</a>
+            <a href="/how-to-pay.html" @click="mobileNavOpen = false" class="block hover:text-white transition py-1">Ödənişi necə edim</a>
+            <a href="/faq.html"        @click="mobileNavOpen = false" class="block hover:text-white transition py-1">Sual-cavab</a>
+            <a href="/contact.html"    @click="mobileNavOpen = false" class="block hover:text-white transition py-1">Əlaqə</a>
+            <a href="/how-to-pay.html" @click="mobileNavOpen = false" class="block cta-btn text-white text-center font-semibold py-2 rounded-xl mt-2">Krediti ödə</a>
         </div>
     </div>
 </nav>
@@ -349,7 +353,7 @@
 
             <div class="mt-2">
                 <a href="/apply?from=landing" class="cta-btn cta-btn-hero text-white font-bold text-sm md:text-base px-6 py-3 rounded-xl inline-flex items-center gap-2">
-                    Seçimi et
+                    Kredit al
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
                     </svg>
@@ -437,7 +441,7 @@
             </div>
 
             <a href="/apply?from=landing" class="cta-btn block text-center text-white font-semibold py-3.5 rounded-xl">
-                Müraciət et →
+                Kredit al →
             </a>
             </div>
             <!-- PR #184: decorative image to the right of calculator (lg+ only) -->
@@ -675,8 +679,8 @@
         <p class="text-base sm:text-lg text-gray-400 mb-10 max-w-xl mx-auto">
             İlk müraciət 5 dəqiqə çəkir. Vaxtında ödəsən, bir sonrakı dəfə daha ucuz.
         </p>
-        <a href="#" class="cta-btn inline-block text-white font-bold text-base sm:text-lg px-6 sm:px-10 py-3.5 sm:py-4 rounded-xl">
-            Müraciət et →
+        <a href="/apply?from=landing" class="cta-btn inline-block text-white font-bold text-base sm:text-lg px-6 sm:px-10 py-3.5 sm:py-4 rounded-xl">
+            Kredit al →
         </a>
         <p class="text-xs text-gray-500 mt-6">Müraciət üçün 18+, FIN kodu və aktiv telefon tələb olunur.</p>
     </div>
@@ -687,10 +691,10 @@
     <div class="max-w-7xl mx-auto">
         <div class="grid md:grid-cols-4 gap-8">
             <div>
-                <div class="flex items-center gap-2 mb-4">
+                <a href="/index.html" class="flex items-center gap-2 mb-4">
                     <img src="/assets/alpul-logo.png" alt="ALPUL" class="w-24 h-24 object-contain">
                     <span class="text-lg font-bold">ALPUL</span>
-                </div>
+                </a>
                 <p class="text-sm text-gray-500">Səviyyəli smart kredit platforması.</p>
             </div>
             <div>
@@ -704,17 +708,16 @@
             <div>
                 <div class="text-sm font-semibold mb-3 text-gray-300">Şirkət</div>
                 <ul class="space-y-2 text-sm text-gray-500">
-                    <li><a href="#" class="hover:text-white transition">Haqqımızda</a></li>
-                    <li><a href="#" class="hover:text-white transition">Lisenziya</a></li>
-                    <li><a href="#" class="hover:text-white transition">Əlaqə</a></li>
+                    <li><a href="/contact.html" class="hover:text-white transition">Əlaqə</a></li>
+                    <li><a href="/how-to-get.html" class="hover:text-white transition">Necə əldə edim</a></li>
+                    <li><a href="/how-to-pay.html" class="hover:text-white transition">Ödənişi necə edim</a></li>
                 </ul>
             </div>
             <div>
                 <div class="text-sm font-semibold mb-3 text-gray-300">Qanuni</div>
                 <ul class="space-y-2 text-sm text-gray-500">
-                    <li><a href="#" class="hover:text-white transition">Şərtlər</a></li>
-                    <li><a href="#" class="hover:text-white transition">Gizlilik</a></li>
-                    <li><a href="#faq" class="hover:text-white transition">SSS</a></li>
+                    <li><a href="/privacy.html" class="hover:text-white transition">Əlavə sənədlər</a></li>
+                    <li><a href="/faq.html" class="hover:text-white transition">Sual-cavab</a></li>
                 </ul>
             </div>
         </div>

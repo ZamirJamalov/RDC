@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Necə əldə edim? — ALPUL</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+        h1, h2, h3, h4, h5, h6, .font-extrabold, .font-black {
+            font-family: 'Geist', 'IBM Plex Sans', sans-serif;
+        }
+        :root, [data-theme="dark"] {
+            --alpul-bg: #081a33;
+            --alpul-bg-soft: #0d2444;
+            --alpul-card: #112d52;
+            --alpul-border: #1d3b66;
+            --alpul-text: #F5F5F7;
+            --alpul-text-soft: #A3B3CC;
+            --alpul-accent: #2D9CDB;
+            --alpul-accent-2: #F2C94C;
+        }
+        body { background: var(--alpul-bg); color: var(--alpul-text); }
+        .gradient-text {
+            background: linear-gradient(135deg, #FFFFFF 0%, #2D9CDB 50%, #F2C94C 100%);
+            -webkit-background-clip: text; background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .cta-btn {
+            background: linear-gradient(135deg, #2D9CDB 0%, #1d5a8f 100%);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .cta-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 36px -10px rgba(45, 156, 219, 0.6);
+        }
+        [x-cloak] { display: none !important; }
+    </style>
+</head>
+<body x-data="{ theme: localStorage.getItem('alpul_theme') || 'dark' }" x-init="document.body.setAttribute('data-theme', theme)" x-cloak data-theme="dark">
+
+<nav class="fixed top-0 inset-x-0 z-50 backdrop-blur-xl bg-black/40 border-b border-white/5">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-between">
+        <a href="/index.html" class="flex items-center gap-2">
+            <img src="/assets/alpul-logo.png" alt="ALPUL" class="w-24 h-24 object-contain">
+            <span class="text-xl font-bold tracking-tight">ALPUL</span>
+        </a>
+        <div class="hidden md:flex items-center gap-6 text-sm text-gray-300">
+            <a href="/how-to-get.html" class="hover:text-white transition">Necə əldə edim</a>
+            <a href="/how-to-pay.html" class="hover:text-white transition">Ödənişi necə edim</a>
+            <a href="/faq.html" class="hover:text-white transition">Sual-cavab</a>
+            <a href="/contact.html" class="hover:text-white transition">Əlaqə</a>
+        </div>
+        <div class="flex items-center gap-2 sm:gap-3">
+            <a href="/apply?from=info" class="cta-btn text-white text-sm font-semibold px-4 sm:px-5 py-2.5 rounded-xl">
+                Kredit al
+            </a>
+            <a href="/how-to-pay.html" class="text-sm font-medium px-4 py-2.5 rounded-xl border border-white/15 hover:bg-white/5 hover:border-white/30 transition text-white">
+                Krediti ödə
+            </a>
+        </div>
+    </div>
+</nav>
+
+<main class="pt-32 sm:pt-36 max-w-5xl mx-auto px-4 sm:px-6">
+    <header class="mb-12 text-center">
+        <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight">
+            Necə <span class="gradient-text">əldə</span> edim?
+        </h1>
+        <p class="mt-4 text-lg text-[var(--alpul-text-soft)]">
+            ALPUL-da krediti 4 sadə addımda əldə edin
+        </p>
+    </header>
+
+    <div class="space-y-5">
+        <article class="rounded-2xl border border-[var(--alpul-border)] bg-[var(--alpul-bg-soft)] p-6 sm:p-8 flex items-start gap-5">
+            <div class="cta-btn w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-xl shrink-0">1</div>
+            <div>
+                <h3 class="text-xl font-bold mb-2">Kredit al düyməsini klik edin</h3>
+                <p class="text-[var(--alpul-text-soft)] leading-relaxed">
+                    Platformanın istənilən səhifəsindəki 'Kredit al' düyməsini sıxaraq müraciət prosesini başladın. Müraciət tam onlayndır və 5 dəqiqə çəkir.
+                </p>
+            </div>
+        </article>
+
+        <article class="rounded-2xl border border-[var(--alpul-border)] bg-[var(--alpul-bg-soft)] p-6 sm:p-8 flex items-start gap-5">
+            <div class="cta-btn w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-xl shrink-0">2</div>
+            <div>
+                <h3 class="text-xl font-bold mb-2">Şəxsi məlumatları daxil edin</h3>
+                <p class="text-[var(--alpul-text-soft)] leading-relaxed">
+                    FIN kodunuzu, şəxsiyyət vəsiqəsinin seriya nömrəsini və mobil telefon nömrənizi daxil edin. ASAN Finance və MyGov vasitəsilə məlumatlarınız avtomatik yoxlanılır.
+                </p>
+            </div>
+        </article>
+
+        <article class="rounded-2xl border border-[var(--alpul-border)] bg-[var(--alpul-bg-soft)] p-6 sm:p-8 flex items-start gap-5">
+            <div class="cta-btn w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-xl shrink-0">3</div>
+            <div>
+                <h3 class="text-xl font-bold mb-2">Köçürüləcək məbləğin təyini</h3>
+                <p class="text-[var(--alpul-text-soft)] leading-relaxed">
+                    Təklifə əsasən köçürüləcək məbləği seçin. Vəsaitin köçürülməsi üçün bank kart nömrənizi, faktiki ünvanınızı qeyd edin və video qeydiyyatını keçin.
+                </p>
+            </div>
+        </article>
+
+        <article class="rounded-2xl border border-[var(--alpul-border)] bg-[var(--alpul-bg-soft)] p-6 sm:p-8 flex items-start gap-5">
+            <div class="cta-btn w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-xl shrink-0">4</div>
+            <div>
+                <h3 class="text-xl font-bold mb-2">SIMA ilə imzalayın və vəsaiti əldə edin</h3>
+                <p class="text-[var(--alpul-text-soft)] leading-relaxed">
+                    Müqaviləni SIMA imzası ilə rəsmiləşdirin. Təqdim etdiyiniz bank kartına vəsait daxil olur — proses tamamlanır.
+                </p>
+            </div>
+        </article>
+    </div>
+
+    <div class="text-center mt-16">
+        <a href="/apply?from=how-to-get" class="cta-btn text-white font-bold text-base px-8 py-4 rounded-xl inline-flex items-center gap-2">
+            Kredit al
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+        </a>
+    </div>
+</main>
+
+<footer class="border-t border-white/5 py-8 px-6 mt-16">
+    <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4 text-xs text-gray-500">
+        <div class="flex items-center gap-4">
+            <a href="/privacy.html" class="hover:text-white transition">Əlavə sənədlər</a>
+            <span>·</span>
+            <a href="/contact.html" class="hover:text-white transition">Əlaqə</a>
+            <span>·</span>
+            <a href="/faq.html" class="hover:text-white transition">Sual-cavab</a>
+        </div>
+        <div>© 2026 ALPUL · BOKT "Azərbaycan Mikro Kredit" ASC · BKT-17 lisenziya</div>
+    </div>
+</footer>
+
+</body>
+</html>
