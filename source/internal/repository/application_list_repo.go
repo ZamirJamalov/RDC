@@ -16,7 +16,7 @@ import (
 // the customer entered a referral code (transparency for the decision).
 func (r *ApplicationRepo) ListByStatus(ctx context.Context, status string) ([]model.LoanApplication, error) {
         rows, err := r.db.QueryContext(ctx, `
-                SELECT id, customer_pin, customer_full_name, amount, term_months,
+                SELECT id, public_id, customer_pin, customer_full_name, amount, term_months,
                        loan_purpose, status, credit_level, approved_amount, approved_rate,
                        discount_code,
                        created_at, updated_at
@@ -34,7 +34,7 @@ func (r *ApplicationRepo) ListByStatus(ctx context.Context, status string) ([]mo
                 var creditLevel, loanPurpose, discountCode sql.NullString
                 var approvedAmount, approvedRate sql.NullFloat64
                 if err := rows.Scan(
-                        &app.ID, &app.CustomerPIN, &app.CustomerFullName, &app.Amount,
+                        &app.ID, &app.PublicID, &app.CustomerPIN, &app.CustomerFullName, &app.Amount,
                         &app.TermMonths, &loanPurpose, &app.Status, &creditLevel,
                         &approvedAmount, &approvedRate, &discountCode,
                         &app.CreatedAt, &app.UpdatedAt,
@@ -52,4 +52,19 @@ func (r *ApplicationRepo) ListByStatus(ctx context.Context, status string) ([]mo
                 return nil, fmt.Errorf("error iterating applications: %w", err)
         }
         return apps, nil
+}
+
+// GetApplicationByPublicID fetches a loan application by its UUID public_id.
+// PR #191: xarici API və UI public_id UUID istifadə edir.
+func (r *ApplicationRepo) GetApplicationByPublicID(ctx context.Context, publicID string) (*model.LoanApplication, error) {
+        // Reuse GetApplicationByID by first looking up the INT id
+        var id int
+        err := r.db.QueryRowContext(ctx, `SELECT id FROM loan_applications WHERE public_id = ?`, publicID).Scan(&id)
+        if err != nil {
+                if err == sql.ErrNoRows {
+                        return nil, nil
+                }
+                return nil, fmt.Errorf("failed to lookup application by public_id: %w", err)
+        }
+        return r.GetApplicationByID(ctx, id)
 }

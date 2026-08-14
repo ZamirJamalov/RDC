@@ -5,7 +5,6 @@ import (
         "encoding/json"
         "fmt"
         "log/slog"
-        "strconv"
 
         "rdc-source/internal/model"
 )
@@ -45,7 +44,8 @@ func (s *ApplicationService) StartVideoRecord(ctx context.Context, appID int, am
         }
 
         // 3. Build request to video service — PR #189: amount frontend-dən gəlir
-        appIDExternal := strconv.Itoa(appID)
+        // PR #191: appIDExternal artıq UUID (app.PublicID) — numeric INT deyil
+        appIDExternal := app.PublicID
         videoReq := &model.CreateVideoOrderRequest{
                 AppID:       appIDExternal,
                 Phone:       app.CustomerPhone,

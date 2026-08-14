@@ -54,9 +54,10 @@ func (h *ApplicationHandler) InitApplication(w http.ResponseWriter, r *http.Requ
 func (h *ApplicationHandler) VerifyInitApplication(w http.ResponseWriter, r *http.Request) {
         // Use local struct with flexInt so application_id accepts both int and string
         var local struct {
-                ApplicationID flexInt `json:"application_id"`
-                Phone         string  `json:"phone"`
-                OTPCode       string  `json:"otp_code"`
+                ApplicationID       flexInt `json:"application_id"`
+                ApplicationPublicID string  `json:"application_public_id"` // PR #191: UUID
+                Phone               string  `json:"phone"`
+                OTPCode             string  `json:"otp_code"`
         }
         if err := json.NewDecoder(r.Body).Decode(&local); err != nil {
                 writeError(w, http.StatusBadRequest, "yanlış request body")
@@ -75,9 +76,10 @@ func (h *ApplicationHandler) VerifyInitApplication(w http.ResponseWriter, r *htt
         }
 
         req := &service.VerifyInitApplicationRequest{
-                ApplicationID: local.ApplicationID.Int(),
-                Phone:         local.Phone,
-                OTPCode:       local.OTPCode,
+                ApplicationID:       local.ApplicationID.Int(),
+                ApplicationPublicID: local.ApplicationPublicID, // PR #191: UUID
+                Phone:               local.Phone,
+                OTPCode:             local.OTPCode,
         }
 
         app, err := h.service.VerifyInitApplication(r.Context(), req)
@@ -199,8 +201,9 @@ func (h *ApplicationHandler) UpdateTimer(w http.ResponseWriter, r *http.Request)
 // the phone in the request body. This prevents user A from confirming user B's
 // application by changing the ID in the URL.
 func (h *ApplicationHandler) CustomerConfirm(w http.ResponseWriter, r *http.Request) {
-        id, err := strconv.Atoi(r.PathValue("id"))
-        if err != nil || id <= 0 {
+        // PR #191: public_id UUID qəbul edir
+        publicID, err := parsePathUUID(r.PathValue("id"))
+        if err != nil {
                 writeError(w, http.StatusBadRequest, "invalid application id")
                 return
         }
@@ -212,12 +215,13 @@ func (h *ApplicationHandler) CustomerConfirm(w http.ResponseWriter, r *http.Requ
         }
 
         // PR #149: IDOR check — fetch application first, verify ownership
-        existingApp, err := h.service.GetApplication(r.Context(), id)
-        if err != nil {
-                slog.Error("customer confirm: application not found", "application_id", id, "error", err)
+        existingApp, err := h.service.GetApplicationByPublicID(r.Context(), publicID)
+        if err != nil || existingApp == nil {
+                slog.Error("customer confirm: application not found", "public_id", publicID, "error", err)
                 writeError(w, http.StatusNotFound, "müraciət tapılmadı")
                 return
         }
+        id := existingApp.ID
         // Verify the phone in the request matches the application's customer_phone
         if existingApp.CustomerPhone != "" && req.CustomerPhone != existingApp.CustomerPhone {
                 slog.Warn("IDOR attempt blocked",

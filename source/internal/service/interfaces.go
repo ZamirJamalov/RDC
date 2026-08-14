@@ -38,6 +38,10 @@ type ApplicationStore interface {
         // Returns an error (wrapping sql.ErrNoRows) if not found.
         GetApplicationByID(ctx context.Context, id int) (*model.LoanApplication, error)
 
+        // GetApplicationByPublicID fetches a loan application by its UUID public_id.
+        // PR #191: xarici API və UI public_id UUID istifadə edir.
+        GetApplicationByPublicID(ctx context.Context, publicID string) (*model.LoanApplication, error)
+
         // UpdateApplicationStatus updates only the status field of an application.
         // Used by the credit engine to transition pending → checking.
         UpdateApplicationStatus(ctx context.Context, id int, status string) error

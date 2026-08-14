@@ -111,14 +111,13 @@
 
         <!-- Application List -->
         <div x-show="!loading && applications.length > 0" class="space-y-4">
-            <template x-for="app in applications" :key="app.id">
+            <template x-for="app in applications" :key="app.public_id">
                 <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 hover:shadow-md hover:border-teal-300 transition-all cursor-pointer"
-                     @click="window.location.href='/detail?id=' + app.id">
+                     @click="window.location.href='/detail?id=' + app.public_id">
                     <div class="flex justify-between items-start">
                         <div>
                             <div class="flex items-center gap-2 mb-2">
-                                <span class="font-semibold text-lg text-gray-800" x-text="'#' + app.id"></span>
-                                <span class="text-gray-600" x-text="app.customer_full_name"></span>
+                                <span class="font-semibold text-lg text-gray-800" x-text="app.customer_full_name"></span>
                             </div>
                             <div class="text-sm text-gray-500 space-y-1">
                                 <p><span class="font-medium">PIN:</span> <span x-text="app.customer_pin"></span></p>

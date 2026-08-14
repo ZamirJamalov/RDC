@@ -8,6 +8,8 @@ import (
         "strconv"
         "strings"
 
+        "github.com/google/uuid"
+
         "rdc-source/internal/model"
         "rdc-source/internal/service"
 )
@@ -40,14 +42,15 @@ func (h *ApplicationHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetByID handles GET /api/applications/{id} — retrieves a single application.
+// PR #191: public_id UUID qəbul edir.
 func (h *ApplicationHandler) GetByID(w http.ResponseWriter, r *http.Request) {
-        id, err := parsePathID(r.PathValue("id"))
+        publicID, err := parsePathUUID(r.PathValue("id"))
         if err != nil {
                 writeError(w, http.StatusBadRequest, err.Error())
                 return
         }
 
-        app, err := h.service.GetApplication(r.Context(), id)
+        app, err := h.service.GetApplicationByPublicID(r.Context(), publicID)
         if err != nil {
                 writeError(w, http.StatusNotFound, err.Error())
                 return
@@ -57,14 +60,21 @@ func (h *ApplicationHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 }
 
 // GetStatus handles GET /api/applications/{id}/status — returns full status with checks and decision.
+// PR #191: public_id UUID qəbul edir.
 func (h *ApplicationHandler) GetStatus(w http.ResponseWriter, r *http.Request) {
-        id, err := parsePathID(r.PathValue("id"))
+        publicID, err := parsePathUUID(r.PathValue("id"))
         if err != nil {
                 writeError(w, http.StatusBadRequest, err.Error())
                 return
         }
 
-        status, err := h.service.GetStatus(r.Context(), id)
+        app, err := h.service.GetApplicationByPublicID(r.Context(), publicID)
+        if err != nil || app == nil {
+                writeError(w, http.StatusNotFound, "müraciət tapılmadı")
+                return
+        }
+
+        status, err := h.service.GetStatus(r.Context(), app.ID)
         if err != nil {
                 writeError(w, http.StatusNotFound, err.Error())
                 return
@@ -173,6 +183,20 @@ func parsePathID(raw string) (int, error) {
                 return 0, fmt.Errorf("invalid id: must be a positive integer")
         }
         return id, nil
+}
+
+// parsePathUUID parses a UUID string from a URL path parameter.
+// PR #191: public route-lar UUID qəbul edir (müştəri tərəfindən çağrılanlar).
+func parsePathUUID(raw string) (string, error) {
+        raw = strings.TrimSpace(raw)
+        if raw == "" {
+                return "", fmt.Errorf("id path parameter is required")
+        }
+        parsed, err := uuid.Parse(raw)
+        if err != nil {
+                return "", fmt.Errorf("invalid id: must be a valid UUID")
+        }
+        return parsed.String(), nil
 }
 
 // writeJSON writes a JSON response with the given status code.

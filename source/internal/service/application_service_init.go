@@ -70,10 +70,12 @@ func (s *ApplicationService) InitApplication(ctx context.Context, req *InitAppli
 }
 
 // VerifyInitApplicationRequest is the body for POST /api/applications/init/verify.
+// PR #191: ApplicationPublicID UUID qəbul edir (ApplicationID INT backward-compat üçün qalır).
 type VerifyInitApplicationRequest struct {
-        ApplicationID int    `json:"application_id"`
-        Phone         string `json:"phone"`
-        OTPCode       string `json:"otp_code"`
+        ApplicationID      int    `json:"application_id"`       // backward-compat (köhnə frontend)
+        ApplicationPublicID string `json:"application_public_id"` // PR #191: UUID
+        Phone              string `json:"phone"`
+        OTPCode            string `json:"otp_code"`
 }
 
 // VerifyInitApplication verifies the OTP code and transitions the application
@@ -81,6 +83,7 @@ type VerifyInitApplicationRequest struct {
 //
 // PR #117: AZMK KYC və Partner registration OTP-dən SONRA, cutoff-dan ƏVVƏL baş verir.
 // PR #112: AUTO cutoff yoxlamaları KYC-dən sonra, kredit təklifindən ƏVVƏL baş verir.
+// PR #191: application_public_id UUID ilə axtarır (application_id INT backward-compat).
 //
 // Flow:
 //   1. OTP verify
@@ -89,7 +92,7 @@ type VerifyInitApplicationRequest struct {
 //   4. AUTO cutoff checks (AKB, blacklist, age, delay, active loan, etc.)
 //   5. If all pass → pending_expert
 func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *VerifyInitApplicationRequest) (*model.LoanApplication, error) {
-        if req.ApplicationID <= 0 {
+        if req.ApplicationPublicID == "" && req.ApplicationID <= 0 {
                 return nil, fmt.Errorf("application_id is required")
         }
         if req.Phone == "" || req.OTPCode == "" {
@@ -105,10 +108,18 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
                 return nil, fmt.Errorf("invalid OTP code, %d attempts remaining", verifyResp.Attempts)
         }
 
-        // 2. Fetch application
-        app, err := s.repo.GetApplicationByID(ctx, req.ApplicationID)
+        // 2. Fetch application — PR #191: public_id UUID ilə (fallback: INT id)
+        var app *model.LoanApplication
+        if req.ApplicationPublicID != "" {
+                app, err = s.repo.GetApplicationByPublicID(ctx, req.ApplicationPublicID)
+        } else {
+                app, err = s.repo.GetApplicationByID(ctx, req.ApplicationID)
+        }
         if err != nil {
                 return nil, fmt.Errorf("application not found: %w", err)
+        }
+        if app == nil {
+                return nil, fmt.Errorf("application not found")
         }
         if app.Status != model.StatusPendingCustomer {
                 return nil, fmt.Errorf("application is not in pending_customer status (current: %s)", app.Status)

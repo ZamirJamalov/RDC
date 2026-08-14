@@ -20,13 +20,14 @@ func NewApplicationRepo(db *sql.DB) *ApplicationRepo {
         return &ApplicationRepo{db: db}
 }
 
-// CreateApplication inserts a new loan application and sets the ID on the struct.
+// CreateApplication inserts a new loan application and sets the ID and PublicID on the struct.
+// PR #191: public_id UUID DB tərəfindən generate olunur (DEFAULT NEWID()).
 func (r *ApplicationRepo) CreateApplication(ctx context.Context, app *model.LoanApplication) error {
         err := r.db.QueryRowContext(ctx, `
                 INSERT INTO loan_applications
                         (customer_pin, customer_serial, customer_full_name, amount, term_months, loan_purpose, status, akb_score,
                          contact1_phone, contact2_phone, contact3_phone, actual_address, card_number, customer_phone)
-                OUTPUT INSERTED.id
+                OUTPUT INSERTED.id, INSERTED.public_id
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 app.CustomerPIN,
                 app.CustomerSerial,
@@ -42,7 +43,7 @@ func (r *ApplicationRepo) CreateApplication(ctx context.Context, app *model.Loan
                 app.ActualAddress,
                 app.CardNumber,
                 app.CustomerPhone,
-        ).Scan(&app.ID)
+        ).Scan(&app.ID, &app.PublicID)
         if err != nil {
                 return fmt.Errorf("failed to insert application: %w", err)
         }
@@ -76,7 +77,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
         var contactsUpdatedAt, mygovCheckedAt sql.NullString
 
         err := r.db.QueryRowContext(ctx, `
-                SELECT id, customer_pin, customer_full_name, amount, term_months, loan_purpose,
+                SELECT id, public_id, customer_pin, customer_full_name, amount, term_months, loan_purpose,
                        status, credit_level, approved_amount, approved_rate, total_amount,
                        rejection_reason_id, rejection_reason, akb_score,
                        official_income, contact1_phone, contact2_phone, contact3_phone, actual_address,
@@ -95,6 +96,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                        created_at, updated_at
                 FROM loan_applications WHERE id = ?`, id).Scan(
                 &app.ID,
+                &app.PublicID,
                 &app.CustomerPIN,
                 &app.CustomerFullName,
                 &app.Amount,

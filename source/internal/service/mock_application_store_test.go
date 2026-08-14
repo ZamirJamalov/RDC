@@ -126,6 +126,20 @@ func (m *mockApplicationStore) GetApplicationByID(_ context.Context, id int) (*m
         return nil, errNotFound
 }
 
+// GetApplicationByPublicID — PR #191: mock implementation (lookup by public_id).
+func (m *mockApplicationStore) GetApplicationByPublicID(_ context.Context, publicID string) (*model.LoanApplication, error) {
+        if m.appByIDErr != nil {
+                return nil, m.appByIDErr
+        }
+        for _, app := range m.appByID {
+                if app.PublicID == publicID {
+                        copied := *app
+                        return &copied, nil
+                }
+        }
+        return nil, errNotFound
+}
+
 func (m *mockApplicationStore) UpdateApplicationStatus(_ context.Context, id int, status string) error {
         m.statusUpdates = append(m.statusUpdates, mockStatusUpdate{ID: id, Status: status})
         return m.updateStatusErr
