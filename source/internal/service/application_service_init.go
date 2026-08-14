@@ -2,6 +2,7 @@ package service
 
 import (
         "context"
+        "encoding/json"
         "fmt"
         "log/slog"
         "strings"
@@ -369,6 +370,34 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
 
         // 1. Qara siyahı və aktiv kredit yoxlaması (AZMK getOwnerData)
         if s.customerDataProvider != nil {
+                // PR #205: cache yoxlaması
+                cachedResp, cacheHit := s.GetCachedServiceResponse(ctx, "AZMK_GET_OWNER_DATA", customerPIN)
+                if cacheHit {
+                        slog.Info("early cutoff: AZMK getOwnerData — using cached response", "application_id", appID, "customer_pin", customerPIN)
+                        // Cache-dən gələn response-u parse et
+                        var ownerResp azmk.OwnerDataResponse
+                        if err := json.Unmarshal([]byte(cachedResp), &ownerResp); err == nil && ownerResp.Data != nil {
+                                // Cache hit — servisi çağırma, birbaşa cached data istifadə et
+                                ownerData := ownerResp.Data
+                                blacklisted := ownerData.CustomerCheck.BlacklistStatus
+                                s.logCutoff(ctx, appID, "AZMK_BLACKLIST", "Qara siyahı yoxlaması (cached)", "AZMK_GET_OWNER_DATA", true, !blacklisted,
+                                        fmt.Sprintf("blacklistStatus = %v (cached)", blacklisted), "blacklistStatus = false", "")
+                                if blacklisted {
+                                        setRejection("AZMK_BLACKLIST")
+                                }
+                                if !shouldReturn() {
+                                        hasActive := ownerData.CustomerCheck.HasActiveCredit
+                                        s.logCutoff(ctx, appID, "ACTIVE_CREDIT", "Aktiv kredit yoxlaması (cached)", "AZMK_GET_OWNER_DATA", true, !hasActive,
+                                                fmt.Sprintf("hasActiveCredit = %v (cached)", hasActive), "hasActiveCredit = false", "")
+                                        if hasActive {
+                                                setRejection("ACTIVE_CREDIT")
+                                        }
+                                }
+                                goto afterOwnerData // cache hit — servis call-ı keç
+                        }
+                        // parse xətası → servisi çağır
+                }
+
                 slog.Info("early cutoff: calling AZMK getOwnerData", "application_id", appID, "customer_pin", customerPIN)
                 ownerData, err := s.customerDataProvider.GetOwnerData(ctx, customerPIN, serial)
                 if err != nil {
@@ -407,6 +436,7 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
                         }
                 }
         }
+        afterOwnerData: // PR #205: cache hit halında bura jump edilir
         if shouldReturn() {
                 return firstRejection, nil
         }

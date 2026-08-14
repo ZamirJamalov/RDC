@@ -88,6 +88,8 @@ func dropAllTables(db *sql.DB) error {
                 "DROP TABLE IF EXISTS cutoff_results",
                 // PR #188: video records
                 "DROP TABLE IF EXISTS video_records",
+                // PR #205: service cache config
+                "DROP TABLE IF EXISTS service_cache_config",
         }
         for _, stmt := range dropStatements {
                 if _, err := db.Exec(stmt); err != nil {

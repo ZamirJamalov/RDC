@@ -77,6 +77,7 @@ func main() {
         userRepo := repository.NewUserRepo(db)                           // PR #142: auth users
         cutoffResultRepo := repository.NewCutoffResultRepo(db)           // PR #168: cutoff results
         videoRecordRepo := repository.NewVideoRecordRepo(db)            // PR #188: video records
+        serviceCacheRepo := repository.NewServiceCacheRepo(db)          // PR #205: service cache
 
         // --- LW Provider (T-2.13) ---
         // In mock mode: reads from local DB (mock_lms_loans table) + canned responses.
@@ -154,6 +155,7 @@ func main() {
         }
         appService.SetVideoRecordProvider(videoRecordProvider)
         appService.SetVideoRecordRepo(videoRecordRepo)
+        appService.SetServiceCacheRepo(serviceCacheRepo) // PR #205: service cache
         appService.SetVideoRecordEnabled(cfg.VideoRecordEnabled, cfg.VideoRecordWebhookURL, cfg.VideoRecordRedirectURL)
         slog.Info("video record service", "enabled", cfg.VideoRecordEnabled, "mock", cfg.VideoRecordUseMock)
         // Audit log for HTTP provider
