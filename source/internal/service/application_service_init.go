@@ -7,6 +7,8 @@ import (
         "strings"
         "time"
 
+        "github.com/google/uuid"
+
         "rdc-source/internal/model"
         "rdc-source/pkg/azmk"
         "rdc-source/pkg/otp"
@@ -109,17 +111,28 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
         }
 
         // 2. Fetch application — PR #191: public_id UUID ilə (fallback: INT id)
+        // PR #193: əgər application_public_id UUID formatında deyilsə, INT fallback et
         var app *model.LoanApplication
         if req.ApplicationPublicID != "" {
-                app, err = s.repo.GetApplicationByPublicID(ctx, req.ApplicationPublicID)
-        } else {
+                if _, parseErr := uuid.Parse(req.ApplicationPublicID); parseErr == nil {
+                        // Valid UUID — use public_id lookup
+                        app, err = s.repo.GetApplicationByPublicID(ctx, req.ApplicationPublicID)
+                } else if req.ApplicationID > 0 {
+                        // Not a valid UUID — fallback to INT
+                        app, err = s.repo.GetApplicationByID(ctx, req.ApplicationID)
+                } else {
+                        return nil, fmt.Errorf("müraciət tapılmadı")
+                }
+        } else if req.ApplicationID > 0 {
                 app, err = s.repo.GetApplicationByID(ctx, req.ApplicationID)
+        } else {
+                return nil, fmt.Errorf("müraciət tapılmadı")
         }
         if err != nil {
-                return nil, fmt.Errorf("application not found: %w", err)
+                return nil, fmt.Errorf("müraciət tapılmadı")
         }
         if app == nil {
-                return nil, fmt.Errorf("application not found")
+                return nil, fmt.Errorf("müraciət tapılmadı")
         }
         if app.Status != model.StatusPendingCustomer {
                 return nil, fmt.Errorf("application is not in pending_customer status (current: %s)", app.Status)
