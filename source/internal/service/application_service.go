@@ -46,6 +46,9 @@ type ApplicationService struct {
         videoRecordEnabled  bool
         videoRecordWebhookURL  string
         videoRecordRedirectURL string
+
+        // PR #205: Service cache (service_audit_logs üzərindən)
+        serviceCacheRepo *repository.ServiceCacheRepo
 }
 
 // NewApplicationService creates a new ApplicationService.
@@ -143,6 +146,38 @@ func (s *ApplicationService) SetVideoRecordEnabled(enabled bool, webhookURL, red
 // IsVideoRecordEnabled returns whether video record is required (PR #188).
 func (s *ApplicationService) IsVideoRecordEnabled() bool {
         return s.videoRecordEnabled && s.videoRecordProvider != nil && s.videoRecordRepo != nil
+}
+
+// SetServiceCacheRepo injects the service cache repo (PR #205).
+// nil = cache deaktiv (hər zaman birbaşa servise muraciet).
+func (s *ApplicationService) SetServiceCacheRepo(repo *repository.ServiceCacheRepo) {
+        s.serviceCacheRepo = repo
+}
+
+// GetCachedServiceResponse checks if there's a cached response for the given service
+// and customer within the cache window. PR #205.
+// Returns (response_body, true) if cache hit, ("", false) if cache miss.
+func (s *ApplicationService) GetCachedServiceResponse(ctx context.Context, serviceName, customerPIN string) (string, bool) {
+        if s.serviceCacheRepo == nil {
+                return "", false // cache deaktiv
+        }
+        cacheDays, err := s.serviceCacheRepo.GetCacheDays(ctx, serviceName)
+        if err != nil {
+                slog.Warn("service cache: failed to get cache_days", "service", serviceName, "error", err)
+                return "", false
+        }
+        if cacheDays <= 0 {
+                return "", false // cache_days=0 → birbaşa servise muraciet
+        }
+        responseBody, found, err := s.serviceCacheRepo.GetCachedResponse(ctx, serviceName, customerPIN, cacheDays)
+        if err != nil {
+                slog.Warn("service cache: failed to get cached response", "service", serviceName, "error", err)
+                return "", false
+        }
+        if found {
+                slog.Info("service cache: HIT", "service", serviceName, "customer_pin", customerPIN, "cache_days", cacheDays)
+        }
+        return responseBody, found
 }
 
 // resolveCustomerAgeFromAzmk fetches customer data from AZMK CustomerDataService
