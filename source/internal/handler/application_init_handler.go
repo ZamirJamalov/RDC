@@ -5,6 +5,7 @@ import (
         "log/slog"
         "net/http"
         "strconv"
+        "strings"
 
         "rdc-source/internal/middleware"
         "rdc-source/internal/service"
@@ -84,9 +85,16 @@ func (h *ApplicationHandler) VerifyInitApplication(w http.ResponseWriter, r *htt
 
         app, err := h.service.VerifyInitApplication(r.Context(), req)
         if err != nil {
-                slog.Error("verify init application failed", "application_id", req.ApplicationID, "error", err)
-                // PR #149: sanitize error
-                writeError(w, http.StatusBadRequest, sanitizeError(err))
+                slog.Error("verify init application failed", "application_id", req.ApplicationID, "public_id", req.ApplicationPublicID, "error", err)
+                // PR #193: istifadəçi üçün uyğun xəta mesajı
+                msg := err.Error()
+                if strings.Contains(msg, "tapılmadı") || strings.Contains(msg, "not found") {
+                        writeError(w, http.StatusBadRequest, "Müraciət tapılmadı. Zəhmət olmasa yenidən cəhd edin.")
+                } else if strings.Contains(msg, "invalid OTP") {
+                        writeError(w, http.StatusBadRequest, msg)
+                } else {
+                        writeError(w, http.StatusBadRequest, sanitizeError(err))
+                }
                 return
         }
 
