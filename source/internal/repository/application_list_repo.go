@@ -5,6 +5,9 @@ import (
         "database/sql"
         "fmt"
 
+        "github.com/google/uuid"
+        "github.com/microsoft/go-mssqldb"
+
         "rdc-source/internal/model"
 )
 
@@ -56,10 +59,21 @@ func (r *ApplicationRepo) ListByStatus(ctx context.Context, status string) ([]mo
 
 // GetApplicationByPublicID fetches a loan application by its UUID public_id.
 // PR #191: xarici API və UI public_id UUID istifadə edir.
+// PR #192: UUID string mssql.UniqueIdentifier-a çevrilir (string → UNIQUEIDENTIFIER conversion xətası fix).
 func (r *ApplicationRepo) GetApplicationByPublicID(ctx context.Context, publicID string) (*model.LoanApplication, error) {
+        // Validate and parse the UUID string
+        parsed, err := uuid.Parse(publicID)
+        if err != nil {
+                return nil, fmt.Errorf("invalid public_id format (not a valid UUID): %w", err)
+        }
+
+        // Convert to mssql.UniqueIdentifier for proper SQL Server comparison
+        var mssqlUUID mssql.UniqueIdentifier
+        copy(mssqlUUID[:], parsed[:])
+
         // Reuse GetApplicationByID by first looking up the INT id
         var id int
-        err := r.db.QueryRowContext(ctx, `SELECT id FROM loan_applications WHERE public_id = ?`, publicID).Scan(&id)
+        err = r.db.QueryRowContext(ctx, `SELECT id FROM loan_applications WHERE public_id = ?`, mssqlUUID).Scan(&id)
         if err != nil {
                 if err == sql.ErrNoRows {
                         return nil, nil
