@@ -3,6 +3,9 @@ package service
 import (
         "context"
         "fmt"
+        "log/slog"
+
+        "rdc-source/pkg/lw"
 )
 
 // GetOffer returns the available amount/term ranges for a customer's credit
@@ -15,15 +18,19 @@ import (
 //  3. Determine credit level (new/trusted/valuable/elite)
 //  4. Determine unlock phase (1 = first loan, 2 = 1+ approved)
 //  5. Get all rate ranges for this level + phase
+//
+// PR #203: LW xətası olanda fail-soft — boş customer loans ilə davam et.
 func (s *ApplicationService) GetOffer(ctx context.Context, customerPIN string, akbScore int) (*OfferResponse, error) {
         if customerPIN == "" {
                 return nil, fmt.Errorf("customer_pin is required")
         }
 
         // 1. Fetch customer loans from LW to determine credit level
+        // PR #203: LW xətası olanda fail-soft — boş loans ilə davam et
         customerLoans, err := s.creditEngine.lwProvider.GetCustomerLoans(ctx, customerPIN)
         if err != nil {
-                return nil, fmt.Errorf("failed to fetch customer loans: %w", err)
+                slog.Warn("GetOffer: LW GetCustomerLoans failed — fail-soft (empty loans)", "customer_pin", customerPIN, "error", err)
+                customerLoans = &lw.CustomerLoansResponse{Loans: []lw.CustomerLoan{}}
         }
 
         // 2. Resolve AKB score (LW first, fallback to request)
