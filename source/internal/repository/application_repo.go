@@ -7,6 +7,9 @@ import (
         "strings"
         "time"
 
+        "github.com/google/uuid"
+        "github.com/microsoft/go-mssqldb"
+
         "rdc-source/internal/model"
 )
 
@@ -22,7 +25,9 @@ func NewApplicationRepo(db *sql.DB) *ApplicationRepo {
 
 // CreateApplication inserts a new loan application and sets the ID and PublicID on the struct.
 // PR #191: public_id UUID DB tərəfindən generate olunur (DEFAULT NEWID()).
+// PR #194: mssql.UniqueIdentifier kimi scan edir, sonra uuid.UUID string-ə çevirir.
 func (r *ApplicationRepo) CreateApplication(ctx context.Context, app *model.LoanApplication) error {
+        var rawPublicID mssql.UniqueIdentifier
         err := r.db.QueryRowContext(ctx, `
                 INSERT INTO loan_applications
                         (customer_pin, customer_serial, customer_full_name, amount, term_months, loan_purpose, status, akb_score,
@@ -43,10 +48,13 @@ func (r *ApplicationRepo) CreateApplication(ctx context.Context, app *model.Loan
                 app.ActualAddress,
                 app.CardNumber,
                 app.CustomerPhone,
-        ).Scan(&app.ID, &app.PublicID)
+        ).Scan(&app.ID, &rawPublicID)
         if err != nil {
                 return fmt.Errorf("failed to insert application: %w", err)
         }
+
+        // Convert mssql.UniqueIdentifier → uuid.UUID → string
+        app.PublicID = uuid.UUID(rawPublicID).String()
 
         return nil
 }
@@ -54,6 +62,7 @@ func (r *ApplicationRepo) CreateApplication(ctx context.Context, app *model.Loan
 // GetApplicationByID fetches a loan application by its primary key.
 func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*model.LoanApplication, error) {
         var app model.LoanApplication
+        var rawPublicID mssql.UniqueIdentifier // PR #194: UUID byte-ları
         var rejectionReasonID sql.NullInt64
         var rejectionReason, creditLevel sql.NullString
         var approvedAmount, approvedRate, totalAmount sql.NullFloat64
@@ -96,7 +105,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                        created_at, updated_at
                 FROM loan_applications WHERE id = ?`, id).Scan(
                 &app.ID,
-                &app.PublicID,
+                &rawPublicID,
                 &app.CustomerPIN,
                 &app.CustomerFullName,
                 &app.Amount,
@@ -222,6 +231,9 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
         }
         app.MyGovCheckedByUsername = mygovCheckedByUsername.String
         app.MyGovCheckedAt = mygovCheckedAt.String
+
+        // PR #194: mssql.UniqueIdentifier → uuid.UUID → string
+        app.PublicID = uuid.UUID(rawPublicID).String()
 
         return &app, nil
 }

@@ -34,16 +34,18 @@ func (r *ApplicationRepo) ListByStatus(ctx context.Context, status string) ([]mo
         var apps []model.LoanApplication
         for rows.Next() {
                 var app model.LoanApplication
+                var rawPublicID mssql.UniqueIdentifier // PR #194: UUID byte-ları
                 var creditLevel, loanPurpose, discountCode sql.NullString
                 var approvedAmount, approvedRate sql.NullFloat64
                 if err := rows.Scan(
-                        &app.ID, &app.PublicID, &app.CustomerPIN, &app.CustomerFullName, &app.Amount,
+                        &app.ID, &rawPublicID, &app.CustomerPIN, &app.CustomerFullName, &app.Amount,
                         &app.TermMonths, &loanPurpose, &app.Status, &creditLevel,
                         &approvedAmount, &approvedRate, &discountCode,
                         &app.CreatedAt, &app.UpdatedAt,
                 ); err != nil {
                         return nil, fmt.Errorf("failed to scan application: %w", err)
                 }
+                app.PublicID = uuid.UUID(rawPublicID).String() // PR #194
                 app.LoanPurpose = loanPurpose.String
                 app.CreditLevel = creditLevel.String
                 app.ApprovedAmount = approvedAmount.Float64
