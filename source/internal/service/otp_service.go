@@ -91,7 +91,8 @@ func (s *OTPService) SendOTP(ctx context.Context, phone string) (*model.OTPSendR
         slog.Info("OTP sent",
                 "phone", phone,
                 "provider", s.provider.Name(),
-                "expires_in_s", model.OTPCodeTTL)
+                "expires_in_s", model.OTPCodeTTL,
+                "code", code) // PR #203: mock=false olanda da terminalda göstər
 
         return &model.OTPSendResponse{
                 Phone:      phone,
