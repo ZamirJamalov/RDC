@@ -3,6 +3,7 @@ package model
 // LoanApplication represents a loan application in the system.
 type LoanApplication struct {
         ID                int     `json:"id"`
+        PublicID          string  `json:"public_id"` // PR #191: UUID format public ID (UI və xarici servis üçün)
         CustomerPIN       string  `json:"customer_pin"`
         CustomerSerial    string  `json:"customer_serial,omitempty"`
         CustomerFullName  string  `json:"customer_full_name"`

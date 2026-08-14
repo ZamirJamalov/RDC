@@ -144,8 +144,7 @@
                 <a href="/index.html"><img src="/assets/alpul-logo.png" alt="ALPUL" class="w-24 h-24 object-contain shrink-0"></a>
                 <div class="min-w-0">
                     <h1 class="text-base font-bold text-gray-800 truncate flex items-center gap-2" :class="{'panel-title': true}">
-                        <span x-text="'Muraciet #' + (app?.id || '')"></span>
-                        <span x-show="app?.customer_full_name" class="text-gray-500 font-medium text-sm hidden md:inline" x-text="'· ' + (app?.customer_full_name || '')"></span>
+                        <span x-text="app?.customer_full_name || 'Müraciət'"></span>
                     </h1>
                     <p class="text-xs text-gray-500 hidden sm:block" x-text="app ? (app.customer_pin || '') + ' · ' + (app.customer_phone || '-') : 'Yuklenir...'"></p>
                 </div>
@@ -794,7 +793,7 @@
                 async saveTimerToDB() {
                     if (!this.id) return;
                     try {
-                        await fetch('/api/applications/' + this.id + '/timer', {
+                        await fetch('/api/applications/' + this.internalId + '/timer', {
                             method: 'PUT',
                             headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify({ timer_seconds: this.timerSeconds }),
@@ -930,7 +929,7 @@
 
                     c.saving = true;
                     try {
-                        const resp = await fetch('/api/applications/' + this.id + '/contacts', {
+                        const resp = await fetch('/api/applications/' + this.internalId + '/contacts', {
                             method: 'PUT',
                             headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify({
@@ -987,7 +986,7 @@
                     c.verified = verified;
                     c.saving = true;
                     try {
-                        const resp = await fetch('/api/applications/' + this.id + '/contacts', {
+                        const resp = await fetch('/api/applications/' + this.internalId + '/contacts', {
                             method: 'PUT',
                             headers: {'Content-Type': 'application/json'},
                             body: JSON.stringify({
@@ -1017,6 +1016,11 @@
 
                 get id() {
                     return new URLSearchParams(window.location.search).get('id');
+                },
+
+                // PR #191: internalId — INT id (ekspert API call-lar üçün), app yüklənəndə set olunur
+                get internalId() {
+                    return this.app?.id || '';
                 },
 
                 async load() {
@@ -1102,7 +1106,7 @@
                     }
 
                     try {
-                        const resp = await fetch('/api/expert/' + this.id + '/approve', {
+                        const resp = await fetch('/api/expert/' + this.internalId + '/approve', {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ credit_level: this.app.credit_level || 'new' })
@@ -1131,7 +1135,7 @@
                         if (this.rejectReason === 'MANUAL_OTHER' && this.rejectReasonCustom) {
                             reason = 'MANUAL_OTHER:' + this.rejectReasonCustom;
                         }
-                        const resp = await fetch('/api/expert/' + this.id + '/reject', {
+                        const resp = await fetch('/api/expert/' + this.internalId + '/reject', {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
                             body: JSON.stringify({ reason: reason })
@@ -1155,7 +1159,7 @@
                     this.employmentLoading = true;
                     this.employmentMessage = '';
                     try {
-                        const resp = await fetch('/api/applications/' + this.id + '/mygov-employment-request', { method: 'POST' });
+                        const resp = await fetch('/api/applications/' + this.internalId + '/mygov-employment-request', { method: 'POST' });
                         const data = await resp.json();
                         if (!resp.ok) throw new Error(data.error || 'Sorgu gonderilmedi');
                         this.employmentMessage = 'SMS gonderildi.';
@@ -1171,7 +1175,7 @@
                     this.employmentVerifying = true;
                     this.employmentMessage = '';
                     try {
-                        const resp = await fetch('/api/applications/' + this.id + '/mygov-employment-verify', { method: 'POST' });
+                        const resp = await fetch('/api/applications/' + this.internalId + '/mygov-employment-verify', { method: 'POST' });
                         const data = await resp.json();
                         if (!resp.ok) throw new Error(data.error || 'Yoxlama ugursuz');
                         this.employmentResult = data.status;
@@ -1189,7 +1193,7 @@
                     this.pensionLoading = true;
                     this.pensionMessage = '';
                     try {
-                        const resp = await fetch('/api/applications/' + this.id + '/mygov-pension-request', { method: 'POST' });
+                        const resp = await fetch('/api/applications/' + this.internalId + '/mygov-pension-request', { method: 'POST' });
                         const data = await resp.json();
                         if (!resp.ok) throw new Error(data.error || 'Sorgu gonderilmedi');
                         this.pensionMessage = 'SMS gonderildi.';
@@ -1205,7 +1209,7 @@
                     this.pensionVerifying = true;
                     this.pensionMessage = '';
                     try {
-                        const resp = await fetch('/api/applications/' + this.id + '/mygov-pension-verify', { method: 'POST' });
+                        const resp = await fetch('/api/applications/' + this.internalId + '/mygov-pension-verify', { method: 'POST' });
                         const data = await resp.json();
                         if (!resp.ok) throw new Error(data.error || 'Yoxlama ugursuz');
                         this.pensionResult = data.status;

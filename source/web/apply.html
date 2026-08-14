@@ -957,7 +957,7 @@ function applyApp() {
                 }
                 const savedAppId = localStorage.getItem('alpul_apply_app_id');
                 if (savedAppId && savedAppId !== 'null') {
-                    this.applicationId = parseInt(savedAppId);
+                    this.applicationId = savedAppId;
                 }
                 const savedOtp = localStorage.getItem('alpul_apply_otp_sent');
                 if (savedOtp === 'true') {
@@ -1129,7 +1129,7 @@ function applyApp() {
                 const data = await resp.json();
                 if (!resp.ok) throw new Error(data.error || 'OTP göndərilə bilmədi');
 
-                this.applicationId = data.id;
+                this.applicationId = data.public_id;
                 this.otpSent = true;
                 this.saveState();
             } catch (e) {
@@ -1154,7 +1154,7 @@ function applyApp() {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
-                        application_id: this.applicationId,
+                        application_public_id: this.applicationId,
                         phone: '+994' + this.form.phone,
                         otp_code: this.form.otp,
                     }),

@@ -372,6 +372,15 @@ func (s *ApplicationService) GetApplication(ctx context.Context, id int) (*model
         return s.repo.GetApplicationByID(ctx, id)
 }
 
+// GetApplicationByPublicID retrieves a loan application by its UUID public_id.
+// PR #191: xarici API və UI public_id UUID istifadə edir.
+func (s *ApplicationService) GetApplicationByPublicID(ctx context.Context, publicID string) (*model.LoanApplication, error) {
+        if publicID == "" {
+                return nil, fmt.Errorf("invalid public id")
+        }
+        return s.repo.GetApplicationByPublicID(ctx, publicID)
+}
+
 // GetStatus retrieves the full status response including checks and decision for an application.
 func (s *ApplicationService) GetStatus(ctx context.Context, id int) (*model.ApplicationStatusResponse, error) {
         if id <= 0 {
