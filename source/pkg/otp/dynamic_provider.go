@@ -15,6 +15,7 @@ type SMSProviderReader interface {
 }
 
 // SMSProviderConfig represents an SMS gateway configuration (mirrors model.SMSProviderConfig).
+// PR #196: parametrik sahələr əlavə edildi — hər hansı SMS provayder dəstəklənir.
 type SMSProviderConfig struct {
         ID             int
         ProviderCode   string
@@ -24,6 +25,16 @@ type SMSProviderConfig struct {
         Password       string
         SenderID       string
         TimeoutSeconds int
+        // PR #196: parametrik sahələr
+        HTTPMethod     string // GET və ya POST (default: GET)
+        ParamUser      string // URL param adı (default: user)
+        ParamPassword  string // URL param adı (default: password)
+        ParamPhone     string // URL param adı (default: gsm)
+        ParamSender    string // URL param adı (default: from)
+        ParamText      string // URL param adı (default: text)
+        SuccessField   string // response-də success sahə (default: errno)
+        SuccessValue   string // success dəyəri (default: 100)
+        ErrorField     string // response-də error mətni sahəsi (default: errtext)
 }
 
 // DynamicSMSProvider implements the OTP Provider interface by reading the
@@ -91,13 +102,23 @@ func (d *DynamicSMSProvider) getActiveProvider(ctx context.Context) (Provider, e
                 return nil, fmt.Errorf("no active SMS provider found in DB")
         }
 
-        // Create HTTPProvider with DB config
+        // Create HTTPProvider with DB config — PR #196: parametrik sahələr ötürülür
         provider := NewHTTPProvider(
                 cfg.BaseURL,
-                cfg.Password, // Softline API uses password for auth
+                cfg.Password, // API key / password
                 cfg.Username, // user
                 cfg.SenderID, // sender
                 time.Duration(cfg.TimeoutSeconds)*time.Second,
+                // PR #196: parametrik sahələr
+                cfg.HTTPMethod,
+                cfg.ParamUser,
+                cfg.ParamPassword,
+                cfg.ParamPhone,
+                cfg.ParamSender,
+                cfg.ParamText,
+                cfg.SuccessField,
+                cfg.SuccessValue,
+                cfg.ErrorField,
         )
 
         // Cache it
