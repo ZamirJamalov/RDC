@@ -52,6 +52,7 @@ func (p *HTTPProvider) postJSON(ctx context.Context, path string, payload interf
 
 // detectHTMLResponse checks if the response body is HTML instead of JSON.
 // PR #199: LW server bəzən JSON yerinə HTML qaytarır (404, login səhifəsi və s.)
+// PR #204: xəta mesajına LW vs AZMK izahı əlavə edildi.
 // Bu, JSON decode xətasının "invalid character '<'" kimi qarışıq görünməsinin qarşısını alır.
 func detectHTMLResponse(body []byte) error {
         trimmed := strings.TrimSpace(string(body))
@@ -61,11 +62,17 @@ func detectHTMLResponse(body []byte) error {
         // HTML response-lar adətən <!DOCTYPE və ya <html> ilə başlayır
         if strings.HasPrefix(trimmed, "<!") || strings.HasPrefix(trimmed, "<html") ||
                 strings.HasPrefix(trimmed, "<HTML") || strings.HasPrefix(trimmed, "<!DOCTYPE") {
-                return fmt.Errorf("LW server HTML response qaytardı (JSON gözlənirdi) — LW endpoint mövcud deyil və ya auth tələb olunur (response: %s)", previewBody(body))
+                return fmt.Errorf("LW server HTML qaytardı (JSON gözlənirdi). "+
+                        "Səbəb: LW_USE_MOCK=false qurulub, amma LW server (LW_BASE_URL) mövcud deyil və ya auth tələb edir. "+
+                        "Həll: .env faylında LW_USE_MOCK=true qurun (AZMK fərqli servisdır — AZMK uğurlu olsa belə LW ayrıca konfiqurasiya tələb edir). "+
+                        "(response: %s)", previewBody(body))
         }
         // Content-Type-dan asılı olmayaraq, əgər body < ilə başlayırsa, HTML-dir
         if strings.HasPrefix(trimmed, "<") {
-                return fmt.Errorf("LW server HTML response qaytardı (JSON gözlənirdi) — LW endpoint mövcud deyil və ya auth tələb olunur (response: %s)", previewBody(body))
+                return fmt.Errorf("LW server HTML qaytardı (JSON gözlənirdi). "+
+                        "Səbəb: LW_USE_MOCK=false qurulub, amma LW server (LW_BASE_URL) mövcud deyil və ya auth tələb edir. "+
+                        "Həll: .env faylında LW_USE_MOCK=true qurun (AZMK fərqli servisdır — AZMK uğurlu olsa belə LW ayrıca konfiqurasiya tələb edir). "+
+                        "(response: %s)", previewBody(body))
         }
         return nil
 }

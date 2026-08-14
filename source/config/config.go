@@ -217,6 +217,19 @@ func Load() *Config {
                 slog.Warn("LW_USE_MOCK is false and LW_USE_STUB is false but LW_API_KEY is empty — real LW calls will fail authentication")
         }
 
+        // PR #204: LW vs AZMK qarışıqlığını aradan qaldır
+        // AZMK və LW fərqli servis-lərdir:
+        //   AZMK = Azərbaycan Mikro-Kredit BOKT (real server: web.azmk.az:7077)
+        //   LW   = Loan Warehouse (LW router, local: localhost:8080)
+        // AZMK uğurlu olsa belə, LW ayrıca konfiqurasiya tələb edir.
+        if !cfg.UseMockLW {
+                slog.Warn("PR #204: LW_USE_MOCK=false — LW server HTTP çağırışları ediləcək",
+                        "lw_base_url", cfg.LWBaseURL,
+                        "azmk_url", cfg.AzmkCustomerDataURL,
+                        "note", "AZMK və LW fərqli servis-lərdir. AZMK uğurlu olsa belə, LW ayrıca qurulmalıdır. "+
+                                "Əgər LW server mövcud deyilsə, .env-də LW_USE_MOCK=true qurun.")
+        }
+
         if cfg.UseMockLW && cfg.UseStubLW {
                 slog.Warn("Both LW_USE_MOCK and LW_USE_STUB are true — LW_USE_MOCK wins (stub server will not be started)")
         }
