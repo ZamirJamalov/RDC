@@ -537,10 +537,32 @@
                     </span>
                 </label>
 
+                <!-- PR #188: Video record button (yalnız videoRequired=true olanda görünür) -->
+                <div x-show="videoRequired" x-cloak class="mb-3">
+                    <button @click="startVideoRecord"
+                            :disabled="videoLoading"
+                            class="w-full text-white font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2 transition"
+                            :class="videoRecorded ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-gradient-to-r from-[#2D9CDB] to-[#1d5a8f] hover:from-[#5BC0EF] hover:to-[#2D9CDB]'">
+                        <span x-show="!videoLoading && !videoRecorded" class="flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                            Video qeydi
+                        </span>
+                        <span x-show="videoLoading" class="flex items-center gap-2">
+                            <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                            Başladılır...
+                        </span>
+                        <span x-show="!videoLoading && videoRecorded" class="flex items-center gap-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/></svg>
+                            Video tamamlanıb
+                        </span>
+                    </button>
+                    <p x-show="videoError" x-text="videoError" class="mt-2 text-sm text-red-400"></p>
+                </div>
+
                 <!-- Confirm button -->
                 <button @click="confirmApplication"
                         x-ref="confirmBtn"
-                        :disabled="loading || !form.amount || form.cardNumber.replace(/\s/g, '').length !== 16 || !form.cardConfirmed || !form.address || !form.rulesConfirmed || discountValid === 'invalid'"
+                        :disabled="loading || !form.amount || form.cardNumber.replace(/\s/g, '').length !== 16 || !form.cardConfirmed || !form.address || !form.rulesConfirmed || discountValid === 'invalid' || (videoRequired && !videoRecorded)"
                         class="cta-btn w-full text-white font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
                     <span x-show="!loading">Təsdiq edirəm →</span>
                     <span x-show="loading" class="flex items-center gap-2">
@@ -771,6 +793,15 @@ function applyApp() {
 
         // OTP/UI state
         otpSent: false,
+
+        // PR #188: Video record state
+        videoRequired: false,        // backend-dən gəlir (video_required)
+        videoRecorded: false,        // recorded=true qayıdanda true olur
+        videoRedirectUrl: '',        // video service-dən gələn redirect_url
+        videoModalOpen: false,       // modal açıqdı?
+        videoLoading: false,         // video başladılır...
+        videoError: '',              // video xətası
+        videoPollInterval: null,     // setInterval ID (status poll)
 
         // Offer data (fetched in step 2)
         offer: null,
@@ -1177,6 +1208,7 @@ function applyApp() {
                 // 4. Move to offer step
                 this.currentStep = 2;
                 this.saveState();
+                this.checkVideoRequired(); // PR #188: video record tələbini yoxla
             } catch (e) {
                 this.stopKYCCountdown(); // PR #155: countdown dayandır
                 this.error = e.message;
@@ -1205,6 +1237,12 @@ function applyApp() {
         },
 
         async confirmApplication() {
+            // PR #188: əgər video tələb olunursa və tamamlanmayıbsa, xəta göstər
+            if (this.videoRequired && !this.videoRecorded) {
+                this.error = 'Zəhmət olmasa əvvəlcə video qeydiyyatını tamamlayın';
+                this.confirmError = this.error;
+                return;
+            }
             this.error = '';
             this.confirmError = ''; // PR #105: yerli xətanı təmizlə
             this.loading = true;
@@ -1259,6 +1297,71 @@ function applyApp() {
                 }, 10000);
             } finally {
                 this.loading = false;
+            }
+        },
+
+        // PR #188: Video record funksionallığı
+        async checkVideoRequired() {
+            if (!this.applicationId) return;
+            try {
+                const resp = await fetch(`/api/applications/video-required?app_id=${this.applicationId}`);
+                if (!resp.ok) return;
+                const data = await resp.json();
+                this.videoRequired = data.video_required || false;
+                this.videoRecorded = data.recorded || false;
+            } catch (e) {
+                console.warn('video-required check failed:', e);
+            }
+        },
+
+        async startVideoRecord() {
+            if (!this.applicationId) return;
+            this.videoError = '';
+            this.videoLoading = true;
+            try {
+                const resp = await fetch(`/api/applications/${this.applicationId}/video-record/start`, {
+                    method: 'POST',
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Video record başladıla bilmədi');
+                this.videoRedirectUrl = data.redirect_url;
+                this.videoModalOpen = true;
+                this.startVideoPolling();
+            } catch (e) {
+                this.videoError = e.message;
+            } finally {
+                this.videoLoading = false;
+            }
+        },
+
+        startVideoPolling() {
+            // Əgər artıq poll varsa, dayandır
+            if (this.videoPollInterval) clearInterval(this.videoPollInterval);
+            // PR #188: hər 2 saniyədən bir status yoxla
+            this.videoPollInterval = setInterval(async () => {
+                if (!this.applicationId || !this.videoModalOpen) {
+                    clearInterval(this.videoPollInterval);
+                    this.videoPollInterval = null;
+                    return;
+                }
+                try {
+                    const resp = await fetch(`/api/applications/${this.applicationId}/video-record/status`);
+                    const data = await resp.json();
+                    if (data.recorded === true) {
+                        this.videoRecorded = true;
+                        this.closeVideoModal();
+                    }
+                } catch (e) {
+                    console.warn('video status poll failed:', e);
+                }
+            }, 2000);
+        },
+
+        closeVideoModal() {
+            this.videoModalOpen = false;
+            if (this.videoPollInterval) {
+                clearInterval(this.videoPollInterval);
+                this.videoPollInterval = null;
             }
         },
 
@@ -1518,6 +1621,48 @@ function applyApp() {
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                 </svg>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- PR #188: Video record modal -->
+<div x-show="videoModalOpen" x-transition.opacity x-cloak
+     class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+     @keydown.escape.window="closeVideoModal"
+     style="display: none;">
+    <div class="bg-[var(--alpul-bg-soft)] border border-[var(--alpul-border)] rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+        <!-- Modal header -->
+        <div class="flex items-center justify-between p-4 border-b border-[var(--alpul-border)]">
+            <div class="flex items-center gap-3">
+                <svg class="w-6 h-6 text-[var(--alpul-accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                <div>
+                    <h3 class="text-lg font-bold text-[var(--alpul-text)]">Video identifikasiya</h3>
+                    <p class="text-xs text-[var(--alpul-text-soft)]">Kameranıza baxın və ekrandakı təlimatları izləyin</p>
+                </div>
+            </div>
+            <button @click="closeVideoModal" class="w-9 h-9 rounded-lg border border-[var(--alpul-border)] flex items-center justify-center hover:bg-[var(--alpul-bg)] transition" title="Bağla">
+                <svg class="w-5 h-5 text-[var(--alpul-text-soft)]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <!-- Modal body: iframe with video service -->
+        <div class="flex-1 overflow-hidden p-4">
+            <iframe x-show="videoRedirectUrl" :src="videoRedirectUrl"
+                    class="w-full h-[70vh] rounded-xl border border-[var(--alpul-border)] bg-white"
+                    allow="camera; microphone"
+                    allowfullscreen></iframe>
+            <div x-show="!videoRedirectUrl" class="flex items-center justify-center h-[70vh]">
+                <div class="text-[var(--alpul-text-soft)]">Video yüklənir...</div>
+            </div>
+        </div>
+        <!-- Modal footer: status indicator -->
+        <div class="p-4 border-t border-[var(--alpul-border)] flex items-center justify-between">
+            <div class="flex items-center gap-2 text-sm text-[var(--alpul-text-soft)]">
+                <span class="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                Video statusu yoxlanılır...
+            </div>
+            <button @click="closeVideoModal" class="text-sm text-[var(--alpul-text-soft)] hover:text-[var(--alpul-text)] transition">
+                Daha sonra
             </button>
         </div>
     </div>

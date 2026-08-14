@@ -9,6 +9,7 @@ import (
         "rdc-source/internal/repository"
         "rdc-source/pkg/azmk"
         "rdc-source/pkg/otp"
+        "rdc-source/pkg/videorecord"
 )
 
 // ApplicationService handles loan application business logic.
@@ -38,6 +39,13 @@ type ApplicationService struct {
 
         // PR #171: Cutoff stop-on-first-fail — false=bütün kesimlər həmişə yoxlanılır
         cutoffStopOnFirstFail bool
+
+        // PR #188: Video record service (Kvadrat Lab)
+        videoRecordProvider videorecord.Provider
+        videoRecordRepo     *repository.VideoRecordRepo
+        videoRecordEnabled  bool
+        videoRecordWebhookURL  string
+        videoRecordRedirectURL string
 }
 
 // NewApplicationService creates a new ApplicationService.
@@ -111,6 +119,30 @@ func (s *ApplicationService) SetKycVerifyEnabled(enabled bool) {
 // false = bütün kesimlər həmişə yoxlanılır
 func (s *ApplicationService) SetCutoffStopOnFirstFail(stop bool) {
         s.cutoffStopOnFirstFail = stop
+}
+
+// SetVideoRecordProvider injects the video record provider (PR #188).
+// nil = video record deaktiv.
+func (s *ApplicationService) SetVideoRecordProvider(provider videorecord.Provider) {
+        s.videoRecordProvider = provider
+}
+
+// SetVideoRecordRepo injects the video record repo (PR #188).
+func (s *ApplicationService) SetVideoRecordRepo(repo *repository.VideoRecordRepo) {
+        s.videoRecordRepo = repo
+}
+
+// SetVideoRecordEnabled enables/disables video record requirement (PR #188).
+// false = video record tələb olunmur (default).
+func (s *ApplicationService) SetVideoRecordEnabled(enabled bool, webhookURL, redirectURL string) {
+        s.videoRecordEnabled = enabled
+        s.videoRecordWebhookURL = webhookURL
+        s.videoRecordRedirectURL = redirectURL
+}
+
+// IsVideoRecordEnabled returns whether video record is required (PR #188).
+func (s *ApplicationService) IsVideoRecordEnabled() bool {
+        return s.videoRecordEnabled && s.videoRecordProvider != nil && s.videoRecordRepo != nil
 }
 
 // resolveCustomerAgeFromAzmk fetches customer data from AZMK CustomerDataService
