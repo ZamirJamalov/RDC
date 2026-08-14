@@ -335,7 +335,7 @@
                 <!-- Action buttons -->
                 <div class="pt-4">
                     <button x-show="!otpSent" @click="sendOtp"
-                            :disabled="loading || !form.fin || !form.serialPrefix || !form.serialNumber || !form.phone"
+                            :disabled="loading || applicationId || !form.fin || !form.serialPrefix || !form.serialNumber || !form.phone"
                             class="cta-btn w-full text-white font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
                         <span x-show="!loading">OTP Göndər →</span>
                         <span x-show="loading" class="flex items-center gap-2">
@@ -1116,6 +1116,14 @@ function applyApp() {
         async sendOtp() {
             this.error = '';
             this.loading = true;
+            // PR #202: OTP göndərilməsi zamanı təkrar klik qadağan et
+            // Əgər artıq applicationId varsa (əvvəlki uğurlu göndermə), təkrar göndermə
+            if (this.applicationId) {
+                this.error = 'Artıq OTP göndərilib. Zəhmət olmasa OTP kodunu daxil edin və ya "Geri qayıt" düyməsini klik edin.';
+                this.loading = false;
+                this.otpSent = true; // OTP input ekranını göstər
+                return;
+            }
             try {
                 const resp = await fetch('/api/applications/init', {
                     method: 'POST',
@@ -1134,6 +1142,13 @@ function applyApp() {
                 this.saveState();
             } catch (e) {
                 this.error = e.message;
+                // PR #202: xəta halında applicationId-ni təmizlə ki, təkrar cəhd mümkün olsun
+                // Amma əgər backend-də müraciət yaradılıbsa (duplicate error), applicationId saxla
+                if (e.message.includes('artıq işlənməkdə olan') || e.message.includes('already pending')) {
+                    // Bu, duplicate müraciət xətasıdır — backend-də müraciət var
+                    // İstifadəçiyə OTP input ekranını göstər ki, kodu daxil edə bilsin
+                    this.otpSent = true;
+                }
             } finally {
                 this.loading = false;
             }
