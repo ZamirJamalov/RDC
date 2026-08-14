@@ -351,6 +351,9 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
         // cutoffStopOnFirstFail=true olanda ilk rədd-də dayanır.
         // cutoffStopOnFirstFail=false olanda bütün kesimlər yoxlanılır.
         firstRejection := ""
+        // PR #198: hasServiceError — hər hansı xarici servis xətası olub?
+        // Əgər varsa, ALL_CHECKS_PASSED true olmamalıdır (check edilməyib).
+        hasServiceError := false
 
         // Helper: rədd olanda ya dərhal return, ya da davam et
         shouldReturn := func() bool {
@@ -372,6 +375,7 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
                         slog.Warn("early cutoff: AZMK getOwnerData failed — fail-soft (skip)", "error", err)
                         s.logCutoff(ctx, appID, "AZMK_BLACKLIST", "Qara siyahı yoxlaması", "AZMK_GET_OWNER_DATA", false, true, "service error", "blacklistStatus = false", err.Error())
                         s.logCutoff(ctx, appID, "ACTIVE_CREDIT", "Aktiv kredit yoxlaması", "AZMK_GET_OWNER_DATA", false, true, "service error", "hasActiveCredit = false", err.Error())
+                        hasServiceError = true // PR #198
                 } else if ownerData != nil {
                         // Kesim #5: Qara siyahı
                         blacklisted := ownerData.CustomerCheck.BlacklistStatus
@@ -394,6 +398,7 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
                 blacklisted, err := s.creditEngine.lwProvider.CheckBlacklist(ctx, customerPIN)
                 if err != nil {
                         slog.Warn("early cutoff: LW blacklist check failed — fail-soft (skip)", "error", err)
+                        hasServiceError = true // PR #198
                 } else {
                         s.logCutoff(ctx, appID, "LW_BLACKLIST", "LW Qara siyahı yoxlaması", "LW_CHECK_BLACKLIST", true, !blacklisted,
                                 fmt.Sprintf("blacklisted = %v", blacklisted), "blacklisted = false", "")
@@ -414,6 +419,7 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
                         slog.Warn("early cutoff: AZMK getMkrScore failed — fail-soft (skip)", "error", err)
                         s.logCutoff(ctx, appID, "AKB_SCORE_LOW", "Skor balı yoxlaması", "AZMK_GET_MKR_SCORE", false, true, "service error", "point >= 200", err.Error())
                         s.logCutoff(ctx, appID, "AKB_STOP_FACTOR", "Stop-faktor yoxlaması", "AZMK_GET_MKR_SCORE", false, true, "service error", "response ∉ {AB,NI,NU,TY}", err.Error())
+                        hasServiceError = true // PR #198
                 } else if mkrScore != nil {
                         point := mkrScore.Score.Point
                         resp := strings.ToUpper(mkrScore.Score.Response)
@@ -484,6 +490,7 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
                         s.logCutoff(ctx, appID, "DELAY_12M", "Son 12 ay max gecikmə", "AZMK_INQUIRE_BY_ID_CARD", false, true, "service error", "< 45", err.Error())
                         s.logCutoff(ctx, appID, "DELAY_18M", "Son 18 ay max gecikmə", "AZMK_INQUIRE_BY_ID_CARD", false, true, "service error", "< 60", err.Error())
                         s.logCutoff(ctx, appID, "MONTHLY_PAYMENTS_HIGH", "Aktiv aylıq ödəniş yoxlaması", "AZMK_INQUIRE_BY_ID_CARD", false, true, "service error", "<= 2000", err.Error())
+                        hasServiceError = true // PR #198
                 } else if creditHistory != nil {
                         // Kesim #2: Gecikmə əmsalı > 6
                         ratio := creditHistory.MaxDelayRatio()
@@ -609,6 +616,16 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
         if firstRejection != "" {
                 slog.Info("early cutoff: rejection", "application_id", appID, "reason", firstRejection)
                 return firstRejection, nil
+        }
+
+        // PR #198: əgər hər hansı xarici servis xətası olubsa, ALL_CHECKS_PASSED true olmamalıdır.
+        // Bu halda müraciət pending_expert-ə keçir, amma cutoff_results-da check edilməyib kimi qeyd olunur.
+        if hasServiceError {
+                slog.Warn("early cutoff: service errors occurred — not all checks were actually performed",
+                        "application_id", appID, "customer_pin", customerPIN, "age", age)
+                s.logCutoff(ctx, appID, "ALL_CHECKS_PASSED", "Bütün kesim nöqtələri keçdi (xəta var)", "", false, false,
+                        "service errors occurred", "all checks must pass", "Bəzi xarici servis xətaları baş verdi — check-lər tam yoxlanılmadı")
+                return "", nil
         }
 
         slog.Info("early cutoff: all checks passed", "application_id", appID, "customer_pin", customerPIN, "age", age)
