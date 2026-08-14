@@ -1,12 +1,20 @@
 package handler
 
 import (
+        "encoding/json"
         "net/http"
         "strconv"
 )
 
+// startVideoRecordRequest is the JSON body for POST /api/applications/{id}/video-record/start.
+// PR #189: amount frontend-dən göndərilir (müştərinin seçdiyi kredit məbləği).
+type startVideoRecordRequest struct {
+        Amount float64 `json:"amount"`
+}
+
 // StartVideoRecord handles POST /api/applications/{id}/video-record/start.
 // PR #188: müştəri kredit təsdiq etməzdən əvvəl video identifikasiya başladır.
+// PR #189: amount body-dən oxunur, video service-ə ötürülür.
 // Returns redirect_url for iframe embedding.
 //
 // Public endpoint (müştəri özü çağırır, auth tələb olunmur — application_id audit üçün kifayət).
@@ -29,7 +37,17 @@ func (h *ApplicationHandler) StartVideoRecord(w http.ResponseWriter, r *http.Req
                 return
         }
 
-        redirectURL, err := h.service.StartVideoRecord(r.Context(), appID)
+        // PR #189: amount body-dən oxu (boş body də qəbul olunsun — default 0)
+        var req startVideoRecordRequest
+        if r.Body != nil {
+                _ = json.NewDecoder(r.Body).Decode(&req)
+        }
+        if req.Amount < 0 {
+                writeError(w, http.StatusBadRequest, "amount 0-dan kiçik ola bilməz")
+                return
+        }
+
+        redirectURL, err := h.service.StartVideoRecord(r.Context(), appID, req.Amount)
         if err != nil {
                 writeError(w, http.StatusInternalServerError, "video record başladıla bilmədi: "+err.Error())
                 return

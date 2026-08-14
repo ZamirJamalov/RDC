@@ -634,7 +634,7 @@
                 </p>
                 <div class="bg-black/30 border border-white/5 rounded-xl p-5 max-w-sm mx-auto text-left">
                     <div class="flex justify-between py-2 border-b border-white/5">
-                        <span class="text-gray-400 text-sm">Məbləğ</span>
+                        <span class="text-gray-400 text-sm">Kredit məbləği</span>
                         <span class="font-semibold"><span x-text="confirmedAmount"></span> AZN</span>
                     </div>
                     <div class="flex justify-between py-2 border-b border-white/5">
@@ -1319,8 +1319,11 @@ function applyApp() {
             this.videoError = '';
             this.videoLoading = true;
             try {
+                // PR #189: amount-u da göndər (müştərinin seçdiyi kredit məbləği)
                 const resp = await fetch(`/api/applications/${this.applicationId}/video-record/start`, {
                     method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ amount: this.form.amount || 0 }),
                 });
                 const data = await resp.json();
                 if (!resp.ok) throw new Error(data.error || 'Video record başladıla bilmədi');

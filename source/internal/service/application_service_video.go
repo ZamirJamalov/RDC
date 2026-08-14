@@ -12,13 +12,14 @@ import (
 
 // StartVideoRecord creates a video record order for the application.
 // PR #188: müştəri kredit təsdiq etməzdən əvvəl video identifikasiya keçməlidir.
+// PR #189: amount parametri əlavə edildi (frontend-dən seçilən kredit məbləği).
 //
 // Flow:
 //  1. Fetch application + customer info (Name/Surname from AZMK GetPersonalInfo)
-//  2. Call video service POST /api/orders
+//  2. Call video service POST /api/orders (amount ilə)
 //  3. Store request/response in video_records table
 //  4. Return redirect_url to frontend (for iframe)
-func (s *ApplicationService) StartVideoRecord(ctx context.Context, appID int) (string, error) {
+func (s *ApplicationService) StartVideoRecord(ctx context.Context, appID int, amount float64) (string, error) {
         if !s.IsVideoRecordEnabled() {
                 return "", fmt.Errorf("video record deaktiv")
         }
@@ -43,19 +44,19 @@ func (s *ApplicationService) StartVideoRecord(ctx context.Context, appID int) (s
                 }
         }
 
-        // 3. Build request to video service
+        // 3. Build request to video service — PR #189: amount frontend-dən gəlir
         appIDExternal := strconv.Itoa(appID)
         videoReq := &model.CreateVideoOrderRequest{
-                AppID:      appIDExternal,
-                Phone:      app.CustomerPhone,
-                Amount:     0, // amount customer-confirm vaxtı seçilir, indi 0 göndəririk
-                WebhookURL: s.videoRecordWebhookURL,
+                AppID:       appIDExternal,
+                Phone:       app.CustomerPhone,
+                Amount:      amount,
+                WebhookURL:  s.videoRecordWebhookURL,
                 RedirectURL: s.videoRecordRedirectURL,
-                Name:       customerName,
-                Lang:       "az",
-                City:       "",
-                Address:    "",
-                Salary:     0,
+                Name:        customerName,
+                Lang:        "az",
+                City:        "",
+                Address:     "",
+                Salary:      0,
         }
 
         // Set audit appID for HTTP provider
@@ -80,7 +81,7 @@ func (s *ApplicationService) StartVideoRecord(ctx context.Context, appID int) (s
                 AppIDExternal:    appIDExternal,
                 OrderRedirectURL: resp.RedirectURL,
                 Phone:            app.CustomerPhone,
-                Amount:           0,
+                Amount:           amount,
                 CustomerName:     customerName,
                 RequestBody:      string(reqBodyJSON),
                 ResponseBody:     string(respBodyJSON),
@@ -94,6 +95,7 @@ func (s *ApplicationService) StartVideoRecord(ctx context.Context, appID int) (s
                 "application_id", appID,
                 "app_id_external", appIDExternal,
                 "customer_name", customerName,
+                "amount", amount,
                 "redirect_url", resp.RedirectURL)
 
         return resp.RedirectURL, nil
