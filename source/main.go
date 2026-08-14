@@ -22,6 +22,7 @@ import (
         "rdc-source/pkg/azmk"
         "rdc-source/pkg/lw"
         "rdc-source/pkg/stub"
+        "rdc-source/pkg/videorecord"
 
         _ "github.com/microsoft/go-mssqldb"
 )
@@ -75,6 +76,7 @@ func main() {
         systemSettingsRepo := repository.NewSystemSettingsRepo(db)       // PR #98: feature flags
         userRepo := repository.NewUserRepo(db)                           // PR #142: auth users
         cutoffResultRepo := repository.NewCutoffResultRepo(db)           // PR #168: cutoff results
+        videoRecordRepo := repository.NewVideoRecordRepo(db)            // PR #188: video records
 
         // --- LW Provider (T-2.13) ---
         // In mock mode: reads from local DB (mock_lms_loans table) + canned responses.
@@ -139,6 +141,24 @@ func main() {
         // PR #163: Audit log — CustomerData provider-a DB əlaqəsi ver
         if httpCDP, ok := customerDataProvider.(*azmk.HTTPCustomerDataProvider); ok {
                 httpCDP.SetAuditDB(db, nil)
+        }
+
+        // PR #188: Video record service (Kvadrat Lab)
+        var videoRecordProvider videorecord.Provider
+        if cfg.VideoRecordUseMock {
+                slog.Info("using mock video record service (dev/test mode)")
+                videoRecordProvider = videorecord.NewMockProvider()
+        } else {
+                slog.Info("using HTTP video record service", "url", cfg.VideoRecordBaseURL)
+                videoRecordProvider = videorecord.NewHTTPProvider(cfg.VideoRecordBaseURL, cfg.VideoRecordUsername, cfg.VideoRecordPassword, cfg.VideoRecordTimeoutS)
+        }
+        appService.SetVideoRecordProvider(videoRecordProvider)
+        appService.SetVideoRecordRepo(videoRecordRepo)
+        appService.SetVideoRecordEnabled(cfg.VideoRecordEnabled, cfg.VideoRecordWebhookURL, cfg.VideoRecordRedirectURL)
+        slog.Info("video record service", "enabled", cfg.VideoRecordEnabled, "mock", cfg.VideoRecordUseMock)
+        // Audit log for HTTP provider
+        if httpVRP, ok := videoRecordProvider.(*videorecord.HTTPProvider); ok {
+                httpVRP.SetAuditDB(db, nil)
         }
 
 

@@ -113,6 +113,18 @@ type Config struct {
         OTPRateLimitPerMin  int    // OTP send rate limit per phone per minute (default: 1, already in service)
         OTPMaxAttempts      int    // max wrong OTP attempts before blocking application (default: 3)
         DiscountRatePerMin  int    // discount code validation rate limit per IP per minute (default: 5)
+
+        // PR #188: Video record service (Kvadrat Lab demo)
+        // Customer video identity verification before credit confirm.
+        VideoRecordBaseURL    string // base URL, e.g. https://videodemo.kvadrat-lab.com
+        VideoRecordUsername   string // basic auth username
+        VideoRecordPassword   string // basic auth password
+        VideoRecordUseMock    bool   // mock mode (no real HTTP calls)
+        VideoRecordEnabled    bool   // master on/off toggle
+        VideoRecordTimeoutS   int    // HTTP timeout
+        VideoRecordWebhookURL string // webhook URL sent to video service (optional)
+        VideoRecordRedirectURL string // redirect URL sent to video service (optional)
+        VideoRecordPollIntervalS int // status polling interval (default: 2)
 }
 
 // Load reads configuration from environment variables. Required fields (DB_HOST,
@@ -183,6 +195,17 @@ func Load() *Config {
                 OTPRateLimitPerMin: getEnvInt("OTP_RATE_LIMIT_PER_MIN", 1),
                 OTPMaxAttempts:     getEnvInt("OTP_MAX_ATTEMPTS", 3),
                 DiscountRatePerMin: getEnvInt("DISCOUNT_RATE_PER_MIN", 5),
+
+                // PR #188: Video record service (parametric)
+                VideoRecordBaseURL:      getEnv("VIDEO_RECORD_BASE_URL", "https://videodemo.kvadrat-lab.com"),
+                VideoRecordUsername:     getEnv("VIDEO_RECORD_USERNAME", "bokt"),
+                VideoRecordPassword:     getEnv("VIDEO_RECORD_PASSWORD", "ecbb82fe097a4184791e32a16238f96aa375c599d6f92ef46cd1c196b7efe7e4"),
+                VideoRecordUseMock:      getEnvBool("VIDEO_RECORD_USE_MOCK", true),
+                VideoRecordEnabled:      getEnvBool("VIDEO_RECORD_ENABLED", false),
+                VideoRecordTimeoutS:     getEnvInt("VIDEO_RECORD_TIMEOUT_S", 30),
+                VideoRecordWebhookURL:   getEnv("VIDEO_RECORD_WEBHOOK_URL", ""),
+                VideoRecordRedirectURL:  getEnv("VIDEO_RECORD_REDIRECT_URL", ""),
+                VideoRecordPollIntervalS: getEnvInt("VIDEO_RECORD_POLL_INTERVAL_S", 2),
         }
 
         if cfg.MigrationsDropRecreate {

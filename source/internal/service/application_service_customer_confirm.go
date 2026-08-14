@@ -74,6 +74,16 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
                 return nil, fmt.Errorf("card ownership must be confirmed (tick the checkbox)")
         }
 
+        // PR #188: Video record check — əgər aktivdirsə, video tamamlanmalıdır
+        if s.IsVideoRecordEnabled() {
+                recorded, err := s.IsVideoRecorded(ctx, appID)
+                if err != nil {
+                        slog.Warn("customer-confirm: video record check failed — fail-soft (allowing)", "error", err)
+                } else if !recorded {
+                        return nil, fmt.Errorf("video identifikasiya tələb olunur — zəhmət olmasa əvvəlcə video qeydiyyatını tamamlayın")
+                }
+        }
+
         // 1. Fetch the application — must be pending_expert (customer verified OTP)
         app, err := s.repo.GetApplicationByID(ctx, appID)
         if err != nil {

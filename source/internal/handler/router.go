@@ -84,6 +84,11 @@ func NewRouter(
         mux.Handle("POST /api/applications/offer", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.GetOffer)))
         mux.HandleFunc("GET /api/applications/{id}", appHandler.GetByID)
         mux.HandleFunc("GET /api/applications/{id}/status", appHandler.GetStatus)
+        // PR #188: Video record endpoints (public — müştəri özü çağırır)
+        mux.Handle("POST /api/applications/{id}/video-record/start", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.StartVideoRecord)))
+        mux.HandleFunc("GET /api/applications/{id}/video-record/status", appHandler.CheckVideoRecordStatus)
+        mux.HandleFunc("GET /api/applications/{id}/video-record", appHandler.GetVideoRecord)
+        mux.HandleFunc("GET /api/applications/video-required", appHandler.GetApplicationVideoRequired)
 
         // --- Loan application endpoints (PROTECTED — used by detail.html expert dashboard) ---
         protectedAuth := middleware.RequireAuth(authSvc)
