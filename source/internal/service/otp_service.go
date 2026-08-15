@@ -40,17 +40,31 @@ func NewOTPService(provider otp.Provider, repo *repository.OTPRepo) *OTPService 
 // HasActiveOTP checks if there's an active (non-expired, non-verified) OTP for the phone.
 // PR #209: InitApplication bunu yoxlayır — aktiv OTP varsa yeni OTP göndərmir.
 // PR #210: expires_at vaxtını da yoxlayır — vaxtı keçmiş OTP aktiv sayılmır.
+// PR #212: GetActiveByPhone DB-də status='active' AND expires_at > GETDATE() yoxlayır.
+// Əgər OTP expiry olubsa, HasActiveOTP false qaytarır → yeni OTP yaradılır.
 func (s *OTPService) HasActiveOTP(ctx context.Context, phone string) bool {
         if s.repo == nil {
                 return false
         }
         otp, err := s.repo.GetActiveByPhone(ctx, phone)
         if err != nil || otp == nil {
+                // OTP tapılmadı və ya expiry olub (DB expires_at > GETDATE() filtirləyir)
                 return false
         }
-        // PR #210: DB-də expires_at > GETDATE() yoxlanılır, amma belt-and-suspenders
-        // olaraq Go tərəfdə də yoxlayaq (timezone fərqləri üçün)
+        // Belt-and-suspenders: Go tərəfdə də yoxla (timezone fərqləri üçün)
         return otp.ExpiresAt.After(time.Now())
+}
+
+// ExpireOldCodes marks all active OTP codes that have passed their expires_at
+// as 'expired'. PR #212: InitApplication yeni OTP yaratmazdan əvvəl çağırır
+// ki rate limit-i azaltsın (köhnə expired OTP-lər count-a daxil olmasın).
+func (s *OTPService) ExpireOldCodes(ctx context.Context) {
+        if s.repo == nil {
+                return
+        }
+        if _, err := s.repo.ExpireOldCodes(ctx); err != nil {
+                slog.Warn("failed to expire old OTP codes", "error", err)
+        }
 }
 
 // SendOTP generates a new 6-digit code, stores its hash, and sends the code
