@@ -790,6 +790,7 @@ function applyApp() {
         kycVerifyCountdown: 0,
         kycVerifyInterval: null,
         kycVerifyActive: false,
+        kycVerifyEnabled: true, // PR #206: backend-dən gəlir (AZMK_KYC_VERIFY_ENABLED)
 
         // OTP/UI state
         otpSent: false,
@@ -930,6 +931,7 @@ function applyApp() {
                 localStorage.setItem('alpul_apply_step', String(this.currentStep));
                 localStorage.setItem('alpul_apply_app_id', String(this.applicationId || ''));
                 localStorage.setItem('alpul_apply_otp_sent', String(this.otpSent));
+                localStorage.setItem('alpul_apply_kyc_enabled', String(this.kycVerifyEnabled)); // PR #206
                 if (this.offer) {
                     localStorage.setItem('alpul_apply_offer', JSON.stringify(this.offer));
                 }
@@ -962,6 +964,10 @@ function applyApp() {
                 const savedOtp = localStorage.getItem('alpul_apply_otp_sent');
                 if (savedOtp === 'true') {
                     this.otpSent = true;
+                }
+                const savedKycEnabled = localStorage.getItem('alpul_apply_kyc_enabled');
+                if (savedKycEnabled === 'false') {
+                    this.kycVerifyEnabled = false; // PR #206
                 }
                 const savedOffer = localStorage.getItem('alpul_apply_offer');
                 if (savedOffer) {
@@ -1138,6 +1144,7 @@ function applyApp() {
                 if (!resp.ok) throw new Error(data.error || 'OTP göndərilə bilmədi');
 
                 this.applicationId = data.public_id;
+                this.kycVerifyEnabled = data.kyc_verify_enabled !== false; // PR #206: default true
                 this.otpSent = true;
                 this.saveState();
             } catch (e) {
@@ -1158,11 +1165,20 @@ function applyApp() {
             this.error = '';
             this.loading = true;
             try {
-                // PR #155: KYC loading ekranına keç və countdown başlat
-                this.currentStep = 1;
-                this.kycLoadingTitle = 'Kimlik təsdiqi...';
-                this.kycLoadingMessage = 'Sistem sizin kimliyinizi AZMK KYC ilə təsdiqləyir. Bu, bir neçə saniyə çəkə bilər.';
-                this.startKYCCountdown(); // 3 dəqiqə geri sayım
+                // PR #206: KYC verify disabled olanda KYC loading ekranını göstərmə
+                if (this.kycVerifyEnabled) {
+                    // PR #155: KYC loading ekranına keç və countdown başlat
+                    this.currentStep = 1;
+                    this.kycLoadingTitle = 'Kimlik təsdiqi...';
+                    this.kycLoadingMessage = 'Sistem sizin kimliyinizi AZMK KYC ilə təsdiqləyir. Bu, bir neçə saniyə çəkə bilər.';
+                    this.startKYCCountdown(); // 3 dəqiqə geri sayım
+                } else {
+                    // KYC disabled — sadə loading göstər
+                    this.currentStep = 1;
+                    this.kycLoadingTitle = 'Müraciət yoxlanılır...';
+                    this.kycLoadingMessage = 'Sistem sizin müraciətinizi yoxlayır. Bu, bir neçə saniyə çəkə bilər.';
+                    this.kycVerifyActive = false; // countdown yox
+                }
 
                 // 1. Verify OTP — backend KYC verify + cutoff-ları edir (3 dəqiqə polling)
                 const resp = await fetch('/api/applications/init/verify', {
