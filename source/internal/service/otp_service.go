@@ -123,6 +123,10 @@ func (s *OTPService) SendOTP(ctx context.Context, phone string) (*model.OTPSendR
 //
 // The verification token is a random hex string that the client must include
 // when creating a loan application (to prove the phone was verified).
+//
+// PR #211: GetActiveByPhone artıq expires_at > GETDATE() yoxlayır (DB səviyyəsində).
+// Ona görə burada ayrıca expiry yoxlamasına ehtiyac yoxdur — əgər GetActiveByPhone
+// OTP qaytarıbsa, o deməkdir ki, expiry vaxtı keçməyib.
 func (s *OTPService) VerifyOTP(ctx context.Context, phone, code string) (*model.OTPVerifyResponse, error) {
         if phone == "" || code == "" {
                 return nil, fmt.Errorf("phone and code are required")
@@ -133,9 +137,11 @@ func (s *OTPService) VerifyOTP(ctx context.Context, phone, code string) (*model.
                 slog.Warn("failed to expire old OTP codes", "error", err)
         }
 
-        // Lookup active code
+        // Lookup active code — PR #210/211: GetActiveByPhone artıq expires_at > GETDATE() yoxlayır
         stored, err := s.repo.GetActiveByPhone(ctx, phone)
         if err != nil {
+                // PR #211: OTP tapılmadı və ya vaxtı keçib (DB-də expires_at > GETDATE() filtirlənir)
+                slog.Info("OTP verify: no active OTP found", "phone", phone, "error", err)
                 return &model.OTPVerifyResponse{
                         Phone:    phone,
                         Valid:    false,
@@ -143,8 +149,10 @@ func (s *OTPService) VerifyOTP(ctx context.Context, phone, code string) (*model.
                 }, nil
         }
 
-        // Check if code is expired
-        if time.Now().After(stored.ExpiresAt) {
+        // PR #211: expiry artıq DB-də yoxlanılıb (GetActiveByPhone expires_at > GETDATE())
+        // Belt-and-suspenders: Go tərəfdə də yoxla (timezone fərqləri üçün)
+        if !stored.ExpiresAt.After(time.Now()) {
+                slog.Info("OTP verify: code expired (Go-side check)", "phone", phone, "expires_at", stored.ExpiresAt)
                 return &model.OTPVerifyResponse{
                         Phone:    phone,
                         Valid:    false,
