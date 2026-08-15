@@ -648,14 +648,14 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
                 return firstRejection, nil
         }
 
-        // PR #198: əgər hər hansı xarici servis xətası olubsa, ALL_CHECKS_PASSED true olmamalıdır.
-        // Bu halda müraciət pending_expert-ə keçir, amma cutoff_results-da check edilməyib kimi qeyd olunur.
+        // PR #198/#207: əgər hər hansı xarici servis xətası olubsa, ALL_CHECKS_PASSED true olmamalıdır.
+        // PR #207: service error olanda müraciəti reject et — kredit təklifi verilməsin.
         if hasServiceError {
-                slog.Warn("early cutoff: service errors occurred — not all checks were actually performed",
+                slog.Warn("early cutoff: service errors occurred — rejecting application (checks not fully performed)",
                         "application_id", appID, "customer_pin", customerPIN, "age", age)
                 s.logCutoff(ctx, appID, "ALL_CHECKS_PASSED", "Bütün kesim nöqtələri keçdi (xəta var)", "", false, false,
                         "service errors occurred", "all checks must pass", "Bəzi xarici servis xətaları baş verdi — check-lər tam yoxlanılmadı")
-                return "", nil
+                return "SERVICE_ERROR", nil
         }
 
         slog.Info("early cutoff: all checks passed", "application_id", appID, "customer_pin", customerPIN, "age", age)

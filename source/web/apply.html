@@ -1199,7 +1199,13 @@ function applyApp() {
                 // PR #115: əgər early cutoff rədd etdisə, rədd ekranını göstər
                 if (data.status === 'rejected') {
                     this.engineStatus = 'rejected';
-                    this.engineRejectionReason = data.rejection_reason || '';
+                    // PR #207: SERVICE_ERROR üçün istifadəçi dostu mesaj
+                    const reason = data.rejection_reason || '';
+                    if (reason === 'SERVICE_ERROR') {
+                        this.engineRejectionReason = 'Texniki xəta baş verdi. Xarici servislər mövcud deyil və ya cavab vermir. Zəhmət olmasa bir az sonra yenidən cəhd edin.';
+                    } else {
+                        this.engineRejectionReason = reason;
+                    }
                     this.currentStep = 3; // rədd ekranı
                     this.clearState();
                     return;
