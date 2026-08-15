@@ -55,13 +55,29 @@ func (s *ApplicationService) InitApplication(ctx context.Context, req *InitAppli
                 return nil, fmt.Errorf("failed to create application: %w", err)
         }
 
-        // Send OTP
+        // PR #209: əvvəlcə aktiv OTP yoxla — əgər varsa, yeni OTP göndərmə
+        if s.otpService.HasActiveOTP(ctx, req.CustomerPhone) {
+                // Aktiv OTP var — istifadəçiyə OTP input ekranını göstər
+                slog.Info("application initialized, active OTP already exists (not sending new)",
+                        "application_id", app.ID,
+                        "customer_pin", req.CustomerPIN,
+                        "phone", req.CustomerPhone)
+                return app, nil
+        }
+
+        // Send OTP (aktiv OTP yoxdur → yeni OTP göndər)
         otpResp, err := s.otpService.SendOTP(ctx, req.CustomerPhone)
         if err != nil {
                 return nil, fmt.Errorf("failed to send OTP: %w", err)
         }
         if !otpResp.Sent {
-                return nil, fmt.Errorf("OTP could not be sent (rate limited). Retry after %d seconds", otpResp.RetryAfterS)
+                // PR #209: rate limit olanda xəta qaytarma, birbaşa OTP input ekranını göstər
+                slog.Warn("OTP rate limited — but showing OTP input to user",
+                        "application_id", app.ID,
+                        "phone", req.CustomerPhone,
+                        "retry_after_s", otpResp.RetryAfterS)
+                // Rate limit xətası olsa belə, app yaradılıb — istifadəçi mövcud OTP-i daxil edə bilər
+                return app, nil
         }
 
         slog.Info("application initialized, OTP sent",
