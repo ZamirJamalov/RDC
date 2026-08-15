@@ -37,6 +37,16 @@ func NewOTPService(provider otp.Provider, repo *repository.OTPRepo) *OTPService 
         }
 }
 
+// HasActiveOTP checks if there's an active (non-expired, non-verified) OTP for the phone.
+// PR #209: InitApplication bunu yoxlayır — aktiv OTP varsa yeni OTP göndərmir.
+func (s *OTPService) HasActiveOTP(ctx context.Context, phone string) bool {
+        if s.repo == nil {
+                return false
+        }
+        otp, err := s.repo.GetActiveByPhone(ctx, phone)
+        return err == nil && otp != nil
+}
+
 // SendOTP generates a new 6-digit code, stores its hash, and sends the code
 // to the customer via SMS. Returns an error if:
 //   - The phone number is empty
