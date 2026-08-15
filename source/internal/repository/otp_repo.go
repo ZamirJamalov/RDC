@@ -47,14 +47,15 @@ func (r *OTPRepo) Create(ctx context.Context, phone, codeHash string, expiresAt 
 
 // GetActiveByPhone retrieves the most recent active OTP code for a phone number.
 // Returns sql.ErrNoRows if no active code exists.
-// PR #210: expires_at > GETDATE() yoxlanılır — vaxtı keçmiş OTP qaytarılmır.
+// PR #210/#213: expiry yoxlaması Go tərəfdə edilir (timezone fərqləri üçün).
+// SQL yalnız status='active' yoxlayır — expiry HasActiveOTP/VerifyOTP tərəfindən yoxlanılır.
 func (r *OTPRepo) GetActiveByPhone(ctx context.Context, phone string) (*OTPCode, error) {
         var code OTPCode
         err := r.db.QueryRowContext(ctx, `
                 SELECT TOP 1 id, phone, code_hash, status, attempts, max_attempts,
                        expires_at, consumed_at, created_at
                 FROM otp_codes
-                WHERE phone = ? AND status = 'active' AND expires_at > GETDATE()
+                WHERE phone = ? AND status = 'active'
                 ORDER BY created_at DESC`,
                 phone).Scan(
                 &code.ID,

@@ -39,20 +39,35 @@ func NewOTPService(provider otp.Provider, repo *repository.OTPRepo) *OTPService 
 
 // HasActiveOTP checks if there's an active (non-expired, non-verified) OTP for the phone.
 // PR #209: InitApplication bunu yoxlayır — aktiv OTP varsa yeni OTP göndərmir.
-// PR #210: expires_at vaxtını da yoxlayır — vaxtı keçmiş OTP aktiv sayılmır.
-// PR #212: GetActiveByPhone DB-də status='active' AND expires_at > GETDATE() yoxlayır.
-// Əgər OTP expiry olubsa, HasActiveOTP false qaytarır → yeni OTP yaradılır.
+// PR #210/#213: expiry yoxlaması Go tərəfdə edilir (timezone fərqləri üçün).
+// GetActiveByPhone SQL-də yalnız status='active' yoxlayır, expiry burada yoxlanılır.
+// Əgər OTP expiry olubsa → false → yeni OTP yaradılır.
 func (s *OTPService) HasActiveOTP(ctx context.Context, phone string) bool {
         if s.repo == nil {
                 return false
         }
         otp, err := s.repo.GetActiveByPhone(ctx, phone)
         if err != nil || otp == nil {
-                // OTP tapılmadı və ya expiry olub (DB expires_at > GETDATE() filtirləyir)
                 return false
         }
-        // Belt-and-suspenders: Go tərəfdə də yoxla (timezone fərqləri üçün)
-        return otp.ExpiresAt.After(time.Now())
+        // PR #213: expiry yoxlaması Go tərəfdə (DB GETDATE() timezone fərqləri üçün)
+        // expires_at DB-dən gəlir, time.Now() Go app timezone-dan
+        // Hər ikisini UTC-də müqayisə et ki timezone fərqi problem yaratmasın
+        now := time.Now()
+        isExpired := otp.ExpiresAt.Before(now) || otp.ExpiresAt.Equal(now)
+        if isExpired {
+                slog.Info("HasActiveOTP: OTP found but expired",
+                        "phone", phone,
+                        "expires_at", otp.ExpiresAt,
+                        "now", now,
+                        "expired", true)
+                return false
+        }
+        slog.Info("HasActiveOTP: active OTP found, not expired",
+                "phone", phone,
+                "expires_at", otp.ExpiresAt,
+                "now", now)
+        return true
 }
 
 // ExpireOldCodes marks all active OTP codes that have passed their expires_at
@@ -151,10 +166,10 @@ func (s *OTPService) VerifyOTP(ctx context.Context, phone, code string) (*model.
                 slog.Warn("failed to expire old OTP codes", "error", err)
         }
 
-        // Lookup active code — PR #210/211: GetActiveByPhone artıq expires_at > GETDATE() yoxlayır
+        // Lookup active code — PR #213: GetActiveByPhone yalnız status='active' yoxlayır
         stored, err := s.repo.GetActiveByPhone(ctx, phone)
         if err != nil {
-                // PR #211: OTP tapılmadı və ya vaxtı keçib (DB-də expires_at > GETDATE() filtirlənir)
+                // OTP tapılmadı (status='active' yoxdur)
                 slog.Info("OTP verify: no active OTP found", "phone", phone, "error", err)
                 return &model.OTPVerifyResponse{
                         Phone:    phone,
@@ -163,10 +178,13 @@ func (s *OTPService) VerifyOTP(ctx context.Context, phone, code string) (*model.
                 }, nil
         }
 
-        // PR #211: expiry artıq DB-də yoxlanılıb (GetActiveByPhone expires_at > GETDATE())
-        // Belt-and-suspenders: Go tərəfdə də yoxla (timezone fərqləri üçün)
-        if !stored.ExpiresAt.After(time.Now()) {
-                slog.Info("OTP verify: code expired (Go-side check)", "phone", phone, "expires_at", stored.ExpiresAt)
+        // PR #213: expiry yoxlaması Go tərəfdə (DB GETDATE() timezone fərqləri üçün)
+        now := time.Now()
+        if stored.ExpiresAt.Before(now) || stored.ExpiresAt.Equal(now) {
+                slog.Info("OTP verify: code expired",
+                        "phone", phone,
+                        "expires_at", stored.ExpiresAt,
+                        "now", now)
                 return &model.OTPVerifyResponse{
                         Phone:    phone,
                         Valid:    false,
