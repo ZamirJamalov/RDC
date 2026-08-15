@@ -55,9 +55,12 @@ func (s *ApplicationService) InitApplication(ctx context.Context, req *InitAppli
                 return nil, fmt.Errorf("failed to create application: %w", err)
         }
 
-        // PR #209: əvvəlcə aktiv OTP yoxla — əgər varsa, yeni OTP göndərmə
+        // PR #209/#210/#212: aktiv OTP yoxla
+        // HasActiveOTP → GetActiveByPhone → DB: status='active' AND expires_at > GETDATE()
+        // Əgər OTP varsa və expiry vaxtı keçməyibsə → yeni OTP göndərmə, OTP input göstər
+        // Əgər OTP yoxdursa və ya expiry olubsa → yeni OTP yarat və göndər
         if s.otpService.HasActiveOTP(ctx, req.CustomerPhone) {
-                // Aktiv OTP var — istifadəçiyə OTP input ekranını göstər
+                // Aktiv və expiry olmamış OTP var — istifadəçiyə OTP input ekranını göstər
                 slog.Info("application initialized, active OTP already exists (not sending new)",
                         "application_id", app.ID,
                         "customer_pin", req.CustomerPIN,
@@ -65,7 +68,10 @@ func (s *ApplicationService) InitApplication(ctx context.Context, req *InitAppli
                 return app, nil
         }
 
-        // Send OTP (aktiv OTP yoxdur → yeni OTP göndər)
+        // Aktiv OTP yoxdur və ya expiry olub → yeni OTP yarat və göndər
+        // PR #212: əvvəlcə köhnə expired OTP-ləri təmizlə (rate limit-i azaltmaq üçün)
+        s.otpService.ExpireOldCodes(ctx)
+
         otpResp, err := s.otpService.SendOTP(ctx, req.CustomerPhone)
         if err != nil {
                 return nil, fmt.Errorf("failed to send OTP: %w", err)
