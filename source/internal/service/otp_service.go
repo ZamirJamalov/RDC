@@ -39,12 +39,18 @@ func NewOTPService(provider otp.Provider, repo *repository.OTPRepo) *OTPService 
 
 // HasActiveOTP checks if there's an active (non-expired, non-verified) OTP for the phone.
 // PR #209: InitApplication bunu yoxlayır — aktiv OTP varsa yeni OTP göndərmir.
+// PR #210: expires_at vaxtını da yoxlayır — vaxtı keçmiş OTP aktiv sayılmır.
 func (s *OTPService) HasActiveOTP(ctx context.Context, phone string) bool {
         if s.repo == nil {
                 return false
         }
         otp, err := s.repo.GetActiveByPhone(ctx, phone)
-        return err == nil && otp != nil
+        if err != nil || otp == nil {
+                return false
+        }
+        // PR #210: DB-də expires_at > GETDATE() yoxlanılır, amma belt-and-suspenders
+        // olaraq Go tərəfdə də yoxlayaq (timezone fərqləri üçün)
+        return otp.ExpiresAt.After(time.Now())
 }
 
 // SendOTP generates a new 6-digit code, stores its hash, and sends the code
