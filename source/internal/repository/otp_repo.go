@@ -32,8 +32,8 @@ func NewOTPRepo(db *sql.DB) *OTPRepo {
 
 // Create inserts a new OTP code record. The codeHash should be a SHA-256 hash
 // of the 6-digit code — never store the plaintext code in the database.
-// expiresAt is converted to a local-time string to match SQL Server's DATETIME
-// format, avoiding timezone mismatch issues.
+// PR #214: expiresAt UTC kimi saxlanılır — Go tərəfdə time.Now().UTC() ilə
+// yaradılır, SQL Server-də SYSUTCDATETIME() ilə müqayisə olunur.
 func (r *OTPRepo) Create(ctx context.Context, phone, codeHash string, expiresAt time.Time) error {
         _, err := r.db.ExecContext(ctx, `
                 INSERT INTO otp_codes (phone, code_hash, status, expires_at)
@@ -96,7 +96,7 @@ func (r *OTPRepo) MarkVerified(ctx context.Context, id int) error {
         _, err := r.db.ExecContext(ctx, `
                 UPDATE otp_codes
                 SET status = 'verified',
-                    consumed_at = GETDATE()
+                    consumed_at = SYSUTCDATETIME()
                 WHERE id = ?`,
                 id)
         if err != nil {
@@ -109,16 +109,13 @@ func (r *OTPRepo) MarkVerified(ctx context.Context, id int) error {
 // number within the last `windowSeconds` seconds. Used for rate limiting
 // (max 1 SMS per minute per phone).
 //
-// IMPORTANT: Uses SQL Server's GETDATE() for the time comparison instead of
-// passing Go's time.Now(). This avoids timezone mismatch between Go (which
-// may run in UTC) and SQL Server (which may use local time). If we passed
-// Go's time, the comparison could be off by hours and the rate limit would
-// never reset.
+// PR #214: SYSUTCDATETIME() istifadə olunur — UTC timezone-da işləyir.
+// Bu, Go-nun time.Now().UTC() ilə eyni timezone-dadır.
 func (r *OTPRepo) CountRecentCodes(ctx context.Context, phone string, windowSeconds int) (int, error) {
         var count int
         err := r.db.QueryRowContext(ctx, `
                 SELECT COUNT(*) FROM otp_codes
-                WHERE phone = ? AND created_at >= DATEADD(second, -?, GETDATE())`,
+                WHERE phone = ? AND created_at >= DATEADD(second, -?, SYSUTCDATETIME())`,
                 phone, windowSeconds).Scan(&count)
         if err != nil {
                 return 0, fmt.Errorf("failed to count recent OTP codes: %w", err)
@@ -133,7 +130,7 @@ func (r *OTPRepo) ExpireOldCodes(ctx context.Context) (int64, error) {
         result, err := r.db.ExecContext(ctx, `
                 UPDATE otp_codes
                 SET status = 'expired'
-                WHERE status = 'active' AND expires_at < GETDATE()`)
+                WHERE status = 'active' AND expires_at < SYSUTCDATETIME()`)
         if err != nil {
                 return 0, fmt.Errorf("failed to expire old OTP codes: %w", err)
         }

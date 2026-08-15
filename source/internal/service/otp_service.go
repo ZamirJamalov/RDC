@@ -50,10 +50,9 @@ func (s *OTPService) HasActiveOTP(ctx context.Context, phone string) bool {
         if err != nil || otp == nil {
                 return false
         }
-        // PR #213: expiry yoxlaması Go tərəfdə (DB GETDATE() timezone fərqləri üçün)
-        // expires_at DB-dən gəlir, time.Now() Go app timezone-dan
-        // Hər ikisini UTC-də müqayisə et ki timezone fərqi problem yaratmasın
-        now := time.Now()
+        // PR #213/#214: expiry yoxlaması Go tərəfdə, UTC timezone-da
+        // expires_at DB-də UTC kimi saxlanılır (time.Now().UTC()), SQL SYSUTCDATETIME() ilə
+        now := time.Now().UTC()
         isExpired := otp.ExpiresAt.Before(now) || otp.ExpiresAt.Equal(now)
         if isExpired {
                 slog.Info("HasActiveOTP: OTP found but expired",
@@ -117,8 +116,8 @@ func (s *OTPService) SendOTP(ctx context.Context, phone string) (*model.OTPSendR
         // Hash the code for storage (never store plaintext)
         codeHash := hashCode(code)
 
-        // Store in DB
-        expiresAt := time.Now().Add(time.Duration(model.OTPCodeTTL) * time.Second)
+        // Store in DB — PR #214: UTC timezone (SQL Server SYSUTCDATETIME() ilə sinxron)
+        expiresAt := time.Now().UTC().Add(time.Duration(model.OTPCodeTTL) * time.Second)
         if err := s.repo.Create(ctx, phone, codeHash, expiresAt); err != nil {
                 return nil, fmt.Errorf("failed to store OTP code: %w", err)
         }
@@ -178,8 +177,8 @@ func (s *OTPService) VerifyOTP(ctx context.Context, phone, code string) (*model.
                 }, nil
         }
 
-        // PR #213: expiry yoxlaması Go tərəfdə (DB GETDATE() timezone fərqləri üçün)
-        now := time.Now()
+        // PR #213/#214: expiry yoxlaması Go tərəfdə, UTC timezone-da
+        now := time.Now().UTC()
         if stored.ExpiresAt.Before(now) || stored.ExpiresAt.Equal(now) {
                 slog.Info("OTP verify: code expired",
                         "phone", phone,
