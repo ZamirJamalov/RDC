@@ -45,7 +45,16 @@ func (h *ApplicationHandler) InitApplication(w http.ResponseWriter, r *http.Requ
                 return
         }
 
-        writeJSON(w, http.StatusCreated, app)
+        // PR #206: kyc_verify_enabled-i response-a əlavə et ki frontend KYC loading ekranını göstər/gizlət
+        writeJSON(w, http.StatusCreated, map[string]interface{}{
+                "id":                  app.ID,
+                "public_id":           app.PublicID,
+                "customer_pin":        app.CustomerPIN,
+                "customer_serial":     app.CustomerSerial,
+                "customer_phone":      app.CustomerPhone,
+                "status":              app.Status,
+                "kyc_verify_enabled":  h.service.IsKycVerifyEnabled(),
+        })
 }
 
 // VerifyInitApplication handles POST /api/applications/init/verify.

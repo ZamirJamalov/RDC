@@ -117,6 +117,12 @@ func (s *ApplicationService) SetKycVerifyEnabled(enabled bool) {
         s.kycVerifyEnabled = enabled
 }
 
+// IsKycVerifyEnabled returns whether KYC verify is enabled (PR #206).
+// Frontend bu dəyərə əsasən KYC loading ekranını göstər/gizlət.
+func (s *ApplicationService) IsKycVerifyEnabled() bool {
+        return s.kycVerifyEnabled
+}
+
 // SetCutoffStopOnFirstFail controls cutoff behavior (PR #171).
 // true (default) = ilk kesim rədd edildikdə digərləri yoxlanılmır
 // false = bütün kesimlər həmişə yoxlanılır
