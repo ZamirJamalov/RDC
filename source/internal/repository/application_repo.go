@@ -442,6 +442,37 @@ func (r *ApplicationRepo) HasPendingApplication(ctx context.Context, customerPIN
         return appID, status, nil
 }
 
+// GetRecentPendingApplication returns the most recent pending_customer application
+// for the given PIN + phone within the last N minutes.
+// PR #217: Idempotent InitApplication — təkrar müraciətdə eyni app-i reuse et.
+// Yalnız status='pending_customer' və son N dəqiqə ərzində yaradılan app-lər.
+// SYSUTCDATETIME() istifadə olunur (UTC — PR #214).
+func (r *ApplicationRepo) GetRecentPendingApplication(ctx context.Context, customerPIN, customerPhone string, withinMinutes int) (*model.LoanApplication, error) {
+        var app model.LoanApplication
+        var rawPublicID mssql.UniqueIdentifier
+        err := r.db.QueryRowContext(ctx, `
+                SELECT TOP 1 id, public_id, customer_pin, customer_serial, customer_phone, status, created_at, updated_at
+                FROM loan_applications
+                WHERE customer_pin = ?
+                  AND customer_phone = ?
+                  AND status = 'pending_customer'
+                  AND created_at >= DATEADD(minute, -?, SYSUTCDATETIME())
+                ORDER BY created_at DESC`,
+                customerPIN, customerPhone, withinMinutes,
+        ).Scan(
+                &app.ID, &rawPublicID, &app.CustomerPIN, &app.CustomerSerial,
+                &app.CustomerPhone, &app.Status, &app.CreatedAt, &app.UpdatedAt,
+        )
+        if err != nil {
+                if err == sql.ErrNoRows {
+                        return nil, nil
+                }
+                return nil, fmt.Errorf("failed to query recent pending application: %w", err)
+        }
+        app.PublicID = uuid.UUID(rawPublicID).String()
+        return &app, nil
+}
+
 // checkLastRejectionCutoff checks if the customer's most recent rejected
 // application is still within the validity period of its cutoff rule.
 // Returns (appID, "rejected", nil) if still blocked, or (0, "", nil) if
