@@ -34,7 +34,7 @@ BEGIN
         'ZXe5Gk1G11',
         'softlinetestapi',
         'ZXe5Gk1G11',
-        'AZMK',
+        'AZMK BOKT', -- PR #220: registered Softline sender name (was AZMK)
         10,
         1
     );
