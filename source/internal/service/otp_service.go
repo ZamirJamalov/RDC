@@ -99,7 +99,7 @@ func (s *OTPService) SendOTP(ctx context.Context, phone string) (*model.OTPSendR
                 return nil, fmt.Errorf("failed to check rate limit: %w", err)
         }
         if recentCount >= model.OTPRateLimitPerMin {
-                slog.Warn("OTP rate limit exceeded", "phone", phone, "recent_count", recentCount)
+                slog.Error("OTP rate limit exceeded", "phone", phone, "recent_count", recentCount)
                 return &model.OTPSendResponse{
                         Phone:       phone,
                         Sent:        false,
