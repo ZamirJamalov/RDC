@@ -77,13 +77,12 @@ func (s *ApplicationService) InitApplication(ctx context.Context, req *InitAppli
                 return nil, fmt.Errorf("failed to send OTP: %w", err)
         }
         if !otpResp.Sent {
-                // PR #209: rate limit olanda xəta qaytarma, birbaşa OTP input ekranını göstər
-                slog.Warn("OTP rate limited — but showing OTP input to user",
+                // PR #215: rate limit olanda xəta qaytar — OTP daxil etmə bloklansın
+                slog.Error("OTP rate limited — blocking OTP input",
                         "application_id", app.ID,
                         "phone", req.CustomerPhone,
                         "retry_after_s", otpResp.RetryAfterS)
-                // Rate limit xətası olsa belə, app yaradılıb — istifadəçi mövcud OTP-i daxil edə bilər
-                return app, nil
+                return nil, fmt.Errorf("OTP göndürmək üçün %d saniyə gözləməlisiniz", otpResp.RetryAfterS)
         }
 
         slog.Info("application initialized, OTP sent",
