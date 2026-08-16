@@ -26,6 +26,10 @@ type InitApplicationRequest struct {
 // InitApplication creates a new application with minimal info (PIN, serial, phone)
 // and sends an OTP to the customer's phone. The application starts in
 // pending_customer status. Cutoff checks (AKB, blacklist) will be added later.
+//
+// PR #217: Idempotent — əgər son 5 dəqiqə ərzində eyni PIN+phone ilə
+// pending_customer app varsa, onu reuse et (yeni yaratma). Bu, yetim
+// müraciətlərin qarşısını alır və istifadəçinin eyni OTP-ni istifadə etməsinə imkan verir.
 func (s *ApplicationService) InitApplication(ctx context.Context, req *InitApplicationRequest) (*model.LoanApplication, error) {
         if req.CustomerPIN == "" {
                 return nil, fmt.Errorf("customer_pin is required")
@@ -34,8 +38,50 @@ func (s *ApplicationService) InitApplication(ctx context.Context, req *InitAppli
                 return nil, fmt.Errorf("customer_phone is required")
         }
 
+        // PR #217: Idempotent — son 5 dəqiqə ərzində eyni PIN+phone ilə pending_customer app var?
+        // OTP TTL = 5 dəqiqə (300s), ona görə 5 dəqiqə window istifadə edirik.
+        recentApp, err := s.repo.GetRecentPendingApplication(ctx, req.CustomerPIN, req.CustomerPhone, 5)
+        if err != nil {
+                return nil, fmt.Errorf("failed to check recent applications: %w", err)
+        }
+        if recentApp != nil {
+                // Mövcud pending_customer app var — reuse et (yeni yaratma)
+                slog.Info("application reused (recent pending_customer exists)",
+                        "application_id", recentApp.ID,
+                        "public_id", recentApp.PublicID,
+                        "customer_pin", req.CustomerPIN,
+                        "phone", req.CustomerPhone)
+
+                // Aktiv OTP var? → yeni OTP göndərmə, OTP input göstər
+                if s.otpService.HasActiveOTP(ctx, req.CustomerPhone) {
+                        slog.Info("reused application, active OTP already exists",
+                                "application_id", recentApp.ID,
+                                "phone", req.CustomerPhone)
+                        return recentApp, nil
+                }
+
+                // Aktiv OTP yoxdur və ya expiry olub → yeni OTP yarat və göndər
+                s.otpService.ExpireOldCodes(ctx)
+                otpResp, err := s.otpService.SendOTP(ctx, req.CustomerPhone)
+                if err != nil {
+                        return nil, fmt.Errorf("failed to send OTP: %w", err)
+                }
+                if !otpResp.Sent {
+                        slog.Error("OTP rate limited — blocking OTP input (reused app)",
+                                "application_id", recentApp.ID,
+                                "phone", req.CustomerPhone,
+                                "retry_after_s", otpResp.RetryAfterS)
+                        return nil, fmt.Errorf("OTP göndürmək üçün %d saniyə gözləməlisiniz", otpResp.RetryAfterS)
+                }
+
+                slog.Info("reused application, new OTP sent",
+                        "application_id", recentApp.ID,
+                        "phone", req.CustomerPhone)
+                return recentApp, nil
+        }
+
         // PR #70: Check for duplicate — customer must not have an existing non-final application.
-        // This blocks new applications while a previous one is still being processed.
+        // PR #208: pending_customer/pending_expert artıq blocklanmır (yalnız pending/checking/pending_approval)
         existingID, existingStatus, err := s.repo.HasPendingApplication(ctx, req.CustomerPIN)
         if err != nil {
                 return nil, fmt.Errorf("failed to check existing applications: %w", err)
@@ -44,6 +90,7 @@ func (s *ApplicationService) InitApplication(ctx context.Context, req *InitAppli
                 return nil, fmt.Errorf("Sizin artıq işlənməkdə olan müraciətiniz var (№%d, status: %s). Bu müraciət həll olunana qədər yeni müraciət edə bilməzsiniz", existingID, existingStatus)
         }
 
+        // Yeni app yarat
         app := &model.LoanApplication{
                 CustomerPIN:    req.CustomerPIN,
                 CustomerSerial: req.CustomerSerial,
@@ -55,12 +102,8 @@ func (s *ApplicationService) InitApplication(ctx context.Context, req *InitAppli
                 return nil, fmt.Errorf("failed to create application: %w", err)
         }
 
-        // PR #209/#210/#212: aktiv OTP yoxla
-        // HasActiveOTP → GetActiveByPhone → DB: status='active' AND expires_at > GETDATE()
-        // Əgər OTP varsa və expiry vaxtı keçməyibsə → yeni OTP göndərmə, OTP input göstər
-        // Əgər OTP yoxdursa və ya expiry olubsa → yeni OTP yarat və göndər
+        // PR #209/#210/#212/#214: aktiv OTP yoxla (UTC expiry)
         if s.otpService.HasActiveOTP(ctx, req.CustomerPhone) {
-                // Aktiv və expiry olmamış OTP var — istifadəçiyə OTP input ekranını göstər
                 slog.Info("application initialized, active OTP already exists (not sending new)",
                         "application_id", app.ID,
                         "customer_pin", req.CustomerPIN,
@@ -69,7 +112,6 @@ func (s *ApplicationService) InitApplication(ctx context.Context, req *InitAppli
         }
 
         // Aktiv OTP yoxdur və ya expiry olub → yeni OTP yarat və göndər
-        // PR #212: əvvəlcə köhnə expired OTP-ləri təmizlə (rate limit-i azaltmaq üçün)
         s.otpService.ExpireOldCodes(ctx)
 
         otpResp, err := s.otpService.SendOTP(ctx, req.CustomerPhone)

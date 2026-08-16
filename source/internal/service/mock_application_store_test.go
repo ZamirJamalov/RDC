@@ -188,6 +188,11 @@ func (m *mockApplicationStore) HasPendingApplication(_ context.Context, _ string
         return m.pendingAppID, m.pendingStatus, m.pendingErr
 }
 
+// GetRecentPendingApplication — PR #217: mock (returns nil = no recent app).
+func (m *mockApplicationStore) GetRecentPendingApplication(_ context.Context, _, _ string, _ int) (*model.LoanApplication, error) {
+        return nil, nil
+}
+
 // ListByStatus returns all stored applications (by ID) that match the status.
 // Used by the expert queue endpoint tests.
 func (m *mockApplicationStore) ListByStatus(_ context.Context, status string) ([]model.LoanApplication, error) {

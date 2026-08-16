@@ -58,6 +58,11 @@ type ApplicationStore interface {
         // GetCheckResults retrieves all check results for an application ordered by ID.
         GetCheckResults(ctx context.Context, appID int) ([]model.ApplicationCheckResult, error)
 
+        // GetRecentPendingApplication returns the most recent pending_customer application
+        // for the given PIN + phone within the last N minutes.
+        // PR #217: Idempotent InitApplication — təkrar müraciətdə eyni app-i reuse et.
+        GetRecentPendingApplication(ctx context.Context, customerPIN, customerPhone string, withinMinutes int) (*model.LoanApplication, error)
+
         // HasPendingApplication checks if a customer already has an application
         // that is not yet finalized (pending / checking / pending_approval).
         // Returns (0, "", nil) if no such application exists.
