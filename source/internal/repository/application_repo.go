@@ -444,9 +444,10 @@ func (r *ApplicationRepo) HasPendingApplication(ctx context.Context, customerPIN
 
 // GetRecentPendingApplication returns the most recent pending_customer application
 // for the given PIN + phone within the last N minutes.
-// PR #217: Idempotent InitApplication — təkrar müraciətdə eyni app-i reuse et.
+// PR #217/#218: Idempotent InitApplication — təkrar müraciətdə eyni app-i reuse et.
 // Yalnız status='pending_customer' və son N dəqiqə ərzində yaradılan app-lər.
-// SYSUTCDATETIME() istifadə olunur (UTC — PR #214).
+// PR #218: GETDATE() istifadə olunur — loan_applications.created_at GETDATE() ilə yazılır.
+// (otp_codes.expires_at isə UTC — PR #214, ona görə orada SYSUTCDATETIME())
 func (r *ApplicationRepo) GetRecentPendingApplication(ctx context.Context, customerPIN, customerPhone string, withinMinutes int) (*model.LoanApplication, error) {
         var app model.LoanApplication
         var rawPublicID mssql.UniqueIdentifier
@@ -456,7 +457,7 @@ func (r *ApplicationRepo) GetRecentPendingApplication(ctx context.Context, custo
                 WHERE customer_pin = ?
                   AND customer_phone = ?
                   AND status = 'pending_customer'
-                  AND created_at >= DATEADD(minute, -?, SYSUTCDATETIME())
+                  AND created_at >= DATEADD(minute, -?, GETDATE())
                 ORDER BY created_at DESC`,
                 customerPIN, customerPhone, withinMinutes,
         ).Scan(

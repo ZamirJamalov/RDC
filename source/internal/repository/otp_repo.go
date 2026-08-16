@@ -96,7 +96,7 @@ func (r *OTPRepo) MarkVerified(ctx context.Context, id int) error {
         _, err := r.db.ExecContext(ctx, `
                 UPDATE otp_codes
                 SET status = 'verified',
-                    consumed_at = SYSUTCDATETIME()
+                    consumed_at = GETDATE()
                 WHERE id = ?`,
                 id)
         if err != nil {
@@ -109,13 +109,14 @@ func (r *OTPRepo) MarkVerified(ctx context.Context, id int) error {
 // number within the last `windowSeconds` seconds. Used for rate limiting
 // (max 1 SMS per minute per phone).
 //
-// PR #214: SYSUTCDATETIME() istifadə olunur — UTC timezone-da işləyir.
-// Bu, Go-nun time.Now().UTC() ilə eyni timezone-dadır.
+// PR #214/#218: GETDATE() istifadə olunur — otp_codes.created_at GETDATE() ilə yazılır.
+// (expires_at isə Go tərəfdən time.Now().UTC() ilə yazılır, ona görə ExpireOldCodes
+// SYSUTCDATETIME() istifadə edir — amma created_at GETDATE() ilə, ona görə burada GETDATE())
 func (r *OTPRepo) CountRecentCodes(ctx context.Context, phone string, windowSeconds int) (int, error) {
         var count int
         err := r.db.QueryRowContext(ctx, `
                 SELECT COUNT(*) FROM otp_codes
-                WHERE phone = ? AND created_at >= DATEADD(second, -?, SYSUTCDATETIME())`,
+                WHERE phone = ? AND created_at >= DATEADD(second, -?, GETDATE())`,
                 phone, windowSeconds).Scan(&count)
         if err != nil {
                 return 0, fmt.Errorf("failed to count recent OTP codes: %w", err)
