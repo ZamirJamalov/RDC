@@ -287,7 +287,7 @@
                     <div class="grid grid-cols-3 gap-3 mb-3">
                         <div class="sub-card text-center">
                             <div class="sub-card-title mb-1">Məbləğ</div>
-                            <div class="alpul-grad-text font-extrabold text-lg leading-tight" x-text="(app?.amount ?? '-') + ' AZN'"></div>
+                            <div class="alpul-grad-text font-extrabold text-lg leading-tight" x-text="((app?.total_amount || app?.amount) ?? '-') + ' AZN'"></div>
                         </div>
                         <div class="sub-card text-center">
                             <div class="sub-card-title mb-1">Müddət</div>
@@ -295,7 +295,7 @@
                         </div>
                         <div class="sub-card text-center">
                             <div class="sub-card-title mb-1">Faiz</div>
-                            <div class="alpul-grad-text font-extrabold text-lg leading-tight" x-text="app?.approved_rate ? app.approved_rate + '%' : '-'"></div>
+                            <div class="alpul-grad-text font-extrabold text-lg leading-tight" x-text="(app?.approved_rate !== undefined && app?.approved_rate !== null) ? app.approved_rate + '%' : '-'"></div>
                         </div>
                     </div>
                     <div x-show="app?.total_amount > 0" class="panel-divider border-t pt-3 grid grid-cols-2 gap-3 text-sm">
@@ -1083,8 +1083,8 @@
                         this.error = e.message;
                     } finally {
                         this.loading = false;
-                        // PR #134: Timer — pending_approval statusunda başlat
-                        if (this.app && this.app.status === 'pending_approval' && !this.timerStopped) {
+                        // PR #134/#225: Timer — pending_approval və pending_expert statusunda başlat
+                        if (this.app && (this.app.status === 'pending_approval' || this.app.status === 'pending_expert') && !this.timerStopped) {
                             this.startTimer();
                         } else if (this.app && (this.app.status === 'approved' || this.app.status === 'rejected')) {
                             this.stopTimer();

@@ -201,6 +201,21 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
                         "discount_code", app.DiscountCode)
         }
 
+        // PR #225: total_amount və approved_rate hesabla (credit engine olmadan)
+        // commission = matchedRange.Commission (məs: 14)
+        // total_amount = principal + commission_amount = calculateTotalAmount(amount, commission)
+        // approved_rate = commission rate
+        commissionRate := matchedRange.Commission
+        app.ApprovedRate = commissionRate
+        app.TotalAmount = calculateTotalAmount(app.Amount, commissionRate)
+        app.CreditLevel = offer.CreditLevel
+        slog.Info("customer-confirm: calculated total_amount",
+                "application_id", appID,
+                "amount", app.Amount,
+                "commission_rate", commissionRate,
+                "total_amount", app.TotalAmount,
+                "credit_level", app.CreditLevel)
+
         // PR #221: transition to 'pending_expert' — RDC dashboard-a göndərilir.
         // Əvvəl (Variant B): pending → credit engine işləyir → pending_approval/rejected.
         // İndi (PR #221): pending_expert — expert dashboard-da görünür, expert təsdiq/redd edir.
