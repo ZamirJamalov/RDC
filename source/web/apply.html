@@ -1314,7 +1314,9 @@ function applyApp() {
                 const finalAmount = parseFloat(this.creditAmount) || data.amount || this.form.amount;
                 this.confirmedAmount = finalAmount;
                 this.confirmedTerm = data.term_months || this.selectedRange.term_months;
-                this.engineStatus = data.status || 'pending';
+                // PR #221/#223: pending_expert = müraciət RDC dashboard-a göndərildi (success)
+                const status = data.status || 'pending';
+                this.engineStatus = (status === 'pending_expert') ? 'pending_approval' : status;
                 this.engineRejectionReason = data.rejection_reason || '';
 
                 // 5. Show result screen (success OR rejection based on engine outcome)
