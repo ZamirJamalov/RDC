@@ -470,9 +470,28 @@ func (s *ApplicationService) GetChecks(ctx context.Context, id int) ([]model.App
         return s.repo.GetCheckResults(ctx, id)
 }
 
-// ListPendingApproval retrieves all applications in pending_approval status.
-// Used by the expert queue endpoint to show operators which applications
-// are waiting for manual review. Ordered by oldest first (FIFO).
+// ListPendingApproval retrieves all applications in pending_expert or pending_approval status.
+// PR #221/#223: customer-confirm artıq pending_expert-ə keçir (əvvəl pending_approval idi).
+// Expert dashboard hər ikisini göstərməlidir.
+// Ordered by oldest first (FIFO).
 func (s *ApplicationService) ListPendingApproval(ctx context.Context) ([]model.LoanApplication, error) {
-        return s.repo.ListByStatus(ctx, model.StatusPendingApproval)
+        expertApps, err := s.repo.ListByStatus(ctx, model.StatusPendingExpert)
+        if err != nil {
+                return nil, fmt.Errorf("failed to list pending_expert: %w", err)
+        }
+        approvalApps, err := s.repo.ListByStatus(ctx, model.StatusPendingApproval)
+        if err != nil {
+                return nil, fmt.Errorf("failed to list pending_approval: %w", err)
+        }
+        // Birləşdir və tarixə görə sırala (oldest first)
+        all := append(expertApps, approvalApps...)
+        // Bubble sort by CreatedAt (kiçik list üçün kifayətdir)
+        for i := 0; i < len(all); i++ {
+                for j := i + 1; j < len(all); j++ {
+                        if all[i].CreatedAt > all[j].CreatedAt {
+                                all[i], all[j] = all[j], all[i]
+                        }
+                }
+        }
+        return all, nil
 }
