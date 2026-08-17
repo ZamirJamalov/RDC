@@ -249,8 +249,9 @@ func (h *ApplicationHandler) CustomerConfirm(w http.ResponseWriter, r *http.Requ
                 writeError(w, http.StatusForbidden, "bu müraciəti təsdiqləmək hüququnuz yoxdur")
                 return
         }
-        // Verify application is in correct status (pending_expert)
-        if existingApp.Status != "pending_expert" {
+        // PR #221: Verify application is in pending_customer status (OTP verified, cutoff passed, not yet confirmed)
+        // Əvvəl pending_expert yoxlanırdı, amma PR #221-də OTP verify artıq pending_customer saxlayır.
+        if existingApp.Status != "pending_customer" {
                 slog.Warn("customer confirm: wrong status", "application_id", id, "status", existingApp.Status)
                 writeError(w, http.StatusBadRequest, "bu müraciət artıq təsdiqlənib və ya redd edilib")
                 return
