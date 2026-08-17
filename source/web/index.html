@@ -121,7 +121,7 @@
                             </div>
                             <div class="text-sm text-gray-500 space-y-1">
                                 <p><span class="font-medium">PIN:</span> <span x-text="app.customer_pin"></span></p>
-                                <p><span class="font-medium">Mebleg:</span> <span x-text="app.amount + ' AZN'"></span></p>
+                                <p><span class="font-medium">Mebleg:</span> <span x-text="(app.total_amount || app.amount) + ' AZN'"></span></p>
                                 <p><span class="font-medium">Muddet:</span> <span x-text="app.term_months + ' ay'"></span></p>
                                 <!-- PR #142: Processed by display -->
                                 <p x-show="app.processed_by_username" class="text-xs text-gray-400 mt-1">

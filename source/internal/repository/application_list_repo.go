@@ -21,6 +21,7 @@ func (r *ApplicationRepo) ListByStatus(ctx context.Context, status string) ([]mo
         rows, err := r.db.QueryContext(ctx, `
                 SELECT id, public_id, customer_pin, customer_full_name, amount, term_months,
                        loan_purpose, status, credit_level, approved_amount, approved_rate,
+                       total_amount,
                        discount_code,
                        created_at, updated_at
                 FROM loan_applications
@@ -34,13 +35,14 @@ func (r *ApplicationRepo) ListByStatus(ctx context.Context, status string) ([]mo
         var apps []model.LoanApplication
         for rows.Next() {
                 var app model.LoanApplication
-                var rawPublicID mssql.UniqueIdentifier // PR #194: UUID byte-ları
+                var rawPublicID mssql.UniqueIdentifier
                 var creditLevel, loanPurpose, discountCode sql.NullString
-                var approvedAmount, approvedRate sql.NullFloat64
+                var approvedAmount, approvedRate, totalAmount sql.NullFloat64
                 if err := rows.Scan(
                         &app.ID, &rawPublicID, &app.CustomerPIN, &app.CustomerFullName, &app.Amount,
                         &app.TermMonths, &loanPurpose, &app.Status, &creditLevel,
-                        &approvedAmount, &approvedRate, &discountCode,
+                        &approvedAmount, &approvedRate, &totalAmount,
+                        &discountCode,
                         &app.CreatedAt, &app.UpdatedAt,
                 ); err != nil {
                         return nil, fmt.Errorf("failed to scan application: %w", err)
@@ -50,6 +52,7 @@ func (r *ApplicationRepo) ListByStatus(ctx context.Context, status string) ([]mo
                 app.CreditLevel = creditLevel.String
                 app.ApprovedAmount = approvedAmount.Float64
                 app.ApprovedRate = approvedRate.Float64
+                app.TotalAmount = totalAmount.Float64 // PR #224
                 app.DiscountCode = discountCode.String
                 apps = append(apps, app)
         }
