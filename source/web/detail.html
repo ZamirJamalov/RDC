@@ -163,7 +163,7 @@
             </span>
 
             <!-- PR #134: Timer -->
-            <div x-show="app && app.status === 'pending_approval'"
+            <div x-show="app && (app.status === 'pending_approval' || app.status === 'pending_expert')"
                  class="flex items-center gap-1.5 shrink-0 bg-gray-900 text-teal-400 px-3 py-1.5 rounded-lg font-mono text-sm font-bold tabular-nums">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="2"/><polyline points="12 6 12 12 16 14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
                 <span x-text="timerDisplay"></span>
@@ -412,7 +412,7 @@
                 <!-- ===== ROW 2: MyGov (8 cols) | Expert Decision (4 cols) ===== -->
 
                 <!-- MyGov Təsdiqi -->
-                <section x-show="app?.status === 'pending_approval'" class="panel p-4 col-span-12 lg:col-span-8 flex flex-col">
+                <section x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert'" class="panel p-4 col-span-12 lg:col-span-8 flex flex-col">
                     <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center gap-2">
                             <span class="icon-chip">🏛️</span>
@@ -481,7 +481,7 @@
                 </section>
 
                 <!-- Ekspert Qərarı -->
-                <section x-show="app?.status === 'pending_approval'" class="panel p-4 col-span-12 lg:col-span-4 flex flex-col">
+                <section x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert'" class="panel p-4 col-span-12 lg:col-span-4 flex flex-col">
                     <div class="flex items-center gap-2 mb-3">
                         <span class="icon-chip">⚖️</span>
                         <h2 class="panel-title text-sm font-bold tracking-wide uppercase">Ekspert Qərarı</h2>
