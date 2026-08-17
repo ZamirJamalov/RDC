@@ -38,9 +38,9 @@ func (s *ApplicationService) InitApplication(ctx context.Context, req *InitAppli
                 return nil, fmt.Errorf("customer_phone is required")
         }
 
-        // PR #217: Idempotent — son 5 dəqiqə ərzində eyni PIN+phone ilə pending_customer app var?
-        // OTP TTL = 5 dəqiqə (300s), ona görə 5 dəqiqə window istifadə edirik.
-        recentApp, err := s.repo.GetRecentPendingApplication(ctx, req.CustomerPIN, req.CustomerPhone, 5)
+        // PR #217/#221: Idempotent — son 10 dəqiqə ərzində eyni PIN+phone ilə pending_customer app var?
+        // PR #221: window 5→10 dəq artırıldı (cutoff-lar OTP verify-də işləyir, vaxt ala bilər)
+        recentApp, err := s.repo.GetRecentPendingApplication(ctx, req.CustomerPIN, req.CustomerPhone, 10)
         if err != nil {
                 return nil, fmt.Errorf("failed to check recent applications: %w", err)
         }
@@ -145,7 +145,8 @@ type VerifyInitApplicationRequest struct {
 }
 
 // VerifyInitApplication verifies the OTP code and transitions the application
-// from pending_customer to pending_expert.
+// PR #221: cutoff-lar OTP verify-də işləyir, amma status pending_customer qalır.
+// Customer-confirm-də pending_expert-ə keçir.
 //
 // PR #117: AZMK KYC və Partner registration OTP-dən SONRA, cutoff-dan ƏVVƏL baş verir.
 // PR #112: AUTO cutoff yoxlamaları KYC-dən sonra, kredit təklifindən ƏVVƏL baş verir.
@@ -156,7 +157,7 @@ type VerifyInitApplicationRequest struct {
 //   2. AZMK KYC (create session → verify → get kyc_id)
 //   3. AZMK Partner registration (get partner_id)
 //   4. AUTO cutoff checks (AKB, blacklist, age, delay, active loan, etc.)
-//   5. If all pass → pending_expert
+//   5. If all pass → pending_customer qalır (PR #221 — customer-confirm-də pending_expert-ə keçəcək)
 func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *VerifyInitApplicationRequest) (*model.LoanApplication, error) {
         if req.ApplicationPublicID == "" && req.ApplicationID <= 0 {
                 return nil, fmt.Errorf("application_id is required")
@@ -264,13 +265,10 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
                 return app, nil
         }
 
-        // 5. Cutoff keçdi — transition to pending_expert
-        app.Status = model.StatusPendingExpert
-        if err := s.repo.UpdateApplicationStatus(ctx, app.ID, app.Status); err != nil {
-                return nil, fmt.Errorf("failed to update status: %w", err)
-        }
-
-        slog.Info("application verified, KYC passed, early cutoff passed, waiting for expert",
+        // 5. Cutoff keçdi — PR #221: status pending_customer qalır (pending_expert-ə keçmə)
+        // Cutoff-lar işlədi, amma istifadəçi hələ "Təsdiq edirəm" düyməsini klikləməyib.
+        // Customer-confirm-də pending_expert-ə keçəcək (RDC dashboard-a göndərilir).
+        slog.Info("application verified, KYC passed, early cutoff passed, waiting for customer confirm",
                 "application_id", app.ID,
                 "customer_pin", app.CustomerPIN,
                 "kyc_id", app.KycID,

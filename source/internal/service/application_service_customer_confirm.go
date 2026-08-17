@@ -84,13 +84,15 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
                 }
         }
 
-        // 1. Fetch the application — must be pending_expert (customer verified OTP)
+        // 1. Fetch the application — must be pending_customer (OTP verified, cutoff passed, but not yet confirmed)
+        // PR #221: OTP verify artıq pending_customer saxlayır (pending_expert-ə keçmir).
+        // Customer-confirm-də pending_expert-ə keçir (RDC dashboard-a göndərilir).
         app, err := s.repo.GetApplicationByID(ctx, appID)
         if err != nil {
                 return nil, fmt.Errorf("application not found: %w", err)
         }
-        if app.Status != model.StatusPendingExpert {
-                return nil, fmt.Errorf("application is not in pending_expert status (current: %s) — only OTP-verified applications can be confirmed", app.Status)
+        if app.Status != model.StatusPendingCustomer {
+                return nil, fmt.Errorf("müraciət təsdiq oluna bilməz (cari status: %s) — yalnız OTP təsdiq olunmuş müraciətlər təsdiqlənə bilər", app.Status)
         }
 
         // 2. Fetch PersonalInfo from LW router — fail-hard on error (business decision PR #58)
@@ -199,12 +201,12 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
                         "discount_code", app.DiscountCode)
         }
 
-        // PR #63 (Variant B): transition to 'pending' so the credit engine can pick it up.
-        // Previously (Variant A), status stayed pending_expert and the expert had to call
-        // CompleteApplication to add contact phones and trigger the engine. Now the engine
-        // runs immediately at customer-confirm, and the expert's role is downstream
-        // (MyGov employment/pension verification, contact phone collection).
-        app.Status = model.StatusPending
+        // PR #221: transition to 'pending_expert' — RDC dashboard-a göndərilir.
+        // Əvvəl (Variant B): pending → credit engine işləyir → pending_approval/rejected.
+        // İndi (PR #221): pending_expert — expert dashboard-da görünür, expert təsdiq/redd edir.
+        // Credit engine artıq OTP verify mərhələsində cutoff-ları işlədib, nəticələri saxlayıb.
+        // Expert role: MyGov verify, kontaktlar, timer, approve/reject.
+        app.Status = model.StatusPendingExpert
 
         // PR #118: AZMK Card registration
         // Müştəri kart nömrəsini daxil edib təsdiq edəndən sonra, kartı AZMK-ya qeyd edirik.
@@ -248,58 +250,29 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
                 "akb_score", app.AkbScore,
                 "credit_level", offer.CreditLevel)
 
-        // 6. PR #63 (Variant B): trigger the credit engine immediately.
-        // The engine runs the 12 rejection rules (blacklist, AKB, AZMK, age, delay
-        // windows, monthly payments, etc.) and produces a final decision:
-        //   - rejected      → customer sees "Müraciətiniz rədd edildi" on apply.html
-        //   - pending_approval → application lands in RDC dashboard for expert review
-        //   - approved (elite) → downgraded to pending_approval per PR #63 (see below)
-        //
-        // The engine runs synchronously here so that the customer-confirm response
-        // already carries the final status. The customer's browser shows the result
-        // immediately (success or rejection).
-        if err := s.creditEngine.ProcessApplication(ctx, appID); err != nil {
-                slog.Error("customer-confirm: credit engine failed — leaving application in pending state",
-                        "application_id", appID,
-                        "error", err)
-                // Don't fail the whole request — the customer data was saved successfully.
-                // The engine failure is a backend issue; the application stays in 'pending'
-                // and the expert can manually trigger reprocessing from the dashboard.
+        // PR #221: credit engine artıq OTP verify mərhələsində cutoff-ları işlədib.
+        // Customer-confirm-də credit engine çağırmırıq — müraciət pending_expert-ə keçir.
+        // Expert dashboard-da təsdiq/redd edəcək (approve/reject).
+        slog.Info("customer-confirm: application saved, transitioning to pending_expert (RDC dashboard)",
+                "application_id", appID,
+                "customer_pin", app.CustomerPIN,
+                "amount", app.Amount,
+                "term_months", app.TermMonths,
+                "credit_level", offer.CreditLevel)
+
+        // Save the final state
+        if err := s.repo.UpdateApplicationDetails(ctx, appID, app); err != nil {
+                return nil, fmt.Errorf("failed to save customer confirmation: %w", err)
         }
 
-        // 7. PR #63 (Variant B): downgrade elite auto-approve to pending_approval.
-        // The customer-side flow must NOT end in 'approved' because the expert still
-        // needs to:
-        //   - call the customer to verify employment/pension status
-        //   - trigger MyGov employment or pension data request
-        //   - verify the 6-month work tenure rule or 1st-group disability rule
-        //   - collect 3 contact phone numbers
-        // If the engine approved the application (elite level), downgrade to
-        // pending_approval so it appears in the expert queue.
         finalApp, err := s.repo.GetApplicationByID(ctx, appID)
         if err != nil {
-                return nil, fmt.Errorf("failed to fetch application after engine: %w", err)
-        }
-        if finalApp.Status == model.StatusApproved {
-                slog.Info("customer-confirm: downgrading elite auto-approve to pending_approval (Variant B)",
-                        "application_id", appID,
-                        "customer_pin", app.CustomerPIN,
-                        "credit_level", finalApp.CreditLevel)
-                finalApp.Status = model.StatusPendingApproval
-                finalApp.RejectionReason = ""
-                if err := s.repo.UpdateApplicationDecision(ctx, appID,
-                        finalApp.Status, finalApp.CreditLevel, "",
-                        finalApp.ApprovedAmount, finalApp.ApprovedRate, finalApp.TotalAmount); err != nil {
-                        return nil, fmt.Errorf("failed to downgrade elite approval: %w", err)
-                }
-                finalApp, err = s.repo.GetApplicationByID(ctx, appID)
-                if err != nil {
-                        return nil, fmt.Errorf("failed to fetch application after downgrade: %w", err)
-                }
+                return nil, fmt.Errorf("failed to fetch application after confirm: %w", err)
         }
 
-        // 8. PR #120: SIMA KYC silindi — AZMK KYC artıq OTP-dən sonra baş verir (PR #117).
-        // customer-confirm-da SIMA KYC SMS göndərməyə ehtiyac yoxdur.
+        // PR #221: Variant B downgrade silindi — credit engine customer-confirm-də çağrılmır.
+        // Müraciət pending_expert statusunda RDC dashboard-a göndərilir.
+        // Expert approve/reject edəcək.
 
         return finalApp, nil
 }
