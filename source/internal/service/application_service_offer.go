@@ -33,7 +33,14 @@ func (s *ApplicationService) GetOffer(ctx context.Context, customerPIN string, a
                 customerLoans = &lw.CustomerLoansResponse{Loans: []lw.CustomerLoan{}}
         }
 
-        // 2. Resolve AKB score (LW first, fallback to request)
+        // 2. Resolve AKB score (LW first, fallback to request, fallback to DB)
+        // PR #229: əgər akbScore = 0-dırsa, DB-dən oxu (OTP verify-də AZMK yazıb — PR #228)
+        if akbScore <= 0 {
+                akbScore = s.repo.GetRecentAkbScore(ctx, customerPIN)
+                if akbScore > 0 {
+                        slog.Info("GetOffer: using AKB score from DB", "customer_pin", customerPIN, "akb_score", akbScore)
+                }
+        }
         resolvedAkb := s.creditEngine.resolveAkbScore(ctx, customerPIN, akbScore)
 
         // 3. Determine credit level
