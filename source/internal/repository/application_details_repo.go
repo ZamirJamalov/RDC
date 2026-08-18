@@ -1,10 +1,10 @@
 package repository
 
 import (
-        "context"
-        "fmt"
+	"context"
+	"fmt"
 
-        "rdc-source/internal/model"
+	"rdc-source/internal/model"
 )
 
 // UpdateApplicationDetails fills in the remaining fields after the expert
@@ -15,7 +15,7 @@ import (
 // PR #94: also persists discount_code if the customer entered one in apply.html.
 // discount_amount is set later (on approval) by UpdateApplicationDiscount.
 func (r *ApplicationRepo) UpdateApplicationDetails(ctx context.Context, id int, app *model.LoanApplication) error {
-        _, err := r.db.ExecContext(ctx, `
+	_, err := r.db.ExecContext(ctx, `
                 UPDATE loan_applications
                 SET customer_full_name = ?,
                     amount = ?,
@@ -43,56 +43,69 @@ func (r *ApplicationRepo) UpdateApplicationDetails(ctx context.Context, id int, 
                     total_amount = ?,
                     updated_at = GETDATE()
                 WHERE id = ?`,
-                app.CustomerFullName,
-                app.Amount,
-                app.TermMonths,
-                app.LoanPurpose,
-                app.AkbScore,
-                app.Contact1Phone,
-                app.Contact2Phone,
-                app.Contact3Phone,
-                app.Contact1Relation,
-                app.Contact2Relation,
-                app.Contact3Relation,
-                app.ActualAddress,
-                app.CardNumber,
-                nullableString(app.CustomerConfirmedAt),
-                app.CardOwnershipConfirmed,
-                nullableString(app.DiscountCode),
-                nullableString(app.KycID),
-                nullableString(app.PartnerID),
-                nullableString(app.CardID),
-                nullableString(app.LwApplicationID),
-                app.Status,
-                app.CreditLevel,
-                app.ApprovedRate,
-                app.TotalAmount,
-                id,
-        )
-        if err != nil {
-                return fmt.Errorf("failed to update application details: %w", err)
-        }
-        return nil
+		app.CustomerFullName,
+		app.Amount,
+		app.TermMonths,
+		app.LoanPurpose,
+		app.AkbScore,
+		app.Contact1Phone,
+		app.Contact2Phone,
+		app.Contact3Phone,
+		app.Contact1Relation,
+		app.Contact2Relation,
+		app.Contact3Relation,
+		app.ActualAddress,
+		app.CardNumber,
+		nullableString(app.CustomerConfirmedAt),
+		app.CardOwnershipConfirmed,
+		nullableString(app.DiscountCode),
+		nullableString(app.KycID),
+		nullableString(app.PartnerID),
+		nullableString(app.CardID),
+		nullableString(app.LwApplicationID),
+		app.Status,
+		app.CreditLevel,
+		app.ApprovedRate,
+		app.TotalAmount,
+		id,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update application details: %w", err)
+	}
+	return nil
 }
 
 // UpdateAkbScore updates only the akb_score field.
 // PR #228: OTP verify-də AZMK-dən gələn AKB score-u saxlayır.
 func (r *ApplicationRepo) UpdateAkbScore(ctx context.Context, id int, akbScore int) error {
-        _, err := r.db.ExecContext(ctx, `
+	_, err := r.db.ExecContext(ctx, `
                 UPDATE loan_applications SET akb_score = ?, updated_at = GETDATE() WHERE id = ?`,
-                akbScore, id)
-        if err != nil {
-                return fmt.Errorf("failed to update akb_score: %w", err)
-        }
-        return nil
+		akbScore, id)
+	if err != nil {
+		return fmt.Errorf("failed to update akb_score: %w", err)
+	}
+	return nil
+}
+
+// UpdateCustomerFullName updates only the customer_full_name field.
+// PR #243: early cutoff mərhələsində AZMK GetPersonalInfo-dən gələn adı saxlayır —
+// customer-confirm və video mərhələlərində eyni servisə ikinci sorğu göndərilməsin.
+func (r *ApplicationRepo) UpdateCustomerFullName(ctx context.Context, id int, fullName string) error {
+	_, err := r.db.ExecContext(ctx, `
+                UPDATE loan_applications SET customer_full_name = ?, updated_at = GETDATE() WHERE id = ?`,
+		fullName, id)
+	if err != nil {
+		return fmt.Errorf("failed to update customer_full_name: %w", err)
+	}
+	return nil
 }
 
 // nullableString returns nil when s is empty (so the DB column stays NULL),
 // otherwise returns s. Used for customer_confirmed_at which should be NULL
 // until the customer confirms.
 func nullableString(s string) interface{} {
-        if s == "" {
-                return nil
-        }
-        return s
+	if s == "" {
+		return nil
+	}
+	return s
 }
