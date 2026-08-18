@@ -48,10 +48,12 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
                 return nil, err
         }
 
-        // Validate that the application is in pending_approval status
-        if app.Status != model.StatusPendingApproval {
-                return nil, fmt.Errorf("application status is '%s', expected '%s' — only applications awaiting manual review can be updated",
-                        app.Status, model.StatusPendingApproval)
+        // Validate that the application is awaiting expert review.
+        // PR #226: pending_expert (PR #221 customer-confirm flow) və pending_approval
+        // (legacy engine flow) — hər ikisində ekspert approve/reject edə bilər.
+        if app.Status != model.StatusPendingApproval && app.Status != model.StatusPendingExpert {
+                return nil, fmt.Errorf("application status is '%s', expected '%s' or '%s' — only applications awaiting expert review can be updated",
+                        app.Status, model.StatusPendingExpert, model.StatusPendingApproval)
         }
 
         // Validate credit_level is provided for approvals
