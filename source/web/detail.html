@@ -283,6 +283,7 @@
                     <div class="flex items-center gap-2 mb-3">
                         <span class="icon-chip">💳</span>
                         <h2 class="panel-title text-sm font-bold tracking-wide uppercase">Kredit</h2>
+                        <span x-show="app?.credit_level" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700" x-text="levelAz(app?.credit_level)"></span>
                     </div>
                     <div class="grid grid-cols-3 gap-3 mb-3">
                         <div class="sub-card text-center">
@@ -1225,6 +1226,19 @@
                     }
                 },
             }
+        }
+    </script>
+
+    <script>
+        // PR #235: kredit level Azərbaycanca
+        function levelAz(level) {
+            const map = {
+                'NEW': 'Yeni',
+                'TRUSTED': 'Etibarlı',
+                'VALUABLE': 'Dəyərli',
+                'ELITE': 'Elit'
+            };
+            return map[level] || level;
         }
     </script>
 </body>
