@@ -271,9 +271,51 @@
                             <div class="label-soft text-[11px] uppercase tracking-wide">Kart</div>
                             <div class="value-strong font-semibold" x-text="app?.card_number ? '**** ' + app.card_number.slice(-4) : '-'"></div>
                         </div>
+                        <!-- PR #245: Qeydiyyat ünvanı — AZMK GetPersonalInfo-dən (read-only) -->
                         <div class="col-span-2">
-                            <div class="label-soft text-[11px] uppercase tracking-wide">Ünvan</div>
-                            <div class="value-strong font-semibold text-sm leading-snug" x-text="app?.actual_address || '-'"></div>
+                            <div class="label-soft text-[11px] uppercase tracking-wide flex items-center justify-between">
+                                <span>Qeydiyyat ünvanı</span>
+                                <button x-show="app?.registration_address" @click="copyToClipboard(app?.registration_address)"
+                                        class="text-teal-500 hover:text-teal-700 transition" title="Kopyala">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <div class="value-strong text-xs leading-snug break-words"
+                                 :title="app?.registration_address || ''"
+                                 x-text="app?.registration_address || '-'"></div>
+                        </div>
+                        <!-- PR #245: Faktiki ünvan — ekspert redaktə edə bilər -->
+                        <div class="col-span-2">
+                            <div class="label-soft text-[11px] uppercase tracking-wide flex items-center justify-between">
+                                <span>Faktiki ünvan</span>
+                                <button x-show="!isReadOnly && !addressEditing" @click="startAddressEdit()"
+                                        class="text-gray-400 hover:text-teal-600 transition shrink-0" title="Dəyiş">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                    </svg>
+                                </button>
+                            </div>
+                            <!-- Baxış rejimi -->
+                            <div x-show="!addressEditing" class="value-strong text-xs leading-snug break-words"
+                                 x-text="app?.actual_address || '-'"></div>
+                            <!-- Redaktə rejimi -->
+                            <div x-show="addressEditing" class="mt-1">
+                                <textarea x-model="addressDraft" rows="2" maxlength="500"
+                                          placeholder="Faktiki ünvanı daxil edin..."
+                                          class="field-input !py-1.5 w-full text-xs resize-none"></textarea>
+                                <div class="flex items-center gap-2 mt-1.5">
+                                    <span x-show="addressDraft.trim().length" class="text-[10px] text-gray-400"
+                                          x-text="addressDraft.trim().length + '/500'"></span>
+                                    <span class="flex-1"></span>
+                                    <button @click="cancelAddressEdit()"
+                                            class="text-xs px-2.5 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 transition">Ləğv et</button>
+                                    <button @click="saveAddress()" :disabled="addressSaving || !addressDraft.trim()"
+                                            class="text-xs px-2.5 py-1 rounded-md bg-teal-600 text-white hover:bg-teal-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                            x-text="addressSaving ? 'Saxlanılır...' : 'Yadda saxla'"></button>
+                                </div>
+                            </div>
                         </div>
                         <!-- PR #142: Processed by display -->
                         <div x-show="app?.processed_by_username" class="col-span-2">
@@ -656,6 +698,11 @@
                 pensionResult: '',
                 pensionMessage: '',
 
+                // PR #245: Ünvanlar — qeydiyyat (read-only, AZMK) + faktiki (ekspert redaktəsi)
+                addressEditing: false,
+                addressDraft: '',
+                addressSaving: false,
+
                 initTheme() {
                     document.body.setAttribute('data-theme', this.theme);
                 },
@@ -991,6 +1038,52 @@
                     }
                 },
 
+                // PR #245: faktiki ünvan redaktəsi
+                startAddressEdit() {
+                    this.addressDraft = this.app?.actual_address || '';
+                    this.addressEditing = true;
+                },
+                cancelAddressEdit() {
+                    this.addressEditing = false;
+                    this.addressDraft = '';
+                },
+                async saveAddress() {
+                    const addr = (this.addressDraft || '').trim();
+                    if (!addr) return;
+                    this.addressSaving = true;
+                    try {
+                        const resp = await fetch('/api/applications/' + this.internalId + '/address', {
+                            method: 'PUT',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ actual_address: addr }),
+                        });
+                        if (!resp.ok) {
+                            const e = await resp.json().catch(() => ({}));
+                            throw new Error(e.error || 'Saxlanılmadı');
+                        }
+                        this.app.actual_address = addr;
+                        this.addressEditing = false;
+                        this.actionMessage = 'Faktiki ünvan saxlanıldı.';
+                        setTimeout(() => { if (this.actionMessage === 'Faktiki ünvan saxlanıldı.') this.actionMessage = ''; }, 4000);
+                    } catch (e) {
+                        this.actionError = 'Faktiki ünvan saxlanılmadı: ' + e.message;
+                        setTimeout(() => { this.actionError = ''; }, 5000);
+                    } finally {
+                        this.addressSaving = false;
+                    }
+                },
+                // PR #245: qeydiyyat ünvanı boşdursa AZMK-dən doldur (one-time backfill, arxa fonda)
+                async backfillRegistrationAddress() {
+                    if (!this.app || this.app.registration_address) return;
+                    try {
+                        const resp = await fetch('/api/applications/' + this.internalId + '/registration-address', { method: 'POST' });
+                        if (!resp.ok) return;
+                        const data = await resp.json();
+                        if (data.registration_address) this.app.registration_address = data.registration_address;
+                        if (data.customer_full_name && !this.app.customer_full_name) this.app.customer_full_name = data.customer_full_name;
+                    } catch (e) { /* silent — UI-da '-' qalır */ }
+                },
+
                 // PR #125: yoxlama düymələri (verify/reject)
                 // PR #137: təkrar ad varsa verify/reject etmək olmaz
                 // PR #138: nömrə tam deyilsə verify/reject etmək olmaz
@@ -1110,6 +1203,9 @@
                                 editing: false
                             };
                         }
+
+                        // PR #245: qeydiyyat ünvanı boşdursa AZMK-dən doldur (arxa fonda, blocking deyil)
+                        this.backfillRegistrationAddress();
                     } catch (e) {
                         this.error = e.message;
                     } finally {
