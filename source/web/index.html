@@ -228,7 +228,8 @@
     </script>
 
     <script>
-        // PR #234: kredit level Azərbaycanca
+        // PR #236: kredit level Azərbaycanca — backend kiçik hərflə qaytarır ('valuable'),
+        // ona görə lookup öncə toUpperCase ilə normallaşdırılır (regressiya düzəlişi PR #234-dən)
         function levelAz(level) {
             const map = {
                 'NEW': 'Yeni',
@@ -236,7 +237,7 @@
                 'VALUABLE': 'Dəyərli',
                 'ELITE': 'Elit'
             };
-            return map[level] || level;
+            return map[String(level || '').toUpperCase()] || level;
         }
     </script>
 </body>
