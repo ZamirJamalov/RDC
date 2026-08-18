@@ -527,7 +527,8 @@
                 </section>
 
                 <!-- ===== ROW 3: Compliance Yoxlaması ===== -->
-                <section x-show="app?.status === 'pending_approval'" class="panel p-4 col-span-12 flex flex-col">
+                <!-- PR #226: pending_expert üçün də göstər — complianceChecked düyməsi bu bölmədədir -->
+                <section x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert'" class="panel p-4 col-span-12 flex flex-col">
                     <div class="flex items-center gap-2 mb-3">
                         <span class="icon-chip">🔍</span>
                         <h2 class="panel-title text-sm font-bold tracking-wide uppercase">Komplyans Yoxlaması</h2>
@@ -820,7 +821,9 @@
                             errors.push(`Kontakt ${i+1}: Adı digər əlaqədə təkrarlanır`);
                         }
                     }
-                    if (this.app?.status === 'pending_approval') {
+                    // PR #226: MyGov ön şərtləri pending_expert üçün də tələb olunur
+                    // (MyGov paneli bu statusda göstərilir — PR #224)
+                    if (this.app?.status === 'pending_approval' || this.app?.status === 'pending_expert') {
                         if (this.employmentResult !== 'passed') {
                             errors.push('MyGov İş Yeri: Yoxlanılmayıb və ya uğursuz');
                         }

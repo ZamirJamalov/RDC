@@ -361,8 +361,29 @@ func TestUpdateStatus_NotPendingApproval(t *testing.T) {
         if err == nil {
                 t.Fatal("expected error, got nil")
         }
-        if !contains(err.Error(), "expected 'pending_approval'") {
-                t.Errorf("error = %q, want pending_approval message", err.Error())
+        // PR #226: error message now mentions BOTH allowed statuses
+        if !contains(err.Error(), "pending_expert") || !contains(err.Error(), "pending_approval") {
+                t.Errorf("error = %q, want pending_expert/pending_approval message", err.Error())
+        }
+}
+
+// TestUpdateStatus_FromPendingExpert verifies that an application in
+// pending_expert status CAN be approved by the expert.
+// PR #226: PR #221 flow — customer-confirm leaves the app in pending_expert;
+// the expert must be able to approve/reject it from the dashboard.
+func TestUpdateStatus_FromPendingExpert(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.appByID[1] = &model.LoanApplication{ID: 1, Status: model.StatusPendingExpert, Amount: 300, ApprovedRate: 14}
+        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
+
+        app, err := svc.UpdateStatus(ctx, 1, &UpdateStatusRequest{Status: model.StatusApproved, CreditLevel: model.CreditLevelNew})
+        if err != nil {
+                t.Fatalf("approve from pending_expert failed: %v", err)
+        }
+        if app.Status != model.StatusApproved {
+                t.Errorf("status = %q, want %q", app.Status, model.StatusApproved)
         }
 }
 
