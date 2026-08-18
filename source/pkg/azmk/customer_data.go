@@ -593,8 +593,10 @@ func (p *HTTPCustomerDataProvider) GetEmployeeInfoByPin(ctx context.Context, fin
 
 // --- PR #242: GetPensionInfoByPin ---
 
-// PensionInfoRequest is the request body for GetPensionInfoByPin.
+// PensionInfoRequest is the request body for the pension/disability query.
 // PR #242: pensiya/əlillik məlumatları üçün AZMK CustomerDataService-ə sorğu.
+// PR #244: diqqət — AZMK tərəfindən gözlənilən requestType "GetPensionInfo"-dur
+// ("GetEmployeeInfoByPin"-dən fərqli olaraq "ByPin" şəkilçisi YOXDUR).
 type PensionInfoRequest struct {
 	RequestType  string `json:"requestType"`
 	RequestID    string `json:"requestId"`
@@ -603,11 +605,12 @@ type PensionInfoRequest struct {
 }
 
 // GetPensionInfoByPin retrieves pension/disability data from AZMK CustomerDataService.
-// PR #242: requestType = "GetPensionInfoByPin", AZMK URL + Basic Auth.
-// DISABILITY_GROUP1 kesim nöqtəsi bu cavab üzərindən yoxlanılır.
+// PR #242: AZMK URL + Basic Auth. DISABILITY_GROUP1 kesim nöqtəsi bu cavab üzərindən yoxlanılır.
+// PR #244: requestType = "GetPensionInfo" — əvvəl "GetPensionInfoByPin" göndərilirdi,
+// AZMK "Unknown requestType: GetPensionInfoByPin (result=0)" qaytarırdı.
 func (p *HTTPCustomerDataProvider) GetPensionInfoByPin(ctx context.Context, finCode, serialNumber string) (*mygov.PensionInfoResponse, error) {
 	reqBody := PensionInfoRequest{
-		RequestType:  "GetPensionInfoByPin",
+		RequestType:  "GetPensionInfo",
 		RequestID:    "1",
 		FinCode:      finCode,
 		SerialNumber: serialNumber,
@@ -631,7 +634,7 @@ func (p *HTTPCustomerDataProvider) GetPensionInfoByPin(ctx context.Context, finC
 	durationMs := int(time.Since(start).Milliseconds())
 	if err != nil {
 		p.auditLog("AZMK_GET_PENSION_INFO", "POST", url, string(jsonBody), "", 0, durationMs, err.Error())
-		return nil, fmt.Errorf("AZMK GetPensionInfoByPin request failed: %w", err)
+		return nil, fmt.Errorf("AZMK GetPensionInfo request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
@@ -644,12 +647,12 @@ func (p *HTTPCustomerDataProvider) GetPensionInfoByPin(ctx context.Context, finC
 		return nil, fmt.Errorf("failed to decode pension info response: %w", err)
 	}
 	if penResp.Result != 1 {
-		errMsg := fmt.Sprintf("AZMK GetPensionInfoByPin error: %s (result=%d)", penResp.Message, penResp.Result)
+		errMsg := fmt.Sprintf("AZMK GetPensionInfo error: %s (result=%d)", penResp.Message, penResp.Result)
 		p.auditLog("AZMK_GET_PENSION_INFO", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, errMsg)
 		return nil, fmt.Errorf("%s", errMsg)
 	}
 	p.auditLog("AZMK_GET_PENSION_INFO", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, "")
-	slog.Info("AZMK GetPensionInfoByPin success",
+	slog.Info("AZMK GetPensionInfo success",
 		"fin", finCode,
 		"duration_ms", durationMs)
 	return &penResp, nil
