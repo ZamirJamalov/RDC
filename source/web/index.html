@@ -117,7 +117,8 @@
                     <div class="flex justify-between items-start">
                         <div>
                             <div class="flex items-center gap-2 mb-2">
-                                <span class="font-semibold text-lg text-gray-800" x-text="app.customer_full_name"></span>
+                                <!-- PR #237: full name boş olanda '-' göstər (detail.html pattern-i ilə eyni) -->
+                                <span class="font-semibold text-lg text-gray-800" x-text="app.customer_full_name || '-'"></span>
                             </div>
                             <div class="text-sm text-gray-500 space-y-1">
                                 <p><span class="font-medium">PIN:</span> <span x-text="app.customer_pin"></span></p>

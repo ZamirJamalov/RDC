@@ -152,6 +152,76 @@ func TestMockProvider_ReturnsWorkHistory(t *testing.T) {
         }
 }
 
+// --- PR #237: GetEmployeeInfoByPin mock tests ---
+
+// TestMockProvider_GetEmployeeInfoByPin_Default verifies the default scenario:
+// 1 active main-job record signed 8 months ago (passes the 6-month rule).
+func TestMockProvider_GetEmployeeInfoByPin_Default(t *testing.T) {
+        provider := NewMockProvider()
+        info, err := provider.GetEmployeeInfoByPin(context.Background(), "1SBK08P")
+        if err != nil {
+                t.Fatalf("GetEmployeeInfoByPin failed: %v", err)
+        }
+        if info.Data == nil || info.Data.Response == nil {
+                t.Fatalf("Data/Response nil")
+        }
+        if len(info.Data.Response.Active) == 0 {
+                t.Fatalf("Active empty, want 1 record (default scenario)")
+        }
+        rec := info.Data.Response.Active[0]
+        if !rec.IsMainJob() {
+                t.Errorf("Active[0] is not the main job (WorkPlaceType.Label != '1')")
+        }
+        if rec.Contract == nil || rec.Contract.SignDate == "" {
+                t.Fatalf("Contract.SignDate empty, want dd.mm.yyyy date")
+        }
+        signDate, err := time.Parse("02.01.2006", rec.Contract.SignDate)
+        if err != nil {
+                t.Fatalf("SignDate %q not in dd.mm.yyyy format: %v", rec.Contract.SignDate, err)
+        }
+        months := time.Since(signDate).Hours() / 24 / 30
+        if months < 7 || months > 9 {
+                t.Errorf("SignDate tenure = %.1f months, want ~8 months", months)
+        }
+}
+
+// TestMockProvider_GetEmployeeInfoByPin_NOJOB verifies the NOJOB scenario:
+// Active is empty (no workplace info → EMPLOYMENT_TENURE reject).
+func TestMockProvider_GetEmployeeInfoByPin_NOJOB(t *testing.T) {
+        provider := NewMockProvider()
+        info, err := provider.GetEmployeeInfoByPin(context.Background(), "NOJOB001")
+        if err != nil {
+                t.Fatalf("GetEmployeeInfoByPin failed: %v", err)
+        }
+        if info.Data == nil || info.Data.Response == nil {
+                t.Fatalf("Data/Response nil")
+        }
+        if len(info.Data.Response.Active) != 0 {
+                t.Errorf("Active = %d records, want 0 (NOJOB scenario)", len(info.Data.Response.Active))
+        }
+}
+
+// TestMockProvider_GetEmployeeInfoByPin_SHORT verifies the SHORT scenario:
+// active record signed 3 months ago (fails the 6-month rule).
+func TestMockProvider_GetEmployeeInfoByPin_SHORT(t *testing.T) {
+        provider := NewMockProvider()
+        info, err := provider.GetEmployeeInfoByPin(context.Background(), "SHORT01")
+        if err != nil {
+                t.Fatalf("GetEmployeeInfoByPin failed: %v", err)
+        }
+        if len(info.Data.Response.Active) != 1 {
+                t.Fatalf("Active = %d records, want 1", len(info.Data.Response.Active))
+        }
+        signDate, err := time.Parse("02.01.2006", info.Data.Response.Active[0].Contract.SignDate)
+        if err != nil {
+                t.Fatalf("SignDate parse failed: %v", err)
+        }
+        months := time.Since(signDate).Hours() / 24 / 30
+        if months < 2 || months > 4 {
+                t.Errorf("SignDate tenure = %.1f months, want ~3 months", months)
+        }
+}
+
 // TestWorkPlace_EndDate_Nil_Omitempty verifies that EndDate is omitted from
 // JSON when nil (current job), so the wire format is clean.
 func TestWorkPlace_EndDate_Nil_Omitempty(t *testing.T) {
