@@ -35,6 +35,8 @@ type CustomerDataProvider interface {
 	InquireByIdCard(ctx context.Context, finCode, serialNumber string) (*CreditHistory, error)
 	// PR #239: getEmployeeInfoByPin — iş yeri məlumatları (AZMK CustomerDataService)
 	GetEmployeeInfoByPin(ctx context.Context, finCode, serialNumber string) (*mygov.EmployeeInfoResponse, error)
+	// PR #242: getPensionInfoByPin — pensiya və əlillik qrupu məlumatları (DISABILITY_GROUP1)
+	GetPensionInfoByPin(ctx context.Context, finCode, serialNumber string) (*mygov.PensionInfoResponse, error)
 }
 
 // --- PR #165: inquireByIdCard ---
@@ -587,6 +589,70 @@ func (p *HTTPCustomerDataProvider) GetEmployeeInfoByPin(ctx context.Context, fin
 		"deactive_count", len(empResp.Data.Response.Deactive),
 		"duration_ms", durationMs)
 	return &empResp, nil
+}
+
+// --- PR #242: GetPensionInfoByPin ---
+
+// PensionInfoRequest is the request body for GetPensionInfoByPin.
+// PR #242: pensiya/əlillik məlumatları üçün AZMK CustomerDataService-ə sorğu.
+type PensionInfoRequest struct {
+	RequestType  string `json:"requestType"`
+	RequestID    string `json:"requestId"`
+	FinCode      string `json:"finCode"`
+	SerialNumber string `json:"serialNumber"`
+}
+
+// GetPensionInfoByPin retrieves pension/disability data from AZMK CustomerDataService.
+// PR #242: requestType = "GetPensionInfoByPin", AZMK URL + Basic Auth.
+// DISABILITY_GROUP1 kesim nöqtəsi bu cavab üzərindən yoxlanılır.
+func (p *HTTPCustomerDataProvider) GetPensionInfoByPin(ctx context.Context, finCode, serialNumber string) (*mygov.PensionInfoResponse, error) {
+	reqBody := PensionInfoRequest{
+		RequestType:  "GetPensionInfoByPin",
+		RequestID:    "1",
+		FinCode:      finCode,
+		SerialNumber: serialNumber,
+	}
+	jsonBody, _ := json.Marshal(reqBody)
+	url := p.baseURL
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(jsonBody)))
+	if err != nil {
+		p.auditLog("AZMK_GET_PENSION_INFO", "POST", url, string(jsonBody), "", 0, 0, err.Error())
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if p.username != "" && p.password != "" {
+		auth := p.username + ":" + p.password
+		req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(auth)))
+	}
+
+	start := time.Now()
+	resp, err := p.httpClient.Do(req)
+	durationMs := int(time.Since(start).Milliseconds())
+	if err != nil {
+		p.auditLog("AZMK_GET_PENSION_INFO", "POST", url, string(jsonBody), "", 0, durationMs, err.Error())
+		return nil, fmt.Errorf("AZMK GetPensionInfoByPin request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBodyBytes, _ := io.ReadAll(resp.Body)
+	respBodyStr := string(respBodyBytes)
+
+	var penResp mygov.PensionInfoResponse
+	if err := json.Unmarshal(respBodyBytes, &penResp); err != nil {
+		p.auditLog("AZMK_GET_PENSION_INFO", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, fmt.Sprintf("decode error: %v", err))
+		return nil, fmt.Errorf("failed to decode pension info response: %w", err)
+	}
+	if penResp.Result != 1 {
+		errMsg := fmt.Sprintf("AZMK GetPensionInfoByPin error: %s (result=%d)", penResp.Message, penResp.Result)
+		p.auditLog("AZMK_GET_PENSION_INFO", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, errMsg)
+		return nil, fmt.Errorf("%s", errMsg)
+	}
+	p.auditLog("AZMK_GET_PENSION_INFO", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, "")
+	slog.Info("AZMK GetPensionInfoByPin success",
+		"fin", finCode,
+		"duration_ms", durationMs)
+	return &penResp, nil
 }
 
 // MkrScoreRequest is the request body for getMkrScore.
@@ -1378,6 +1444,21 @@ func (m *MockCustomerDataProvider) GetEmployeeInfoByPin(_ context.Context, finCo
 						Contract: &mygov.ContractInfo{SignDate: "01.01.2020", BeginDate: "01.01.2020", EndDate: "31.12.2026"},
 					},
 				},
+			},
+		},
+	}, nil
+}
+
+// GetPensionInfoByPin — PR #242: mock implementation (1-ci qrup əlillik yoxdur).
+func (m *MockCustomerDataProvider) GetPensionInfoByPin(_ context.Context, finCode, serialNumber string) (*mygov.PensionInfoResponse, error) {
+	return &mygov.PensionInfoResponse{
+		Result:  1,
+		Message: "SUCCESS",
+		Data: &mygov.PensionInfoData{
+			Response: &mygov.PensionRecord{
+				DisabilityGroup: 0,
+				IsPensioner:     false,
+				PensionType:     "",
 			},
 		},
 	}, nil

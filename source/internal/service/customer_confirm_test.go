@@ -35,6 +35,10 @@ type mockAzmkCustomerData struct {
 	// üçün impl obliged-dır. Default: nil, nil (fail-soft).
 	employeeData *mygov.EmployeeInfoResponse
 	employeeErr  error
+
+	// PR #242: GetPensionInfoByPin — pensiya/əlillik mock-u (eyni qayda).
+	pensionData *mygov.PensionInfoResponse
+	pensionErr  error
 }
 
 func (m *mockAzmkCustomerData) GetPersonalInfo(_ context.Context, _, _ string) (*azmk.CustomerData, error) {
@@ -73,6 +77,16 @@ func (m *mockAzmkCustomerData) GetEmployeeInfoByPin(_ context.Context, _, _ stri
 		return nil, m.employeeErr
 	}
 	return m.employeeData, nil
+}
+
+// GetPensionInfoByPin — PR #242: mock implementasiyası. Customer-confirm flow
+// bu metodu çağırmır (pensiya sorğusu dashboard-dan ayrıca vurur), amma
+// azmk.CustomerDataProvider interfeysi tələb etdiyi üçün əlavə olundu.
+func (m *mockAzmkCustomerData) GetPensionInfoByPin(_ context.Context, _, _ string) (*mygov.PensionInfoResponse, error) {
+	if m.pensionErr != nil {
+		return nil, m.pensionErr
+	}
+	return m.pensionData, nil
 }
 
 // newConfirmStore builds a mock store with a pending_customer application + offer ranges.

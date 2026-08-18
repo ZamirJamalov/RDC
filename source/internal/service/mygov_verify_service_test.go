@@ -40,7 +40,7 @@ func empInfo(signDate string, beginDate string) *mygov.EmployeeInfoResponse {
 func TestCheckEmploymentTenure_SignDate8Months_Pass(t *testing.T) {
 	sign := time.Now().AddDate(0, -8, 0).Format("02.01.2006")
 
-	passed, reason := checkEmploymentTenureFromEmployeeInfo(empInfo(sign, sign))
+	passed, _, reason := checkEmploymentTenureFromEmployeeInfo(empInfo(sign, sign))
 	if !passed {
 		t.Errorf("passed = false, want true; reason = %q", reason)
 	}
@@ -54,7 +54,7 @@ func TestCheckEmploymentTenure_SignDate8Months_Pass(t *testing.T) {
 func TestCheckEmploymentTenure_SignDate3Months_Fail(t *testing.T) {
 	sign := time.Now().AddDate(0, -3, 0).Format("02.01.2006")
 
-	passed, reason := checkEmploymentTenureFromEmployeeInfo(empInfo(sign, sign))
+	passed, _, reason := checkEmploymentTenureFromEmployeeInfo(empInfo(sign, sign))
 	if passed {
 		t.Errorf("passed = true, want false (3 months < 6)")
 	}
@@ -68,7 +68,7 @@ func TestCheckEmploymentTenure_SignDate3Months_Fail(t *testing.T) {
 func TestCheckEmploymentTenure_SignDateExactly6Months_Pass(t *testing.T) {
 	sign := time.Now().AddDate(0, -6, 0).Format("02.01.2006")
 
-	passed, _ := checkEmploymentTenureFromEmployeeInfo(empInfo(sign, sign))
+	passed, _, _ := checkEmploymentTenureFromEmployeeInfo(empInfo(sign, sign))
 	if !passed {
 		t.Errorf("passed = false, want true (exactly 6 months)")
 	}
@@ -79,7 +79,7 @@ func TestCheckEmploymentTenure_SignDateExactly6Months_Pass(t *testing.T) {
 func TestCheckEmploymentTenure_SignDate5Months_Fail(t *testing.T) {
 	sign := time.Now().AddDate(0, -5, 0).Format("02.01.2006")
 
-	passed, _ := checkEmploymentTenureFromEmployeeInfo(empInfo(sign, sign))
+	passed, _, _ := checkEmploymentTenureFromEmployeeInfo(empInfo(sign, sign))
 	if passed {
 		t.Errorf("passed = true, want false (5 months < 6)")
 	}
@@ -96,7 +96,7 @@ func TestCheckEmploymentTenure_EmptyActive_Fail(t *testing.T) {
 		},
 	}
 
-	passed, reason := checkEmploymentTenureFromEmployeeInfo(info)
+	passed, _, reason := checkEmploymentTenureFromEmployeeInfo(info)
 	if passed {
 		t.Errorf("passed = true, want false")
 	}
@@ -113,7 +113,7 @@ func TestCheckEmploymentTenure_NilResponse_Fail(t *testing.T) {
 		{Result: 1, Data: &mygov.EmployeeInfoData{Response: nil}},
 	}
 	for i, info := range cases {
-		passed, reason := checkEmploymentTenureFromEmployeeInfo(info)
+		passed, _, reason := checkEmploymentTenureFromEmployeeInfo(info)
 		if passed {
 			t.Errorf("case %d: passed = true, want false", i)
 		}
@@ -129,7 +129,7 @@ func TestCheckEmploymentTenure_SignDateFallbackToBeginDate(t *testing.T) {
 	begin := time.Now().AddDate(0, -8, 0).Format("02.01.2006")
 
 	// SignDate empty → fallback to BeginDate (8 months ago → pass)
-	passed, reason := checkEmploymentTenureFromEmployeeInfo(empInfo("", begin))
+	passed, _, reason := checkEmploymentTenureFromEmployeeInfo(empInfo("", begin))
 	if !passed {
 		t.Errorf("passed = false, want true (BeginDate fallback); reason = %q", reason)
 	}
@@ -141,7 +141,7 @@ func TestCheckEmploymentTenure_SignDateFallbackToBeginDate(t *testing.T) {
 // TestCheckEmploymentTenure_NoDates_Fail verifies that a contract without
 // SignDate and BeginDate fails with a clear message.
 func TestCheckEmploymentTenure_NoDates_Fail(t *testing.T) {
-	passed, reason := checkEmploymentTenureFromEmployeeInfo(empInfo("", ""))
+	passed, _, reason := checkEmploymentTenureFromEmployeeInfo(empInfo("", ""))
 	if passed {
 		t.Errorf("passed = true, want false (no dates)")
 	}
@@ -170,7 +170,7 @@ func TestCheckEmploymentTenure_MainJobPreferred(t *testing.T) {
 	info := empInfo(short, short)
 	info.Data.Response.Active = append(info.Data.Response.Active, partTime)
 
-	passed, reason := checkEmploymentTenureFromEmployeeInfo(info)
+	passed, _, reason := checkEmploymentTenureFromEmployeeInfo(info)
 	if passed {
 		t.Errorf("passed = true, want false (main job 2 months < 6)")
 	}
@@ -182,11 +182,41 @@ func TestCheckEmploymentTenure_MainJobPreferred(t *testing.T) {
 // TestCheckEmploymentTenure_InvalidDateFormat_Fail verifies that an
 // unparseable date fails with a clear message instead of panicking.
 func TestCheckEmploymentTenure_InvalidDateFormat_Fail(t *testing.T) {
-	passed, reason := checkEmploymentTenureFromEmployeeInfo(empInfo("2026-07-01", ""))
+	passed, _, reason := checkEmploymentTenureFromEmployeeInfo(empInfo("2026-07-01", ""))
 	if passed {
 		t.Errorf("passed = true, want false (invalid date format)")
 	}
 	if !contains(reason, "formatı düzgün deyil") {
 		t.Errorf("reason = %q, want 'formatı düzgün deyil'", reason)
+	}
+}
+
+// --- PR #242: months return value tests (cutoff_results.actual_value üçün) ---
+
+// TestCheckEmploymentTenure_ReturnsMonths verifies that the computed tenure
+// in months is returned alongside pass/fail (~8 for an 8-month-old contract).
+func TestCheckEmploymentTenure_ReturnsMonths(t *testing.T) {
+	sign := time.Now().AddDate(0, -8, 0).Format("02.01.2006")
+
+	_, months, _ := checkEmploymentTenureFromEmployeeInfo(empInfo(sign, sign))
+	if months < 7.5 || months > 8.5 {
+		t.Errorf("months = %.1f, want ~8.0", months)
+	}
+}
+
+// TestCheckEmploymentTenure_MonthsNegativeOnMissingData verifies months = -1
+// when the tenure cannot be computed (nil response, no dates, bad format).
+func TestCheckEmploymentTenure_MonthsNegativeOnMissingData(t *testing.T) {
+	cases := []*mygov.EmployeeInfoResponse{
+		nil,
+		{Result: 1, Data: nil},
+		empInfo("", ""),           // SignDate + BeginDate boş
+		empInfo("2026-07-01", ""), // düzgün olmayan format
+	}
+	for i, info := range cases {
+		_, months, _ := checkEmploymentTenureFromEmployeeInfo(info)
+		if months >= 0 {
+			t.Errorf("case %d: months = %.1f, want -1", i, months)
+		}
 	}
 }
