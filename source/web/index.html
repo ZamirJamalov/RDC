@@ -140,7 +140,7 @@
                                   }"
                                   x-text="app.status">
                             </span>
-                            <p class="text-sm text-gray-400 mt-2" x-text="app.credit_level ? ('Level: ' + app.credit_level) : ''"></p>
+                            <p class="text-sm text-gray-400 mt-2" x-text="app.credit_level ? ('Səviyyə: ' + levelAz(app.credit_level)) : ''"></p>
                         </div>
                     </div>
                 </div>
@@ -224,6 +224,19 @@
                     }
                 }
             }
+        }
+    </script>
+
+    <script>
+        // PR #234: kredit level Azərbaycanca
+        function levelAz(level) {
+            const map = {
+                'NEW': 'Yeni',
+                'TRUSTED': 'Etibarlı',
+                'VALUABLE': 'Dəyərli',
+                'ELITE': 'Elit'
+            };
+            return map[level] || level;
         }
     </script>
 </body>

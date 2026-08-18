@@ -1359,10 +1359,9 @@ function applyApp() {
                 if (!resp.ok) throw new Error(data.error || 'Təsdiq zamanı xəta baş verdi');
 
                 // Save confirmed values + final engine status for result screen
-                // PR #190: confirmedAmount = yekun məbləğ (kredit + komissiya)
-                const finalAmount = parseFloat(this.creditAmount) || data.amount || this.form.amount;
-                this.confirmedAmount = finalAmount;
-                this.confirmedTerm = data.term_months || this.selectedRange.term_months;
+                // PR #234: confirmedAmount backend-dən gəlir (data.total_amount) — term-ə uyğun düzgün
+                this.confirmedAmount = data.total_amount || parseFloat(this.creditAmount) || data.amount || this.form.amount;
+                this.confirmedTerm = data.term_months || this.form.term || this.selectedRange?.term_months;
                 // PR #221/#223: pending_expert = müraciət RDC dashboard-a göndərildi (success)
                 const status = data.status || 'pending';
                 this.engineStatus = (status === 'pending_expert') ? 'pending_approval' : status;
