@@ -110,7 +110,8 @@ func (h *MyGovHandler) RequestEmployment(w http.ResponseWriter, r *http.Request)
 }
 
 // VerifyEmployment handles POST /api/applications/{id}/mygov-employment-verify.
-// Fetches MyGov data (if not already fetched) and runs the 6-month tenure rule.
+// Runs the EMPLOYMENT_TENURE cutoff from the MLSA GetEmployeeInfoByPin response
+// (PR #237 — PIN üzərindən, permission token tələb olunmur).
 // Auto-rejects the application if the rule fails.
 func (h *MyGovHandler) VerifyEmployment(w http.ResponseWriter, r *http.Request) {
         id, err := strconv.Atoi(r.PathValue("id"))
@@ -119,14 +120,7 @@ func (h *MyGovHandler) VerifyEmployment(w http.ResponseWriter, r *http.Request) 
                 return
         }
 
-        // First, ensure data is fetched from MyGov
-        if err := h.svc.FetchData(r.Context(), id); err != nil {
-                slog.Error("employment verify: FetchData failed", "application_id", id, "error", err)
-                writeMyGovError(w, http.StatusBadGateway, "MyGov məlumatları əldə edilə bilmədi: "+err.Error())
-                return
-        }
-
-        // Run the tenure check
+        // Run the tenure check (GetEmployeeInfoByPin by PIN — no permission flow needed)
         resp, err := h.svc.VerifyEmployment(r.Context(), id)
         if err != nil {
                 slog.Error("employment verify failed", "application_id", id, "error", err)
