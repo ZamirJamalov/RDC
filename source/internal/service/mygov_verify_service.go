@@ -73,8 +73,16 @@ func (s *MyGovService) VerifyEmployment(ctx context.Context, appID int) (*MyGovV
                 return nil, fmt.Errorf("customer PIN not found for application %d", appID)
         }
 
-        // 2. Fetch employment records from the MLSA service
-        info, err := s.provider.GetEmployeeInfoByPin(ctx, pin)
+        // 2. Fetch employment records from AZMK CustomerDataService (PR #239)
+        pin, serial := s.getCustomerPINAndSerial(ctx, appID)
+        var info *mygov.EmployeeInfoResponse
+        var err error
+        if s.customerDataProvider != nil {
+                info, err = s.customerDataProvider.GetEmployeeInfoByPin(ctx, pin, serial)
+        } else {
+                // Fallback: MyGov provider (localhost:8083)
+                info, err = s.provider.GetEmployeeInfoByPin(ctx, pin)
+        }
         if err != nil {
                 return nil, fmt.Errorf("GetEmployeeInfoByPin failed: %w", err)
         }
@@ -290,11 +298,18 @@ func (s *MyGovService) autoReject(ctx context.Context, appID int, reason string)
         }
 }
 
-// getCustomerPIN fetches the customer PIN for an application.
-func (s *MyGovService) getCustomerPIN(ctx context.Context, appID int) string {
+// getCustomerPINAndSerial fetches the customer PIN and serial for an application.
+// PR #239: AZMK GetEmployeeInfoByPin həm FIN, həm serial tələb edir.
+func (s *MyGovService) getCustomerPINAndSerial(ctx context.Context, appID int) (string, string) {
         app, err := s.appRepo.GetApplicationByID(ctx, appID)
         if err != nil {
-                return ""
+                return "", ""
         }
-        return app.CustomerPIN
+        return app.CustomerPIN, app.CustomerSerial
+}
+
+// getCustomerPIN fetches the customer PIN for an application.
+func (s *MyGovService) getCustomerPIN(ctx context.Context, appID int) string {
+        pin, _ := s.getCustomerPINAndSerial(ctx, appID)
+        return pin
 }

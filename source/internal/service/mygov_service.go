@@ -9,6 +9,7 @@ import (
 
         "rdc-source/internal/model"
         "rdc-source/internal/repository"
+        "rdc-source/pkg/azmk"
         "rdc-source/pkg/mygov"
         "rdc-source/pkg/otp"
 )
@@ -22,6 +23,8 @@ type MyGovService struct {
         clientID    string
         redirectURI string
         webURL      string
+        // PR #239: AZMK CustomerDataProvider — GetEmployeeInfoByPin üçün
+        customerDataProvider azmk.CustomerDataProvider
 }
 
 // NewMyGovService creates a new MyGovService.
@@ -35,6 +38,12 @@ func NewMyGovService(provider mygov.Provider, repo *repository.MyGovRepo, appRep
                 redirectURI: redirectURI,
                 webURL:      webURL,
         }
+}
+
+// SetCustomerDataProvider injects the AZMK CustomerDataProvider (PR #239).
+// GetEmployeeInfoByPin AZMK CustomerDataService-ə sorğu göndərir.
+func (s *MyGovService) SetCustomerDataProvider(provider azmk.CustomerDataProvider) {
+        s.customerDataProvider = provider
 }
 
 // GenerateLink creates a MyGov consent deeplink and sends it via SMS
@@ -77,8 +86,8 @@ func (s *MyGovService) GenerateLink(ctx context.Context, appID int, customerPIN 
                 return nil, fmt.Errorf("failed to store MyGov permission: %w", err)
         }
 
-	// 7. Send SMS with static web URL (no query params)
-	mygovMessage := fmt.Sprintf("Icazeni tesdiqlemek ucun linki acin: %s", s.webURL)
+        // 7. Send SMS with static web URL (no query params)
+        mygovMessage := fmt.Sprintf("Icazeni tesdiqlemek ucun linki acin: %s", s.webURL)
         if err := s.smsProvider.Send(ctx, app.CustomerPhone, mygovMessage); err != nil {
                 slog.Error("failed to send MyGov SMS",
                         "application_id", appID,
