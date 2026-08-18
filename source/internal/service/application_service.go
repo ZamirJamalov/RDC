@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"rdc-source/internal/model"
 	"rdc-source/internal/repository"
@@ -188,29 +189,20 @@ func (s *ApplicationService) GetCachedServiceResponse(ctx context.Context, servi
 	return responseBody, found
 }
 
-// resolveCustomerAgeFromAzmk fetches customer data from AZMK CustomerDataService
-// and calculates age from BirthDate. Returns (0, "") on error (fail-soft — no rejection).
-// PR #152
-// PR #243: fullName da qaytarılır — early cutoff mərhələsində saxlanılır ki
+// fetchCustomerDataFromAzmk fetches customer data from AZMK CustomerDataService
+// (GetPersonalInfo). Returns nil on error (fail-soft — no rejection).
+// PR #152: yaş yoxlaması üçün əsas mənbə.
+// PR #243: fullName da istifadə olunur — early cutoff mərhələsində saxlanılır ki
 // customer-confirm/video eyni servisə ikinci sorğu göndərməsin.
-func (s *ApplicationService) resolveCustomerAgeFromAzmk(ctx context.Context, customerPIN, serial string) (int, string) {
+// PR #245: RegistrationAddress da qaytarılır — qeydiyyat ünvanı DB-yə yazılır.
+func (s *ApplicationService) fetchCustomerDataFromAzmk(ctx context.Context, customerPIN, serial string) *azmk.CustomerData {
 	data, err := s.customerDataProvider.GetPersonalInfo(ctx, customerPIN, serial)
 	if err != nil {
-		slog.Warn("failed to fetch customer data from AZMK — age unknown (fail-soft)",
+		slog.Warn("failed to fetch customer data from AZMK — fail-soft",
 			"customer_pin", customerPIN, "error", err)
-		return 0, ""
+		return nil
 	}
-	if data == nil {
-		return 0, ""
-	}
-	age := data.Age()
-	fullName := data.FullName()
-	slog.Info("customer age resolved from AZMK",
-		"customer_pin", customerPIN,
-		"birth_date", data.BirthDate,
-		"age", age,
-		"name", fullName)
-	return age, fullName
+	return data
 }
 
 // UpdateContactsRequest is the body for PUT /api/applications/{id}/contacts.
@@ -279,6 +271,86 @@ func (s *ApplicationService) UpdateTimer(ctx context.Context, appID int, seconds
 		return fmt.Errorf("invalid application id")
 	}
 	return s.repo.UpdateTimer(ctx, appID, seconds)
+}
+
+// UpdateAddressRequest is the body for PUT /api/applications/{id}/address.
+// PR #245: ekspert faktiki ünvanı redaktə edir.
+type UpdateAddressRequest struct {
+	ActualAddress string `json:"actual_address"`
+}
+
+// UpdateActualAddress saves the expert-edited actual (factual) address.
+// PR #245: dashboard-da faktiki ünvan redaktə edilə bilər və DB-də saxlanılır.
+// Qərar verildikdən sonra (approved/rejected) dəyişmək olmaz (PR #135 paralel).
+func (s *ApplicationService) UpdateActualAddress(ctx context.Context, appID int, address string) (*model.LoanApplication, error) {
+	if appID <= 0 {
+		return nil, fmt.Errorf("invalid application id")
+	}
+	address = strings.TrimSpace(address)
+	if address == "" {
+		return nil, fmt.Errorf("faktiki ünvan boş ola bilməz")
+	}
+	if len(address) > 500 {
+		return nil, fmt.Errorf("ünvan 500 simvoldan artıq ola bilməz")
+	}
+
+	app, err := s.repo.GetApplicationByID(ctx, appID)
+	if err != nil {
+		return nil, fmt.Errorf("application not found: %w", err)
+	}
+	if model.IsFinal(app.Status) {
+		return nil, fmt.Errorf("qərar verildikdən sonra ünvan dəyişdirilə bilməz")
+	}
+
+	if err := s.repo.UpdateActualAddress(ctx, appID, address); err != nil {
+		return nil, fmt.Errorf("failed to save actual address: %w", err)
+	}
+	app.ActualAddress = address
+
+	slog.Info("actual address updated by expert", "application_id", appID)
+	return app, nil
+}
+
+// BackfillRegistrationAddress fetches the AZMK registration address for an
+// application that was created before PR #245 (registration_address boşdur).
+// PR #245: dashboard-da qeydiyyat ünvanı boş olanda frontend bu endpoint-i çağırır.
+// Fail-soft: AZMK xətası və ya provider yoxdursa tətbiq dəyişməz qaytarılır.
+// Bir dəfəyə (one-time) — saxlandıqdan sonra bir daha çağırılmır.
+func (s *ApplicationService) BackfillRegistrationAddress(ctx context.Context, appID int) (*model.LoanApplication, error) {
+	if appID <= 0 {
+		return nil, fmt.Errorf("invalid application id")
+	}
+	app, err := s.repo.GetApplicationByID(ctx, appID)
+	if err != nil {
+		return nil, fmt.Errorf("application not found: %w", err)
+	}
+	if app.RegistrationAddress != "" {
+		return app, nil // artıq var — AZMK çağırmağa ehtiyac yoxdur
+	}
+	if s.customerDataProvider == nil {
+		return app, nil
+	}
+
+	data := s.fetchCustomerDataFromAzmk(ctx, app.CustomerPIN, app.CustomerSerial)
+	if data == nil {
+		return app, nil // fail-soft
+	}
+	if data.RegistrationAddress != "" {
+		app.RegistrationAddress = data.RegistrationAddress
+		if err := s.repo.UpdateRegistrationAddress(ctx, appID, data.RegistrationAddress); err != nil {
+			slog.Warn("failed to save registration address to DB", "application_id", appID, "error", err)
+		} else {
+			slog.Info("registration address backfilled from AZMK", "application_id", appID)
+		}
+	}
+	// PR #243 paralel: ad da boşdursa saxla (əlavə sorğu yoxdur — data artıq gəlib)
+	if name := data.FullName(); name != "" && app.CustomerFullName == "" {
+		app.CustomerFullName = name
+		if err := s.repo.UpdateCustomerFullName(ctx, appID, name); err != nil {
+			slog.Warn("failed to save customer full name to DB", "application_id", appID, "error", err)
+		}
+	}
+	return app, nil
 }
 
 // SetProcessedBy records which dashboard user approved/rejected the application.

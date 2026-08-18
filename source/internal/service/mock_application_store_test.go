@@ -270,6 +270,22 @@ func (m *mockApplicationStore) UpdateCustomerFullName(_ context.Context, id int,
 	return nil
 }
 
+// UpdateActualAddress — PR #245: mock implementation.
+func (m *mockApplicationStore) UpdateActualAddress(_ context.Context, id int, address string) error {
+	if existing, ok := m.appByID[id]; ok {
+		existing.ActualAddress = address
+	}
+	return nil
+}
+
+// UpdateRegistrationAddress — PR #245: mock implementation.
+func (m *mockApplicationStore) UpdateRegistrationAddress(_ context.Context, id int, address string) error {
+	if existing, ok := m.appByID[id]; ok {
+		existing.RegistrationAddress = address
+	}
+	return nil
+}
+
 // UpdateApplicationDetails updates the mock store's application record.
 func (m *mockApplicationStore) UpdateApplicationDetails(_ context.Context, id int, app *model.LoanApplication) error {
 	if existing, ok := m.appByID[id]; ok {

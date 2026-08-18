@@ -563,8 +563,14 @@ afterOwnerData: // PR #205: cache hit halında bura jump edilir
 	age := 0
 	if s.customerDataProvider != nil {
 		slog.Info("early cutoff: calling AZMK GetPersonalInfo (age check)", "application_id", appID, "customer_pin", customerPIN)
+		data := s.fetchCustomerDataFromAzmk(ctx, customerPIN, serial)
 		var fullName string
-		age, fullName = s.resolveCustomerAgeFromAzmk(ctx, customerPIN, serial)
+		if data != nil {
+			age = data.Age()
+			fullName = data.FullName()
+			slog.Info("customer data resolved from AZMK",
+				"customer_pin", customerPIN, "birth_date", data.BirthDate, "age", age, "name", fullName)
+		}
 		// PR #243: GetPersonalInfo cavabındakı adı saxla — customer-confirm
 		// və video mərhələlərində eyni servisə ikinci sorğu göndərilməsin.
 		if fullName != "" && app.CustomerFullName == "" {
@@ -573,6 +579,16 @@ afterOwnerData: // PR #205: cache hit halında bura jump edilir
 				slog.Warn("failed to save customer full name to DB", "error", err)
 			} else {
 				slog.Info("customer full name saved from AZMK", "application_id", appID)
+			}
+		}
+		// PR #245: qeydiyyat ünvanını saxla — dashboard-da göstərilir (read-only).
+		// Yalnız boş olanda yazılır (AZMK mənbəyi hər dəfə yenilənmir).
+		if data != nil && data.RegistrationAddress != "" && app.RegistrationAddress == "" {
+			app.RegistrationAddress = data.RegistrationAddress
+			if err := s.repo.UpdateRegistrationAddress(ctx, appID, data.RegistrationAddress); err != nil {
+				slog.Warn("failed to save registration address to DB", "error", err)
+			} else {
+				slog.Info("registration address saved from AZMK", "application_id", appID)
 			}
 		}
 	} else {

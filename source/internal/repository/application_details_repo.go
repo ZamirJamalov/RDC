@@ -100,6 +100,30 @@ func (r *ApplicationRepo) UpdateCustomerFullName(ctx context.Context, id int, fu
 	return nil
 }
 
+// UpdateActualAddress updates only the actual_address field.
+// PR #245: ekspert tərəfindən redaktə edilən faktiki ünvan DB-də saxlanılır.
+func (r *ApplicationRepo) UpdateActualAddress(ctx context.Context, id int, address string) error {
+	_, err := r.db.ExecContext(ctx, `
+                UPDATE loan_applications SET actual_address = ?, updated_at = GETDATE() WHERE id = ?`,
+		address, id)
+	if err != nil {
+		return fmt.Errorf("failed to update actual_address: %w", err)
+	}
+	return nil
+}
+
+// UpdateRegistrationAddress updates only the registration_address field.
+// PR #245: AZMK GetPersonalInfo-dən gələn qeydiyyat ünvanı saxlanılır.
+func (r *ApplicationRepo) UpdateRegistrationAddress(ctx context.Context, id int, address string) error {
+	_, err := r.db.ExecContext(ctx, `
+                UPDATE loan_applications SET registration_address = ?, updated_at = GETDATE() WHERE id = ?`,
+		address, id)
+	if err != nil {
+		return fmt.Errorf("failed to update registration_address: %w", err)
+	}
+	return nil
+}
+
 // nullableString returns nil when s is empty (so the DB column stays NULL),
 // otherwise returns s. Used for customer_confirmed_at which should be NULL
 // until the customer confirms.

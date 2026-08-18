@@ -111,6 +111,14 @@ type ApplicationStore interface {
 	// PR #243: early cutoff mərhələsində AZMK-dən gələn ad saxlanılır.
 	UpdateCustomerFullName(ctx context.Context, id int, fullName string) error
 
+	// UpdateActualAddress updates only the actual_address field.
+	// PR #245: ekspert faktiki ünvanı redaktə edir.
+	UpdateActualAddress(ctx context.Context, id int, address string) error
+
+	// UpdateRegistrationAddress updates only the registration_address field.
+	// PR #245: AZMK GetPersonalInfo-dən gələn qeydiyyat ünvanı saxlanılır.
+	UpdateRegistrationAddress(ctx context.Context, id int, address string) error
+
 	// PR #95: discount code persistence.
 	// UpdateApplicationDiscount sets discount_code + discount_amount on an
 	// application. Used by customer-confirm (to store the entered code) and
