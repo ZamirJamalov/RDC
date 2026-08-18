@@ -7,12 +7,59 @@ import (
 
 	"rdc-source/internal/model"
 	"rdc-source/internal/repository"
+	"rdc-source/pkg/azmk"
 	"rdc-source/pkg/lw"
 )
 
-// --- PR #58 tests: customer-confirm flow ---
+// --- PR #227 tests: customer-confirm flow (AZMK-first, fail-soft, no LW router) ---
 
-// helper: build a mock store with a pending_expert application + offer ranges
+// mockAzmkCustomerData is a test-only implementation of azmk.CustomerDataProvider
+// with configurable return values, so tests can simulate AZMK successes, errors
+// and stop-factor responses without the scenario-map logic of the built-in mock.
+type mockAzmkCustomerData struct {
+	personalData *azmk.CustomerData
+	personalErr  error
+
+	ownerData *azmk.OwnerData
+	ownerErr  error
+
+	mkrScore *azmk.MkrScore
+	mkrErr   error
+
+	history *azmk.CreditHistory
+	histErr error
+}
+
+func (m *mockAzmkCustomerData) GetPersonalInfo(_ context.Context, _, _ string) (*azmk.CustomerData, error) {
+	if m.personalErr != nil {
+		return nil, m.personalErr
+	}
+	return m.personalData, nil
+}
+
+func (m *mockAzmkCustomerData) GetOwnerData(_ context.Context, _, _ string) (*azmk.OwnerData, error) {
+	if m.ownerErr != nil {
+		return nil, m.ownerErr
+	}
+	return m.ownerData, nil
+}
+
+func (m *mockAzmkCustomerData) GetMkrScore(_ context.Context, _, _ string) (*azmk.MkrScore, error) {
+	if m.mkrErr != nil {
+		return nil, m.mkrErr
+	}
+	return m.mkrScore, nil
+}
+
+func (m *mockAzmkCustomerData) InquireByIdCard(_ context.Context, _, _ string) (*azmk.CreditHistory, error) {
+	if m.histErr != nil {
+		return nil, m.histErr
+	}
+	return m.history, nil
+}
+
+// newConfirmStore builds a mock store with a pending_customer application + offer ranges.
+// PR #221: customer-confirm requires pending_customer (OTP verified, cutoffs passed).
 func newConfirmStore() *mockApplicationStore {
 	store := newMockStore()
 	store.appByID[1] = &model.LoanApplication{
@@ -20,7 +67,7 @@ func newConfirmStore() *mockApplicationStore {
 		CustomerPIN:    "PIN1",
 		CustomerSerial: "AA1234567",
 		CustomerPhone:  "+994501234567",
-		Status:         model.StatusPendingExpert,
+		Status:         model.StatusPendingCustomer,
 	}
 	store.commission = 30.0
 	store.approvedCount = 0
@@ -32,14 +79,26 @@ func newConfirmStore() *mockApplicationStore {
 	return store
 }
 
-// helper: build a mock LW provider with PersonalInfo + AKB Score configured
-func newConfirmProvider() *mockLWProvider {
-	provider := newMockLWProvider()
-	provider.personalInfo = &lw.PersonalInfoResponse{
-		Fin:         "PIN1",
-		FullName:    "Test Customer",
-		DateOfBirth: "1990-01-15",
+// newConfirmAzmkProvider returns an AZMK mock with a happy-path configuration:
+// personal info (Test Customer) + mkr score 650, no stop factor.
+func newConfirmAzmkProvider() *mockAzmkCustomerData {
+	return &mockAzmkCustomerData{
+		personalData: &azmk.CustomerData{
+			Name:      "Test",
+			Surname:   "Customer",
+			BirthDate: "1990-01-15",
+		},
+		mkrScore: &azmk.MkrScore{
+			Score: azmk.MkrScoreDetail{Point: 650, Response: "B", Calculated: true},
+		},
 	}
+}
+
+// newConfirmLWProvider returns an LW mock with an AKB score configured.
+// PR #227: customer-confirm no longer calls the LW router directly, but GetOffer
+// still resolves the score fail-soft (LW first, request fallback).
+func newConfirmLWProvider() *mockLWProvider {
+	provider := newMockLWProvider()
 	provider.akbScore = &lw.AkbScoreResponse{
 		Fin:    "PIN1",
 		Return: &lw.AkbScoreReturn{Response: "", Point: 650},
@@ -47,15 +106,23 @@ func newConfirmProvider() *mockLWProvider {
 	return provider
 }
 
+// newConfirmService wires a service with the given LW + AZMK mocks.
+func newConfirmService(store *mockApplicationStore, lwProvider *mockLWProvider, azmkProvider *mockAzmkCustomerData) *ApplicationService {
+	svc := NewApplicationService(store, NewCreditEngine(lwProvider, newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
+	if azmkProvider != nil {
+		svc.SetCustomerDataProvider(azmkProvider)
+	}
+	return svc
+}
+
 // TestCustomerConfirm_HappyPath verifies the happy path: customer submits
-// amount + card + address + checkbox, backend fills in full_name + akb_score +
-// term_months from external services.
+// amount + card + address + checkbox, backend fills in full_name + akb_score
+// from AZMK (PR #227) and the application moves to pending_expert.
 func TestCustomerConfirm_HappyPath(t *testing.T) {
 	ctx := context.Background()
 
 	store := newConfirmStore()
-	provider := newConfirmProvider()
-	svc := NewApplicationService(store, NewCreditEngine(provider, newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
+	svc := newConfirmService(store, newConfirmLWProvider(), newConfirmAzmkProvider())
 
 	req := &CustomerConfirmRequest{
 		Amount:                 200,
@@ -80,7 +147,7 @@ func TestCustomerConfirm_HappyPath(t *testing.T) {
 		t.Errorf("term_months = %d, want 3 (matched from range 50-300)", app.TermMonths)
 	}
 	if app.AkbScore != 650 {
-		t.Errorf("akb_score = %d, want 650", app.AkbScore)
+		t.Errorf("akb_score = %d, want 650 (AZMK getMkrScore)", app.AkbScore)
 	}
 	if app.CardNumber != "4169731234567890" {
 		t.Errorf("card_number = %q, want 4169731234567890", app.CardNumber)
@@ -94,11 +161,10 @@ func TestCustomerConfirm_HappyPath(t *testing.T) {
 	if app.CustomerConfirmedAt == "" {
 		t.Errorf("customer_confirmed_at = empty, want timestamp")
 	}
-	// PR #63 (Variant B): engine runs immediately at customer-confirm.
-	// Customer has no loans, AKB=650, not blacklisted → credit level "new" → pending_approval.
-	// (Previously Variant A kept status as pending_expert; now the engine runs.)
-	if app.Status != model.StatusPendingApproval {
-		t.Errorf("status = %q, want pending_approval (engine ran at customer-confirm, Variant B)", app.Status)
+	// PR #221: engine does NOT run at customer-confirm — the application
+	// transitions to pending_expert and waits for the expert in the RDC dashboard.
+	if app.Status != model.StatusPendingExpert {
+		t.Errorf("status = %q, want pending_expert (no engine at customer-confirm, PR #221)", app.Status)
 	}
 }
 
@@ -108,8 +174,7 @@ func TestCustomerConfirm_AmountMatchesSecondRange(t *testing.T) {
 	ctx := context.Background()
 
 	store := newConfirmStore()
-	provider := newConfirmProvider()
-	svc := NewApplicationService(store, NewCreditEngine(provider, newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
+	svc := newConfirmService(store, newConfirmLWProvider(), newConfirmAzmkProvider())
 
 	req := &CustomerConfirmRequest{
 		Amount:                 400, // matches range 100-500 → term 6
@@ -133,8 +198,7 @@ func TestCustomerConfirm_AmountOutOfRange(t *testing.T) {
 	ctx := context.Background()
 
 	store := newConfirmStore()
-	provider := newConfirmProvider()
-	svc := NewApplicationService(store, NewCreditEngine(provider, newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
+	svc := newConfirmService(store, newConfirmLWProvider(), newConfirmAzmkProvider())
 
 	req := &CustomerConfirmRequest{
 		Amount:                 9999, // outside all ranges
@@ -152,16 +216,17 @@ func TestCustomerConfirm_AmountOutOfRange(t *testing.T) {
 	}
 }
 
-// TestCustomerConfirm_PersonalInfoFailsFailHard verifies that when
-// GetPersonalInfo returns an error, the customer sees a fail-hard error
-// (business decision PR #58).
-func TestCustomerConfirm_PersonalInfoFailsFailHard(t *testing.T) {
+// TestCustomerConfirm_PersonalInfoFailsFailSoft verifies that when AZMK
+// GetPersonalInfo returns an error, the customer can STILL confirm (PR #227):
+// the name is left empty and the application proceeds to pending_expert.
+// This is the old fail-hard LW behavior being intentionally relaxed.
+func TestCustomerConfirm_PersonalInfoFailsFailSoft(t *testing.T) {
 	ctx := context.Background()
 
 	store := newConfirmStore()
-	provider := newConfirmProvider()
-	provider.personalInfoErr = errors.New("LW router unreachable")
-	svc := NewApplicationService(store, NewCreditEngine(provider, newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
+	azmkProvider := newConfirmAzmkProvider()
+	azmkProvider.personalErr = errors.New("AZMK CustomerDataService unreachable")
+	svc := newConfirmService(store, newConfirmLWProvider(), azmkProvider)
 
 	req := &CustomerConfirmRequest{
 		Amount:                 200,
@@ -170,27 +235,28 @@ func TestCustomerConfirm_PersonalInfoFailsFailHard(t *testing.T) {
 		CardOwnershipConfirmed: true,
 	}
 
-	_, err := svc.CustomerConfirmApplication(ctx, 1, req)
-	if err == nil {
-		t.Fatal("expected fail-hard error when PersonalInfo fails, got nil")
+	app, err := svc.CustomerConfirmApplication(ctx, 1, req)
+	if err != nil {
+		t.Fatalf("unexpected error (personal info must be fail-soft now, PR #227): %v", err)
 	}
-	if !contains(err.Error(), "texniki xəta") {
-		t.Errorf("error = %q, want 'texniki xəta' message", err.Error())
+	if app.CustomerFullName != "" {
+		t.Errorf("customer_full_name = %q, want empty (AZMK failed)", app.CustomerFullName)
+	}
+	if app.Status != model.StatusPendingExpert {
+		t.Errorf("status = %q, want pending_expert (confirm proceeds despite AZMK failure)", app.Status)
 	}
 }
 
-// TestCustomerConfirm_AkbScoreZeroFailHard verifies that when AKB returns
-// Point=0 (no usable data), the customer sees a fail-hard error.
-func TestCustomerConfirm_AkbScoreZeroFailHard(t *testing.T) {
+// TestCustomerConfirm_AkbScoreUnavailableFailSoft verifies that when AZMK
+// getMkrScore fails (or returns Point=0), the customer can STILL confirm:
+// akb_score stays 0 and the application proceeds to pending_expert.
+func TestCustomerConfirm_AkbScoreUnavailableFailSoft(t *testing.T) {
 	ctx := context.Background()
 
 	store := newConfirmStore()
-	provider := newConfirmProvider()
-	provider.akbScore = &lw.AkbScoreResponse{
-		Fin:    "PIN1",
-		Return: &lw.AkbScoreReturn{Response: "", Point: 0},
-	}
-	svc := NewApplicationService(store, NewCreditEngine(provider, newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
+	azmkProvider := newConfirmAzmkProvider()
+	azmkProvider.mkrErr = errors.New("AZMK getMkrScore unreachable")
+	svc := newConfirmService(store, newConfirmLWProvider(), azmkProvider)
 
 	req := &CustomerConfirmRequest{
 		Amount:                 200,
@@ -199,28 +265,30 @@ func TestCustomerConfirm_AkbScoreZeroFailHard(t *testing.T) {
 		CardOwnershipConfirmed: true,
 	}
 
-	_, err := svc.CustomerConfirmApplication(ctx, 1, req)
-	if err == nil {
-		t.Fatal("expected fail-hard error when AKB returns 0, got nil")
+	app, err := svc.CustomerConfirmApplication(ctx, 1, req)
+	if err != nil {
+		t.Fatalf("unexpected error (akb score must be fail-soft now, PR #227): %v", err)
 	}
-	if !contains(err.Error(), "texniki xəta") {
-		t.Errorf("error = %q, want 'texniki xəta' message", err.Error())
+	if app.AkbScore != 0 {
+		t.Errorf("akb_score = %d, want 0 (AZMK failed)", app.AkbScore)
+	}
+	if app.Status != model.StatusPendingExpert {
+		t.Errorf("status = %q, want pending_expert (confirm proceeds despite AZMK failure)", app.Status)
 	}
 }
 
-// TestCustomerConfirm_AkbStopFactorRejects verifies that when AKB returns
-// Point=1 (stop factor), the application is rejected immediately at the
-// customer-confirm stage.
+// TestCustomerConfirm_AkbStopFactorRejects verifies that when AZMK getMkrScore
+// returns a stop-factor response (AB/NI/NU/TY), the application is rejected
+// immediately at the customer-confirm stage.
 func TestCustomerConfirm_AkbStopFactorRejects(t *testing.T) {
 	ctx := context.Background()
 
 	store := newConfirmStore()
-	provider := newConfirmProvider()
-	provider.akbScore = &lw.AkbScoreResponse{
-		Fin:    "PIN1",
-		Return: &lw.AkbScoreReturn{Response: "AB", Point: 1},
+	azmkProvider := newConfirmAzmkProvider()
+	azmkProvider.mkrScore = &azmk.MkrScore{
+		Score: azmk.MkrScoreDetail{Point: 500, Response: "AB", Calculated: true},
 	}
-	svc := NewApplicationService(store, NewCreditEngine(provider, newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
+	svc := newConfirmService(store, newConfirmLWProvider(), azmkProvider)
 
 	req := &CustomerConfirmRequest{
 		Amount:                 200,
@@ -236,8 +304,75 @@ func TestCustomerConfirm_AkbStopFactorRejects(t *testing.T) {
 	if app.Status != model.StatusRejected {
 		t.Errorf("status = %q, want rejected (AKB stop factor)", app.Status)
 	}
-	if !contains(app.RejectionReason, "stop factor") {
-		t.Errorf("rejection_reason = %q, want stop factor message", app.RejectionReason)
+	if !contains(app.RejectionReason, "AKB_STOP_FACTOR") {
+		t.Errorf("rejection_reason = %q, want AKB_STOP_FACTOR", app.RejectionReason)
+	}
+}
+
+// TestCustomerConfirm_NoAzmkProvider verifies the nil-guard: when no AZMK
+// customer-data provider is wired (e.g. older tests), customer-confirm still
+// works — name and score are simply left empty/zero (fail-soft).
+func TestCustomerConfirm_NoAzmkProvider(t *testing.T) {
+	ctx := context.Background()
+
+	store := newConfirmStore()
+	svc := newConfirmService(store, newConfirmLWProvider(), nil)
+
+	req := &CustomerConfirmRequest{
+		Amount:                 200,
+		CardNumber:             "4169731234567890",
+		ActualAddress:          "Bakı",
+		CardOwnershipConfirmed: true,
+	}
+
+	app, err := svc.CustomerConfirmApplication(ctx, 1, req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if app.CustomerFullName != "" {
+		t.Errorf("customer_full_name = %q, want empty (no provider)", app.CustomerFullName)
+	}
+	if app.Status != model.StatusPendingExpert {
+		t.Errorf("status = %q, want pending_expert", app.Status)
+	}
+}
+
+// TestCustomerConfirm_LwDownStillConfirms simulates the reported production
+// issue: the LW router is completely unreachable (connection refused), but the
+// customer must still be able to confirm. AZMK supplies the personal data and
+// the score; GetOffer degrades fail-soft (empty loans, fallback score).
+func TestCustomerConfirm_LwDownStillConfirms(t *testing.T) {
+	ctx := context.Background()
+
+	store := newConfirmStore()
+	lwProvider := newConfirmLWProvider()
+	lwProvider.loansErr = errors.New("dial tcp 127.0.0.1:8080: connect: connection refused")
+	lwProvider.akbScoreErr = errors.New("dial tcp 127.0.0.1:8080: connect: connection refused")
+	azmkProvider := newConfirmAzmkProvider()
+	azmkProvider.mkrScore = &azmk.MkrScore{
+		Score: azmk.MkrScoreDetail{Point: 750, Response: "B", Calculated: true},
+	}
+	svc := newConfirmService(store, lwProvider, azmkProvider)
+
+	req := &CustomerConfirmRequest{
+		Amount:                 200,
+		CardNumber:             "4169731234567890",
+		ActualAddress:          "Bakı",
+		CardOwnershipConfirmed: true,
+	}
+
+	app, err := svc.CustomerConfirmApplication(ctx, 1, req)
+	if err != nil {
+		t.Fatalf("unexpected error (LW router down must not block confirm, PR #227): %v", err)
+	}
+	if app.CustomerFullName != "Test Customer" {
+		t.Errorf("customer_full_name = %q, want 'Test Customer' (from AZMK)", app.CustomerFullName)
+	}
+	if app.AkbScore != 750 {
+		t.Errorf("akb_score = %d, want 750 (from AZMK getMkrScore)", app.AkbScore)
+	}
+	if app.Status != model.StatusPendingExpert {
+		t.Errorf("status = %q, want pending_expert", app.Status)
 	}
 }
 
@@ -246,8 +381,7 @@ func TestCustomerConfirm_ValidationErrors(t *testing.T) {
 	ctx := context.Background()
 
 	store := newConfirmStore()
-	provider := newConfirmProvider()
-	svc := NewApplicationService(store, NewCreditEngine(provider, newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
+	svc := newConfirmService(store, newConfirmLWProvider(), newConfirmAzmkProvider())
 
 	tests := []struct {
 		name string
@@ -290,14 +424,13 @@ func TestCustomerConfirm_ValidationErrors(t *testing.T) {
 }
 
 // TestCustomerConfirm_WrongStatus verifies that confirming an application not
-// in pending_expert status returns an error.
+// in pending_customer status returns an error.
 func TestCustomerConfirm_WrongStatus(t *testing.T) {
 	ctx := context.Background()
 
 	store := newConfirmStore()
-	store.appByID[1].Status = model.StatusPendingCustomer // wrong status
-	provider := newConfirmProvider()
-	svc := NewApplicationService(store, NewCreditEngine(provider, newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
+	store.appByID[1].Status = model.StatusPendingExpert // wrong status for confirm
+	svc := newConfirmService(store, newConfirmLWProvider(), newConfirmAzmkProvider())
 
 	req := &CustomerConfirmRequest{
 		Amount:                 200,
@@ -311,7 +444,91 @@ func TestCustomerConfirm_WrongStatus(t *testing.T) {
 		t.Fatal("expected error for wrong status, got nil")
 	}
 	if !contains(err.Error(), "pending_expert") {
-		t.Errorf("error = %q, want 'pending_expert' message", err.Error())
+		t.Errorf("error = %q, want current status in message", err.Error())
+	}
+}
+
+// TestCustomerConfirm_NewCustomerGoesPendingExpert verifies the standard
+// new-customer flow: no loans, AKB 650 → credit level "new" → pending_expert
+// (no engine at customer-confirm, PR #221).
+func TestCustomerConfirm_NewCustomerGoesPendingExpert(t *testing.T) {
+	ctx := context.Background()
+
+	store := newConfirmStore()
+	svc := newConfirmService(store, newConfirmLWProvider(), newConfirmAzmkProvider())
+
+	req := &CustomerConfirmRequest{
+		Amount:                 200,
+		CardNumber:             "4169731234567890",
+		ActualAddress:          "Bakı",
+		CardOwnershipConfirmed: true,
+	}
+
+	app, err := svc.CustomerConfirmApplication(ctx, 1, req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if app.Status != model.StatusPendingExpert {
+		t.Errorf("status = %q, want pending_expert (new customer, no engine at confirm)", app.Status)
+	}
+	if app.CreditLevel != model.CreditLevelNew {
+		t.Errorf("credit_level = %q, want new", app.CreditLevel)
+	}
+}
+
+// TestCustomerConfirm_EliteCustomerGoesPendingExpert verifies that even an
+// elite customer (2 completed valuable loans, AKB 750) ends up in
+// pending_expert with credit_level populated from the offer — the expert
+// still reviews the application in the RDC dashboard.
+func TestCustomerConfirm_EliteCustomerGoesPendingExpert(t *testing.T) {
+	ctx := context.Background()
+
+	store := newConfirmStore()
+	store.commission = 20.0 // elite rate
+	store.approvedCount = 2
+	store.currentLevel = model.CreditLevelValuable
+	store.levelRanges = []repository.LevelRange{
+		{MinAmount: 50, MaxAmount: 300, TermMonths: 3, Commission: 20, Phase: 2},
+	}
+
+	lwProvider := newConfirmLWProvider()
+	// 2 completed valuable loans → elite
+	lwProvider.loans = &lw.CustomerLoansResponse{
+		CustomerPIN:      "PIN1",
+		HasExistingLoans: true,
+		LoanCount:        2,
+		Loans: []lw.CustomerLoan{
+			{ID: 1, CustomerPIN: "PIN1", Status: "completed", Amount: 300, TermMonths: 2, WasOnTime: true, DelayDays: 0, LevelAtClose: "valuable"},
+			{ID: 2, CustomerPIN: "PIN1", Status: "completed", Amount: 300, TermMonths: 2, WasOnTime: true, DelayDays: 0, LevelAtClose: "valuable"},
+		},
+	}
+	lwProvider.akbScore = &lw.AkbScoreResponse{
+		Fin:    "PIN1",
+		Return: &lw.AkbScoreReturn{Response: "", Point: 650}, // < 700: no override → promotion applies
+	}
+
+	azmkProvider := newConfirmAzmkProvider()
+	azmkProvider.mkrScore = &azmk.MkrScore{
+		Score: azmk.MkrScoreDetail{Point: 650, Response: "B", Calculated: true},
+	}
+	svc := newConfirmService(store, lwProvider, azmkProvider)
+
+	req := &CustomerConfirmRequest{
+		Amount:                 200,
+		CardNumber:             "4169731234567890",
+		ActualAddress:          "Bakı",
+		CardOwnershipConfirmed: true,
+	}
+
+	app, err := svc.CustomerConfirmApplication(ctx, 1, req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if app.Status != model.StatusPendingExpert {
+		t.Errorf("status = %q, want pending_expert (expert still reviews, PR #221)", app.Status)
+	}
+	if app.CreditLevel != model.CreditLevelElite {
+		t.Errorf("credit_level = %q, want elite (determined from offer)", app.CreditLevel)
 	}
 }
 
@@ -408,132 +625,5 @@ func TestCompleteApplication_Contact1Required(t *testing.T) {
 	}
 	if !contains(err.Error(), "contact1_phone is required") {
 		t.Errorf("error = %q, want 'contact1_phone is required'", err.Error())
-	}
-}
-
-// --- PR #63 (Variant B) tests ---
-
-// TestCustomerConfirm_VariantB_RejectedByEngine verifies that when the credit
-// engine rejects the application at customer-confirm (e.g. AKB stop factor),
-// the customer-confirm response carries status=rejected.
-func TestCustomerConfirm_VariantB_RejectedByEngine(t *testing.T) {
-	ctx := context.Background()
-
-	store := newConfirmStore()
-	provider := newConfirmProvider()
-	// AKB stop factor → engine rejects
-	provider.akbScore = &lw.AkbScoreResponse{
-		Fin:    "PIN1",
-		Return: &lw.AkbScoreReturn{Response: "AB", Point: 1},
-	}
-	svc := NewApplicationService(store, NewCreditEngine(provider, newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
-
-	req := &CustomerConfirmRequest{
-		Amount:                 200,
-		CardNumber:             "4169731234567890",
-		ActualAddress:          "Bakı",
-		CardOwnershipConfirmed: true,
-	}
-
-	app, err := svc.CustomerConfirmApplication(ctx, 1, req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if app.Status != model.StatusRejected {
-		t.Errorf("status = %q, want rejected (engine ran at customer-confirm)", app.Status)
-	}
-	if !contains(app.RejectionReason, "stop factor") {
-		t.Errorf("rejection_reason = %q, want stop factor message", app.RejectionReason)
-	}
-}
-
-// TestCustomerConfirm_VariantB_EliteDowngraded verifies that when the engine
-// auto-approves an elite customer, the status is downgraded to pending_approval
-// (Variant B: expert must still verify employment/pension + collect contacts).
-func TestCustomerConfirm_VariantB_EliteDowngraded(t *testing.T) {
-	ctx := context.Background()
-
-	store := newConfirmStore()
-	// Simulate elite customer: 2 completed on-time loans at valuable level
-	store.appByID[1] = &model.LoanApplication{
-		ID:             1,
-		CustomerPIN:    "PIN1",
-		CustomerSerial: "AA1234567",
-		CustomerPhone:  "+994501234567",
-		Status:         model.StatusPendingExpert,
-	}
-	store.commission = 20.0 // elite rate
-	store.approvedCount = 2
-	store.currentLevel = model.CreditLevelValuable
-	store.levelRanges = []repository.LevelRange{
-		{MinAmount: 50, MaxAmount: 300, TermMonths: 3, Commission: 20, Phase: 2},
-	}
-
-	provider := newConfirmProvider()
-	// AKB 750 → valuable override (but already valuable from loan history)
-	provider.akbScore = &lw.AkbScoreResponse{
-		Fin:    "PIN1",
-		Return: &lw.AkbScoreReturn{Response: "", Point: 750},
-	}
-	// 2 completed valuable loans → elite
-	provider.loans = &lw.CustomerLoansResponse{
-		CustomerPIN:      "PIN1",
-		HasExistingLoans: true,
-		LoanCount:        2,
-		Loans: []lw.CustomerLoan{
-			{ID: 1, CustomerPIN: "PIN1", Status: "completed", Amount: 300, TermMonths: 2, WasOnTime: true, DelayDays: 0, LevelAtClose: "valuable"},
-			{ID: 2, CustomerPIN: "PIN1", Status: "completed", Amount: 300, TermMonths: 2, WasOnTime: true, DelayDays: 0, LevelAtClose: "valuable"},
-		},
-	}
-
-	svc := NewApplicationService(store, NewCreditEngine(provider, store), newMockCustomerStore(), NewOTPService(nil, nil))
-
-	req := &CustomerConfirmRequest{
-		Amount:                 200,
-		CardNumber:             "4169731234567890",
-		ActualAddress:          "Bakı",
-		CardOwnershipConfirmed: true,
-	}
-
-	app, err := svc.CustomerConfirmApplication(ctx, 1, req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	// Engine would auto-approve elite, but Variant B downgrades to pending_approval
-	if app.Status != model.StatusPendingApproval {
-		t.Errorf("status = %q, want pending_approval (elite downgraded, Variant B)", app.Status)
-	}
-	if app.CreditLevel != model.CreditLevelElite {
-		t.Errorf("credit_level = %q, want elite (engine determined elite, just downgraded status)", app.CreditLevel)
-	}
-}
-
-// TestCustomerConfirm_VariantB_PendingApprovalForNewCustomer verifies the
-// standard new-customer flow: no loans, AKB 650 → credit level "new" →
-// pending_approval (expert review needed).
-func TestCustomerConfirm_VariantB_PendingApprovalForNewCustomer(t *testing.T) {
-	ctx := context.Background()
-
-	store := newConfirmStore()
-	provider := newConfirmProvider()
-	// Default: AKB 650, no loans, not blacklisted → "new" level → pending_approval
-	svc := NewApplicationService(store, NewCreditEngine(provider, newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
-
-	req := &CustomerConfirmRequest{
-		Amount:                 200,
-		CardNumber:             "4169731234567890",
-		ActualAddress:          "Bakı",
-		CardOwnershipConfirmed: true,
-	}
-
-	app, err := svc.CustomerConfirmApplication(ctx, 1, req)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if app.Status != model.StatusPendingApproval {
-		t.Errorf("status = %q, want pending_approval (new customer, Variant B)", app.Status)
-	}
-	if app.CreditLevel != model.CreditLevelNew {
-		t.Errorf("credit_level = %q, want new", app.CreditLevel)
 	}
 }
