@@ -15,18 +15,17 @@ import (
 //
 // This service implements the business rules described in PR #63:
 //
-//  1. Employment verification (6-month tenure rule):
-//     - Current job tenure >= 6 months (30-day months) → PASS
-//     - Else if previous job exists AND gap < 29 days:
-//       combined tenure (current + previous) >= 6 months → PASS
-//     - Else → FAIL → auto-reject
+//  1. Employment verification (EMPLOYMENT_TENURE cutoff, PR #237):
+//     - Data source: MLSA GetEmployeeInfoByPin (Active/Deactive records)
+//     - Active bölməsində iş yeri olmalıdır
+//     - Staj = Contract.SignDate (imza tarixi) → bu gün, 30 günlük aylarla
+//     - Staj >= 6 ay → PASS; əks halda → FAIL → auto-reject
 //
 //  2. Pension verification (1st-group disability rule):
 //     - DisabilityGroup == 1 → auto-reject
 //     - Else → PASS
 //
 // Staj calculation uses 30-day months (per business: "1-30" means 30 days = 1 month).
-// Gap rule: "< 29" means gap must be strictly less than 29 days to count previous job.
 
 // MyGovVerifyResponse is returned by the employment and pension verify endpoints.
 type MyGovVerifyResponse struct {
@@ -62,17 +61,26 @@ func (s *MyGovService) RequestPensionVerification(ctx context.Context, appID int
         return s.GenerateLink(ctx, appID, s.getCustomerPIN(ctx, appID))
 }
 
-// VerifyEmployment fetches MyGov data and runs the 6-month tenure rule.
-// If the rule fails, the application is auto-rejected with a descriptive reason.
+// VerifyEmployment fetches MLSA employment data via GetEmployeeInfoByPin and runs
+// the EMPLOYMENT_TENURE cutoff rule (PR #237):
+//   - Active bölməsində iş yeri məlumatı olmalıdır
+//   - Müddət = Contract.SignDate (imza tarixi) → bu gün, 30 günlük aylarla
+//   - Müddət >= 6 ay → PASS, əks halda avtomatik imtina (EMPLOYMENT_TENURE)
 func (s *MyGovService) VerifyEmployment(ctx context.Context, appID int) (*MyGovVerifyResponse, error) {
-        // 1. Fetch MyGov data (must have been fetched via FetchData first)
-        data, err := s.getAuthorizedData(ctx, appID)
-        if err != nil {
-                return nil, fmt.Errorf("failed to get MyGov data: %w", err)
+        // 1. Get the customer's PIN
+        pin := s.getCustomerPIN(ctx, appID)
+        if pin == "" {
+                return nil, fmt.Errorf("customer PIN not found for application %d", appID)
         }
 
-        // 2. Run the 6-month tenure rule
-        passed, reason := checkEmploymentTenure(data.WorkHistory)
+        // 2. Fetch employment records from the MLSA service
+        info, err := s.provider.GetEmployeeInfoByPin(ctx, pin)
+        if err != nil {
+                return nil, fmt.Errorf("GetEmployeeInfoByPin failed: %w", err)
+        }
+
+        // 3. Run the EMPLOYMENT_TENURE cutoff check
+        passed, reason := checkEmploymentTenureFromEmployeeInfo(info)
 
         resp := &MyGovVerifyResponse{
                 ApplicationID: appID,
@@ -140,69 +148,80 @@ func (s *MyGovService) VerifyPension(ctx context.Context, appID int) (*MyGovVeri
         return resp, nil
 }
 
-// checkEmploymentTenure implements the 6-month tenure rule (PR #65).
+// checkEmploymentTenureFromEmployeeInfo implements the EMPLOYMENT_TENURE cutoff
+// (PR #237) from the real MLSA GetEmployeeInfoByPin response.
 //
 // Rules (per business):
-//   - Tenure is measured in 30-day months (30 days = 1 month)
-//   - Current job tenure >= 6 months → PASS
-//   - Else if previous job exists AND gap < 29 days:
-//     combined (current + previous) >= 6 months → PASS
-//   - Else → FAIL
+//   - Active bölməsində iş yeri məlumatı olmalıdır (boşdursa → imtina)
+//   - Əsas iş yeri seçilir (WorkPlaceType.Label == "1"); yoxdursa ilk Active qeydi
+//   - Staj = Contract.SignDate (imza tarixi) → bu gün, 30 günlük aylarla hesablanır
+//     (SignDate boşdursa BeginDate istifadə olunur)
+//   - Staj >= 6 ay → PASS, əks halda FAIL
 //
 // Returns (passed bool, reason string).
-func checkEmploymentTenure(workHistory []mygov.WorkPlace) (bool, string) {
-        if len(workHistory) == 0 {
-                return false, "İş yeri məlumatı tapılmadı (WorkHistory boşdur)"
+func checkEmploymentTenureFromEmployeeInfo(info *mygov.EmployeeInfoResponse) (bool, string) {
+        if info == nil || info.Data == nil || info.Data.Response == nil {
+                return false, "İş yeri məlumatı tapılmadı (cavab boşdur)"
         }
 
-        now := time.Now()
-        current := workHistory[0] // first entry is current job (EndDate == nil)
-        if current.EndDate != nil {
-                return false, "Cari iş yeri tapılmadı (ilk entry-nin EndDate-i doludur)"
+        active := info.Data.Response.Active
+        if len(active) == 0 {
+                return false, "Aktiv iş yeri tapılmadı (Active bölməsi boşdur)"
         }
 
-        // Calculate current job tenure in 30-day months
-        currentDays := now.Sub(current.StartDate).Hours() / 24
-        currentMonths := currentDays / 30
-
-        if currentMonths >= 6 {
-                return true, fmt.Sprintf("Cari iş yerində staj %.1f ay (≥ 6 ay) — uyğundur", currentMonths)
+        // Əsas iş yerini seç (WorkPlaceType Label "1" = Əsas); yoxdursa ilk qeyd
+        record := active[0]
+        for _, a := range active {
+                if a.IsMainJob() {
+                        record = a
+                        break
+                }
+        }
+        if record.Contract == nil {
+                return false, "İş müqaviləsi məlumatı tapılmadı (Contract boşdur)"
         }
 
-        // Current tenure < 6 months — check previous job
-        if len(workHistory) < 2 {
-                return false, fmt.Sprintf("Cari iş yerində staj %.1f ay (< 6 ay) və əvvəlki iş yeri yoxdur — imtina", currentMonths)
+        employerName := ""
+        if record.Employer != nil && record.Employer.Name != "" {
+                employerName = record.Employer.Name
         }
 
-        prev := workHistory[1]
-        if prev.EndDate == nil {
-                return false, "Əvvəlki iş yerinin EndDate-i boşdur (məlumat səhvdir)"
+        // İmza tarixi (SignDate); boşdursa BeginDate fallback
+        dateStr := record.Contract.SignDate
+        dateKind := "imza tarixi"
+        if dateStr == "" {
+                dateStr = record.Contract.BeginDate
+                dateKind = "başlama tarixi"
+        }
+        if dateStr == "" {
+                return false, "Müqavilə tarixi tapılmadı (SignDate/BeginDate boşdur)"
         }
 
-        // Calculate gap between previous job end and current job start
-        gapDays := current.StartDate.Sub(*prev.EndDate).Hours() / 24
-        if gapDays < 0 {
-                return false, "Əvvəlki iş yeri cari işdən sonra bitib (tarixlər düzgün deyil)"
+        signDate, err := time.Parse("02.01.2006", dateStr)
+        if err != nil {
+                return false, fmt.Sprintf("Müqavilə tarixi formatı düzgün deyil: %s", dateStr)
         }
 
-        // Gap must be < 29 days to count previous job
-        if gapDays >= 29 {
-                return false, fmt.Sprintf("Cari staj %.1f ay, əvvəlki iş yerinə fasilə %.0f gün (≥ 29 gün) — əvvəlki iş nəzərə alınmır, imtina",
-                        currentMonths, gapDays)
+        // Staj: imza tarixindən bu günə, 30 günlük aylarla ("kesim" həddi 6 ay)
+        months := time.Since(signDate).Hours() / 24 / 30
+
+        if months >= employmentTenureMinMonths {
+                return true, fmt.Sprintf("İş yerində staj %.1f ay (%s, %s — ≥ 6 ay) — uyğundur",
+                        months, dateKind, employerName)
         }
+        return false, fmt.Sprintf("İş yerində staj %.1f ay (< 6 ay) — imtina (EMPLOYMENT_TENURE)%s",
+                months, employerSuffix(employerName))
+}
 
-        // Gap < 29 — combine current + previous tenure
-        prevDays := prev.EndDate.Sub(prev.StartDate).Hours() / 24
-        prevMonths := prevDays / 30
-        combinedMonths := currentMonths + prevMonths
+// employmentTenureMinMonths is the EMPLOYMENT_TENURE cutoff threshold.
+const employmentTenureMinMonths = 6
 
-        if combinedMonths >= 6 {
-                return true, fmt.Sprintf("Cari staj %.1f ay + əvvəlki %.1f ay = %.1f ay (fasilə %.0f gün < 29) — uyğundur",
-                        currentMonths, prevMonths, combinedMonths, gapDays)
+// employerSuffix formats the employer name for reason messages.
+func employerSuffix(employerName string) string {
+        if employerName == "" {
+                return ""
         }
-
-        return false, fmt.Sprintf("Cari staj %.1f ay + əvvəlki %.1f ay = %.1f ay (< 6 ay) — imtina",
-                currentMonths, prevMonths, combinedMonths)
+        return fmt.Sprintf(" — %s", employerName)
 }
 
 // getAuthorizedData reads the stored MyGov data from the DB and unmarshals it.

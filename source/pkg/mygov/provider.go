@@ -23,6 +23,12 @@ type Provider interface {
         // permission token. Called after the customer grants permission.
         FetchAuthorizedData(ctx context.Context, token string) (*AuthorizedData, error)
 
+        // GetEmployeeInfoByPin retrieves the customer's employment records from
+        // the MLSA (Məşğulluq) service by PIN. Used by the EMPLOYMENT_TENURE
+        // cutoff check (PR #237): Active[].Contract.SignDate → today duration
+        // is compared against the 6-month threshold.
+        GetEmployeeInfoByPin(ctx context.Context, pin string) (*EmployeeInfoResponse, error)
+
         // Name returns a human-readable identifier ("mock", "mygov-http").
         Name() string
 }
@@ -78,4 +84,109 @@ type WorkPlace struct {
         StartDate    time.Time  `json:"start_date"`
         EndDate      *time.Time `json:"end_date,omitempty"` // nil = currently employed
         Position     string     `json:"position,omitempty"`
+}
+
+// --- PR #237: GetEmployeeInfoByPin (MLSA employment records) ---
+
+// EmployeeInfoResponse mirrors the real MLSA GetEmployeeInfoByPin response.
+// See PR #237: EMPLOYMENT_TENURE cutoff checks Active[].Contract.SignDate.
+//
+// Example (abridged):
+//
+//	{
+//	  "result": 1, "requestId": "1", "message": "SUCCESS",
+//	  "data": {
+//		"Status": {"Name": "Successful", "Code": 0, "Message": ""},
+//		"Response": {
+//		  "Active": [{
+//			"Employer": {"Voen": "1701618531", "Name": "..."},
+//			"Employee": {"WorkPlaceType": {"Label": "1", "Description": "Əsas"}, ...},
+//			"Contract": {"SignDate": "01.07.2026", "BeginDate": "01.07.2026", "EndDate": "01.10.2026", ...}
+//		  }],
+//		  "Deactive": [...]
+//		}
+//	  }
+//	}
+type EmployeeInfoResponse struct {
+        Result    int               `json:"result"`
+        RequestID string            `json:"requestId"`
+        Message   string            `json:"message"`
+        Data      *EmployeeInfoData `json:"data"`
+}
+
+// EmployeeInfoData wraps the Status + Response fields.
+type EmployeeInfoData struct {
+        Status   *EmployeeStatus  `json:"Status"`
+        Response *EmployeeRecords `json:"Response"`
+}
+
+// EmployeeStatus is the MLSA service status block.
+type EmployeeStatus struct {
+        Name    string `json:"Name"`
+        Code    int    `json:"Code"`
+        Message string `json:"Message"`
+}
+
+// EmployeeRecords contains the active and deactive employment records.
+type EmployeeRecords struct {
+        Active   []EmploymentRecord `json:"Active"`
+        Deactive []EmploymentRecord `json:"Deactive"`
+}
+
+// EmploymentRecord is a single workplace entry (employer + employee + contract).
+type EmploymentRecord struct {
+        Employer *EmployerInfo `json:"Employer"`
+        Employee *EmployeeInfo `json:"Employee"`
+        Contract *ContractInfo `json:"Contract"`
+}
+
+// EmployerInfo describes the employer (VOEN, name, address, ...).
+type EmployerInfo struct {
+        Voen         string            `json:"Voen"`
+        Name         string            `json:"Name"`
+        WorkerCount  int               `json:"WorkerCount"`
+        LegalAddress string            `json:"LegalAddress"`
+        PropertyType *LabelDescription `json:"PropertyType"`
+}
+
+// EmployeeInfo describes the employee-side details of the workplace.
+type EmployeeInfo struct {
+        WorkPlaceType          *LabelDescription `json:"WorkPlaceType"` // Label "1" = Əsas (main job)
+        Salary                 float64           `json:"Salary"`
+        Surname                string            `json:"Surname"`
+        WorkPlace              string            `json:"WorkPlace"`
+        Position               string            `json:"Position"`
+        WorkCasualType         *LabelDescription `json:"WorkCasualType"`
+        Phone                  string            `json:"Phone"`
+        Patronymic             string            `json:"Patronymic"`
+        Name                   string            `json:"Name"`
+        PositionLabourContract string            `json:"PositionLabourContract"`
+        SSN                    string            `json:"SSN"`
+}
+
+// ContractInfo describes the labour contract. SignDate (imza tarixi) is the
+// anchor for the EMPLOYMENT_TENURE check; BeginDate is the fallback.
+type ContractInfo struct {
+        Invalidation  *LabelDescription `json:"Invalidation"`
+        EndDate       string            `json:"EndDate"` // "01.10.2026" (dd.mm.yyyy)
+        Number        string            `json:"Number"`
+        Status        *LabelDescription `json:"Status"` // Label "1" = Qüvvədədir
+        PeriodType    *LabelDescription `json:"PeriodType"`
+        SignDate      string            `json:"SignDate"` // "01.07.2026" (dd.mm.yyyy)
+        NextEndDate   string            `json:"NextEndDate"`
+        InsertDate    string            `json:"InsertDate"`
+        BeginDate     string            `json:"BeginDate"` // "01.07.2026" (dd.mm.yyyy)
+        TerminateDate string            `json:"TerminateDate"`
+}
+
+// LabelDescription is a generic MLSA {"Label": "1", "Description": "..."} pair.
+type LabelDescription struct {
+        Label       string `json:"Label"`
+        Description string `json:"Description"`
+}
+
+// IsMainJob reports whether the record is the main (Əsas) workplace —
+// WorkPlaceType.Label == "1".
+func (r *EmploymentRecord) IsMainJob() bool {
+        return r != nil && r.Employee != nil && r.Employee.WorkPlaceType != nil && r.Employee.WorkPlaceType.Label == "1"
 }

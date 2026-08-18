@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
@@ -31,6 +32,7 @@ func NewHTTPProvider(baseURL, apiKey string, timeout time.Duration) *HTTPProvide
 const (
 	pathGenerateLink = "/api/mygov/permission/generate"
 	pathFetchData    = "/api/mygov/permission/data"
+	pathEmployeeInfo = "/api/mygov/employee-info"
 )
 
 // GeneratePermissionLink calls MyGov to create a permission URL.
@@ -89,3 +91,35 @@ func (p *HTTPProvider) FetchAuthorizedData(ctx context.Context, token string) (*
 
 // Name returns "mygov-http".
 func (p *HTTPProvider) Name() string { return "mygov-http" }
+
+// GetEmployeeInfoByPin retrieves employment records from the MLSA service (PR #237).
+// POST with the PIN in the body; response is the EmployeeInfoResponse JSON
+// (Active/Deactive with Contract.SignDate in dd.mm.yyyy format).
+// NOTE: path is a placeholder — update when real MyGov/MLSA docs arrive.
+func (p *HTTPProvider) GetEmployeeInfoByPin(ctx context.Context, pin string) (*EmployeeInfoResponse, error) {
+	body := fmt.Sprintf(`{"pin":%q}`, pin)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
+		p.baseURL+pathEmployeeInfo, strings.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create employee-info request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+p.apiKey)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("employee-info request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("employee-info: MyGov returned HTTP %d", resp.StatusCode)
+	}
+
+	var info EmployeeInfoResponse
+	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+		return nil, fmt.Errorf("failed to decode employee-info response: %w", err)
+	}
+	return &info, nil
+}

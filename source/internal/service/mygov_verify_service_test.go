@@ -7,21 +7,40 @@ import (
 	"rdc-source/pkg/mygov"
 )
 
-// --- PR #65: checkEmploymentTenure tests ---
+// --- PR #237: checkEmploymentTenureFromEmployeeInfo tests ---
+//
+// The EMPLOYMENT_TENURE cutoff is based on the real MLSA GetEmployeeInfoByPin
+// response: Active[].Contract.SignDate (imza tarixi) → today, 30-day months,
+// threshold 6 months.
 
-// TestCheckEmploymentTenure_CurrentJob6Months_Pass verifies that a customer
-// with 8 months at their current job passes the tenure check.
-func TestCheckEmploymentTenure_CurrentJob6Months_Pass(t *testing.T) {
-	now := time.Now()
-	workHistory := []mygov.WorkPlace{
-		{
-			EmployerName: "ABC LLC",
-			StartDate:    now.AddDate(0, -8, 0), // 8 months ago
-			EndDate:      nil,                   // currently employed
+// helper: build an EmployeeInfoResponse with one Active record.
+func empInfo(signDate string, beginDate string) *mygov.EmployeeInfoResponse {
+	rec := mygov.EmploymentRecord{
+		Employer: &mygov.EmployerInfo{Voen: "1701618531", Name: "TEST ŞİRKƏT MMC"},
+		Employee: &mygov.EmployeeInfo{
+			WorkPlaceType: &mygov.LabelDescription{Label: "1", Description: "Əsas"},
+			Position:      "Aparıcı mütəxəssis",
+		},
+		Contract: &mygov.ContractInfo{
+			SignDate:  signDate,
+			BeginDate: beginDate,
 		},
 	}
+	return &mygov.EmployeeInfoResponse{
+		Result: 1, RequestID: "1", Message: "SUCCESS",
+		Data: &mygov.EmployeeInfoData{
+			Status:   &mygov.EmployeeStatus{Name: "Successful", Code: 0},
+			Response: &mygov.EmployeeRecords{Active: []mygov.EmploymentRecord{rec}},
+		},
+	}
+}
 
-	passed, reason := checkEmploymentTenure(workHistory)
+// TestCheckEmploymentTenure_SignDate8Months_Pass verifies that a customer
+// whose active contract was signed 8 months ago passes the tenure check.
+func TestCheckEmploymentTenure_SignDate8Months_Pass(t *testing.T) {
+	sign := time.Now().AddDate(0, -8, 0).Format("02.01.2006")
+
+	passed, reason := checkEmploymentTenureFromEmployeeInfo(empInfo(sign, sign))
 	if !passed {
 		t.Errorf("passed = false, want true; reason = %q", reason)
 	}
@@ -30,155 +49,144 @@ func TestCheckEmploymentTenure_CurrentJob6Months_Pass(t *testing.T) {
 	}
 }
 
-// TestCheckEmploymentTenure_CurrentJob3MonthsNoPrevious_Fail verifies that
-// 3 months at current job with no previous job fails.
-func TestCheckEmploymentTenure_CurrentJob3MonthsNoPrevious_Fail(t *testing.T) {
-	now := time.Now()
-	workHistory := []mygov.WorkPlace{
-		{
-			EmployerName: "ABC LLC",
-			StartDate:    now.AddDate(0, -3, 0), // 3 months ago
-			EndDate:      nil,
-		},
-	}
+// TestCheckEmploymentTenure_SignDate3Months_Fail verifies that a customer
+// whose active contract was signed 3 months ago fails (< 6 months).
+func TestCheckEmploymentTenure_SignDate3Months_Fail(t *testing.T) {
+	sign := time.Now().AddDate(0, -3, 0).Format("02.01.2006")
 
-	passed, reason := checkEmploymentTenure(workHistory)
+	passed, reason := checkEmploymentTenureFromEmployeeInfo(empInfo(sign, sign))
 	if passed {
-		t.Errorf("passed = true, want false")
+		t.Errorf("passed = true, want false (3 months < 6)")
 	}
-	if !contains(reason, "imtina") {
-		t.Errorf("reason = %q, want 'imtina'", reason)
+	if !contains(reason, "EMPLOYMENT_TENURE") {
+		t.Errorf("reason = %q, want EMPLOYMENT_TENURE mention", reason)
 	}
 }
 
-// TestCheckEmploymentTenure_Current3PlusPrevious4Gap10_Pass verifies the
-// combined tenure rule: current 3 months + previous 4 months, gap 10 days
-// (< 29) → combined 7 months → pass.
-func TestCheckEmploymentTenure_Current3PlusPrevious4Gap10_Pass(t *testing.T) {
-	now := time.Now()
-	prevEnd := now.AddDate(0, -3, -10)   // 3 months 10 days ago
-	prevStart := prevEnd.AddDate(0, -4, 0) // 4 months before that
+// TestCheckEmploymentTenure_SignDateExactly6Months_Pass verifies the boundary:
+// exactly 6 months should pass (>= 6).
+func TestCheckEmploymentTenure_SignDateExactly6Months_Pass(t *testing.T) {
+	sign := time.Now().AddDate(0, -6, 0).Format("02.01.2006")
 
-	workHistory := []mygov.WorkPlace{
-		{
-			EmployerName: "Current LLC",
-			StartDate:    now.AddDate(0, -3, 0), // 3 months ago
-			EndDate:      nil,
-		},
-		{
-			EmployerName: "Previous Corp",
-			StartDate:    prevStart,
-			EndDate:      &prevEnd,
-		},
-	}
-
-	passed, reason := checkEmploymentTenure(workHistory)
+	passed, _ := checkEmploymentTenureFromEmployeeInfo(empInfo(sign, sign))
 	if !passed {
-		t.Errorf("passed = false, want true; reason = %q", reason)
-	}
-	if !contains(reason, "uyğundur") {
-		t.Errorf("reason = %q, want 'uyğundur'", reason)
+		t.Errorf("passed = false, want true (exactly 6 months)")
 	}
 }
 
-// TestCheckEmploymentTenure_Current3PlusPrevious4Gap60_Fail verifies that
-// a gap of 60 days (>= 29) causes the previous job to NOT be counted.
-func TestCheckEmploymentTenure_Current3PlusPrevious4Gap60_Fail(t *testing.T) {
-	now := time.Now()
-	prevEnd := now.AddDate(0, -3, -60) // 3 months 60 days ago
-	prevStart := prevEnd.AddDate(0, -4, 0)
+// TestCheckEmploymentTenure_SignDate5Months_Fail verifies that 5 months
+// (just under 6) fails.
+func TestCheckEmploymentTenure_SignDate5Months_Fail(t *testing.T) {
+	sign := time.Now().AddDate(0, -5, 0).Format("02.01.2006")
 
-	workHistory := []mygov.WorkPlace{
-		{
-			EmployerName: "Current LLC",
-			StartDate:    now.AddDate(0, -3, 0),
-			EndDate:      nil,
-		},
-		{
-			EmployerName: "Previous Corp",
-			StartDate:    prevStart,
-			EndDate:      &prevEnd,
-		},
-	}
-
-	passed, reason := checkEmploymentTenure(workHistory)
-	if passed {
-		t.Errorf("passed = true, want false (gap >= 29 days)")
-	}
-	if !contains(reason, "imtina") {
-		t.Errorf("reason = %q, want 'imtina'", reason)
-	}
-	if !contains(reason, "29") {
-		t.Errorf("reason = %q, want '29' mentioned (gap threshold)", reason)
-	}
-}
-
-// TestCheckEmploymentTenure_EmptyWorkHistory_Fail verifies that empty
-// work history fails.
-func TestCheckEmploymentTenure_EmptyWorkHistory_Fail(t *testing.T) {
-	passed, reason := checkEmploymentTenure([]mygov.WorkPlace{})
-	if passed {
-		t.Errorf("passed = true, want false")
-	}
-	if !contains(reason, "boşdur") {
-		t.Errorf("reason = %q, want 'boşdur'", reason)
-	}
-}
-
-// TestCheckEmploymentTenure_CurrentJobExactly6Months_Pass verifies the
-// boundary: exactly 6 months should pass (>= 6).
-func TestCheckEmploymentTenure_CurrentJobExactly6Months_Pass(t *testing.T) {
-	now := time.Now()
-	workHistory := []mygov.WorkPlace{
-		{
-			EmployerName: "ABC LLC",
-			StartDate:    now.AddDate(0, -6, 0), // exactly 6 months ago
-			EndDate:      nil,
-		},
-	}
-
-	passed, _ := checkEmploymentTenure(workHistory)
-	if !passed {
-		t.Errorf("passed = false, want true (exactly 6 months should pass)")
-	}
-}
-
-// TestCheckEmploymentTenure_CurrentJob5Months_Fail verifies that 5 months
-// (just under 6) with no previous job fails.
-func TestCheckEmploymentTenure_CurrentJob5Months_Fail(t *testing.T) {
-	now := time.Now()
-	workHistory := []mygov.WorkPlace{
-		{
-			EmployerName: "ABC LLC",
-			StartDate:    now.AddDate(0, -5, 0), // 5 months ago
-			EndDate:      nil,
-		},
-	}
-
-	passed, _ := checkEmploymentTenure(workHistory)
+	passed, _ := checkEmploymentTenureFromEmployeeInfo(empInfo(sign, sign))
 	if passed {
 		t.Errorf("passed = true, want false (5 months < 6)")
 	}
 }
 
-// TestCheckEmploymentTenure_CurrentJobEndDateSet_Fail verifies that if the
-// first entry has EndDate set (not currently employed), the check fails.
-func TestCheckEmploymentTenure_CurrentJobEndDateSet_Fail(t *testing.T) {
-	now := time.Now()
-	endDate := now.AddDate(0, -1, 0)
-	workHistory := []mygov.WorkPlace{
-		{
-			EmployerName: "ABC LLC",
-			StartDate:    now.AddDate(0, -12, 0),
-			EndDate:      &endDate, // not currently employed
+// TestCheckEmploymentTenure_EmptyActive_Fail verifies that an empty Active
+// section (no workplace info) fails.
+func TestCheckEmploymentTenure_EmptyActive_Fail(t *testing.T) {
+	info := &mygov.EmployeeInfoResponse{
+		Result: 1, RequestID: "1", Message: "SUCCESS",
+		Data: &mygov.EmployeeInfoData{
+			Status:   &mygov.EmployeeStatus{Name: "Successful", Code: 0},
+			Response: &mygov.EmployeeRecords{},
 		},
 	}
 
-	passed, reason := checkEmploymentTenure(workHistory)
+	passed, reason := checkEmploymentTenureFromEmployeeInfo(info)
 	if passed {
-		t.Errorf("passed = true, want false (EndDate set on first entry)")
+		t.Errorf("passed = true, want false")
 	}
-	if !contains(reason, "cari") {
-		t.Errorf("reason = %q, want 'cari' mention", reason)
+	if !contains(reason, "Aktiv iş yeri tapılmadı") {
+		t.Errorf("reason = %q, want 'Aktiv iş yeri tapılmadı'", reason)
+	}
+}
+
+// TestCheckEmploymentTenure_NilResponse_Fail verifies the nil guards.
+func TestCheckEmploymentTenure_NilResponse_Fail(t *testing.T) {
+	cases := []*mygov.EmployeeInfoResponse{
+		nil,
+		{Result: 1, Data: nil},
+		{Result: 1, Data: &mygov.EmployeeInfoData{Response: nil}},
+	}
+	for i, info := range cases {
+		passed, reason := checkEmploymentTenureFromEmployeeInfo(info)
+		if passed {
+			t.Errorf("case %d: passed = true, want false", i)
+		}
+		if !contains(reason, "tapılmadı") {
+			t.Errorf("case %d: reason = %q, want 'tapılmadı'", i, reason)
+		}
+	}
+}
+
+// TestCheckEmploymentTenure_SignDateFallbackToBeginDate verifies that when
+// SignDate is empty, BeginDate is used as the anchor.
+func TestCheckEmploymentTenure_SignDateFallbackToBeginDate(t *testing.T) {
+	begin := time.Now().AddDate(0, -8, 0).Format("02.01.2006")
+
+	// SignDate empty → fallback to BeginDate (8 months ago → pass)
+	passed, reason := checkEmploymentTenureFromEmployeeInfo(empInfo("", begin))
+	if !passed {
+		t.Errorf("passed = false, want true (BeginDate fallback); reason = %q", reason)
+	}
+	if !contains(reason, "başlama tarixi") {
+		t.Errorf("reason = %q, want 'başlama tarixi' mention", reason)
+	}
+}
+
+// TestCheckEmploymentTenure_NoDates_Fail verifies that a contract without
+// SignDate and BeginDate fails with a clear message.
+func TestCheckEmploymentTenure_NoDates_Fail(t *testing.T) {
+	passed, reason := checkEmploymentTenureFromEmployeeInfo(empInfo("", ""))
+	if passed {
+		t.Errorf("passed = true, want false (no dates)")
+	}
+	if !contains(reason, "tarixi tapılmadı") {
+		t.Errorf("reason = %q, want 'tarixi tapılmadı'", reason)
+	}
+}
+
+// TestCheckEmploymentTenure_MainJobPreferred verifies that when multiple
+// Active records exist, the main (Əsas) workplace is used for the check even
+// if it appears later in the list.
+func TestCheckEmploymentTenure_MainJobPreferred(t *testing.T) {
+	long := time.Now().AddDate(0, -8, 0).Format("02.01.2006")
+	short := time.Now().AddDate(0, -2, 0).Format("02.01.2006")
+
+	// First entry: part-time (Label "2") signed 8 months ago.
+	// Second entry: main job (Label "1" Əsas) signed 2 months ago → must FAIL,
+	// proving the main job (not the first entry) drives the check.
+	partTime := mygov.EmploymentRecord{
+		Employer: &mygov.EmployerInfo{Name: "Part-time LLC"},
+		Employee: &mygov.EmployeeInfo{
+			WorkPlaceType: &mygov.LabelDescription{Label: "2", Description: "Əlavə"},
+		},
+		Contract: &mygov.ContractInfo{SignDate: long, BeginDate: long},
+	}
+	info := empInfo(short, short)
+	info.Data.Response.Active = append(info.Data.Response.Active, partTime)
+
+	passed, reason := checkEmploymentTenureFromEmployeeInfo(info)
+	if passed {
+		t.Errorf("passed = true, want false (main job 2 months < 6)")
+	}
+	if !contains(reason, "TEST ŞİRKƏT MMC") {
+		t.Errorf("reason = %q, want main-job employer name", reason)
+	}
+}
+
+// TestCheckEmploymentTenure_InvalidDateFormat_Fail verifies that an
+// unparseable date fails with a clear message instead of panicking.
+func TestCheckEmploymentTenure_InvalidDateFormat_Fail(t *testing.T) {
+	passed, reason := checkEmploymentTenureFromEmployeeInfo(empInfo("2026-07-01", ""))
+	if passed {
+		t.Errorf("passed = true, want false (invalid date format)")
+	}
+	if !contains(reason, "formatı düzgün deyil") {
+		t.Errorf("reason = %q, want 'formatı düzgün deyil'", reason)
 	}
 }
