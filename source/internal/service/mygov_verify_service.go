@@ -1,14 +1,14 @@
 package service
 
 import (
-        "context"
-        "encoding/json"
-        "fmt"
-        "log/slog"
-        "time"
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"time"
 
-        "rdc-source/internal/model"
-        "rdc-source/pkg/mygov"
+	"rdc-source/internal/model"
+	"rdc-source/pkg/mygov"
 )
 
 // PR #65: Employment and pension verification service.
@@ -29,11 +29,11 @@ import (
 
 // MyGovVerifyResponse is returned by the employment and pension verify endpoints.
 type MyGovVerifyResponse struct {
-        ApplicationID int    `json:"application_id"`
-        Verified      bool   `json:"verified"`
-        Status        string `json:"status"`         // "passed", "rejected", "pending"
-        Reason        string `json:"reason,omitempty"`
-        CheckType     string `json:"check_type"`     // "employment" or "pension"
+	ApplicationID int    `json:"application_id"`
+	Verified      bool   `json:"verified"`
+	Status        string `json:"status"` // "passed", "rejected", "pending"
+	Reason        string `json:"reason,omitempty"`
+	CheckType     string `json:"check_type"` // "employment" or "pension"
 }
 
 // RequestEmploymentVerification generates a MyGov permission link for employment
@@ -43,22 +43,22 @@ type MyGovVerifyResponse struct {
 // This is a thin wrapper around the existing GenerateLink method — it just
 // records the check type so the verify step knows which data to look at.
 func (s *MyGovService) RequestEmploymentVerification(ctx context.Context, appID int) (*model.MyGovPermissionResponse, error) {
-        slog.Info("employment verification requested",
-                "application_id", appID,
-                "check_type", "employment")
-        // The GenerateLink method already sends the SMS with the MyGov deeplink.
-        // The check_type is implicit: the expert knows they clicked "employment".
-        return s.GenerateLink(ctx, appID, s.getCustomerPIN(ctx, appID))
+	slog.Info("employment verification requested",
+		"application_id", appID,
+		"check_type", "employment")
+	// The GenerateLink method already sends the SMS with the MyGov deeplink.
+	// The check_type is implicit: the expert knows they clicked "employment".
+	return s.GenerateLink(ctx, appID, s.getCustomerPIN(ctx, appID))
 }
 
 // RequestPensionVerification generates a MyGov permission link for pension
 // data and sends it via SMS to the customer. Same flow as employment, just
 // a different semantic label.
 func (s *MyGovService) RequestPensionVerification(ctx context.Context, appID int) (*model.MyGovPermissionResponse, error) {
-        slog.Info("pension verification requested",
-                "application_id", appID,
-                "check_type", "pension")
-        return s.GenerateLink(ctx, appID, s.getCustomerPIN(ctx, appID))
+	slog.Info("pension verification requested",
+		"application_id", appID,
+		"check_type", "pension")
+	return s.GenerateLink(ctx, appID, s.getCustomerPIN(ctx, appID))
 }
 
 // VerifyEmployment fetches MLSA employment data via GetEmployeeInfoByPin and runs
@@ -66,94 +66,159 @@ func (s *MyGovService) RequestPensionVerification(ctx context.Context, appID int
 //   - Active bölməsində iş yeri məlumatı olmalıdır
 //   - Müddət = Contract.SignDate (imza tarixi) → bu gün, 30 günlük aylarla
 //   - Müddət >= 6 ay → PASS, əks halda avtomatik imtina (EMPLOYMENT_TENURE)
+//
+// PR #242: nəticə cutoff_results cədvəlinə yazılır (plan/fakt).
 func (s *MyGovService) VerifyEmployment(ctx context.Context, appID int) (*MyGovVerifyResponse, error) {
-        // 1. Get the customer's PIN
-        pin := s.getCustomerPIN(ctx, appID)
-        if pin == "" {
-                return nil, fmt.Errorf("customer PIN not found for application %d", appID)
-        }
+	// 1. Get the customer's PIN
+	pin := s.getCustomerPIN(ctx, appID)
+	if pin == "" {
+		return nil, fmt.Errorf("customer PIN not found for application %d", appID)
+	}
 
-        // 2. Fetch employment records from AZMK CustomerDataService (PR #239)
-        pin, serial := s.getCustomerPINAndSerial(ctx, appID)
-        var info *mygov.EmployeeInfoResponse
-        var err error
-        if s.customerDataProvider != nil {
-                info, err = s.customerDataProvider.GetEmployeeInfoByPin(ctx, pin, serial)
-        } else {
-                // Fallback: MyGov provider (localhost:8083)
-                info, err = s.provider.GetEmployeeInfoByPin(ctx, pin)
-        }
-        if err != nil {
-                return nil, fmt.Errorf("GetEmployeeInfoByPin failed: %w", err)
-        }
+	// 2. Fetch employment records from AZMK CustomerDataService (PR #239)
+	pin, serial := s.getCustomerPINAndSerial(ctx, appID)
+	serviceName := "AZMK_GET_EMPLOYEE_INFO"
+	var info *mygov.EmployeeInfoResponse
+	var err error
+	if s.customerDataProvider != nil {
+		info, err = s.customerDataProvider.GetEmployeeInfoByPin(ctx, pin, serial)
+	} else {
+		// Fallback: MyGov provider (localhost:8083)
+		serviceName = "MYGOV_GET_EMPLOYEE_INFO"
+		info, err = s.provider.GetEmployeeInfoByPin(ctx, pin)
+	}
+	if err != nil {
+		// PR #242: servis xətası da cutoff_results-a yazılır (checked=false)
+		s.logCutoff(ctx, appID, "EMPLOYMENT_TENURE", "İş yerində minimum 6 ay staj", serviceName,
+			false, false, "", ">= 6 ay", fmt.Sprintf("service error: %v", err))
+		return nil, fmt.Errorf("GetEmployeeInfoByPin failed: %w", err)
+	}
 
-        // 3. Run the EMPLOYMENT_TENURE cutoff check
-        passed, reason := checkEmploymentTenureFromEmployeeInfo(info)
+	// 3. Run the EMPLOYMENT_TENURE cutoff check
+	passed, months, reason := checkEmploymentTenureFromEmployeeInfo(info)
 
-        resp := &MyGovVerifyResponse{
-                ApplicationID: appID,
-                Verified:      passed,
-                CheckType:     "employment",
-        }
+	// PR #242: nəticəni cutoff_results-a yaz
+	actualValue := ""
+	if months >= 0 {
+		actualValue = fmt.Sprintf("%.1f ay", months)
+	}
+	s.logCutoff(ctx, appID, "EMPLOYMENT_TENURE", "İş yerində minimum 6 ay staj", serviceName,
+		true, passed, actualValue, ">= 6 ay", reason)
 
-        if !passed {
-                // Auto-reject the application
-                resp.Status = "rejected"
-                resp.Reason = reason
-                s.autoReject(ctx, appID, "EMPLOYMENT_TENURE")
-        } else {
-                resp.Status = "passed"
-                resp.Reason = reason
-        }
+	resp := &MyGovVerifyResponse{
+		ApplicationID: appID,
+		Verified:      passed,
+		CheckType:     "employment",
+	}
 
-        slog.Info("employment verification completed",
-                "application_id", appID,
-                "passed", passed,
-                "reason", reason)
+	if !passed {
+		// Auto-reject the application
+		resp.Status = "rejected"
+		resp.Reason = reason
+		s.autoReject(ctx, appID, "EMPLOYMENT_TENURE")
+	} else {
+		resp.Status = "passed"
+		resp.Reason = reason
+	}
 
-        return resp, nil
+	slog.Info("employment verification completed",
+		"application_id", appID,
+		"passed", passed,
+		"reason", reason)
+
+	return resp, nil
 }
 
-// VerifyPension fetches MyGov data and checks for 1st-group disability.
-// If DisabilityGroup == 1, the application is auto-rejected.
+// VerifyPension fetches pension/disability data via GetPensionInfoByPin (PR #242 —
+// PIN üzərindən, permission token tələb olunmur; iş yeri yoxlaması ilə eyni qayda)
+// and checks for 1st-group disability. If DisabilityGroup == 1, the application
+// is auto-rejected. Nəticə cutoff_results cədvəlinə yazılır (DISABILITY_GROUP1).
+//
+// Mənbə prioriteti:
+//  1. AZMK CustomerDataService — GetPensionInfoByPin(fin, serial)
+//  2. Fallback: saxlanmış MyGov AuthorizedData (permission flow ilə əvvəl çəkilmişibsə)
 func (s *MyGovService) VerifyPension(ctx context.Context, appID int) (*MyGovVerifyResponse, error) {
-        // 1. Fetch MyGov data
-        data, err := s.getAuthorizedData(ctx, appID)
-        if err != nil {
-                return nil, fmt.Errorf("failed to get MyGov data: %w", err)
-        }
+	// 1. Get the customer's PIN + serial
+	pin, serial := s.getCustomerPINAndSerial(ctx, appID)
+	if pin == "" {
+		return nil, fmt.Errorf("customer PIN not found for application %d", appID)
+	}
 
-        // 2. Check disability group
-        passed := data.DisabilityGroup != 1
-        var reason string
-        if passed {
-                reason = "No 1st-group disability found"
-        } else {
-                reason = "DISABILITY_GROUP1"
-        }
+	// 2. Fetch pension/disability data — AZMK first (PR #242)
+	serviceName := "AZMK_GET_PENSION_INFO"
+	var pension *mygov.PensionInfoResponse
+	var azmkErr error
+	if s.customerDataProvider != nil {
+		pension, azmkErr = s.customerDataProvider.GetPensionInfoByPin(ctx, pin, serial)
+		if azmkErr != nil {
+			slog.Warn("pension verify: AZMK GetPensionInfoByPin failed — trying stored MyGov data",
+				"application_id", appID, "error", azmkErr)
+		}
+	}
+	if pension == nil {
+		// Fallback: əvvəl çəkilmiş MyGov authorized data (köhnə permission flow)
+		data, err := s.getAuthorizedData(ctx, appID)
+		if err != nil {
+			if azmkErr != nil {
+				s.logCutoff(ctx, appID, "DISABILITY_GROUP1", "1-ci qrup əlillik olduqda imtina", serviceName,
+					false, false, "", "disability_group != 1",
+					fmt.Sprintf("AZMK error: %v; MyGov fallback error: %v", azmkErr, err))
+				return nil, fmt.Errorf("GetPensionInfoByPin failed: %v; MyGov fallback failed: %w", azmkErr, err)
+			}
+			s.logCutoff(ctx, appID, "DISABILITY_GROUP1", "1-ci qrup əlillik olduqda imtina", serviceName,
+				false, false, "", "disability_group != 1",
+				fmt.Sprintf("service error: %v", err))
+			return nil, fmt.Errorf("failed to get pension data: %w", err)
+		}
+		pension = mygov.PensionInfoFromAuthorizedData(data)
+		serviceName = "MYGOV_AUTHORIZED_DATA"
+	}
+	if pension == nil || pension.Data == nil || pension.Data.Response == nil {
+		s.logCutoff(ctx, appID, "DISABILITY_GROUP1", "1-ci qrup əlillik olduqda imtina", serviceName,
+			false, false, "", "disability_group != 1", "pension data missing in response")
+		return nil, fmt.Errorf("pension data missing in GetPensionInfoByPin response")
+	}
 
-        resp := &MyGovVerifyResponse{
-                ApplicationID: appID,
-                Verified:      passed,
-                CheckType:     "pension",
-        }
+	// 3. Check disability group
+	disabilityGroup := pension.Data.Response.DisabilityGroup
+	isPensioner := pension.Data.Response.IsPensioner
+	passed := disabilityGroup != 1
+	var reason string
+	if passed {
+		reason = "No 1st-group disability found"
+	} else {
+		reason = "DISABILITY_GROUP1"
+	}
 
-        if !passed {
-                resp.Status = "rejected"
-                resp.Reason = reason
-                s.autoReject(ctx, appID, "DISABILITY_GROUP1")
-        } else {
-                resp.Status = "passed"
-                resp.Reason = reason
-        }
+	// PR #242: nəticəni cutoff_results-a yaz
+	s.logCutoff(ctx, appID, "DISABILITY_GROUP1", "1-ci qrup əlillik olduqda imtina", serviceName,
+		true, passed,
+		fmt.Sprintf("disability_group = %d, is_pensioner = %v", disabilityGroup, isPensioner),
+		"disability_group != 1", reason)
 
-        slog.Info("pension verification completed",
-                "application_id", appID,
-                "passed", passed,
-                "disability_group", data.DisabilityGroup,
-                "is_pensioner", data.IsPensioner)
+	resp := &MyGovVerifyResponse{
+		ApplicationID: appID,
+		Verified:      passed,
+		CheckType:     "pension",
+	}
 
-        return resp, nil
+	if !passed {
+		resp.Status = "rejected"
+		resp.Reason = reason
+		s.autoReject(ctx, appID, "DISABILITY_GROUP1")
+	} else {
+		resp.Status = "passed"
+		resp.Reason = reason
+	}
+
+	slog.Info("pension verification completed",
+		"application_id", appID,
+		"passed", passed,
+		"source", serviceName,
+		"disability_group", disabilityGroup,
+		"is_pensioner", isPensioner)
+
+	return resp, nil
 }
 
 // checkEmploymentTenureFromEmployeeInfo implements the EMPLOYMENT_TENURE cutoff
@@ -166,59 +231,62 @@ func (s *MyGovService) VerifyPension(ctx context.Context, appID int) (*MyGovVeri
 //     (SignDate boşdursa BeginDate istifadə olunur)
 //   - Staj >= 6 ay → PASS, əks halda FAIL
 //
-// Returns (passed bool, reason string).
-func checkEmploymentTenureFromEmployeeInfo(info *mygov.EmployeeInfoResponse) (bool, string) {
-        if info == nil || info.Data == nil || info.Data.Response == nil {
-                return false, "İş yeri məlumatı tapılmadı (cavab boşdur)"
-        }
+// PR #242: months da qaytarılır (cutoff_results.actual_value üçün);
+// tarix hesablana bilmədikdə months = -1.
+//
+// Returns (passed bool, months float64, reason string).
+func checkEmploymentTenureFromEmployeeInfo(info *mygov.EmployeeInfoResponse) (bool, float64, string) {
+	if info == nil || info.Data == nil || info.Data.Response == nil {
+		return false, -1, "İş yeri məlumatı tapılmadı (cavab boşdur)"
+	}
 
-        active := info.Data.Response.Active
-        if len(active) == 0 {
-                return false, "Aktiv iş yeri tapılmadı (Active bölməsi boşdur)"
-        }
+	active := info.Data.Response.Active
+	if len(active) == 0 {
+		return false, -1, "Aktiv iş yeri tapılmadı (Active bölməsi boşdur)"
+	}
 
-        // Əsas iş yerini seç (WorkPlaceType Label "1" = Əsas); yoxdursa ilk qeyd
-        record := active[0]
-        for _, a := range active {
-                if a.IsMainJob() {
-                        record = a
-                        break
-                }
-        }
-        if record.Contract == nil {
-                return false, "İş müqaviləsi məlumatı tapılmadı (Contract boşdur)"
-        }
+	// Əsas iş yerini seç (WorkPlaceType Label "1" = Əsas); yoxdursa ilk qeyd
+	record := active[0]
+	for _, a := range active {
+		if a.IsMainJob() {
+			record = a
+			break
+		}
+	}
+	if record.Contract == nil {
+		return false, -1, "İş müqaviləsi məlumatı tapılmadı (Contract boşdur)"
+	}
 
-        employerName := ""
-        if record.Employer != nil && record.Employer.Name != "" {
-                employerName = record.Employer.Name
-        }
+	employerName := ""
+	if record.Employer != nil && record.Employer.Name != "" {
+		employerName = record.Employer.Name
+	}
 
-        // İmza tarixi (SignDate); boşdursa BeginDate fallback
-        dateStr := record.Contract.SignDate
-        dateKind := "imza tarixi"
-        if dateStr == "" {
-                dateStr = record.Contract.BeginDate
-                dateKind = "başlama tarixi"
-        }
-        if dateStr == "" {
-                return false, "Müqavilə tarixi tapılmadı (SignDate/BeginDate boşdur)"
-        }
+	// İmza tarixi (SignDate); boşdursa BeginDate fallback
+	dateStr := record.Contract.SignDate
+	dateKind := "imza tarixi"
+	if dateStr == "" {
+		dateStr = record.Contract.BeginDate
+		dateKind = "başlama tarixi"
+	}
+	if dateStr == "" {
+		return false, -1, "Müqavilə tarixi tapılmadı (SignDate/BeginDate boşdur)"
+	}
 
-        signDate, err := time.Parse("02.01.2006", dateStr)
-        if err != nil {
-                return false, fmt.Sprintf("Müqavilə tarixi formatı düzgün deyil: %s", dateStr)
-        }
+	signDate, err := time.Parse("02.01.2006", dateStr)
+	if err != nil {
+		return false, -1, fmt.Sprintf("Müqavilə tarixi formatı düzgün deyil: %s", dateStr)
+	}
 
-        // Staj: imza tarixindən bu günə, 30 günlük aylarla ("kesim" həddi 6 ay)
-        months := time.Since(signDate).Hours() / 24 / 30
+	// Staj: imza tarixindən bu günə, 30 günlük aylarla ("kesim" həddi 6 ay)
+	months := time.Since(signDate).Hours() / 24 / 30
 
-        if months >= employmentTenureMinMonths {
-                return true, fmt.Sprintf("İş yerində staj %.1f ay (%s, %s — ≥ 6 ay) — uyğundur",
-                        months, dateKind, employerName)
-        }
-        return false, fmt.Sprintf("İş yerində staj %.1f ay (< 6 ay) — imtina (EMPLOYMENT_TENURE)%s",
-                months, employerSuffix(employerName))
+	if months >= employmentTenureMinMonths {
+		return true, months, fmt.Sprintf("İş yerində staj %.1f ay (%s, %s — ≥ 6 ay) — uyğundur",
+			months, dateKind, employerName)
+	}
+	return false, months, fmt.Sprintf("İş yerində staj %.1f ay (< 6 ay) — imtina (EMPLOYMENT_TENURE)%s",
+		months, employerSuffix(employerName))
 }
 
 // employmentTenureMinMonths is the EMPLOYMENT_TENURE cutoff threshold.
@@ -226,90 +294,114 @@ const employmentTenureMinMonths = 6
 
 // employerSuffix formats the employer name for reason messages.
 func employerSuffix(employerName string) string {
-        if employerName == "" {
-                return ""
-        }
-        return fmt.Sprintf(" — %s", employerName)
+	if employerName == "" {
+		return ""
+	}
+	return fmt.Sprintf(" — %s", employerName)
 }
 
 // getAuthorizedData reads the stored MyGov data from the DB and unmarshals it.
 // Returns an error if no data has been fetched yet.
 func (s *MyGovService) getAuthorizedData(ctx context.Context, appID int) (*mygov.AuthorizedData, error) {
-        perm, err := s.repo.GetByApplicationID(ctx, appID)
-        if err != nil {
-                return nil, fmt.Errorf("failed to get MyGov permission: %w", err)
-        }
-        if perm.DataJSON == "" {
-                return nil, fmt.Errorf("MyGov data not yet fetched — call FetchData first")
-        }
-        var data mygov.AuthorizedData
-        if err := json.Unmarshal([]byte(perm.DataJSON), &data); err != nil {
-                return nil, fmt.Errorf("failed to parse MyGov data: %w", err)
-        }
-        return &data, nil
+	perm, err := s.repo.GetByApplicationID(ctx, appID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get MyGov permission: %w", err)
+	}
+	if perm.DataJSON == "" {
+		return nil, fmt.Errorf("MyGov data not yet fetched — call FetchData first")
+	}
+	var data mygov.AuthorizedData
+	if err := json.Unmarshal([]byte(perm.DataJSON), &data); err != nil {
+		return nil, fmt.Errorf("failed to parse MyGov data: %w", err)
+	}
+	return &data, nil
+}
+
+// logCutoff writes a cutoff check result to the database (PR #242).
+// VerifyEmployment (EMPLOYMENT_TENURE) və VerifyPension (DISABILITY_GROUP1)
+// nəticələri cutoff_results cədvəlinə yazılır — ApplicationService.logCutoff
+// ilə eyni strukturda (plan/fakt hesabatları üçün).
+func (s *MyGovService) logCutoff(ctx context.Context, appID int, code, name, service string, checked, passed bool, actualValue, threshold, details string) {
+	if s.cutoffRepo == nil {
+		return
+	}
+	cr := &model.CutoffResult{
+		ApplicationID: appID,
+		CutoffCode:    code,
+		CutoffName:    name,
+		ServiceName:   service,
+		Checked:       checked,
+		Passed:        passed,
+		ActualValue:   actualValue,
+		Threshold:     threshold,
+		Details:       details,
+	}
+	if err := s.cutoffRepo.Insert(ctx, cr); err != nil {
+		slog.Warn("failed to log cutoff result", "error", err, "cutoff_code", code)
+	}
 }
 
 // autoReject marks the application as rejected with the given reason.
 // Used when employment or pension verification fails.
 // PR #85: Also sends SMS to the customer informing them of the rejection.
 func (s *MyGovService) autoReject(ctx context.Context, appID int, reason string) {
-        app, err := s.appRepo.GetApplicationByID(ctx, appID)
-        if err != nil {
-                slog.Error("auto-reject: failed to get application",
-                        "application_id", appID,
-                        "error", err)
-                return
-        }
+	app, err := s.appRepo.GetApplicationByID(ctx, appID)
+	if err != nil {
+		slog.Error("auto-reject: failed to get application",
+			"application_id", appID,
+			"error", err)
+		return
+	}
 
-        // Don't override a final status (approved/rejected already set)
-        if app.Status == model.StatusApproved || app.Status == model.StatusRejected {
-                slog.Warn("auto-reject: application already in final status, skipping",
-                        "application_id", appID,
-                        "current_status", app.Status)
-                return
-        }
+	// Don't override a final status (approved/rejected already set)
+	if app.Status == model.StatusApproved || app.Status == model.StatusRejected {
+		slog.Warn("auto-reject: application already in final status, skipping",
+			"application_id", appID,
+			"current_status", app.Status)
+		return
+	}
 
-        if err := s.appRepo.UpdateApplicationDecision(ctx, appID,
-                model.StatusRejected, app.CreditLevel, reason,
-                app.ApprovedAmount, app.ApprovedRate, app.TotalAmount); err != nil {
-                slog.Error("auto-reject: failed to update application status",
-                        "application_id", appID,
-                        "error", err)
-                return
-        }
+	if err := s.appRepo.UpdateApplicationDecision(ctx, appID,
+		model.StatusRejected, app.CreditLevel, reason,
+		app.ApprovedAmount, app.ApprovedRate, app.TotalAmount); err != nil {
+		slog.Error("auto-reject: failed to update application status",
+			"application_id", appID,
+			"error", err)
+		return
+	}
 
-        slog.Info("application auto-rejected by MyGov verification",
-                "application_id", appID,
-                "reason", reason)
+	slog.Info("application auto-rejected by MyGov verification",
+		"application_id", appID,
+		"reason", reason)
 
-        // PR #85: Send SMS to customer about the rejection
-        if app.CustomerPhone != "" {
-                smsMessage := "Hormetli musteri, sizin kredit muracietiniz heyata kecirilmeyib. Etrafli melumat ucun 157."
-                if err := s.smsProvider.Send(ctx, app.CustomerPhone, smsMessage); err != nil {
-                        slog.Error("auto-reject: failed to send rejection SMS",
-                                "application_id", appID,
-                                "phone", app.CustomerPhone,
-                                "error", err)
-                } else {
-                        slog.Info("rejection SMS sent to customer",
-                                "application_id", appID,
-                                "phone", app.CustomerPhone)
-                }
-        }
+	// PR #85: Send SMS to customer about the rejection
+	if app.CustomerPhone != "" {
+		smsMessage := "Hormetli musteri, sizin kredit muracietiniz heyata kecirilmeyib. Etrafli melumat ucun 157."
+		if err := s.smsProvider.Send(ctx, app.CustomerPhone, smsMessage); err != nil {
+			slog.Error("auto-reject: failed to send rejection SMS",
+				"application_id", appID,
+				"phone", app.CustomerPhone,
+				"error", err)
+		} else {
+			slog.Info("rejection SMS sent to customer",
+				"application_id", appID,
+				"phone", app.CustomerPhone)
+		}
+	}
 }
 
 // getCustomerPINAndSerial fetches the customer PIN and serial for an application.
 // PR #239: AZMK GetEmployeeInfoByPin həm FIN, həm serial tələb edir.
 func (s *MyGovService) getCustomerPINAndSerial(ctx context.Context, appID int) (string, string) {
-        app, err := s.appRepo.GetApplicationByID(ctx, appID)
-        if err != nil {
-                return "", ""
-        }
-        return app.CustomerPIN, app.CustomerSerial
+	app, err := s.appRepo.GetApplicationByID(ctx, appID)
+	if err != nil {
+		return "", ""
+	}
+	return app.CustomerPIN, app.CustomerSerial
 }
 
 // getCustomerPIN fetches the customer PIN for an application.
 func (s *MyGovService) getCustomerPIN(ctx context.Context, appID int) string {
-        pin, _ := s.getCustomerPINAndSerial(ctx, appID)
-        return pin
+	pin, _ := s.getCustomerPINAndSerial(ctx, appID)
+	return pin
 }
