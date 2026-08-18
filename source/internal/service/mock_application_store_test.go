@@ -275,6 +275,10 @@ func (m *mockApplicationStore) UpdateApplicationDetails(_ context.Context, id in
                 existing.PartnerID = app.PartnerID
                 existing.CardID = app.CardID
                 existing.LwApplicationID = app.LwApplicationID
+                // PR #225: credit_level, approved_rate, total_amount (mirrors real repo)
+                existing.CreditLevel = app.CreditLevel
+                existing.ApprovedRate = app.ApprovedRate
+                existing.TotalAmount = app.TotalAmount
         }
         return nil
 }

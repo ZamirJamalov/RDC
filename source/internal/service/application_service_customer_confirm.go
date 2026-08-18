@@ -4,6 +4,7 @@ import (
         "context"
         "fmt"
         "log/slog"
+        "strings"
         "time"
 
         "rdc-source/internal/model"
@@ -21,8 +22,8 @@ import (
 //
 // Backend then fills in the remaining fields from external services:
 //
-//   - customer_full_name  ← LW router GetPersonalInfo (fail-hard on error)
-//   - akb_score           ← LW router GetAkbScore     (fail-hard on error)
+//   - customer_full_name  ← AZMK GetPersonalInfo (fail-soft, PR #227)
+//   - akb_score           ← AZMK getMkrScore     (fail-soft, PR #227)
 //   - term_months         ← GetOffer ranges, matched to the selected amount
 //   - contact1/2/3_phone  ← expert fills these later via CompleteApplication
 type CustomerConfirmRequest struct {
@@ -43,20 +44,19 @@ type CustomerConfirmRequest struct {
 //
 // Pipeline:
 //  1. Validate the request (amount > 0, 16-digit card, address non-empty, checkbox ticked)
-//  2. Fetch the application — must be in pending_expert status
-//  3. Fetch PersonalInfo from LW router → customer_full_name (FAIL-HARD on error)
-//  4. Resolve AKB score from LW router (FAIL-HARD on error)
+//  2. Fetch the application — must be in pending_customer status
+//  3. Fetch PersonalInfo from AZMK → customer_full_name (fail-soft, PR #227)
+//  4. Resolve AKB score from AZMK getMkrScore (fail-soft, PR #227)
 //  5. Get credit offer → find the range matching the customer's amount → term_months
 //  6. Save amount, term_months, card, address, full_name, akb_score,
 //     customer_confirmed_at = now(), card_ownership_confirmed = true
-//  7. Application stays in pending_expert — the expert will later call
-//     CompleteApplication to add the 3 contact phones and trigger the engine.
+//  7. Application transitions to pending_expert — visible in the RDC dashboard;
+//     the expert later approves/rejects it.
 //
-// Why fail-hard on LW errors (PR #58, business decision):
-//   - PersonalInfo and AKB are required for the credit engine to function
-//   - Allowing the customer to submit without them would mean the expert sees
-//     an empty application and has no way to recover
-//   - Customer gets a clear "technical error, please try again" message
+// PR #227: LW router deaktiv edildi — AZMK birincil mənbədir, fail-soft.
+//   - PersonalInfo/AKB xətaları müşterini bloklamır (warn + davam edir)
+//   - Əsas cutoff yoxlamaları OTP verify mərhələsində (early cutoffs) artıq edilib,
+//     customer-confirm-də yalnız stop-faktor müdafiə yoxlaması qalır
 func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, appID int, req *CustomerConfirmRequest) (*model.LoanApplication, error) {
         if appID <= 0 {
                 return nil, fmt.Errorf("invalid application id")
@@ -95,56 +95,67 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
                 return nil, fmt.Errorf("müraciət təsdiq oluna bilməz (cari status: %s) — yalnız OTP təsdiq olunmuş müraciətlər təsdiqlənə bilər", app.Status)
         }
 
-        // 2. Fetch PersonalInfo from LW router — fail-hard on error (business decision PR #58)
-        personalInfo, err := s.creditEngine.lwProvider.GetPersonalInfo(ctx, app.CustomerPIN, app.CustomerSerial)
-        if err != nil {
-                slog.Error("customer-confirm: GetPersonalInfo failed — rejecting customer submission",
-                        "application_id", appID,
-                        "customer_pin", app.CustomerPIN,
-                        "error", err)
-                return nil, fmt.Errorf("texniki xəta — şəxsi məlumatlar əldə edilə bilmədi, bir az sonra yenidən cəhd edin")
-        }
-        if personalInfo == nil || personalInfo.FullName == "" {
-                slog.Error("customer-confirm: GetPersonalInfo returned empty full name",
-                        "application_id", appID,
-                        "customer_pin", app.CustomerPIN)
-                return nil, fmt.Errorf("texniki xəta — şəxsi məlumatlar boş qayıtdı, bir az sonra yenidən cəhd edin")
-        }
-        app.CustomerFullName = personalInfo.FullName
-
-        // 3. Resolve AKB score from LW router — fail-hard on error (business decision PR #58)
-        resolvedAkb, _, hasStopFactor := s.creditEngine.resolveAkbScoreAndStopFactors(ctx, app.CustomerPIN, 0)
-        if hasStopFactor {
-                // AKB stop factor — reject the application immediately, do not let the
-                // customer proceed. This is rule 4 from PR #51.
-                slog.Info("customer-confirm: AKB stop factor present — rejecting customer submission",
-                        "application_id", appID,
-                        "customer_pin", app.CustomerPIN)
-                app.Status = model.StatusRejected
-                app.RejectionReason = "AKB_STOP_FACTOR"
-                app.AkbScore = 0
-                app.Amount = req.Amount
-                app.CardNumber = req.CardNumber
-                app.ActualAddress = req.ActualAddress
-                app.CustomerConfirmedAt = time.Now().Format(time.RFC3339)
-                app.CardOwnershipConfirmed = true
-                if err := s.repo.UpdateApplicationDetails(ctx, appID, app); err != nil {
-                        return nil, fmt.Errorf("failed to save rejection: %w", err)
+        // 2. PR #227: Fetch PersonalInfo from AZMK CustomerDataService — fail-soft.
+        // LW router yanaşması deaktiv edildi; AZMK birincil mənbədir.
+        // Xəta olsa: warn + davam (ad boş qalır, müraciət expert-ə keçir).
+        if s.customerDataProvider != nil {
+                data, err := s.customerDataProvider.GetPersonalInfo(ctx, app.CustomerPIN, app.CustomerSerial)
+                if err != nil {
+                        slog.Warn("customer-confirm: AZMK GetPersonalInfo failed — fail-soft (name left empty)",
+                                "application_id", appID,
+                                "customer_pin", app.CustomerPIN,
+                                "error", err)
+                } else if data != nil {
+                        if fullName := data.FullName(); fullName != "" {
+                                app.CustomerFullName = fullName
+                        }
                 }
-                return app, nil
         }
-        if resolvedAkb == 0 {
-                // AKB returned no usable data (Point == 0). Per business decision PR #58,
-                // we fail-hard — the credit engine needs a real score.
-                slog.Error("customer-confirm: AKB returned no usable score — rejecting customer submission",
-                        "application_id", appID,
-                        "customer_pin", app.CustomerPIN)
-                return nil, fmt.Errorf("texniki xəta — AKB skoru əldə edilə bilmədi, bir az sonra yenidən cəhd edin")
+
+        // 3. PR #227: AKB skoru AZMK getMkrScore-dan — fail-soft.
+        // Skor alınmasa akb=0 ilə davam edilir; GetOffer öz fallback-ini işlədir.
+        // Stop-faktor yalnız məlumat gələndə yoxlanılır (müdafiə məqsədilə —
+        // əsas yoxlama OTP verify mərhələsindəki early cutoff-lardadır).
+        resolvedAkb := 0
+        if s.customerDataProvider != nil {
+                mkrScore, err := s.customerDataProvider.GetMkrScore(ctx, app.CustomerPIN, app.CustomerSerial)
+                if err != nil {
+                        slog.Warn("customer-confirm: AZMK getMkrScore failed — fail-soft (akb stays 0)",
+                                "application_id", appID,
+                                "customer_pin", app.CustomerPIN,
+                                "error", err)
+                } else if mkrScore != nil {
+                        resp := strings.ToUpper(mkrScore.Score.Response)
+                        if resp == "AB" || resp == "NI" || resp == "NU" || resp == "TY" {
+                                // AKB stop factor — reject the application immediately, do not let the
+                                // customer proceed. This is rule 4 from PR #51.
+                                slog.Info("customer-confirm: AKB stop factor present — rejecting customer submission",
+                                        "application_id", appID,
+                                        "customer_pin", app.CustomerPIN,
+                                        "response", resp)
+                                app.Status = model.StatusRejected
+                                app.RejectionReason = fmt.Sprintf("AKB_STOP_FACTOR:%s", resp)
+                                app.AkbScore = 0
+                                app.Amount = req.Amount
+                                app.CardNumber = req.CardNumber
+                                app.ActualAddress = req.ActualAddress
+                                app.CustomerConfirmedAt = time.Now().Format(time.RFC3339)
+                                app.CardOwnershipConfirmed = true
+                                if err := s.repo.UpdateApplicationDetails(ctx, appID, app); err != nil {
+                                        return nil, fmt.Errorf("failed to save rejection: %w", err)
+                                }
+                                return app, nil
+                        }
+                        resolvedAkb = mkrScore.Score.Point
+                }
         }
-        app.AkbScore = resolvedAkb
+        if resolvedAkb > 0 {
+                app.AkbScore = resolvedAkb
+        }
 
         // 4. Get credit offer → find the range matching the customer's amount → term_months
-        offer, err := s.GetOffer(ctx, app.CustomerPIN, resolvedAkb)
+        // (GetOffer internally resolves the score fail-soft: LW first, then this fallback.)
+        offer, err := s.GetOffer(ctx, app.CustomerPIN, app.AkbScore)
         if err != nil {
                 slog.Error("customer-confirm: GetOffer failed — rejecting customer submission",
                         "application_id", appID,
