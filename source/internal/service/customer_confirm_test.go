@@ -9,6 +9,7 @@ import (
 	"rdc-source/internal/repository"
 	"rdc-source/pkg/azmk"
 	"rdc-source/pkg/lw"
+	"rdc-source/pkg/mygov"
 )
 
 // --- PR #227 tests: customer-confirm flow (AZMK-first, fail-soft, no LW router) ---
@@ -28,6 +29,12 @@ type mockAzmkCustomerData struct {
 
 	history *azmk.CreditHistory
 	histErr error
+
+	// PR #240: GetEmployeeInfoByPin — iş yeri məlumatları mock-u.
+	// customer-confirm flow bu metodu çağırmır, amma interfeysi satmaq
+	// üçün impl obliged-dır. Default: nil, nil (fail-soft).
+	employeeData *mygov.EmployeeInfoResponse
+	employeeErr  error
 }
 
 func (m *mockAzmkCustomerData) GetPersonalInfo(_ context.Context, _, _ string) (*azmk.CustomerData, error) {
@@ -56,6 +63,16 @@ func (m *mockAzmkCustomerData) InquireByIdCard(_ context.Context, _, _ string) (
 		return nil, m.histErr
 	}
 	return m.history, nil
+}
+
+// GetEmployeeInfoByPin — PR #240: mock implementasiyası. Customer-confirm
+// flow bu metodu çağırmır (iş yeri sorğusu dashboard-dan ayrıca vurur),
+// amma azmk.CustomerDataProvider interfeysi tələb etdiyi üçün əlavə olundu.
+func (m *mockAzmkCustomerData) GetEmployeeInfoByPin(_ context.Context, _, _ string) (*mygov.EmployeeInfoResponse, error) {
+	if m.employeeErr != nil {
+		return nil, m.employeeErr
+	}
+	return m.employeeData, nil
 }
 
 // newConfirmStore builds a mock store with a pending_customer application + offer ranges.
