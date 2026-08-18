@@ -39,9 +39,14 @@ type mockAzmkCustomerData struct {
 	// PR #242: GetPensionInfoByPin — pensiya/əlillik mock-u (eyni qayda).
 	pensionData *mygov.PensionInfoResponse
 	pensionErr  error
+
+	// PR #243: çağırış sayğacları — dublikat xarici sorğuların testləri üçün.
+	personalCalls int
+	mkrCalls      int
 }
 
 func (m *mockAzmkCustomerData) GetPersonalInfo(_ context.Context, _, _ string) (*azmk.CustomerData, error) {
+	m.personalCalls++ // PR #243
 	if m.personalErr != nil {
 		return nil, m.personalErr
 	}
@@ -56,6 +61,7 @@ func (m *mockAzmkCustomerData) GetOwnerData(_ context.Context, _, _ string) (*az
 }
 
 func (m *mockAzmkCustomerData) GetMkrScore(_ context.Context, _, _ string) (*azmk.MkrScore, error) {
+	m.mkrCalls++ // PR #243
 	if m.mkrErr != nil {
 		return nil, m.mkrErr
 	}
@@ -196,6 +202,82 @@ func TestCustomerConfirm_HappyPath(t *testing.T) {
 	// transitions to pending_expert and waits for the expert in the RDC dashboard.
 	if app.Status != model.StatusPendingExpert {
 		t.Errorf("status = %q, want pending_expert (no engine at customer-confirm, PR #221)", app.Status)
+	}
+}
+
+// --- PR #243 tests: dublikat xarici servis çağırışlarının qarşısının alınması ---
+
+// TestCustomerConfirm_SkipsSavedPersonalInfoAndMkr verifies that when the
+// early-cutoff phase already saved customer_full_name (PR #243) and akb_score
+// (PR #228), customer-confirm does NOT call AZMK_GET_PERSONAL_INFO and
+// AZMK_GET_MKR_SCORE a second time.
+func TestCustomerConfirm_SkipsSavedPersonalInfoAndMkr(t *testing.T) {
+	ctx := context.Background()
+
+	store := newConfirmStore()
+	// Simulyasiya: early cutoff mərhələsi adı (PR #243) və AKB scor-u (PR #228)
+	// artıq saxlayıb.
+	store.appByID[1].CustomerFullName = "Test Customer"
+	store.appByID[1].AkbScore = 650
+
+	azmkProvider := newConfirmAzmkProvider()
+	svc := newConfirmService(store, newConfirmLWProvider(), azmkProvider)
+
+	req := &CustomerConfirmRequest{
+		Amount:                 200,
+		CardNumber:             "4169731234567890",
+		ActualAddress:          "Bakı, Nizami r., Murtuza Muxtarov 12",
+		CardOwnershipConfirmed: true,
+	}
+
+	app, err := svc.CustomerConfirmApplication(ctx, 1, req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if azmkProvider.personalCalls != 0 {
+		t.Errorf("GetPersonalInfo called %d times, want 0 (name already saved — PR #243)", azmkProvider.personalCalls)
+	}
+	if azmkProvider.mkrCalls != 0 {
+		t.Errorf("GetMkrScore called %d times, want 0 (akb_score already saved — PR #243)", azmkProvider.mkrCalls)
+	}
+	if app.CustomerFullName != "Test Customer" {
+		t.Errorf("customer_full_name = %q, want 'Test Customer'", app.CustomerFullName)
+	}
+	if app.AkbScore != 650 {
+		t.Errorf("akb_score = %d, want 650 (saved value preserved)", app.AkbScore)
+	}
+	if app.Status != model.StatusPendingExpert {
+		t.Errorf("status = %q, want pending_expert", app.Status)
+	}
+}
+
+// TestCustomerConfirm_FallsBackWhenFieldsMissing verifies the fallback: when
+// name/akb_score were NOT saved by the early phase (legacy apps or early-phase
+// service errors), customer-confirm still calls both AZMK services once.
+func TestCustomerConfirm_FallsBackWhenFieldsMissing(t *testing.T) {
+	ctx := context.Background()
+
+	store := newConfirmStore() // name boş, akb 0
+	azmkProvider := newConfirmAzmkProvider()
+	svc := newConfirmService(store, newConfirmLWProvider(), azmkProvider)
+
+	req := &CustomerConfirmRequest{
+		Amount:                 200,
+		CardNumber:             "4169731234567890",
+		ActualAddress:          "Bakı, Nizami r., Murtuza Muxtarov 12",
+		CardOwnershipConfirmed: true,
+	}
+
+	if _, err := svc.CustomerConfirmApplication(ctx, 1, req); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if azmkProvider.personalCalls != 1 {
+		t.Errorf("GetPersonalInfo called %d times, want 1 (fallback — name missing)", azmkProvider.personalCalls)
+	}
+	if azmkProvider.mkrCalls != 1 {
+		t.Errorf("GetMkrScore called %d times, want 1 (fallback — akb_score missing)", azmkProvider.mkrCalls)
 	}
 }
 
