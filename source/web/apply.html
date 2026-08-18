@@ -482,7 +482,20 @@
                             <span><span x-text="rangeMin"></span> AZN</span>
                             <span><span x-text="rangeMax"></span> AZN</span>
                         </div>
-                        <p class="text-xs text-gray-500 mt-2">Müddət: <span x-text="selectedRange?.term_months || '—'"></span> ay (sistem tərəfindən təyin olunur)</p>
+                        <!-- PR #230: Term seçimi — əgər bir neçə term varsa, button-larla göstər -->
+                        <div x-show="availableTerms.length > 1" x-cloak class="mt-3">
+                            <label class="text-xs text-gray-400 mb-2 block">Müddət seçin</label>
+                            <div class="flex gap-2 flex-wrap">
+                                <template x-for="t in availableTerms" :key="t">
+                                    <button @click="selectTerm(t)"
+                                            :class="form.term === t ? 'gradient-accent text-white' : 'bg-black/30 text-gray-400 border border-white/10'"
+                                            class="px-4 py-2 rounded-xl text-sm font-semibold transition"
+                                            x-text="t + ' ay'">
+                                    </button>
+                                </template>
+                            </div>
+                        </div>
+                        <p x-show="availableTerms.length <= 1" class="text-xs text-gray-500 mt-2">Müddət: <span x-text="selectedRange?.term_months || '—'"></span> ay</p>
                     </div>
 
                 <!-- Card number -->
@@ -761,6 +774,7 @@ function applyApp() {
             phone: '',
             otp: '',
             amount: 0,
+            term: 0, // PR #230: istifadəçi tərəfindən seçilən müddət
             cardNumber: '',
             cardConfirmed: false,
             address: '',
@@ -826,16 +840,42 @@ function applyApp() {
             return Math.max(...this.offer.ranges.map(r => r.max_amount));
         },
 
-        // PR #101: amount dəyişəndə selectedRange-i yenilə
-        // (slider hərəkət etdikdə uyğun range tapılır)
+        // PR #101/#230: amount dəyişəndə selectedRange-i yenilə
+        // PR #230: əgər bir neçə term varsa, availableTerms-i yenilə
         updateSelectedRange() {
             if (!this.offer || !this.offer.ranges || !this.offer.ranges.length) return;
-            const matched = this.offer.ranges.find(r =>
+            // Cari amount-a uyğun bütün range-ləri tap (fərqli term-lər ola bilər)
+            const matchingRanges = this.offer.ranges.filter(r =>
                 this.form.amount >= r.min_amount && this.form.amount <= r.max_amount
             );
-            if (matched) {
-                this.selectedRange = matched;
+            if (matchingRanges.length === 0) return;
+
+            // Əgər seçilmiş term varsa və matching ranges içindədirsə, onu saxla
+            if (this.form.term > 0) {
+                const termMatch = matchingRanges.find(r => r.term_months === this.form.term);
+                if (termMatch) {
+                    this.selectedRange = termMatch;
+                    return;
+                }
             }
+            // Yoxsa ilk matching range-i seç və term-i set et
+            this.selectedRange = matchingRanges[0];
+            this.form.term = matchingRanges[0].term_months;
+        },
+
+        // PR #230: cari amount-a uyğun bütün mümkün term-ləri qaytar
+        get availableTerms() {
+            if (!this.offer || !this.offer.ranges || !this.offer.ranges.length) return [];
+            const terms = this.offer.ranges
+                .filter(r => this.form.amount >= r.min_amount && this.form.amount <= r.max_amount)
+                .map(r => r.term_months);
+            return [...new Set(terms)].sort((a, b) => a - b); // unique + sorted
+        },
+
+        // PR #230: istifadəçi term seçəndə
+        selectTerm(term) {
+            this.form.term = term;
+            this.updateSelectedRange();
         },
         get monthlyPayment() {
             if (!this.selectedRange || !this.form.amount) return '—';
@@ -1298,6 +1338,7 @@ function applyApp() {
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         amount: this.form.amount,
+                        term_months: this.form.term || this.selectedRange?.term_months, // PR #230
                         card_number: this.form.cardNumber.replace(/\s/g, ''), // PR #70: strip spaces
                         actual_address: this.form.address,
                         card_ownership_confirmed: this.form.cardConfirmed,

@@ -34,10 +34,9 @@ type CustomerConfirmRequest struct {
         // PR #149: CustomerPhone for IDOR check — must match the application's customer_phone.
         CustomerPhone           string  `json:"customer_phone"`
         // PR #95: optional discount/referral code entered by the customer.
-        // Validated against the discount_codes table (must exist, belong to a
-        // different customer, and be in 'active' status). If valid, the code is
-        // stored on the application; the actual discount is applied at approval.
         DiscountCode            string  `json:"discount_code,omitempty"`
+        // PR #230: istifadəçi tərəfindən seçilən müddət (əgər bir neçə term varsa)
+        TermMonths              int     `json:"term_months,omitempty"`
 }
 
 // CustomerConfirmApplication finalizes the customer-side of the application flow.
@@ -164,7 +163,7 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
                 return nil, fmt.Errorf("texniki xəta — kredit təklifi əldə edilə bilmədi, bir az sonra yenidən cəhd edin")
         }
 
-        matchedRange, err := findRangeForAmount(offer.Ranges, req.Amount)
+        matchedRange, err := findRangeForAmount(offer.Ranges, req.Amount, req.TermMonths)
         if err != nil {
                 return nil, fmt.Errorf("seçdiyiniz məbləğ %.0f AZN sizin kredit səviyyəniz (%s) üçün keçərli deyil: %w",
                         req.Amount, offer.CreditLevel, err)
@@ -308,11 +307,21 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
 // this happens when the customer picks an amount outside their credit level's
 // allowed interval (shouldn't occur with a well-behaved UI slider, but we
 // defend against it anyway).
-func findRangeForAmount(ranges []OfferRange, amount float64) (OfferRange, error) {
+// PR #230: findRangeForAmount — əgər termMonths > 0-dırsa, amount + term-a uyğun range tap
+func findRangeForAmount(ranges []OfferRange, amount float64, termMonths int) (OfferRange, error) {
+        // Əvvəl amount + term-a uyğun range-i tap
+        if termMonths > 0 {
+                for _, r := range ranges {
+                        if amount >= r.MinAmount && amount <= r.MaxAmount && r.TermMonths == termMonths {
+                                return r, nil
+                        }
+                }
+        }
+        // Yoxda, yalnız amount-a uyğun ilk range-i qaytar
         for _, r := range ranges {
                 if amount >= r.MinAmount && amount <= r.MaxAmount {
                         return r, nil
                 }
         }
-        return OfferRange{}, fmt.Errorf("no offer range covers amount %.0f (checked %d ranges)", amount, len(ranges))
+        return OfferRange{}, fmt.Errorf("no offer range covers amount %.0f term %d (checked %d ranges)", amount, termMonths, len(ranges))
 }
