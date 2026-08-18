@@ -840,15 +840,17 @@ function applyApp() {
             return Math.max(...this.offer.ranges.map(r => r.max_amount));
         },
 
-        // PR #101/#230: amount dəyişəndə selectedRange-i yenilə
-        // PR #230: əgər bir neçə term varsa, availableTerms-i yenilə
+        // PR #101/#230/#231: amount dəyişəndə selectedRange-i yenilə
+        // PR #231: default olaraq ən kiçik term seçilsin
         updateSelectedRange() {
             if (!this.offer || !this.offer.ranges || !this.offer.ranges.length) return;
-            // Cari amount-a uyğun bütün range-ləri tap (fərqli term-lər ola bilər)
             const matchingRanges = this.offer.ranges.filter(r =>
                 this.form.amount >= r.min_amount && this.form.amount <= r.max_amount
             );
             if (matchingRanges.length === 0) return;
+
+            // Term-ə görə sırala (kiçikdən böyüyə) — PR #231
+            matchingRanges.sort((a, b) => a.term_months - b.term_months);
 
             // Əgər seçilmiş term varsa və matching ranges içindədirsə, onu saxla
             if (this.form.term > 0) {
@@ -858,7 +860,7 @@ function applyApp() {
                     return;
                 }
             }
-            // Yoxsa ilk matching range-i seç və term-i set et
+            // PR #231: default — ən kiçik term seç (sorted array-in ilk elementi)
             this.selectedRange = matchingRanges[0];
             this.form.term = matchingRanges[0].term_months;
         },
