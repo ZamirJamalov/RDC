@@ -175,6 +175,7 @@ func main() {
         mygovProvider := newMyGovProvider(cfg)
         mygovRepo := repository.NewMyGovRepo(db)
         mygovService := service.NewMyGovService(mygovProvider, mygovRepo, appRepo, otpProvider, cfg.MyGovClientID, cfg.MyGovRedirectURI, cfg.MyGovWebURL)
+        mygovService.SetCustomerDataProvider(customerDataProvider) // PR #239: AZMK GetEmployeeInfoByPin
 
         // --- Handler layer ---
         lwMockHandler := handler.NewLWMockHandler(lwProvider)

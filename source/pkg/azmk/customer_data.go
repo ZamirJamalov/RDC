@@ -12,6 +12,8 @@ import (
         "strconv"
         "strings"
         "time"
+
+        "rdc-source/pkg/mygov"
 )
 
 // PR #152: AZMK CustomerDataService — yaş yoxlaması üçün şəxsi məlumat servisi.
@@ -31,6 +33,8 @@ type CustomerDataProvider interface {
         GetMkrScore(ctx context.Context, finCode, serialNumber string) (*MkrScore, error)
         // PR #165: inquireByIdCard — kredit tarixçəsi və gecikmə kesim nöqtələri
         InquireByIdCard(ctx context.Context, finCode, serialNumber string) (*CreditHistory, error)
+        // PR #239: getEmployeeInfoByPin — iş yeri məlumatları (AZMK CustomerDataService)
+        GetEmployeeInfoByPin(ctx context.Context, finCode, serialNumber string) (*mygov.EmployeeInfoResponse, error)
 }
 
 // --- PR #165: inquireByIdCard ---
@@ -518,6 +522,71 @@ func (ch *CreditHistory) MaxCurrentDelayDetail() string {
                 return ""
         }
         return string(b)
+}
+
+// --- PR #239: GetEmployeeInfoByPin ---
+
+// EmployeeInfoRequest is the request body for GetEmployeeInfoByPin.
+// PR #239: AZMK CustomerDataService-ə sorğu göndərilir.
+type EmployeeInfoRequest struct {
+        RequestType   string `json:"requestType"`
+        RequestID     string `json:"requestId"`
+        FinCode       string `json:"finCode"`
+        SerialNumber  string `json:"serialNumber"`
+}
+
+// GetEmployeeInfoByPin retrieves employment records from AZMK CustomerDataService.
+// PR #239: requestType = "GetEmployeeInfoByPin", AZMK URL + Basic Auth.
+func (p *HTTPCustomerDataProvider) GetEmployeeInfoByPin(ctx context.Context, finCode, serialNumber string) (*mygov.EmployeeInfoResponse, error) {
+        reqBody := EmployeeInfoRequest{
+                RequestType:  "GetEmployeeInfoByPin",
+                RequestID:    "1",
+                FinCode:      finCode,
+                SerialNumber: serialNumber,
+        }
+        jsonBody, _ := json.Marshal(reqBody)
+        url := p.baseURL
+
+        req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, strings.NewReader(string(jsonBody)))
+        if err != nil {
+                p.auditLog("AZMK_GET_EMPLOYEE_INFO", "POST", url, string(jsonBody), "", 0, 0, err.Error())
+                return nil, fmt.Errorf("failed to create request: %w", err)
+        }
+        req.Header.Set("Content-Type", "application/json")
+        if p.username != "" && p.password != "" {
+                auth := p.username + ":" + p.password
+                req.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(auth)))
+        }
+
+        start := time.Now()
+        resp, err := p.httpClient.Do(req)
+        durationMs := int(time.Since(start).Milliseconds())
+        if err != nil {
+                p.auditLog("AZMK_GET_EMPLOYEE_INFO", "POST", url, string(jsonBody), "", 0, durationMs, err.Error())
+                return nil, fmt.Errorf("AZMK GetEmployeeInfoByPin request failed: %w", err)
+        }
+        defer resp.Body.Close()
+
+        respBodyBytes, _ := io.ReadAll(resp.Body)
+        respBodyStr := string(respBodyBytes)
+
+        var empResp mygov.EmployeeInfoResponse
+        if err := json.Unmarshal(respBodyBytes, &empResp); err != nil {
+                p.auditLog("AZMK_GET_EMPLOYEE_INFO", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, fmt.Sprintf("decode error: %v", err))
+                return nil, fmt.Errorf("failed to decode employee info response: %w", err)
+        }
+        if empResp.Result != 1 {
+                errMsg := fmt.Sprintf("AZMK GetEmployeeInfoByPin error: %s (result=%d)", empResp.Message, empResp.Result)
+                p.auditLog("AZMK_GET_EMPLOYEE_INFO", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, errMsg)
+                return nil, fmt.Errorf("%s", errMsg)
+        }
+        p.auditLog("AZMK_GET_EMPLOYEE_INFO", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, "")
+        slog.Info("AZMK GetEmployeeInfoByPin success",
+                "fin", finCode,
+                "active_count", len(empResp.Data.Response.Active),
+                "deactive_count", len(empResp.Data.Response.Deactive),
+                "duration_ms", durationMs)
+        return &empResp, nil
 }
 
 // MkrScoreRequest is the request body for getMkrScore.
@@ -1293,4 +1362,23 @@ func mockCH(liabs []Liability) *CreditHistory {
                         Liabilities: &Liabilities{Liability: liabs},
                 },
         }
+}
+
+// GetEmployeeInfoByPin — PR #239: mock implementation.
+func (m *MockCustomerDataProvider) GetEmployeeInfoByPin(_ context.Context, finCode, serialNumber string) (*mygov.EmployeeInfoResponse, error) {
+        return &mygov.EmployeeInfoResponse{
+                Result:  1,
+                Message: "SUCCESS",
+                Data: &mygov.EmployeeInfoData{
+                        Response: &mygov.EmployeeRecords{
+                            Active: []mygov.EmployeeRecord{
+                                {
+                                    Employer: mygov.EmployerInfo{Name: "Test Employer", Voen: "1234567890"},
+                                    Employee: mygov.EmployeeInfo{Position: "Developer", Salary: 3000},
+                                    Contract: mygov.ContractInfo{SignDate: "01.01.2020", BeginDate: "01.01.2020", EndDate: "31.12.2026"},
+                                },
+                            },
+                        },
+                },
+        }, nil
 }
