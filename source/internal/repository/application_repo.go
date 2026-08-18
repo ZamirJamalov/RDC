@@ -442,6 +442,21 @@ func (r *ApplicationRepo) HasPendingApplication(ctx context.Context, customerPIN
         return appID, status, nil
 }
 
+// GetRecentAkbScore returns the most recent AKB score for a customer from any application.
+// PR #229: GetOffer bunu çağırır — əgər frontend-dən akbScore=0 gəlirsə, DB-dən oxuyur.
+func (r *ApplicationRepo) GetRecentAkbScore(ctx context.Context, customerPIN string) int {
+        var akbScore int
+        err := r.db.QueryRowContext(ctx, `
+                SELECT TOP 1 akb_score FROM loan_applications
+                WHERE customer_pin = ? AND akb_score > 0
+                ORDER BY created_at DESC`,
+                customerPIN).Scan(&akbScore)
+        if err != nil {
+                return 0
+        }
+        return akbScore
+}
+
 // GetRecentPendingApplication returns the most recent pending_customer application
 // for the given PIN + phone within the last N minutes.
 // PR #217/#218: Idempotent InitApplication — təkrar müraciətdə eyni app-i reuse et.

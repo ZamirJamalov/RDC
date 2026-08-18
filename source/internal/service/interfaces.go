@@ -58,6 +58,10 @@ type ApplicationStore interface {
         // GetCheckResults retrieves all check results for an application ordered by ID.
         GetCheckResults(ctx context.Context, appID int) ([]model.ApplicationCheckResult, error)
 
+        // GetRecentAkbScore returns the most recent AKB score for a customer from DB.
+        // PR #229: GetOffer bunu çağırır — əgər frontend-dən akbScore=0 gəlirsə.
+        GetRecentAkbScore(ctx context.Context, customerPIN string) int
+
         // GetRecentPendingApplication returns the most recent pending_customer application
         // for the given PIN + phone within the last N minutes.
         // PR #217: Idempotent InitApplication — təkrar müraciətdə eyni app-i reuse et.

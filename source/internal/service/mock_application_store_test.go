@@ -248,6 +248,11 @@ func (m *mockApplicationStore) GetCustomerCurrentLevel(_ context.Context, _ stri
         return m.currentLevel, nil
 }
 
+// GetRecentAkbScore — PR #229: mock (returns 0).
+func (m *mockApplicationStore) GetRecentAkbScore(_ context.Context, _ string) int {
+        return 0
+}
+
 // UpdateAkbScore — PR #228: mock implementation.
 func (m *mockApplicationStore) UpdateAkbScore(_ context.Context, id int, akbScore int) error {
         if existing, ok := m.appByID[id]; ok {
