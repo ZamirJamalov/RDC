@@ -100,6 +100,9 @@ type ApplicationStore interface {
         // completes the application (used by CompleteApplication flow).
         UpdateApplicationDetails(ctx context.Context, id int, app *model.LoanApplication) error
 
+        // UpdateAkbScore updates only the akb_score field. PR #228.
+        UpdateAkbScore(ctx context.Context, id int, akbScore int) error
+
         // PR #95: discount code persistence.
         // UpdateApplicationDiscount sets discount_code + discount_amount on an
         // application. Used by customer-confirm (to store the entered code) and

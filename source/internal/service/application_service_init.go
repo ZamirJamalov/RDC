@@ -532,6 +532,15 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
                                         setRejection(fmt.Sprintf("AKB_STOP_FACTOR:%s", resp))
                                 }
                         }
+                        // PR #228: AZMK AKB score-u app.AkbScore-ə saxla və DB-yə yaz
+                        // ki customer-confirm-də GetOffer düzgün credit level hesablasın
+                        if point > 0 {
+                                app.AkbScore = point
+                                if err := s.repo.UpdateAkbScore(ctx, appID, point); err != nil {
+                                        slog.Warn("failed to save AKB score to DB", "error", err)
+                                }
+                                slog.Info("AKB score saved from AZMK", "application_id", appID, "akb_score", point)
+                        }
                 }
         } else {
                 akbScore, stopFactorCode, hasStopFactor := s.creditEngine.resolveAkbScoreAndStopFactors(ctx, customerPIN, 0)

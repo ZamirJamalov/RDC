@@ -75,6 +75,18 @@ func (r *ApplicationRepo) UpdateApplicationDetails(ctx context.Context, id int, 
         return nil
 }
 
+// UpdateAkbScore updates only the akb_score field.
+// PR #228: OTP verify-də AZMK-dən gələn AKB score-u saxlayır.
+func (r *ApplicationRepo) UpdateAkbScore(ctx context.Context, id int, akbScore int) error {
+        _, err := r.db.ExecContext(ctx, `
+                UPDATE loan_applications SET akb_score = ?, updated_at = GETDATE() WHERE id = ?`,
+                akbScore, id)
+        if err != nil {
+                return fmt.Errorf("failed to update akb_score: %w", err)
+        }
+        return nil
+}
+
 // nullableString returns nil when s is empty (so the DB column stays NULL),
 // otherwise returns s. Used for customer_confirmed_at which should be NULL
 // until the customer confirms.
