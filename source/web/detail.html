@@ -26,6 +26,9 @@
             font-variant-numeric: tabular-nums;
         }
 
+        /* PR #238: Alpine init-dən əvvəl gizlət (modal/overlay FOUC qarşısı) */
+        [x-cloak] { display: none !important; }
+
         /* Brand */
         .alpul-btn { background: linear-gradient(135deg, #2D9CDB 0%, #1d5a8f 100%); }
         .alpul-btn:hover { box-shadow: 0 4px 14px rgba(45, 156, 219, 0.45); }
@@ -128,6 +131,27 @@
         <!-- PR #142: Auth check loading screen -->
         <div x-show="authChecking" class="fixed inset-0 flex items-center justify-center bg-gray-50 z-50">
             <div class="text-gray-500">Yoxlanılır...</div>
+        </div>
+
+        <!-- PR #238: EMPLOYMENT_TENURE imtina dialoqu -->
+        <div x-show="empRejectModalOpen" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" @keydown.escape.window="closeEmpRejectModal()">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-md w-full p-6">
+                <div class="flex items-center gap-3 mb-4">
+                    <div class="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
+                        <svg class="w-6 h-6 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-900 dark:text-gray-100">Müraciət imtina edildi</h3>
+                        <p class="text-xs text-gray-500">İş yeri yoxlaması (EMPLOYMENT_TENURE) uğursuz oldu</p>
+                    </div>
+                </div>
+                <div class="bg-rose-50 border border-rose-100 rounded-lg p-3 mb-5">
+                    <div class="text-[11px] uppercase tracking-wide text-rose-500 font-semibold mb-1">İmtina səbəbi</div>
+                    <div class="text-sm text-gray-800 dark:text-gray-200" x-text="empRejectModalReason"></div>
+                </div>
+                <p class="text-xs text-gray-400 mb-5">Dialoqu bağladıqdan sonra müraciət imtina səbəbi ilə sonlandırılır və dashboard-da «İmtina» statusu ilə görünür.</p>
+                <button @click="closeEmpRejectModal()" class="w-full bg-rose-600 text-white px-4 py-2.5 rounded-lg hover:bg-rose-700 font-semibold text-sm transition">Bağla və yenilə</button>
+            </div>
         </div>
 
         <template x-if="!authChecking">
@@ -624,6 +648,9 @@
                 employmentVerifying: false,
                 employmentResult: '',
                 employmentMessage: '',
+                // PR #238: EMPLOYMENT_TENURE imtina dialoqu
+                empRejectModalOpen: false,
+                empRejectModalReason: '',
                 pensionLoading: false,
                 pensionVerifying: false,
                 pensionResult: '',
@@ -1184,12 +1211,26 @@
                         if (!resp.ok) throw new Error(data.error || 'Yoxlama ugursuz');
                         this.employmentResult = data.status;
                         this.employmentMessage = data.reason;
-                        if (data.status === 'rejected') await this.load();
+                        // PR #238: EMPLOYMENT_TENURE cutoff-a düşdü → imtina dialoqu göstər.
+                        // Dialoq bağlananda closeEmpRejectModal() müraciəti yeniləyir —
+                        // backend artıq auto-reject edib (müraciət sonlanıb), dashboard-da
+                        // rejected statusu ilə görünür.
+                        if (data.status === 'rejected') {
+                            this.empRejectModalReason = data.reason || 'EMPLOYMENT_TENURE';
+                            this.empRejectModalOpen = true;
+                        }
                     } catch (e) {
                         this.employmentMessage = 'Xeta: ' + e.message;
                     } finally {
                         this.employmentVerifying = false;
                     }
+                },
+
+                // PR #238: imtina dialoqunu bağla və müraciəti yenilə (rejected statusu əks olunsun)
+                async closeEmpRejectModal() {
+                    this.empRejectModalOpen = false;
+                    this.empRejectModalReason = '';
+                    await this.load();
                 },
 
                 // MyGov pension
