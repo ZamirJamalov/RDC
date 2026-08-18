@@ -248,6 +248,14 @@ func (m *mockApplicationStore) GetCustomerCurrentLevel(_ context.Context, _ stri
         return m.currentLevel, nil
 }
 
+// UpdateAkbScore — PR #228: mock implementation.
+func (m *mockApplicationStore) UpdateAkbScore(_ context.Context, id int, akbScore int) error {
+        if existing, ok := m.appByID[id]; ok {
+                existing.AkbScore = akbScore
+        }
+        return nil
+}
+
 // UpdateApplicationDetails updates the mock store's application record.
 func (m *mockApplicationStore) UpdateApplicationDetails(_ context.Context, id int, app *model.LoanApplication) error {
         if existing, ok := m.appByID[id]; ok {
