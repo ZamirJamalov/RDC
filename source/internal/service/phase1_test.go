@@ -100,7 +100,7 @@ func TestProcessApplication_LWApproveLoanCalledOnApproval(t *testing.T) {
                 ID: 1, CustomerPIN: "PIN1", Amount: 500, TermMonths: 6, AkbScore: 400,
         }
         store.commission = 27.0
-        store.approvedCount = 1 // phase 2
+        store.approvedCount = 1         // phase 2
         store.currentLevel = "valuable" // customer is at valuable level
 
         // 2 completed loans at "valuable" level, 0 delay, 2mo term → elite → auto-approve
@@ -122,8 +122,8 @@ func TestProcessApplication_LWApproveLoanCalledOnApproval(t *testing.T) {
         if call.ApplicationID != 1 {
                 t.Errorf("ApproveLoan ApplicationID = %d, want 1", call.ApplicationID)
         }
-        if call.Amount != 536.99 {
-                t.Errorf("ApproveLoan Amount = %v, want 536.99 (500 principal + (27/73)*100 interest)", call.Amount)
+        if call.Amount != 684.93 {
+                t.Errorf("ApproveLoan Amount = %v, want 684.93 (500 principal + 500×(27/73) commission, PR #246)", call.Amount)
         }
         if call.CreditLevel != model.CreditLevelElite {
                 t.Errorf("ApproveLoan CreditLevel = %q, want elite", call.CreditLevel)
@@ -405,12 +405,12 @@ func TestProcessApplication_WithTxFailure(t *testing.T) {
 // TestBackoff verifies the exponential backoff calculation.
 func TestBackoff(t *testing.T) {
         tests := []struct {
-                name        string
-                initial     time.Duration
-                factor      float64
-                attempt     int
-                maxDelay    time.Duration
-                wantDelay   time.Duration
+                name      string
+                initial   time.Duration
+                factor    float64
+                attempt   int
+                maxDelay  time.Duration
+                wantDelay time.Duration
         }{
                 {"attempt 1, factor 2", 100 * time.Millisecond, 2.0, 1, 4 * time.Second, 100 * time.Millisecond},
                 {"attempt 2, factor 2", 100 * time.Millisecond, 2.0, 2, 4 * time.Second, 200 * time.Millisecond},
@@ -846,9 +846,9 @@ func TestProcessApplication_PersonalInfoFailsNoAgeRejection(t *testing.T) {
 // other arguments.
 func akbLiabilityWithHistory(id, status string, currentOverdue int, monthly float64, history map[string]int) lw.AkbLiability {
         lib := lw.AkbLiability{
-                ID:                  id,
-                CreditStatus:        status,
-                DaysMainSumOverdue:  currentOverdue,
+                ID:                   id,
+                CreditStatus:         status,
+                DaysMainSumOverdue:   currentOverdue,
                 MonthlyPaymentAmount: monthly,
         }
         for period, days := range history {

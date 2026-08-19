@@ -96,13 +96,14 @@ type OfferResponse struct {
 //
 // PR #78: Rate is the COMMISSION rate (from credit_levels.rate).
 // AnnualInterestRate is the real annual interest rate (55/52/48/45).
-// The frontend uses these to compute:
-//   commission_amount  = principal × (rate / (100 - rate)) × 100
-//   credit_amount      = principal + commission_amount
-//   transfer_amount    = principal  (only the principal is transferred to card)
-//   interest_amount    = principal × annual_interest_rate × (term_months / 12)
-//   total_repayment    = credit_amount + interest_amount
-//   monthly_payment    = total_repayment / term_months
+// The frontend uses these to compute (PR #246):
+//   commission_percent  = (rate / (100 - rate)) × 100   (15% → 17.65%)
+//   commission_amount   = principal × commission_percent / 100
+//   credit_amount       = principal + commission_amount
+//   transfer_amount     = principal  (only the principal is transferred to card)
+//   interest_amount     = principal × annual_interest_rate × (term_months / 12)
+//   total_repayment     = credit_amount + interest_amount
+//   monthly_payment     = total_repayment / term_months
 type OfferRange struct {
         MinAmount          float64 `json:"min_amount"`
         MaxAmount          float64 `json:"max_amount"`

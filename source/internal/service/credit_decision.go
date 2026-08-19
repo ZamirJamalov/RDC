@@ -195,9 +195,10 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
         }
 
         // 8. Elite: auto-approve; 9. Others: pending_approval (manual review)
-        // Calculate total amount sent to LW = Principal + Interest, where
-        // Interest = (Rate / (100 - Rate)) × 100.
-        // Example: 300 + (30/70)*100 = 300 + 42.86 = 342.86 AZN
+        // Calculate total amount sent to LW = Principal + Commission, where
+        // commissionAmount = principal × commissionPercent / 100 and
+        // commissionPercent = (Rate / (100 - Rate)) × 100.
+        // Example: 300 + (30/70)×300 = 300 + 128.57 = 428.57 AZN
         totalAmount := calculateTotalAmount(app.Amount, rate)
 
         if creditLevel == model.CreditLevelElite {
@@ -221,21 +222,26 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
 // calculateTotalAmount returns the total credit amount = principal + commission.
 //
 // PR #86: 'commission' in credit_levels is the COMMISSION rate.
-// Commission = (commission / (100 - commission)) × 100
-// Credit amount (total_amount in DB, sent to LW) = principal + commission
+// PR #246: commissionAmount = principal × commissionPercent / 100, where
+// commissionPercent = (commission / (100 - commission)) × 100.
+// Credit amount (total_amount in DB, sent to LW) = principal + commissionAmount
 //
 // Interest is separate: interest = principal × annual_interest_rate × (term / 12)
 // Interest is NOT included in total_amount — it's shown to the customer
 // in the summary panel but not sent to LW.
 //
-// Example: 300 AZN principal, commission=14:
-//   commission_amount = (14/86) × 100 = 16.28
-//   total = 300 + 16.28 = 316.28 AZN
+// Example: 300 AZN principal, commission=15:
+//
+//	commissionPercent  = (15/85) × 100 = 17.65%
+//	commissionAmount = 300 × 17.65% = 52.94
+//	total = 300 + 52.94 = 352.94 AZN
 func calculateTotalAmount(principal, commission float64) float64 {
         if commission <= 0 || commission >= 100 {
                 return principal
         }
-        commissionAmount := (commission / (100 - commission)) * 100
+        // PR #246: komissiya faizi əsəsləşdirilir (15% → 17.65%), sonra principal-a tətbiq olunur
+        commissionPercent := (commission / (100 - commission)) * 100
+        commissionAmount := principal * commissionPercent / 100
         total := principal + commissionAmount
         return math.Round(total*100) / 100
 }
@@ -245,13 +251,18 @@ func calculateTotalAmount(principal, commission float64) float64 {
 // calculateCommissionAmount returns only the commission portion of a loan,
 // without adding the principal. Used for reporting/display.
 //
-// Example: 300 AZN principal, commission=14:
-//   commission_amount = (14/86) × 100 = 16.28
+// PR #246: commissionAmount = principal × commissionPercent / 100.
+//
+// Example: 300 AZN principal, commission=15:
+//
+//	commissionPercent = (15/85) × 100 = 17.65%
+//	commissionAmount = 300 × 17.65% = 52.94
 func calculateCommissionAmount(principal, commission float64) float64 {
         if commission <= 0 || commission >= 100 {
                 return 0
         }
-        return (commission / (100 - commission)) * 100
+        commissionPercent := (commission / (100 - commission)) * 100
+        return principal * commissionPercent / 100
 }
 
 // calculateInterestAmount returns the interest portion of a loan.
@@ -260,7 +271,8 @@ func calculateCommissionAmount(principal, commission float64) float64 {
 // Formula: interest = principal × annualInterestRate × (termMonths / 12)
 //
 // Example: 300 AZN principal, annual_interest_rate=55, term=3 months:
-//   interest = 300 × 0.55 × (3/12) = 300 × 0.55 × 0.25 = 41.25 AZN
+//
+//	interest = 300 × 0.55 × (3/12) = 300 × 0.55 × 0.25 = 41.25 AZN
 func calculateInterestAmount(principal, annualInterestRate float64, termMonths int) float64 {
         if principal <= 0 || annualInterestRate <= 0 || termMonths <= 0 {
                 return 0
@@ -284,12 +296,14 @@ func calculateInterestAmount(principal, annualInterestRate float64, termMonths i
 // müştəriyə frontend-də gösterilir.
 //
 // Example: 300 AZN principal, commission=14, annual_interest=55, term=3 ay, discount=10 AZN:
-//   commissionAmount = 16.28 AZN
-//   interestAmount    = 41.25 AZN
-//   discountAmount    = 10 AZN  (faizdən çıxılır)
-//   discountedInterest = 41.25 - 10 = 31.25 AZN
-//   total_amount (→ LW) = 300 + 16.28 = 316.28 AZN  (dəyişmir)
-//   totalRepayment (frontend) = 316.28 + 31.25 = 347.53 AZN  (endirimli)
+//
+//	commissionPercent = 16.28%
+//	commissionAmount = 48.84 AZN
+//	interestAmount    = 41.25 AZN
+//	discountAmount    = 10 AZN  (faizdən çıxılır)
+//	discountedInterest = 41.25 - 10 = 31.25 AZN
+//	total_amount (→ LW) = 300 + 48.84 = 348.84 AZN  (dəyişmir)
+//	totalRepayment (frontend) = 348.84 + 31.25 = 380.09 AZN  (endirimli)
 func calculateTotalAmountWithDiscount(principal, commission, discountAmount float64) float64 {
         // PR #109: total_amount dəyişmir — discount yalnız interestAmount-a təsir edir.
         // Bu funksiya backward compatibility üçün saxlanılıb, amma faktiki olaraq
