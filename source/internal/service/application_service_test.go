@@ -93,6 +93,35 @@ func TestCreateApplication_DuplicatePending(t *testing.T) {
         }
 }
 
+// TestInitApplication_BlockedWhenPendingExpert verifies PR #247: a new application
+// with the same FIN is rejected when an existing application is in pending_expert
+// status (expert confirmation stage) — even from a different phone number.
+// (GetRecentPendingApplication only reuses status='pending_customer', so a
+// pending_expert app must be caught by HasPendingApplication.)
+func TestInitApplication_BlockedWhenPendingExpert(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.pendingAppID = 7
+        store.pendingStatus = model.StatusPendingExpert
+
+        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
+
+        // Fərqli mobil nömrə — recent-app reuse tutmur, dublikat bloku işə düşməlidir
+        req := &InitApplicationRequest{
+                CustomerPIN:    "PIN1",
+                CustomerSerial: "AA1234567",
+                CustomerPhone:  "+994551112233",
+        }
+        _, err := svc.InitApplication(ctx, req)
+        if err == nil {
+                t.Fatal("expected duplicate-application error for pending_expert FIN, got nil")
+        }
+        if !contains(err.Error(), "işlənməkdə olan") {
+                t.Errorf("error = %q, want Azerbaijani duplicate message", err.Error())
+        }
+}
+
 // TestCreateApplication_PreValidateFails verifies that when PreValidate
 // returns an error (e.g. invalid amount/term for the customer's level),
 // CreateApplication propagates the error and does NOT insert the application.
