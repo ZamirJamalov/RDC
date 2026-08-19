@@ -1196,13 +1196,10 @@ function applyApp() {
                 this.saveState();
             } catch (e) {
                 this.error = e.message;
-                // PR #202: xəta halında applicationId-ni təmizlə ki, təkrar cəhd mümkün olsun
-                // Amma əgər backend-də müraciət yaradılıbsa (duplicate error), applicationId saxla
-                if (e.message.includes('artıq işlənməkdə olan') || e.message.includes('already pending')) {
-                    // Bu, duplicate müraciət xətasıdır — backend-də müraciət var
-                    // İstifadəçiyə OTP input ekranını göstər ki, kodu daxil edə bilsin
-                    this.otpSent = true;
-                }
+                // PR #248: dublikat bloku (pending_expert / pending_approval və s.) halında
+                // OTP inputu GÖSTƏRİLİRMİR — müraciət yaradılmayıb və OTP göndərilməyib.
+                // Yalnız xəta mesajı (“artıq işlənməkdə olan müraciətiniz var...”) görünür.
+                // (PR #247-dən əvvəl burada otpSent = true qoyulurdu — köhnə reuse axını üçün.)
             } finally {
                 this.loading = false;
             }
