@@ -896,10 +896,11 @@ function alpulLanding() {
             }
         },
 
-        // Total = Principal + (Rate / (100 - Rate)) × 100
+        // PR #246: Total = Principal + Principal × (Rate / (100 - Rate))
+        // (məs: 300 AZN, 15% → 300 + 300×17.65% = 352.94)
         totalFor(rate) {
             if (rate <= 0 || rate >= 100) return this.amount;
-            const interest = (rate / (100 - rate)) * 100;
+            const interest = this.amount * (rate / (100 - rate));
             const total = this.amount + interest;
             return Math.round(total * 100) / 100;
         },

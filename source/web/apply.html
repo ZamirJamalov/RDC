@@ -896,12 +896,14 @@ function applyApp() {
             return map[level] || (level || '').toUpperCase();
         },
 
-        // PR #78: Backend-driven credit summary computed from selectedRange
-        // Commission = (rate / (100 - rate)) × 100  (rate is commission rate, not interest)
+        // PR #78 / PR #246: Backend-driven credit summary computed from selectedRange
+        // commissionPercent = (rate / (100 - rate)) × 100  (məs: 15% → 17.65%)
+        // commissionAmount = principal × commissionPercent / 100 (məs: 300 × 17.65% = 52.94)
         get commissionAmount() {
             if (!this.selectedRange || !this.form.amount) return '0.00';
             const rate = this.selectedRange.commission;
-            const commission = (rate / (100 - rate)) * 100;
+            const commissionPercent = (rate / (100 - rate)) * 100;
+            const commission = this.form.amount * commissionPercent / 100;
             return (Math.round(commission * 100) / 100).toFixed(2);
         },
 

@@ -308,7 +308,7 @@ func TestValidateForCustomer_Expired(t *testing.T) {
                 Code:                "ALPUL-TEST01",
                 IssuedToCustomerID:  100,
                 Status:              model.DiscountStatusActive,
-                ValidUntil:          &pastTime,
+                ValidUntil:         &pastTime,
         }
         svc := NewDiscountCodeService(store)
 
@@ -414,9 +414,9 @@ func TestCalculateDiscount_UnknownType(t *testing.T) {
 // =========================================================
 
 func TestCalculateCommissionAmount(t *testing.T) {
-        // 300 AZN, commission=14 → 300 × (14/86) × 100 = 162.79...
+        // PR #246: 300 AZN, commission=14 → 300 × (14/86) = 48.84
         got := calculateCommissionAmount(300, 14)
-        expected := (14.0 / 86.0) * 100
+        expected := 300 * (14.0 / 86.0)
         if got != expected {
                 t.Errorf("expected %v, got %v", expected, got)
         }
@@ -434,9 +434,9 @@ func TestCalculateTotalAmountWithDiscount(t *testing.T) {
         // Endirim yalnız interestAmount-a təsir edir (frontend-də göstərilir).
         // total_amount (→ LW) = principal + commission (dəyişmir).
         //
-        // 300 AZN, commission=14, discount=20 → total = 316.28 (calculateTotalAmount ilə eyni)
+        // 300 AZN, commission=14, discount=20 → total = 348.84 (calculateTotalAmount ilə eyni)
         got := calculateTotalAmountWithDiscount(300, 14, 20)
-        expected := calculateTotalAmount(300, 14) // 316.28
+        expected := calculateTotalAmount(300, 14) // 348.84
         if got != expected {
                 t.Errorf("PR #109: total should equal calculateTotalAmount (discount no longer affects total). expected %v, got %v", expected, got)
         }
