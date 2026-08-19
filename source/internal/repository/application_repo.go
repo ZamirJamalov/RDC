@@ -434,15 +434,16 @@ func (r *ApplicationRepo) GetCheckResults(ctx context.Context, appID int) ([]mod
 // HasPendingApplication checks if a customer has an active (non-final) application.
 // Returns the existing app's ID and status, or 0 and "" if none.
 // PR #89: also checks if the last rejected application's cutoff period has expired.
-// PR #208: pending_customer və pending_expert artıq blocklanmır — yarımçıq müraciətlər
-// üçün təkrar müraciət mümkündür. Yalnız pending, checking, pending_approval blocklanır
-// (kredit engine işləyir və ya ekspert təsdiqindədir).
+// PR #208: pending_customer blocklanmır — yarımçıq müraciətlər üçün təkrar müraciət mümkündür.
+// PR #247: pending_expert yenidən blocklanır — müraciət ekspert təsdiqindədirsə, eyni FIN
+// ilə yeni müraciət qəbul edilmir (fərqli mobil nömrədən olsa belə).
+// Blocklanan statuslar: pending, checking, pending_approval, pending_expert.
 func (r *ApplicationRepo) HasPendingApplication(ctx context.Context, customerPIN string) (int, string, error) {
 	var appID int
 	var status string
 	err := r.db.QueryRowContext(ctx, `
                 SELECT TOP 1 id, status FROM loan_applications
-                WHERE customer_pin = ? AND status IN ('pending', 'checking', 'pending_approval')
+                WHERE customer_pin = ? AND status IN ('pending', 'checking', 'pending_approval', 'pending_expert')
                 ORDER BY id DESC`, customerPIN).Scan(&appID, &status)
 	if err != nil {
 		if err == sql.ErrNoRows {

@@ -81,7 +81,9 @@ func (s *ApplicationService) InitApplication(ctx context.Context, req *InitAppli
 	}
 
 	// PR #70: Check for duplicate — customer must not have an existing non-final application.
-	// PR #208: pending_customer/pending_expert artıq blocklanmır (yalnız pending/checking/pending_approval)
+	// PR #208: pending_customer blocklanmır (yarımçıq müraciət → təkrar cəhd mümkün).
+	// PR #247: pending_expert blocklanır — ekspert təsdiqində olan FIN-yə yeni müraciət yox
+	// (fərqli mobil nömrədən gəlsə belə).
 	existingID, existingStatus, err := s.repo.HasPendingApplication(ctx, req.CustomerPIN)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing applications: %w", err)
