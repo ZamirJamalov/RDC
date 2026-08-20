@@ -843,9 +843,9 @@ function applyApp() {
         isTechnicalError: false,
 
         // Computed: min/max for the slider (first range in the offer)
-        // PR #252: rangeMin default 0 (minimum kredit məbləği 0 AZN, DB-də min_amount=0)
+        // PR #252: rangeMin default 0; PR #253: rangeMin default 1 (minimum kredit məbləği 1 AZN)
         get rangeMin() {
-            if (!this.offer || !this.offer.ranges || !this.offer.ranges.length) return 0;
+            if (!this.offer || !this.offer.ranges || !this.offer.ranges.length) return 1;
             return Math.min(...this.offer.ranges.map(r => r.min_amount));
         },
         get rangeMax() {
