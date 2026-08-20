@@ -84,6 +84,10 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
 	var contactsUpdatedByUserID, timerUpdatedByUserID, mygovCheckedByUserID sql.NullInt64
 	var contactsUpdatedByUsername, timerUpdatedByUsername, mygovCheckedByUsername sql.NullString
 	var contactsUpdatedAt, mygovCheckedAt sql.NullString
+	// PR #249: actual_address audit fields
+	var actualAddressUpdatedByUserID sql.NullInt64
+	var actualAddressUpdatedByUsername sql.NullString
+	var actualAddressUpdatedAt sql.NullString
 
 	err := r.db.QueryRowContext(ctx, `
                 SELECT id, public_id, customer_pin, customer_full_name, amount, term_months, loan_purpose,
@@ -102,6 +106,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                        contacts_updated_by_user_id, contacts_updated_by_username, contacts_updated_at,
                        timer_updated_by_user_id, timer_updated_by_username,
                        mygov_checked_by_user_id, mygov_checked_by_username, mygov_checked_at,
+                       actual_address_updated_by_user_id, actual_address_updated_by_username, actual_address_updated_at,
                        created_at, updated_at
                 FROM loan_applications WHERE id = ?`, id).Scan(
 		&app.ID,
@@ -156,6 +161,9 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
 		&mygovCheckedByUserID,
 		&mygovCheckedByUsername,
 		&mygovCheckedAt,
+		&actualAddressUpdatedByUserID,
+		&actualAddressUpdatedByUsername,
+		&actualAddressUpdatedAt,
 		&app.CreatedAt,
 		&app.UpdatedAt,
 	)
@@ -243,6 +251,13 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
 	}
 	app.MyGovCheckedByUsername = mygovCheckedByUsername.String
 	app.MyGovCheckedAt = mygovCheckedAt.String
+	// PR #249: actual_address audit fields
+	if actualAddressUpdatedByUserID.Valid {
+		uid := int(actualAddressUpdatedByUserID.Int64)
+		app.ActualAddressUpdatedByUserID = &uid
+	}
+	app.ActualAddressUpdatedByUsername = actualAddressUpdatedByUsername.String
+	app.ActualAddressUpdatedAt = actualAddressUpdatedAt.String
 
 	// PR #194: mssql.UniqueIdentifier → uuid.UUID → string
 	app.PublicID = uuid.UUID(rawPublicID).String()

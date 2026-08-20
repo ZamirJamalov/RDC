@@ -112,6 +112,24 @@ func (r *ApplicationRepo) UpdateActualAddress(ctx context.Context, id int, addre
 	return nil
 }
 
+// UpdateActualAddressAudit sets the actual_address_updated_by fields.
+// PR #249: faktiki ünvanın kim tərəfindən, nə vaxt update edildiyini saxlayır.
+// UpdateContactsAudit (PR #148) pattern.
+func (r *ApplicationRepo) UpdateActualAddressAudit(ctx context.Context, id int, userID int, username string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE loan_applications
+		SET actual_address_updated_by_user_id = ?,
+			actual_address_updated_by_username = ?,
+			actual_address_updated_at = GETDATE(),
+			updated_at = GETDATE()
+		WHERE id = ?`,
+		userID, username, id)
+	if err != nil {
+		return fmt.Errorf("failed to update actual_address audit: %w", err)
+	}
+	return nil
+}
+
 // UpdateRegistrationAddress updates only the registration_address field.
 // PR #245: AZMK GetPersonalInfo-dən gələn qeydiyyat ünvanı saxlanılır.
 func (r *ApplicationRepo) UpdateRegistrationAddress(ctx context.Context, id int, address string) error {

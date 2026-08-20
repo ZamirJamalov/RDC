@@ -168,3 +168,64 @@ func TestBackfillRegistrationAddress_NoProvider(t *testing.T) {
 		t.Fatalf("expected empty address (no provider), got %q", app.RegistrationAddress)
 	}
 }
+
+
+// PR #249: SetActualAddressAudit — faktiki ünvan dəyişikliyinin audit izi saxlanır.
+func TestSetActualAddressAudit_Saves(t *testing.T) {
+	store := newMockStore()
+	store.appByID[1] = &model.LoanApplication{ID: 1, Status: model.StatusPendingApproval}
+	svc := newAddressTestService(store)
+
+	if err := svc.SetActualAddressAudit(context.Background(), 1, 42, "expert01"); err != nil {
+		t.Fatalf("expected success, got error: %v", err)
+	}
+	app := store.appByID[1]
+	if app.ActualAddressUpdatedByUserID == nil || *app.ActualAddressUpdatedByUserID != 42 {
+		t.Fatalf("expected ActualAddressUpdatedByUserID=42, got %v", app.ActualAddressUpdatedByUserID)
+	}
+	if app.ActualAddressUpdatedByUsername != "expert01" {
+		t.Fatalf("expected ActualAddressUpdatedByUsername=expert01, got %q", app.ActualAddressUpdatedByUsername)
+	}
+	if app.ActualAddressUpdatedAt == "" {
+		t.Fatal("expected ActualAddressUpdatedAt to be set, got empty")
+	}
+}
+
+func TestSetActualAddressAudit_InvalidID(t *testing.T) {
+	svc := newAddressTestService(newMockStore())
+	if err := svc.SetActualAddressAudit(context.Background(), 0, 1, "u"); err == nil {
+		t.Fatal("expected error for invalid id")
+	}
+}
+
+// PR #249: UpdateActualAddress saxladıqdan sonra audit çağrışı workflow-u.
+// (handler-də update-then-audit pattern-i mock store ilə simulyasiya olunur)
+func TestUpdateActualAddress_ThenAudit(t *testing.T) {
+	store := newMockStore()
+	store.appByID[1] = &model.LoanApplication{ID: 1, Status: model.StatusPendingApproval, ActualAddress: "köhnə"}
+	svc := newAddressTestService(store)
+
+	app, err := svc.UpdateActualAddress(context.Background(), 1, "yeni ünvan")
+	if err != nil {
+		t.Fatalf("update failed: %v", err)
+	}
+	if app.ActualAddress != "yeni ünvan" {
+		t.Fatalf("expected new address, got %q", app.ActualAddress)
+	}
+
+	// Audit saxlanır (handler-də bu ardıcıllıqda çağrılır)
+	if err := svc.SetActualAddressAudit(context.Background(), 1, 7, "expert02"); err != nil {
+		t.Fatalf("audit failed: %v", err)
+	}
+	stored := store.appByID[1]
+	if stored.ActualAddressUpdatedByUsername != "expert02" {
+		t.Fatalf("expected username expert02, got %q", stored.ActualAddressUpdatedByUsername)
+	}
+	if stored.ActualAddressUpdatedByUserID == nil || *stored.ActualAddressUpdatedByUserID != 7 {
+		t.Fatalf("expected user_id=7, got %v", stored.ActualAddressUpdatedByUserID)
+	}
+	// Ünvan dəyişməz qalır
+	if stored.ActualAddress != "yeni ünvan" {
+		t.Fatalf("address must remain 'yeni ünvan' after audit, got %q", stored.ActualAddress)
+	}
+}

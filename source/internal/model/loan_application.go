@@ -78,6 +78,12 @@ type LoanApplication struct {
 	MyGovCheckedByUserID      *int   `json:"mygov_checked_by_user_id,omitempty"`
 	MyGovCheckedByUsername    string `json:"mygov_checked_by_username,omitempty"`
 	MyGovCheckedAt            string `json:"mygov_checked_at,omitempty"`
+	// PR #249: faktiki ünvan (actual_address) dəyişiklik audit-i.
+	// PR #245 UpdateAddress endpoint-i faktiki ünvanı redaktə edirdi, amma
+	// kim tərəfindən dəyişdirildiyi qeyd olunmurdu (yalnız slog.Info log).
+	ActualAddressUpdatedByUserID   *int   `json:"actual_address_updated_by_user_id,omitempty"`
+	ActualAddressUpdatedByUsername string `json:"actual_address_updated_by_username,omitempty"`
+	ActualAddressUpdatedAt         string `json:"actual_address_updated_at,omitempty"`
 
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`

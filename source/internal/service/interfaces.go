@@ -114,6 +114,9 @@ type ApplicationStore interface {
 	// UpdateActualAddress updates only the actual_address field.
 	// PR #245: ekspert faktiki ünvanı redaktə edir.
 	UpdateActualAddress(ctx context.Context, id int, address string) error
+	// UpdateActualAddressAudit sets the actual_address_updated_by fields.
+	// PR #249: faktiki ünvan dəyişikliyinin audit izi (PR #148 pattern).
+	UpdateActualAddressAudit(ctx context.Context, id int, userID int, username string) error
 
 	// UpdateRegistrationAddress updates only the registration_address field.
 	// PR #245: AZMK GetPersonalInfo-dən gələn qeydiyyat ünvanı saxlanılır.

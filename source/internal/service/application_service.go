@@ -389,6 +389,16 @@ func (s *ApplicationService) SetMyGovAudit(ctx context.Context, appID int, userI
 	return s.repo.UpdateMyGovAudit(ctx, appID, userID, username)
 }
 
+// SetActualAddressAudit records which expert updated the actual address.
+// PR #249: PR #245 UpdateAddress endpoint faktiki ünvanı redaktə edirdi,
+// amma kim tərəfindən dəyişdirildiyi DB-də qeyd olunmurdu (yalnız slog.Info).
+func (s *ApplicationService) SetActualAddressAudit(ctx context.Context, appID int, userID int, username string) error {
+	if appID <= 0 {
+		return fmt.Errorf("invalid application id")
+	}
+	return s.repo.UpdateActualAddressAudit(ctx, appID, userID, username)
+}
+
 // CreateApplication creates a new loan application with "pending" status and triggers the credit engine.
 func (s *ApplicationService) CreateApplication(ctx context.Context, req *model.CreateApplicationRequest) (*model.LoanApplication, error) {
 	if req.CustomerPIN == "" {
