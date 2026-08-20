@@ -629,6 +629,16 @@
                 <p class="text-sm text-gray-500 mb-6">
                     Müraciət nömrəniz: <span class="font-mono font-semibold text-white" x-text="applicationId"></span>
                 </p>
+                <!-- PR #250: Texniki xəta halında 'Yenidən cəhd et' buttonu -->
+                <div x-show="isTechnicalError" x-cloak class="mb-4">
+                    <button @click="resetToStep0()" type="button"
+                            class="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-white font-semibold text-sm transition shadow-lg shadow-teal-500/20">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                        </svg>
+                        Yenidən cəhd et
+                    </button>
+                </div>
                 <a href="/landing" class="inline-block mt-4 text-teal-400 hover:text-teal-300 text-sm transition">
                     ← Ana səhifəyə qayıt
                 </a>
@@ -829,6 +839,8 @@ function applyApp() {
         // 'pending_approval' shows success screen, 'pending' shows generic waiting
         engineStatus: '',
         engineRejectionReason: '',
+        // PR #250: texniki xəta halında 'Yenidən cəhd et' buttonu göstər
+        isTechnicalError: false,
 
         // Computed: min/max for the slider (first range in the offer)
         get rangeMin() {
@@ -1061,6 +1073,23 @@ function applyApp() {
             localStorage.removeItem('alpul_apply_kyc_countdown'); // PR #155
         },
 
+        // PR #250: Texniki xəta halında istifadəçini step 0-a qaytarır.
+        // Backend SERVICE_ERROR qaytardıqda (xarici servislər mövcud deyil)
+        // rejeksiya ekranında 'Yenidən cəhd et' buttonu göstərilir.
+        resetToStep0() {
+            this.currentStep = 0;
+            this.engineStatus = '';
+            this.engineRejectionReason = '';
+            this.isTechnicalError = false;
+            this.applicationId = '';
+            this.error = '';
+            this.confirmError = '';
+            this.kycVerifyActive = false;
+            this.stopKYCCountdown();
+            this.clearState();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        },
+
         // PR #155: KYC verify countdown — 3 dəqiqə (180 san) geri sayım
         startKYCCountdown() {
             this.kycVerifyCountdown = 180; // 3 dəqiqə
@@ -1247,8 +1276,10 @@ function applyApp() {
                     const reason = data.rejection_reason || '';
                     if (reason === 'SERVICE_ERROR') {
                         this.engineRejectionReason = 'Texniki xəta baş verdi. Xarici servislər mövcud deyil və ya cavab vermir. Zəhmət olmasa bir az sonra yenidən cəhd edin.';
+                        this.isTechnicalError = true; // PR #250: 'Yenidən cəhd et' buttonu üçün
                     } else {
                         this.engineRejectionReason = reason;
+                        this.isTechnicalError = false;
                     }
                     this.currentStep = 3; // rədd ekranı
                     this.clearState();
