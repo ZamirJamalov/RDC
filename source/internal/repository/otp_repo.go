@@ -34,13 +34,36 @@ func NewOTPRepo(db *sql.DB) *OTPRepo {
 // of the 6-digit code — never store the plaintext code in the database.
 // PR #214: expiresAt UTC kimi saxlanılır — Go tərəfdə time.Now().UTC() ilə
 // yaradılır, SQL Server-də SYSUTCDATETIME() ilə müqayisə olunur.
-func (r *OTPRepo) Create(ctx context.Context, phone, codeHash string, expiresAt time.Time) error {
+// PR #254: Create ID qaytarır ki, SMS göndərmə uğursuz olanda expire edilə bilsin.
+func (r *OTPRepo) Create(ctx context.Context, phone, codeHash string, expiresAt time.Time) (int, error) {
         _, err := r.db.ExecContext(ctx, `
                 INSERT INTO otp_codes (phone, code_hash, status, expires_at)
+                OUTPUT INSERTED.id
                 VALUES (?, ?, 'active', ?)`,
                 phone, codeHash, expiresAt)
         if err != nil {
-                return fmt.Errorf("failed to insert OTP code: %w", err)
+                return 0, fmt.Errorf("failed to insert OTP code: %w", err)
+        }
+        // mssql driver LastInsertId dəstəkləmir, OUTPUT INSERTED.id ilə oxu
+        var id int
+        if err := r.db.QueryRowContext(ctx, `
+                SELECT TOP 1 id FROM otp_codes
+                WHERE phone = ? AND status = 'active'
+                ORDER BY created_at DESC`, phone).Scan(&id); err != nil {
+                return 0, fmt.Errorf("failed to get inserted OTP id: %w", err)
+        }
+        return id, nil
+}
+
+// ExpireByID marks a specific OTP code as expired by ID.
+// PR #254: SMS göndərmə uğursuz olanda çağrılır — yaradılmış OTP-ni
+// expire edir ki, istifadəçi yenidən cəhd edəndə "OTP already exists" xətası almasın.
+func (r *OTPRepo) ExpireByID(ctx context.Context, id int) error {
+        _, err := r.db.ExecContext(ctx, `
+                UPDATE otp_codes SET status = 'expired' WHERE id = ?`,
+                id)
+        if err != nil {
+                return fmt.Errorf("failed to expire OTP by id %d: %w", id, err)
         }
         return nil
 }

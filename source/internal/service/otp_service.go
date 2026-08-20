@@ -117,8 +117,10 @@ func (s *OTPService) SendOTP(ctx context.Context, phone string) (*model.OTPSendR
         codeHash := hashCode(code)
 
         // Store in DB — PR #214: UTC timezone (SQL Server SYSUTCDATETIME() ilə sinxron)
+        // PR #254: Create ID qaytarır ki, SMS uğursuz olanda OTP expire edilə bilsin.
         expiresAt := time.Now().UTC().Add(time.Duration(model.OTPCodeTTL) * time.Second)
-        if err := s.repo.Create(ctx, phone, codeHash, expiresAt); err != nil {
+        otpID, err := s.repo.Create(ctx, phone, codeHash, expiresAt)
+        if err != nil {
                 return nil, fmt.Errorf("failed to store OTP code: %w", err)
         }
 
@@ -129,6 +131,19 @@ func (s *OTPService) SendOTP(ctx context.Context, phone string) (*model.OTPSendR
                         "phone", phone,
                         "provider", s.provider.Name(),
                         "error", err)
+                // PR #254: SMS göndərmə uğursuz olanda yaradılmış OTP-ni expire et.
+                // Yoxsa istifadəçi yenidən cəhd edəndə HasActiveOTP=true qayıdacaq və
+                // yeni OTP göndərilməyəcək ("OTP already exists" vəziyyəti).
+                if expireErr := s.repo.ExpireByID(ctx, otpID); expireErr != nil {
+                        slog.Error("failed to expire OTP after SMS failure",
+                                "phone", phone,
+                                "otp_id", otpID,
+                                "error", expireErr)
+                } else {
+                        slog.Info("OTP expired after SMS failure — user can retry",
+                                "phone", phone,
+                                "otp_id", otpID)
+                }
                 return nil, fmt.Errorf("failed to send OTP: %w", err)
         }
 
