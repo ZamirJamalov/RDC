@@ -383,12 +383,13 @@
                         <span class="text-base text-gray-400">AZN</span>
                     </div>
                 </div>
-                <input type="range" x-model.number="amount" min="50" max="3000" step="50"
+                <!-- PR #252: min 50 → 0 (minimum kredit məbləği 0 AZN) -->
+                <input type="range" x-model.number="amount" min="0" max="3000" step="50"
                        class="w-full mt-2"
                        @input="ensureValidTerm()"
-                       :style="`--range-fill: ${((amount - 50) / (3000 - 50)) * 100}%`">
+                       :style="`--range-fill: ${((amount - 0) / (3000 - 0)) * 100}%`">
                 <div class="flex justify-between text-xs text-gray-500 mt-2">
-                    <span>50 AZN</span>
+                    <span>0 AZN</span>
                     <span>3000 AZN</span>
                 </div>
             </div>
@@ -779,17 +780,17 @@ function alpulLanding() {
 
         // Commission lookup table — PR #86: updated with correct commission values.
         // Key format: "level-amountRange-term" → commission
-        // amountRange: "50-300", "301-500", "501-700", "701-900", "901-1100", "1101-1300", "1301-1500", "1501-2000", "2001-2500", "2501-3000"
+        // PR #252: amountRange "50-300" → "0-300" (minimum kredit məbləği 0 AZN)
         rateTable: {
-            'new-50-300-3': 14,
+            'new-0-300-3': 14,
             'new-301-500-3': 14,
-            'trusted-50-300-3': 13,
+            'trusted-0-300-3': 13,
             'trusted-301-500-3': 13,
             'trusted-501-700-3': 16,
             'trusted-501-700-6': 17,
             'trusted-701-900-3': 15,
             'trusted-701-900-6': 16,
-            'valuable-50-300-3': 11,
+            'valuable-0-300-3': 11,
             'valuable-301-500-3': 11,
             'valuable-501-700-3': 14,
             'valuable-501-700-6': 15,
@@ -801,7 +802,7 @@ function alpulLanding() {
             'valuable-1101-1300-3': 14,
             'valuable-1101-1300-6': 15,
             'valuable-1101-1300-9': 16,
-            'elite-50-300-3': 9,
+            'elite-0-300-3': 9,
             'elite-301-500-3': 9,
             'elite-501-700-3': 12,
             'elite-501-700-6': 13,
@@ -836,9 +837,10 @@ function alpulLanding() {
             localStorage.setItem('alpul_theme', this.theme);
         },
 
-        // Get the amount range bucket for current amount
+        // PR #252: getAmountRange — 0-300 bucket "0-300" qaytarır (köhnə "50-300" əvəzinə).
+        // rateTable açarları "0-300" formatına uyğunlaşdırılıb (PR #252).
         getAmountRange() {
-            if (this.amount <= 300) return '50-300';
+            if (this.amount <= 300) return '0-300';
             if (this.amount <= 500) return '301-500';
             if (this.amount <= 700) return '501-700';
             if (this.amount <= 900) return '701-900';
