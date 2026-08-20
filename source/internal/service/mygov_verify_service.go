@@ -18,7 +18,7 @@ import (
 //  1. Employment verification (EMPLOYMENT_TENURE cutoff, PR #237):
 //     - Data source: MLSA GetEmployeeInfoByPin (Active/Deactive records)
 //     - Active bölməsində iş yeri olmalıdır
-//     - Staj = Contract.SignDate (imza tarixi) → bu gün, 30 günlük aylarla
+//     - Staj = Contract.BeginDate (başlama tarixi) → bu gün, 30 günlük aylarla (PR #255)
 //     - Staj >= 6 ay → PASS; əks halda → FAIL → auto-reject
 //
 //  2. Pension verification (1st-group disability rule):
@@ -64,7 +64,7 @@ func (s *MyGovService) RequestPensionVerification(ctx context.Context, appID int
 // VerifyEmployment fetches MLSA employment data via GetEmployeeInfoByPin and runs
 // the EMPLOYMENT_TENURE cutoff rule (PR #237):
 //   - Active bölməsində iş yeri məlumatı olmalıdır
-//   - Müddət = Contract.SignDate (imza tarixi) → bu gün, 30 günlük aylarla
+//   - Müddət = Contract.BeginDate (başlama tarixi) → bu gün, 30 günlük aylarla (PR #255)
 //   - Müddət >= 6 ay → PASS, əks halda avtomatik imtina (EMPLOYMENT_TENURE)
 //
 // PR #242: nəticə cutoff_results cədvəlinə yazılır (plan/fakt).
@@ -227,8 +227,8 @@ func (s *MyGovService) VerifyPension(ctx context.Context, appID int) (*MyGovVeri
 // Rules (per business):
 //   - Active bölməsində iş yeri məlumatı olmalıdır (boşdursa → imtina)
 //   - Əsas iş yeri seçilir (WorkPlaceType.Label == "1"); yoxdursa ilk Active qeydi
-//   - Staj = Contract.SignDate (imza tarixi) → bu gün, 30 günlük aylarla hesablanır
-//     (SignDate boşdursa BeginDate istifadə olunur)
+//   - Staj = Contract.BeginDate (başlama tarixi) → bu gün, 30 günlük aylarla hesablanır
+//     (BeginDate boşdursa SignDate istifadə olunur — PR #255)
 //   - Staj >= 6 ay → PASS, əks halda FAIL
 //
 // PR #242: months da qaytarılır (cutoff_results.actual_value üçün);
@@ -262,15 +262,16 @@ func checkEmploymentTenureFromEmployeeInfo(info *mygov.EmployeeInfoResponse) (bo
 		employerName = record.Employer.Name
 	}
 
-	// İmza tarixi (SignDate); boşdursa BeginDate fallback
-	dateStr := record.Contract.SignDate
-	dateKind := "imza tarixi"
+	// PR #255: Başlama tarixi (BeginDate) əsas; boşdursa SignDate fallback.
+	// Business: BeginDate işçinin işə başladığı tarixi göstərir (staj hesabı üçün düzgün anchor).
+	dateStr := record.Contract.BeginDate
+	dateKind := "başlama tarixi"
 	if dateStr == "" {
-		dateStr = record.Contract.BeginDate
-		dateKind = "başlama tarixi"
+		dateStr = record.Contract.SignDate
+		dateKind = "imza tarixi"
 	}
 	if dateStr == "" {
-		return false, -1, "Müqavilə tarixi tapılmadı (SignDate/BeginDate boşdur)"
+		return false, -1, "Müqavilə tarixi tapılmadı (BeginDate/SignDate boşdur)"
 	}
 
 	signDate, err := time.Parse("02.01.2006", dateStr)
@@ -278,7 +279,7 @@ func checkEmploymentTenureFromEmployeeInfo(info *mygov.EmployeeInfoResponse) (bo
 		return false, -1, fmt.Sprintf("Müqavilə tarixi formatı düzgün deyil: %s", dateStr)
 	}
 
-	// Staj: imza tarixindən bu günə, 30 günlük aylarla ("kesim" həddi 6 ay)
+	// Staj: başlama tarixindən bu günə, 30 günlük aylarla ("kesim" həddi 6 ay) — PR #255
 	months := time.Since(signDate).Hours() / 24 / 30
 
 	if months >= employmentTenureMinMonths {
