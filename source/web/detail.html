@@ -341,6 +341,14 @@
                                 <span x-show="app?.mygov_checked_at" class="text-xs text-gray-400 ml-1" x-text="app?.mygov_checked_at ? new Date(app.mygov_checked_at).toLocaleString('az') : ''"></span>
                             </div>
                         </div>
+                        <!-- PR #249: faktiki ünvan audit -->
+                        <div x-show="app?.actual_address_updated_by_username" class="col-span-2">
+                            <div class="label-soft text-[11px] uppercase tracking-wide">Ünvanı yeniləyən</div>
+                            <div class="value-strong font-semibold text-sm">
+                                <span x-text="app?.actual_address_updated_by_username || '-'"></span>
+                                <span x-show="app?.actual_address_updated_at" class="text-xs text-gray-400 ml-1" x-text="app?.actual_address_updated_at ? new Date(app.actual_address_updated_at).toLocaleString('az') : ''"></span>
+                            </div>
+                        </div>
                     </div>
                 </section>
 

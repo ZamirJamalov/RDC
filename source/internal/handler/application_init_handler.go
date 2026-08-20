@@ -191,6 +191,13 @@ func (h *ApplicationHandler) UpdateAddress(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// PR #249: audit — hansı ekspert faktiki ünvanı yenilədi
+	if user := middleware.PrincipalFromContext(r.Context()); user != nil {
+		if err := h.service.SetActualAddressAudit(r.Context(), id, user.ID, user.Username); err != nil {
+			slog.Error("failed to set actual_address audit", "application_id", id, "error", err)
+		}
+	}
+
 	writeJSON(w, http.StatusOK, app)
 }
 

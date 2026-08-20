@@ -1,6 +1,7 @@
 package service
 
 import (
+	"time"
 	"context"
 	"database/sql"
 
@@ -266,6 +267,16 @@ func (m *mockApplicationStore) UpdateAkbScore(_ context.Context, id int, akbScor
 func (m *mockApplicationStore) UpdateCustomerFullName(_ context.Context, id int, fullName string) error {
 	if existing, ok := m.appByID[id]; ok {
 		existing.CustomerFullName = fullName
+	}
+	return nil
+}
+
+// UpdateActualAddressAudit — PR #249: mock implementation.
+func (m *mockApplicationStore) UpdateActualAddressAudit(_ context.Context, id int, userID int, username string) error {
+	if app, ok := m.appByID[id]; ok {
+		app.ActualAddressUpdatedByUserID = &userID
+		app.ActualAddressUpdatedByUsername = username
+		app.ActualAddressUpdatedAt = time.Now().Format(time.RFC3339)
 	}
 	return nil
 }
