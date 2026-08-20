@@ -84,11 +84,19 @@ func (s *ApplicationService) InitApplication(ctx context.Context, req *InitAppli
 	// PR #208: pending_customer blocklanmır (yarımçıq müraciət → təkrar cəhd mümkün).
 	// PR #247: pending_expert blocklanır — ekspert təsdiqində olan FIN-yə yeni müraciət yox
 	// (fərqli mobil nömrədən gəlsə belə).
-	existingID, existingStatus, err := s.repo.HasPendingApplication(ctx, req.CustomerPIN)
+	// PR #256: HasPendingApplication daysRemaining də qaytarır.
+	existingID, existingStatus, daysRemaining, err := s.repo.HasPendingApplication(ctx, req.CustomerPIN)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing applications: %w", err)
 	}
 	if existingID > 0 {
+		// PR #256: blocked rejection halında fərqli error mesajı (frontend parse edir)
+		if existingStatus == "rejected" {
+			if daysRemaining == 0 {
+				return nil, fmt.Errorf("BLOCKED_REJECTION_PERMANENT")
+			}
+			return nil, fmt.Errorf("BLOCKED_REJECTION_DAYS:%d", daysRemaining)
+		}
 		return nil, fmt.Errorf("Sizin artıq işlənməkdə olan müraciətiniz var (№%d, status: %s). Bu müraciət həll olunana qədər yeni müraciət edə bilməzsiniz", existingID, existingStatus)
 	}
 

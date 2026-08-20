@@ -70,7 +70,8 @@ type ApplicationStore interface {
 	// HasPendingApplication checks if a customer already has an application
 	// that is not yet finalized (pending / checking / pending_approval).
 	// Returns (0, "", nil) if no such application exists.
-	HasPendingApplication(ctx context.Context, customerPIN string) (int, string, error)
+	// PR #256: daysRemaining də qaytarır (blocked rejection halında).
+	HasPendingApplication(ctx context.Context, customerPIN string) (int, string, int, error)
 
 	// ListByStatus retrieves all applications with the given status, ordered
 	// by oldest first. Used by the expert queue to list pending_approval apps.
