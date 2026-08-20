@@ -455,7 +455,10 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, req *model.C
 		"customer_pin", customer.CustomerPIN)
 
 	// Check for duplicate: customer must not have an existing non-final application
-	existingID, existingStatus, err := s.repo.HasPendingApplication(ctx, req.CustomerPIN)
+	// PR #257: HasPendingApplication 4 değer qaytarır (daysRemaining əlavə olundu, PR #256).
+	// Bu axın (CreateApplication) admin tərəfindən yaradılan müraciətlər üçündür —
+	// blocked rejection signalı burada lazım deyil, amma imza dəyişdiyi üçün 4 dəyər qəbul edirik.
+	existingID, existingStatus, _, err := s.repo.HasPendingApplication(ctx, req.CustomerPIN)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing applications: %w", err)
 	}
