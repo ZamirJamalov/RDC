@@ -123,18 +123,18 @@ func TestCheckEmploymentTenure_NilResponse_Fail(t *testing.T) {
 	}
 }
 
-// TestCheckEmploymentTenure_SignDateFallbackToBeginDate verifies that when
-// SignDate is empty, BeginDate is used as the anchor.
-func TestCheckEmploymentTenure_SignDateFallbackToBeginDate(t *testing.T) {
-	begin := time.Now().AddDate(0, -8, 0).Format("02.01.2006")
+// TestCheckEmploymentTenure_BeginDateFallbackToSignDate — PR #255
+// verifies that when BeginDate is empty, SignDate is used as the anchor.
+func TestCheckEmploymentTenure_BeginDateFallbackToSignDate(t *testing.T) {
+	sign := time.Now().AddDate(0, -8, 0).Format("02.01.2006")
 
-	// SignDate empty → fallback to BeginDate (8 months ago → pass)
-	passed, _, reason := checkEmploymentTenureFromEmployeeInfo(empInfo("", begin))
+	// BeginDate empty → fallback to SignDate (8 months ago → pass)
+	passed, _, reason := checkEmploymentTenureFromEmployeeInfo(empInfo(sign, ""))
 	if !passed {
-		t.Errorf("passed = false, want true (BeginDate fallback); reason = %q", reason)
+		t.Errorf("passed = false, want true (SignDate fallback); reason = %q", reason)
 	}
-	if !contains(reason, "başlama tarixi") {
-		t.Errorf("reason = %q, want 'başlama tarixi' mention", reason)
+	if !contains(reason, "imza tarixi") {
+		t.Errorf("reason = %q, want 'imza tarixi' mention", reason)
 	}
 }
 
@@ -218,5 +218,24 @@ func TestCheckEmploymentTenure_MonthsNegativeOnMissingData(t *testing.T) {
 		if months >= 0 {
 			t.Errorf("case %d: months = %.1f, want -1", i, months)
 		}
+	}
+}
+
+
+// TestCheckEmploymentTenure_BeginDatePreferredOverSignDate — PR #255
+// verifies that when both BeginDate and SignDate are present,
+// BeginDate is used as the anchor (not SignDate).
+func TestCheckEmploymentTenure_BeginDatePreferredOverSignDate(t *testing.T) {
+	// BeginDate 8 ay əvvəl (pass), SignDate 2 ay əvvəl (fail)
+	// PR #255: BeginDate istifadə olunmalı → pass
+	begin := time.Now().AddDate(0, -8, 0).Format("02.01.2006")
+	sign := time.Now().AddDate(0, -2, 0).Format("02.01.2006")
+
+	passed, _, reason := checkEmploymentTenureFromEmployeeInfo(empInfo(sign, begin))
+	if !passed {
+		t.Errorf("passed = false, want true (BeginDate should be used, not SignDate); reason = %q", reason)
+	}
+	if !contains(reason, "başlama tarixi") {
+		t.Errorf("reason = %q, want 'başlama tarixi' mention (BeginDate used)", reason)
 	}
 }

@@ -25,8 +25,8 @@ type Provider interface {
 
 	// GetEmployeeInfoByPin retrieves the customer's employment records from
 	// the MLSA (Məşğulluq) service by PIN. Used by the EMPLOYMENT_TENURE
-	// cutoff check (PR #237): Active[].Contract.SignDate → today duration
-	// is compared against the 6-month threshold.
+	// cutoff check (PR #237): Active[].Contract.BeginDate → today duration
+	// is compared against the 6-month threshold (PR #255: BeginDate anchor).
 	GetEmployeeInfoByPin(ctx context.Context, pin string) (*EmployeeInfoResponse, error)
 
 	// Name returns a human-readable identifier ("mock", "mygov-http").
@@ -89,7 +89,7 @@ type WorkPlace struct {
 // --- PR #237: GetEmployeeInfoByPin (MLSA employment records) ---
 
 // EmployeeInfoResponse mirrors the real MLSA GetEmployeeInfoByPin response.
-// See PR #237: EMPLOYMENT_TENURE cutoff checks Active[].Contract.SignDate.
+// See PR #237/#255: EMPLOYMENT_TENURE cutoff checks Active[].Contract.BeginDate.
 //
 // Example (abridged):
 //
@@ -164,8 +164,8 @@ type EmployeeInfo struct {
 	SSN                    string            `json:"SSN"`
 }
 
-// ContractInfo describes the labour contract. SignDate (imza tarixi) is the
-// anchor for the EMPLOYMENT_TENURE check; BeginDate is the fallback.
+// ContractInfo describes the labour contract. BeginDate (başlama tarixi) is the
+// anchor for the EMPLOYMENT_TENURE check (PR #255); SignDate is the fallback.
 type ContractInfo struct {
 	Invalidation  *LabelDescription `json:"Invalidation"`
 	EndDate       string            `json:"EndDate"` // "01.10.2026" (dd.mm.yyyy)
