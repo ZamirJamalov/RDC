@@ -4,6 +4,7 @@ import (
         "context"
         "fmt"
         "log/slog"
+        "strings"
 
         "rdc-source/internal/model"
         "rdc-source/pkg/azmk"
@@ -11,8 +12,9 @@ import (
 
 // UpdateStatusRequest is the request body for manually updating an application's status (mock/testing endpoint).
 type UpdateStatusRequest struct {
-        Status      string `json:"status"`       // "approved" or "rejected"
-        CreditLevel string `json:"credit_level"` // required when status is "approved" (e.g. "new", "trusted", "valuable", "elite")
+        Status          string `json:"status"`           // "approved" or "rejected"
+        CreditLevel     string `json:"credit_level"`     // required when status is "approved" (e.g. "new", "trusted", "valuable", "elite")
+        RejectionReason string `json:"rejection_reason"` // PR #258: MANUAL_* cutoff code (məs: MANUAL_FAKE_INFO)
 }
 
 // UpdateStatus manually sets an application's status.
@@ -77,7 +79,12 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
         var discountAmount float64
 
         if req.Status == model.StatusRejected {
-                rejectionReason = "Manually rejected"
+                // PR #258: MANUAL_* cutoff code qəbul et (frontend-dən gəlir)
+                // Əgər reason verilməyibsə, default "Manually rejected" istifadə et.
+                rejectionReason = req.RejectionReason
+                if rejectionReason == "" {
+                        rejectionReason = "Manually rejected"
+                }
         } else if req.Status == model.StatusApproved {
                 // PR #95: if a discount code is present, validate it (race-condition
                 // protection: between customer-confirm and approval, another customer
@@ -102,6 +109,13 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
                 req.Status, creditLevel, rejectionReason, app.Amount, app.ApprovedRate, totalAmount)
         if err != nil {
                 return nil, fmt.Errorf("failed to update status: %w", err)
+        }
+
+        // PR #258: manual reject-i cutoff_results cədvəlinə yaz.
+        // Ekspert MANUAL_* səbəbi ilə imtina edəndə bu qeyd kəsilsin ki,
+        // plan/fakt hesabatlarında görünsün və validity_days bloku işləsin.
+        if req.Status == model.StatusRejected {
+                s.logManualRejection(ctx, id, rejectionReason)
         }
 
         // PR #95: persist discount_amount on the application (if applicable).
@@ -426,4 +440,55 @@ func (s *ApplicationService) azmkCreateSignDisburse(ctx context.Context, app *mo
                 "interest_rate", annualInterestRate)
 
         return nil
+}
+
+
+// logManualRejection writes a manual rejection to cutoff_results.
+// PR #258: ekspert tərəfindən MANUAL_* səbəbi ilə imtina ediləndə
+// cutoff_results cədvəlinə yazılır ki:
+//   - plan/fakt hesabatlarında görünsün
+//   - checkLastRejectionCutoff validity_days bloku işləsin (PR #256)
+//
+// rejectionReason format: "MANUAL_FAKE_INFO" və ya "MANUAL_OTHER:custom text"
+// cutoff_code üçün prefix ayrılır, details üçün tam mətn saxlanılır.
+func (s *ApplicationService) logManualRejection(ctx context.Context, appID int, rejectionReason string) {
+	if s.cutoffRepo == nil {
+		return
+	}
+
+	// cutoff_code = rejection_reason-ün ':'-dən əvvəlki hissəsi
+	code := rejectionReason
+	details := ""
+	if idx := strings.Index(rejectionReason, ":"); idx > 0 {
+		code = rejectionReason[:idx]
+		details = rejectionReason[idx+1:]
+	}
+
+	// Yalnız MANUAL_* kodları üçün yaz (digər rejeksiyalar auto-cutoff tərəfindən
+	// artıq yazılıb — məs: AKB_SCORE_LOW, EMPLOYMENT_TENURE və s.)
+	if !strings.HasPrefix(code, "MANUAL_") {
+		return
+	}
+
+	cr := &model.CutoffResult{
+		ApplicationID: appID,
+		CutoffCode:    code,
+		CutoffName:   "Manual imtina",
+		ServiceName:  "EXPERT_MANUAL",
+		Checked:      true,
+		Passed:       false,
+		ActualValue:  rejectionReason,
+		Threshold:    "manual reject",
+		Details:      details,
+	}
+	if err := s.cutoffRepo.Insert(ctx, cr); err != nil {
+		slog.Warn("failed to log manual rejection cutoff result",
+			"application_id", appID,
+			"rejection_reason", rejectionReason,
+			"error", err)
+	} else {
+		slog.Info("manual rejection logged to cutoff_results",
+			"application_id", appID,
+			"cutoff_code", code)
+	}
 }

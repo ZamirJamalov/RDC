@@ -141,8 +141,10 @@ func (h *ExpertHandler) Reject(w http.ResponseWriter, r *http.Request) {
                 }
         }
 
+        // PR #258: MANUAL_* reason-i UpdateStatus-a ötür ki cutoff_results-a yazılsın
         app, err := h.appSvc.UpdateStatus(r.Context(), id, &service.UpdateStatusRequest{
-                Status: model.StatusRejected,
+                Status:          model.StatusRejected,
+                RejectionReason: req.Reason,
         })
         if err != nil {
                 slog.Error("expert reject failed", "application_id", id, "error", err)
