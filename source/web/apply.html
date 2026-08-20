@@ -1076,16 +1076,44 @@ function applyApp() {
         // PR #250: Texniki xəta halında istifadəçini step 0-a qaytarır.
         // Backend SERVICE_ERROR qaytardıqda (xarici servislər mövcud deyil)
         // rejeksiya ekranında 'Yenidən cəhd et' buttonu göstərilir.
+        //
+        // PR #251: otpSent və form.otp sıfırlanmalıdır — yoxsa step 0-da
+        // 'OTP Göndər' yox, 'Müraciət Göndər' buttonu görsənir və verifyOtp()
+        // çağrılır, hansı ki boş application_public_id göndərir və backend
+        // 'application_id is required' xətası qaytarır.
+        //
+        // Form fin/serialPrefix/serialNumber/phone saxlanılır — istifadəçi
+        // bu məlumatları yenidən daxil etməsin deyə (yaxşı UX).
         resetToStep0() {
             this.currentStep = 0;
             this.engineStatus = '';
             this.engineRejectionReason = '';
             this.isTechnicalError = false;
-            this.applicationId = '';
+            this.applicationId = null;
             this.error = '';
             this.confirmError = '';
             this.kycVerifyActive = false;
+            this.kycVerifyCountdown = 0;
             this.stopKYCCountdown();
+            // PR #251: OTP state-i sıfırla — 'OTP Göndər' buttonu göstərilsin
+            this.otpSent = false;
+            this.form.otp = '';
+            // PR #251: step 2 state-lərini də sıfırla (offer/video/confirm)
+            this.offer = null;
+            this.selectedRange = null;
+            this.form.amount = 0;
+            this.form.term = 0;
+            this.form.cardNumber = '';
+            this.form.cardConfirmed = false;
+            this.form.address = '';
+            this.form.rulesConfirmed = false;
+            this.form.discountCode = '';
+            this.discountValid = '';
+            this.discountPreview = '';
+            this.videoRequired = false;
+            this.videoRecorded = false;
+            this.confirmedAmount = 0;
+            this.confirmedTerm = 0;
             this.clearState();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         },
