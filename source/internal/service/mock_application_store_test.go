@@ -186,8 +186,8 @@ func (m *mockApplicationStore) GetCheckResults(_ context.Context, _ int) ([]mode
 	return out, nil
 }
 
-func (m *mockApplicationStore) HasPendingApplication(_ context.Context, _ string) (int, string, error) {
-	return m.pendingAppID, m.pendingStatus, m.pendingErr
+func (m *mockApplicationStore) HasPendingApplication(_ context.Context, _ string) (int, string, int, error) {
+	return m.pendingAppID, m.pendingStatus, 0, m.pendingErr
 }
 
 // GetRecentPendingApplication — PR #217: mock (returns nil = no recent app).

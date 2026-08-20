@@ -453,7 +453,8 @@ func (r *ApplicationRepo) GetCheckResults(ctx context.Context, appID int) ([]mod
 // PR #247: pending_expert yenidən blocklanır — müraciət ekspert təsdiqindədirsə, eyni FIN
 // ilə yeni müraciət qəbul edilmir (fərqli mobil nömrədən olsa belə).
 // Blocklanan statuslar: pending, checking, pending_approval, pending_expert.
-func (r *ApplicationRepo) HasPendingApplication(ctx context.Context, customerPIN string) (int, string, error) {
+// PR #256: daysRemaining də qaytarır (blocked rejection halında).
+func (r *ApplicationRepo) HasPendingApplication(ctx context.Context, customerPIN string) (int, string, int, error) {
 	var appID int
 	var status string
 	err := r.db.QueryRowContext(ctx, `
@@ -465,9 +466,9 @@ func (r *ApplicationRepo) HasPendingApplication(ctx context.Context, customerPIN
 			// No active application — check if last rejection is still within validity period
 			return r.checkLastRejectionCutoff(ctx, customerPIN)
 		}
-		return 0, "", fmt.Errorf("failed to check pending applications: %w", err)
+		return 0, "", 0, fmt.Errorf("failed to check pending applications: %w", err)
 	}
-	return appID, status, nil
+	return appID, status, 0, nil
 }
 
 // GetRecentAkbScore returns the most recent AKB score for a customer from any application.
@@ -521,7 +522,10 @@ func (r *ApplicationRepo) GetRecentPendingApplication(ctx context.Context, custo
 // application is still within the validity period of its cutoff rule.
 // Returns (appID, "rejected", nil) if still blocked, or (0, "", nil) if
 // the customer can re-apply.
-func (r *ApplicationRepo) checkLastRejectionCutoff(ctx context.Context, customerPIN string) (int, string, error) {
+// PR #256: Returns (appID, "rejected", daysRemaining, nil) if still blocked.
+// daysRemaining = 0 means permanent rejection.
+// Returns (0, "", 0, nil) if the customer can re-apply.
+func (r *ApplicationRepo) checkLastRejectionCutoff(ctx context.Context, customerPIN string) (int, string, int, error) {
 	var appID int
 	var rejectionReason string
 	var updatedAt time.Time
@@ -533,9 +537,9 @@ func (r *ApplicationRepo) checkLastRejectionCutoff(ctx context.Context, customer
                 ORDER BY id DESC`, customerPIN).Scan(&appID, &rejectionReason, &updatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return 0, "", nil // No previous rejection — can apply
+			return 0, "", 0, nil // No previous rejection — can apply
 		}
-		return 0, "", fmt.Errorf("failed to check last rejection: %w", err)
+		return 0, "", 0, fmt.Errorf("failed to check last rejection: %w", err)
 	}
 
 	// Extract rule_code from rejection_reason (may have suffix like "AKB_STOP_FACTOR:AB")
@@ -552,24 +556,25 @@ func (r *ApplicationRepo) checkLastRejectionCutoff(ctx context.Context, customer
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// Rule not found in cutoffs table — allow re-apply (fail-soft)
-			return 0, "", nil
+			return 0, "", 0, nil
 		}
-		return 0, "", fmt.Errorf("failed to check cutoff validity: %w", err)
+		return 0, "", 0, fmt.Errorf("failed to check cutoff validity: %w", err)
 	}
 
 	// validity_days = 0 means permanent rejection
 	if validityDays == 0 {
-		return appID, "rejected", nil
+		return appID, "rejected", 0, nil // permanent block
 	}
 
 	// Check if the validity period has expired
 	daysSinceRejection := int(time.Since(updatedAt).Hours() / 24)
 	if daysSinceRejection < validityDays {
-		return appID, "rejected", nil // Still within validity period — blocked
+		daysRemaining := validityDays - daysSinceRejection
+		return appID, "rejected", daysRemaining, nil // Still within validity period — blocked
 	}
 
 	// Validity period expired — customer can re-apply
-	return 0, "", nil
+	return 0, "", 0, nil
 }
 
 // UpdateContacts saves contact phone numbers, relations, and verification status.

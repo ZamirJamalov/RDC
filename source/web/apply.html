@@ -611,8 +611,29 @@
         <!-- STEP 4: Result (success / rejection / pending) — PR #63 Variant B -->
         <div x-show="currentStep === 3" x-transition class="card-glow rounded-3xl p-6 sm:p-12 text-center">
 
-            <!-- REJECTED -->
-            <div x-show="engineStatus === 'rejected'">
+            <!-- PR #256: BLOCKED_REJECTION — FIN validity_days bloku (detallsız fərqli UI) -->
+            <div x-show="engineStatus === 'rejected' && blockedRejectionDays >= 0" x-cloak>
+                <div class="w-20 h-20 mx-auto mb-6 rounded-full bg-orange-500/20 border border-orange-500/40 flex items-center justify-center">
+                    <svg class="w-12 h-12 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <h2 class="text-2xl sm:text-3xl font-bold mb-3">Müraciətiniz qəbul oluna bilməz</h2>
+                <p class="text-gray-400 max-w-md mx-auto mb-6">
+                    <span x-show="blockedRejectionDays === 0">
+                        Sizin əvvəlki müraciətinizə görə hazırda yeni müraciət edə bilməzsiniz.
+                    </span>
+                    <span x-show="blockedRejectionDays > 0" x-cloak>
+                        Yeni müraciət etmək üçün <span class="font-bold text-white" x-text="blockedRejectionDays"></span> gün gözləməlisiniz.
+                    </span>
+                </p>
+                <a href="/landing" class="inline-block mt-4 text-teal-400 hover:text-teal-300 text-sm transition">
+                    ← Ana səhifəyə qayıt
+                </a>
+            </div>
+
+            <!-- REJECTED (normal — engine cutoff rədd etdi) -->
+            <div x-show="engineStatus === 'rejected' && blockedRejectionDays < 0">
                 <div class="w-20 h-20 mx-auto mb-6 rounded-full bg-red-500/20 border border-red-500/40 flex items-center justify-center">
                     <svg class="w-12 h-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/>
@@ -841,6 +862,9 @@ function applyApp() {
         engineRejectionReason: '',
         // PR #250: texniki xəta halında 'Yenidən cəhd et' buttonu göstər
         isTechnicalError: false,
+        // PR #256: reject olmuş FIN üçün validity_days bloku (backend BLOCKED_REJECTION signalı)
+        // blockedRejectionDays = -1 → block yoxdur; 0 → permanent; >0 → N gün qalır
+        blockedRejectionDays: -1,
 
         // Computed: min/max for the slider (first range in the offer)
         // PR #252: rangeMin default 0; PR #253: rangeMin default 1 (minimum kredit məbləği 1 AZN)
@@ -1090,6 +1114,8 @@ function applyApp() {
             this.engineStatus = '';
             this.engineRejectionReason = '';
             this.isTechnicalError = false;
+            // PR #256: blockedRejectionDays sıfırla
+            this.blockedRejectionDays = -1;
             this.applicationId = null;
             this.error = '';
             this.confirmError = '';
@@ -1253,6 +1279,28 @@ function applyApp() {
                 this.otpSent = true;
                 this.saveState();
             } catch (e) {
+                // PR #256: BLOCKED_REJECTION — reject olmuş FIN validity_days hələ keçməyib
+                // OTP göndərilmədən birbaşa step 3 rejeksiya ekranına keç.
+                const errMsg = e.message || '';
+                if (errMsg.startsWith('BLOCKED_REJECTION_PERMANENT')) {
+                    this.blockedRejectionDays = 0;
+                    this.engineStatus = 'rejected';
+                    this.engineRejectionReason = '';
+                    this.isTechnicalError = false;
+                    this.currentStep = 3;
+                    this.clearState();
+                    return;
+                }
+                if (errMsg.startsWith('BLOCKED_REJECTION_DAYS:')) {
+                    const days = parseInt(errMsg.split(':')[1]) || 0;
+                    this.blockedRejectionDays = days;
+                    this.engineStatus = 'rejected';
+                    this.engineRejectionReason = '';
+                    this.isTechnicalError = false;
+                    this.currentStep = 3;
+                    this.clearState();
+                    return;
+                }
                 this.error = e.message;
                 // PR #248: dublikat bloku (pending_expert / pending_approval və s.) halında
                 // OTP inputu GÖSTƏRİLİRMİR — müraciət yaradılmayıb və OTP göndərilməyib.
