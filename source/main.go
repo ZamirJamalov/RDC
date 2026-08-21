@@ -140,6 +140,7 @@ func main() {
 		customerDataProvider = azmk.NewHTTPCustomerDataProvider(cfg.AzmkCustomerDataURL, cfg.AzmkUsername, cfg.AzmkPassword, cfg.AzmkTimeoutS)
 	}
 	appService.SetCustomerDataProvider(customerDataProvider)
+	creditEngine.SetCustomerDataProvider(customerDataProvider) // PR #265
 	appService.SetCutoffRepo(cutoffResultRepo)                     // PR #168
 	appService.SetKycVerifyEnabled(cfg.AzmkKycVerifyEnabled)       // PR #170
 	appService.SetCutoffStopOnFirstFail(cfg.CutoffStopOnFirstFail) // PR #171

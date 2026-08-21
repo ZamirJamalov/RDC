@@ -5,6 +5,7 @@ import (
         "fmt"
         "log/slog"
 
+        "rdc-source/pkg/azmk"
         "rdc-source/pkg/lw"
 )
 
@@ -25,12 +26,15 @@ func (s *ApplicationService) GetOffer(ctx context.Context, customerPIN string, a
                 return nil, fmt.Errorf("customer_pin is required")
         }
 
-        // 1. Fetch customer loans from LW to determine credit level
-        // PR #203: LW xətası olanda fail-soft — boş loans ilə davam et
-        customerLoans, err := s.creditEngine.lwProvider.GetCustomerLoans(ctx, customerPIN)
-        if err != nil {
-                slog.Warn("GetOffer: LW GetCustomerLoans failed — fail-soft (empty loans)", "customer_pin", customerPIN, "error", err)
-                customerLoans = &lw.CustomerLoansResponse{Loans: []lw.CustomerLoan{}}
+        // PR #265: AZMK InquireByIdCard (LW silindi)
+        customerLoans := &lw.CustomerLoansResponse{Loans: []lw.CustomerLoan{}}
+        if s.creditEngine.customerDataProvider != nil {
+                history, err := s.creditEngine.customerDataProvider.InquireByIdCard(ctx, customerPIN, "")
+                if err != nil {
+                        slog.Warn("GetOffer: AZMK InquireByIdCard failed — fail-soft", "customer_pin", customerPIN, "error", err)
+                } else if history != nil {
+                        customerLoans = convertAzmkHistoryToLwLoans(history)
+                }
         }
 
         // 2. Resolve AKB score (LW first, fallback to request, fallback to DB)
