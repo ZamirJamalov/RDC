@@ -562,7 +562,7 @@ func (p *HTTPCustomerDataProvider) GetEmployeeInfoByPin(ctx context.Context, fin
 	}
 
 	start := time.Now()
-	resp, err := p.httpClient.Do(req)
+	resp, err := p.doRequestWithRetry(ctx, req)
 	durationMs := int(time.Since(start).Milliseconds())
 	if err != nil {
 		p.auditLog(ctx, "AZMK_GET_EMPLOYEE_INFO", "POST", url, string(jsonBody), "", 0, durationMs, err.Error())
@@ -631,7 +631,7 @@ func (p *HTTPCustomerDataProvider) GetPensionInfoByPin(ctx context.Context, finC
 	}
 
 	start := time.Now()
-	resp, err := p.httpClient.Do(req)
+	resp, err := p.doRequestWithRetry(ctx, req)
 	durationMs := int(time.Since(start).Milliseconds())
 	if err != nil {
 		p.auditLog(ctx, "AZMK_GET_PENSION_INFO", "POST", url, string(jsonBody), "", 0, durationMs, err.Error())
@@ -821,6 +821,56 @@ type HTTPCustomerDataProvider struct {
 	appID   *int
 }
 
+// doRequestWithRetry executes an HTTP request with retry on connection errors.
+// PR #264: AZMK server connection refused/timeout olanda avtomatik retry.
+// Yalnız connection/timeout xətalarında retry edilir (4xx/5xx deyil).
+//
+// Retry strategy: 3 cəhd (ilk + 2 retry), exponential backoff (1s, 2s).
+// Request body strings.NewReader olduqda avtomatik reset olunur (Seek(0,0)).
+func (p *HTTPCustomerDataProvider) doRequestWithRetry(ctx context.Context, req *http.Request) (*http.Response, error) {
+	const maxRetries = 2
+	var lastErr error
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if reqBody, ok := req.Body.(*strings.Reader); ok {
+			reqBody.Seek(0, io.SeekStart)
+		}
+
+		resp, err := p.httpClient.Do(req)
+		if err == nil {
+			return resp, nil
+		}
+		lastErr = err
+
+		errStr := err.Error()
+		isRetryable := strings.Contains(errStr, "connection refused") ||
+			strings.Contains(errStr, "connection reset") ||
+			strings.Contains(errStr, "context deadline exceeded") ||
+			strings.Contains(errStr, "EOF") ||
+			strings.Contains(errStr, "no such host") ||
+			strings.Contains(errStr, "i/o timeout") ||
+			strings.Contains(errStr, "dial tcp")
+
+		if !isRetryable || attempt == maxRetries {
+			return nil, err
+		}
+
+		backoff := time.Duration(1<<attempt) * time.Second
+		slog.Warn("AZMK CustomerDataService request failed — retrying",
+			"attempt", attempt+1,
+			"max_retries", maxRetries+1,
+			"backoff_ms", backoff.Milliseconds(),
+			"error", errStr)
+		select {
+		case <-time.After(backoff):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+
+	return nil, lastErr
+}
+
 // SetAuditDB sets the DB connection and application ID for audit logging.
 // PR #163: hər AZMK CustomerDataService çağırış üçün audit log yazmaq.
 func (p *HTTPCustomerDataProvider) SetAuditDB(db *sql.DB, appID *int) {
@@ -897,7 +947,7 @@ func (p *HTTPCustomerDataProvider) GetPersonalInfo(ctx context.Context, finCode,
 	}
 
 	start := time.Now()
-	resp, err := p.httpClient.Do(req)
+	resp, err := p.doRequestWithRetry(ctx, req)
 	durationMs := int(time.Since(start).Milliseconds())
 	if err != nil {
 		p.auditLog(ctx, "AZMK_GET_PERSONAL_INFO", "POST", url, string(jsonBody), "", 0, durationMs, err.Error())
@@ -959,7 +1009,7 @@ func (p *HTTPCustomerDataProvider) GetOwnerData(ctx context.Context, finCode, se
 	}
 
 	start := time.Now()
-	resp, err := p.httpClient.Do(req)
+	resp, err := p.doRequestWithRetry(ctx, req)
 	durationMs := int(time.Since(start).Milliseconds())
 	if err != nil {
 		p.auditLog(ctx, "AZMK_GET_OWNER_DATA", "POST", url, string(jsonBody), "", 0, durationMs, err.Error())
@@ -1021,7 +1071,7 @@ func (p *HTTPCustomerDataProvider) GetMkrScore(ctx context.Context, finCode, ser
 	}
 
 	start := time.Now()
-	resp, err := p.httpClient.Do(req)
+	resp, err := p.doRequestWithRetry(ctx, req)
 	durationMs := int(time.Since(start).Milliseconds())
 	if err != nil {
 		p.auditLog(ctx, "AZMK_GET_MKR_SCORE", "POST", url, string(jsonBody), "", 0, durationMs, err.Error())
@@ -1084,7 +1134,7 @@ func (p *HTTPCustomerDataProvider) InquireByIdCard(ctx context.Context, finCode,
 	}
 
 	start := time.Now()
-	resp, err := p.httpClient.Do(req)
+	resp, err := p.doRequestWithRetry(ctx, req)
 	durationMs := int(time.Since(start).Milliseconds())
 	if err != nil {
 		p.auditLog(ctx, "AZMK_INQUIRE_BY_ID_CARD", "POST", url, string(jsonBody), "", 0, durationMs, err.Error())
