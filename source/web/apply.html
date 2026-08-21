@@ -882,6 +882,8 @@ function applyApp() {
         videoRequired: false,        // backend-dən gəlir (video_required)
         videoRecorded: false,        // recorded=true qayıdanda true olur
         videoRedirectUrl: '',        // video service-dən gələn redirect_url
+        // PR #272: video record təlimat modalı
+        videoInstructionsOpen: false,
         videoModalOpen: false,       // modal açıqdı?
         videoLoading: false,         // video başladılır...
         videoError: '',              // video xətası
@@ -1568,8 +1570,16 @@ function applyApp() {
             }
         },
 
-        async startVideoRecord() {
+        // PR #272: Video record button klikləyəndə əvvəlcə təlimat modalı açılır.
+        // İstifadəçi "Tanış oldum" klikləyəndə actual video record başlayır.
+        startVideoRecord() {
             if (!this.applicationId) return;
+            this.videoInstructionsOpen = true;
+        },
+
+        // PR #272: "Tanış oldum" klikləyəndə təlimat modalı bağlanır və video record başlayır.
+        async confirmVideoInstructions() {
+            this.videoInstructionsOpen = false;
             this.videoError = '';
             this.videoLoading = true;
             try {
@@ -1879,6 +1889,77 @@ function applyApp() {
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                 </svg>
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- PR #272: Video record təlimat modalı — "Tanış oldum" klikləyəndə video record başlayır -->
+<div x-show="videoInstructionsOpen" x-transition.opacity x-cloak
+     class="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+     @keydown.escape.window="videoInstructionsOpen = false"
+     style="display: none;">
+    <div class="bg-[var(--alpul-bg-soft)] border border-[var(--alpul-border)] rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <!-- Header -->
+        <div class="flex items-center gap-3 p-5 border-b border-[var(--alpul-border)]">
+            <div class="w-10 h-10 rounded-full bg-[var(--alpul-accent)]/15 flex items-center justify-center shrink-0">
+                <svg class="w-6 h-6 text-[var(--alpul-accent)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                </svg>
+            </div>
+            <div>
+                <h3 class="text-lg font-bold text-[var(--alpul-text)]">Video identifikasiya təlimatı</h3>
+                <p class="text-xs text-[var(--alpul-text-soft)]">Zəhmət olmasa qaydalara əməl edin</p>
+            </div>
+        </div>
+        <!-- Body: təlimatlar -->
+        <div class="p-5 space-y-3">
+            <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex gap-3">
+                <svg class="w-5 h-5 text-amber-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4a2 2 0 00-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"/>
+                </svg>
+                <p class="text-sm text-amber-200">Video qeydə alınmadan öncə aşağıdakı qaydalara diqqətlə nəzər yetirin.</p>
+            </div>
+
+            <ul class="space-y-2.5 text-sm text-[var(--alpul-text-soft)]">
+                <li class="flex gap-2.5">
+                    <span class="w-5 h-5 rounded-full bg-[var(--alpul-accent)]/20 text-[var(--alpul-accent)] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
+                    <span>Üzünüz <strong class="text-[var(--alpul-text)]">aydın görünməlidir</strong> — işığın üzünüzə düşməsinə əmin olun.</span>
+                </li>
+                <li class="flex gap-2.5">
+                    <span class="w-5 h-5 rounded-full bg-[var(--alpul-accent)]/20 text-[var(--alpul-accent)] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
+                    <span><strong class="text-[var(--alpul-text)]">Kənar şəxslər olmamalıdır</strong> — yalnız siz görünməlisiniz.</span>
+                </li>
+                <li class="flex gap-2.5">
+                    <span class="w-5 h-5 rounded-full bg-[var(--alpul-accent)]/20 text-[var(--alpul-accent)] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
+                    <span>Kameraya <strong class="text-[var(--alpul-text)]">düz baxın</strong> və başınızı hərəkət etdirməyin.</span>
+                </li>
+                <li class="flex gap-2.5">
+                    <span class="w-5 h-5 rounded-full bg-[var(--alpul-accent)]/20 text-[var(--alpul-accent)] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">4</span>
+                    <span><strong class="text-[var(--alpul-text)]">Səssiz mühit</strong> seçin — xarici səs-küy olmasın.</span>
+                </li>
+                <li class="flex gap-2.5">
+                    <span class="w-5 h-5 rounded-full bg-[var(--alpul-accent)]/20 text-[var(--alpul-accent)] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">5</span>
+                    <span>Şəxsiyyəti təsdiq edən <strong class="text-[var(--alpul-text)]">şəxsiyyət vəsiqənizi</strong> hazırlayın (əgər tələb olunarsa).</span>
+                </li>
+                <li class="flex gap-2.5">
+                    <span class="w-5 h-5 rounded-full bg-[var(--alpul-accent)]/20 text-[var(--alpul-accent)] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">6</span>
+                    <span>Video qeyd <strong class="text-[var(--alpul-text)]">fasiləsiz</strong> olmalıdır — kəsilməyə icazə verilmir.</span>
+                </li>
+            </ul>
+        </div>
+        <!-- Footer: "Tanış oldum" button -->
+        <div class="p-5 border-t border-[var(--alpul-border)] flex gap-3">
+            <button @click="videoInstructionsOpen = false"
+                    class="flex-1 px-4 py-3 rounded-xl border border-[var(--alpul-border)] text-[var(--alpul-text-soft)] hover:bg-[var(--alpul-bg)] font-semibold text-sm transition">
+                Ləğv et
+            </button>
+            <button @click="confirmVideoInstructions()"
+                    class="flex-1 px-4 py-3 rounded-xl bg-[var(--alpul-accent)] hover:opacity-90 text-white font-semibold text-sm transition flex items-center justify-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                </svg>
+                Tanış oldum
             </button>
         </div>
     </div>
