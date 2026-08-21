@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"rdc-source/internal/model"
+	"rdc-source/pkg/videorecord"
 )
 
 // StartVideoRecord creates a video record order for the application.
@@ -64,11 +65,10 @@ func (s *ApplicationService) StartVideoRecord(ctx context.Context, appID int, am
 		Salary:      0,
 	}
 
-	// Set audit appID for HTTP provider
-	if htp, ok := s.videoRecordProvider.(interface{ SetAuditAppID(*int) }); ok {
-		appIDPtr := appID
-		htp.SetAuditAppID(&appIDPtr)
-	}
+	// PR #260: SetAuditAppID shared mutable state race yaradırdı (PR #259 analizindən).
+	// Əvəzinə context value istifadə olunur — thread-safe.
+	appIDPtr := appID
+	ctx = videorecord.WithAppID(ctx, &appIDPtr)
 
 	// 4. Call video service
 	resp, err := s.videoRecordProvider.CreateOrder(ctx, videoReq)
@@ -127,11 +127,9 @@ func (s *ApplicationService) CheckVideoRecordStatus(ctx context.Context, appID i
 	statusReq := model.VideoOrderStatusRequest{AppIDs: []string{vr.AppIDExternal}}
 	reqBodyJSON, _ := json.Marshal(statusReq)
 
-	// Set audit appID for HTTP provider
-	if htp, ok := s.videoRecordProvider.(interface{ SetAuditAppID(*int) }); ok {
-		appIDPtr := appID
-		htp.SetAuditAppID(&appIDPtr)
-	}
+	// PR #260: SetAuditAppID → WithAppID (context value, thread-safe)
+	appIDPtr := appID
+	ctx = videorecord.WithAppID(ctx, &appIDPtr)
 
 	// Call video service
 	statusResp, err := s.videoRecordProvider.CheckStatus(ctx, []string{vr.AppIDExternal})

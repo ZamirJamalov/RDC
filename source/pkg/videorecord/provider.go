@@ -51,11 +51,20 @@ type HTTPProvider struct {
 func NewHTTPProvider(baseURL, username, password string, timeoutS int) *HTTPProvider {
 	timeout := time.Duration(timeoutS) * time.Second
 	return &HTTPProvider{
-		baseURL:    baseURL,
-		username:   username,
-		password:   password,
-		timeout:    timeout,
-		httpClient: &http.Client{Timeout: timeout},
+		baseURL:  baseURL,
+		username: username,
+		password: password,
+		timeout:  timeout,
+		httpClient: &http.Client{
+			Timeout: timeout,
+			Transport: &http.Transport{
+				// PR #260: concurrency pool — 10 paralel video record çağırış üçün.
+				MaxIdleConns:        100,
+				MaxIdleConnsPerHost: 20,
+				MaxConnsPerHost:     50,
+				IdleConnTimeout:     90 * time.Second,
+			},
+		},
 	}
 }
 
@@ -66,8 +75,31 @@ func (p *HTTPProvider) SetAuditDB(db *sql.DB, appID *int) {
 }
 
 // SetAuditAppID updates the application ID used in audit logs.
+// PR #260: DEPRECATED — shared mutable state race yaradırdı (PR #259 analizindən).
+// Əvəzinə context.WithValue + AppIDFromContext istifadə olunur.
+// Backward-compat üçün saxlanılır, amma artıq çağrılmamalıdır.
 func (p *HTTPProvider) SetAuditAppID(appID *int) {
 	p.appID = appID
+}
+
+// contextKey type for context value keys (PR #260).
+type contextKey string
+
+// appIDKey is the context key for application ID (PR #260).
+const appIDKey contextKey = "videorecord_app_id"
+
+// WithAppID returns a new context with the given application ID (PR #260).
+// Thread-safe way to pass appID to auditLog without shared mutable state.
+func WithAppID(ctx context.Context, appID *int) context.Context {
+	return context.WithValue(ctx, appIDKey, appID)
+}
+
+// AppIDFromContext extracts the application ID from the context (PR #260).
+func AppIDFromContext(ctx context.Context) *int {
+	if v, ok := ctx.Value(appIDKey).(*int); ok {
+		return v
+	}
+	return nil
 }
 
 // CreateOrder sends a POST /api/orders request.
@@ -78,23 +110,23 @@ func (p *HTTPProvider) CreateOrder(ctx context.Context, req *model.CreateVideoOr
 
 	respBody, statusCode, durationMs, err := p.doRequest(ctx, http.MethodPost, url, jsonBody)
 	if err != nil {
-		p.auditLog(serviceName, http.MethodPost, url, string(jsonBody), "", statusCode, durationMs, err.Error())
+		p.auditLog(ctx, serviceName, http.MethodPost, url, string(jsonBody), "", statusCode, durationMs, err.Error())
 		return nil, fmt.Errorf("video record create order request failed: %w", err)
 	}
 
 	var resp model.CreateVideoOrderResponse
 	if err := json.Unmarshal(respBody, &resp); err != nil {
-		p.auditLog(serviceName, http.MethodPost, url, string(jsonBody), string(respBody), statusCode, durationMs, fmt.Sprintf("decode error: %v", err))
+		p.auditLog(ctx, serviceName, http.MethodPost, url, string(jsonBody), string(respBody), statusCode, durationMs, fmt.Sprintf("decode error: %v", err))
 		return nil, fmt.Errorf("failed to decode video record response: %w", err)
 	}
 
 	if resp.Success != 1 {
 		errMsg := fmt.Sprintf("video service error: %s (success=%d)", resp.Message, resp.Success)
-		p.auditLog(serviceName, http.MethodPost, url, string(jsonBody), string(respBody), statusCode, durationMs, errMsg)
+		p.auditLog(ctx, serviceName, http.MethodPost, url, string(jsonBody), string(respBody), statusCode, durationMs, errMsg)
 		return nil, fmt.Errorf("%s", errMsg)
 	}
 
-	p.auditLog(serviceName, http.MethodPost, url, string(jsonBody), string(respBody), statusCode, durationMs, "")
+	p.auditLog(ctx, serviceName, http.MethodPost, url, string(jsonBody), string(respBody), statusCode, durationMs, "")
 	slog.Info("video record order created",
 		"app_id", req.AppID,
 		"redirect_url", resp.RedirectURL,
@@ -111,17 +143,17 @@ func (p *HTTPProvider) CheckStatus(ctx context.Context, appIDs []string) (*model
 
 	respBody, statusCode, durationMs, err := p.doRequest(ctx, http.MethodPost, url, jsonBody)
 	if err != nil {
-		p.auditLog(serviceName, http.MethodPost, url, string(jsonBody), "", statusCode, durationMs, err.Error())
+		p.auditLog(ctx, serviceName, http.MethodPost, url, string(jsonBody), "", statusCode, durationMs, err.Error())
 		return nil, fmt.Errorf("video record status check request failed: %w", err)
 	}
 
 	var resp model.VideoOrderStatusResponse
 	if err := json.Unmarshal(respBody, &resp); err != nil {
-		p.auditLog(serviceName, http.MethodPost, url, string(jsonBody), string(respBody), statusCode, durationMs, fmt.Sprintf("decode error: %v", err))
+		p.auditLog(ctx, serviceName, http.MethodPost, url, string(jsonBody), string(respBody), statusCode, durationMs, fmt.Sprintf("decode error: %v", err))
 		return nil, fmt.Errorf("failed to decode video status response: %w", err)
 	}
 
-	p.auditLog(serviceName, http.MethodPost, url, string(jsonBody), string(respBody), statusCode, durationMs, "")
+	p.auditLog(ctx, serviceName, http.MethodPost, url, string(jsonBody), string(respBody), statusCode, durationMs, "")
 	return &resp, nil
 }
 
@@ -150,15 +182,18 @@ func (p *HTTPProvider) doRequest(ctx context.Context, method, url string, body [
 }
 
 // auditLog writes a row to service_audit_logs.
-func (p *HTTPProvider) auditLog(serviceName, method, url, reqBody, respBody string, statusCode int, durationMs int, errMsg string) {
+// PR #260: appID context-dən oxunur — shared mutable state race aradan qaldırıldı.
+// PR #259-da AZMK provider-lər refactor edildi, bu PR videorecord provider-i də əhatə edir.
+func (p *HTTPProvider) auditLog(ctx context.Context, serviceName, method, url, reqBody, respBody string, statusCode int, durationMs int, errMsg string) {
 	if p.auditDB == nil {
 		return
 	}
-	_, err := p.auditDB.Exec(`
+	appID := AppIDFromContext(ctx) // PR #260: context-dən oxu (thread-safe)
+	_, err := p.auditDB.ExecContext(ctx, `
 		INSERT INTO service_audit_logs
 			(application_id, service_name, method, url, request_body, response_body, status_code, duration_ms, error)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		p.appID, serviceName, method, url, reqBody, respBody, statusCode, durationMs, errMsg)
+		appID, serviceName, method, url, reqBody, respBody, statusCode, durationMs, errMsg)
 	if err != nil {
 		slog.Warn("failed to write video audit log", "error", err, "service", serviceName)
 	}
