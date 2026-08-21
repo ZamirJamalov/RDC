@@ -151,6 +151,12 @@ func NewHTTPProvider(baseURL, username, password string, timeoutS int) *HTTPProv
                 httpClient: &http.Client{
                         Timeout: timeout,
                         Transport: &http.Transport{
+                                // PR #259: concurrency pool — default MaxIdleConnsPerHost=2 idi,
+                                // 10 paralel AZMK çağırışda 8 yeni TLS handshake açırdı.
+                                MaxIdleConns:        100,
+                                MaxIdleConnsPerHost: 20,
+                                MaxConnsPerHost:     50,
+                                IdleConnTimeout:     90 * time.Second,
                                 TLSClientConfig: &tls.Config{
                                         InsecureSkipVerify: true, // AZMK self-signed sertifikat üçün
                                 },
@@ -224,7 +230,7 @@ func (p *HTTPProvider) doRequest(ctx context.Context, method, path string, body 
 
         req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
         if err != nil {
-                p.auditLog(serviceName, method, url, reqBodyStr, "", 0, 0, err.Error())
+                p.auditLog(ctx, serviceName, method, url, reqBodyStr, "", 0, 0, err.Error())
                 return "", fmt.Errorf("azmk: failed to create request: %w", err)
         }
         p.setAuthHeaders(req)
@@ -233,14 +239,14 @@ func (p *HTTPProvider) doRequest(ctx context.Context, method, path string, body 
         resp, err := p.httpClient.Do(req)
         durationMs := int(time.Since(start).Milliseconds())
         if err != nil {
-                p.auditLog(serviceName, method, url, reqBodyStr, "", 0, durationMs, err.Error())
+                p.auditLog(ctx, serviceName, method, url, reqBodyStr, "", 0, durationMs, err.Error())
                 return "", fmt.Errorf("azmk: HTTP request failed: %w", err)
         }
         defer resp.Body.Close()
 
         respBody, err := io.ReadAll(resp.Body)
         if err != nil {
-                p.auditLog(serviceName, method, url, reqBodyStr, "", resp.StatusCode, durationMs, err.Error())
+                p.auditLog(ctx, serviceName, method, url, reqBodyStr, "", resp.StatusCode, durationMs, err.Error())
                 return "", fmt.Errorf("azmk: failed to read response: %w", err)
         }
 
@@ -248,12 +254,12 @@ func (p *HTTPProvider) doRequest(ctx context.Context, method, path string, body 
 
         if resp.StatusCode < 200 || resp.StatusCode >= 300 {
                 errMsg := fmt.Sprintf("azmk: %s returned HTTP %d: %s", path, resp.StatusCode, respBodyStr)
-                p.auditLog(serviceName, method, url, reqBodyStr, respBodyStr, resp.StatusCode, durationMs, errMsg)
+                p.auditLog(ctx, serviceName, method, url, reqBodyStr, respBodyStr, resp.StatusCode, durationMs, errMsg)
                 return "", fmt.Errorf("%s", errMsg)
         }
 
         // PR #163: audit log — uğurlu çağırış
-        p.auditLog(serviceName, method, url, reqBodyStr, respBodyStr, resp.StatusCode, durationMs, "")
+        p.auditLog(ctx, serviceName, method, url, reqBodyStr, respBodyStr, resp.StatusCode, durationMs, "")
 
         return respBodyStr, nil
 }
@@ -265,7 +271,7 @@ func (p *HTTPProvider) doGet(ctx context.Context, path string) (string, error) {
 
         req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
         if err != nil {
-                p.auditLog(serviceName, "GET", url, "", "", 0, 0, err.Error())
+                p.auditLog(ctx, serviceName, "GET", url, "", "", 0, 0, err.Error())
                 return "", fmt.Errorf("azmk: failed to create request: %w", err)
         }
         p.setAuthHeaders(req)
@@ -274,14 +280,14 @@ func (p *HTTPProvider) doGet(ctx context.Context, path string) (string, error) {
         resp, err := p.httpClient.Do(req)
         durationMs := int(time.Since(start).Milliseconds())
         if err != nil {
-                p.auditLog(serviceName, "GET", url, "", "", 0, durationMs, err.Error())
+                p.auditLog(ctx, serviceName, "GET", url, "", "", 0, durationMs, err.Error())
                 return "", fmt.Errorf("azmk: HTTP request failed: %w", err)
         }
         defer resp.Body.Close()
 
         respBody, err := io.ReadAll(resp.Body)
         if err != nil {
-                p.auditLog(serviceName, "GET", url, "", "", resp.StatusCode, durationMs, err.Error())
+                p.auditLog(ctx, serviceName, "GET", url, "", "", resp.StatusCode, durationMs, err.Error())
                 return "", fmt.Errorf("azmk: failed to read response: %w", err)
         }
 
@@ -289,11 +295,11 @@ func (p *HTTPProvider) doGet(ctx context.Context, path string) (string, error) {
 
         if resp.StatusCode < 200 || resp.StatusCode >= 300 {
                 errMsg := fmt.Sprintf("azmk: %s returned HTTP %d: %s", path, resp.StatusCode, respBodyStr)
-                p.auditLog(serviceName, "GET", url, "", respBodyStr, resp.StatusCode, durationMs, errMsg)
+                p.auditLog(ctx, serviceName, "GET", url, "", respBodyStr, resp.StatusCode, durationMs, errMsg)
                 return "", fmt.Errorf("%s", errMsg)
         }
 
-        p.auditLog(serviceName, "GET", url, "", respBodyStr, resp.StatusCode, durationMs, "")
+        p.auditLog(ctx, serviceName, "GET", url, "", respBodyStr, resp.StatusCode, durationMs, "")
         return respBodyStr, nil
 }
 

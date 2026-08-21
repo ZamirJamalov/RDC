@@ -216,15 +216,10 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
 	// 3. PR #117: AZMK KYC + Partner registration
 	// Müştəri kimliyini təsdiq etmədən cutoff yoxlamaq mənasızdır.
 	// PR #168: audit log üçün appID set et
+	// PR #259: SetAuditAppID shared mutable state race yaradırdı (10 paralel goroutine
+	// eyni provider-də appID overwrite edirdi). Əvəzinə context value istifadə olunur.
 	appID := app.ID
-	if httpP, ok := s.azmkProvider.(*azmk.HTTPProvider); ok {
-		httpP.SetAuditAppID(&appID)
-	}
-	if s.customerDataProvider != nil {
-		if httpCDP, ok := s.customerDataProvider.(*azmk.HTTPCustomerDataProvider); ok {
-			httpCDP.SetAuditAppID(&appID)
-		}
-	}
+	ctx = azmk.WithAppID(ctx, &appID)
 	// PR #170: KYC verify toggle — əgər enabled=false isə KYC skip olunur
 	if s.azmkProvider != nil && s.kycVerifyEnabled {
 		slog.Info("AZMK KYC verify enabled — starting KYC + Partner registration",
