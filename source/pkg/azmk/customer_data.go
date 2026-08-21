@@ -1,6 +1,7 @@
 package azmk
 
 import (
+	"crypto/tls"
 	"context"
 	"database/sql"
 	"encoding/base64"
@@ -834,15 +835,16 @@ func (p *HTTPCustomerDataProvider) SetAuditAppID(appID *int) {
 }
 
 // auditLog writes a service call audit log to the database.
-func (p *HTTPCustomerDataProvider) auditLog(serviceName, method, url, reqBody, respBody string, statusCode int, durationMs int, errMsg string) {
+// PR #259: appID context-dən oxunur (thread-safe).
+func (p *HTTPCustomerDataProvider) auditLog(ctx context.Context, serviceName, method, url, reqBody, respBody string, statusCode int, durationMs int, errMsg string) {
 	if p.auditDB == nil {
 		return
 	}
-	_, err := p.auditDB.Exec(`
+	_, err := p.auditDB.ExecContext(ctx, `
                 INSERT INTO service_audit_logs
                         (application_id, service_name, method, url, request_body, response_body, status_code, duration_ms, error)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		p.appID, serviceName, method, url, reqBody, respBody, statusCode, durationMs, errMsg)
+		AppIDFromContext(ctx), serviceName, method, url, reqBody, respBody, statusCode, durationMs, errMsg)
 	if err != nil {
 		slog.Warn("failed to write audit log", "error", err, "service", serviceName)
 	}
@@ -858,6 +860,17 @@ func NewHTTPCustomerDataProvider(baseURL, username, password string, timeoutS in
 		timeout:  timeout,
 		httpClient: &http.Client{
 			Timeout: timeout,
+			Transport: &http.Transport{
+				// PR #259: concurrency pool — GetPersonalInfo/GetMkrScore/InquireByIdCard paralel
+				// çağırışlar üçün (10 müştəri eyni anda verify olanda).
+				MaxIdleConns:        100,
+				MaxIdleConnsPerHost: 20,
+				MaxConnsPerHost:     50,
+				IdleConnTimeout:     90 * time.Second,
+				TLSClientConfig: &tls.Config{
+					InsecureSkipVerify: true, // AZMK CustomerDataService self-signed sertifikat üçün
+				},
+			},
 		},
 	}
 }

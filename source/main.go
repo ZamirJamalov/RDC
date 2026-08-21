@@ -58,7 +58,12 @@ func main() {
 		slog.Error("failed to ping database", "error", err)
 		os.Exit(1)
 	}
-	slog.Info("connected to SQL Server")
+	// PR #259: DB connection pool — concurrency üçün kritik.
+	// Default (unlimited) production-da connection exhaustion-a səbəb olur.
+	db.SetMaxOpenConns(50)
+	db.SetMaxIdleConns(10)
+	db.SetConnMaxLifetime(5 * time.Minute)
+	slog.Info("connected to SQL Server", "max_open_conns", 50, "max_idle_conns", 10, "conn_max_lifetime", "5m")
 
 	// Run database migrations
 	if err := migration.Run(db, "migrations", migration.Options{
@@ -261,7 +266,17 @@ func main() {
 	})
 
 	// --- Start the HTTP server with graceful shutdown ---
-	srv := &http.Server{Addr: cfg.ServerAddr, Handler: httpHandler}
+	// PR #259: HTTP server timeout-ları — concurrency və security üçün.
+	// ReadTimeout/WriteTimeout 200s — KYC verify polling 180s overhead üçün.
+	// ReadHeaderTimeout 10s — slowloris attack qorunması.
+	srv := &http.Server{
+		Addr:              cfg.ServerAddr,
+		Handler:           httpHandler,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       200 * time.Second,
+		WriteTimeout:      200 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
 
 	go func() {
 		slog.Info("server listening", "addr", cfg.ServerAddr)
