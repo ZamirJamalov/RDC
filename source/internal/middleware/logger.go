@@ -32,8 +32,8 @@ func (r *statusRecorder) Write(b []byte) (int, error) {
 //
 // Example log line:
 //
-//	INFO request_completed method=POST path=/api/applications status=201
-//	    duration_ms=42 bytes=187 request_id=abc-123
+//      INFO request_completed method=POST path=/api/applications status=201
+//          duration_ms=42 bytes=187 request_id=abc-123
 func Logger(logger *slog.Logger) func(http.Handler) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
@@ -46,6 +46,11 @@ func Logger(logger *slog.Logger) func(http.Handler) http.Handler {
 			next.ServeHTTP(rec, r)
 
 			duration := time.Since(start)
+			// PR #263: Loki üçün request context məlumatları əlavə olundu.
+			// user_agent → OS, browser, device info (məs: "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+			// forwarded_for → real IP (proxy/LB arxasında)
+			// referer → hansı səhifədən gəlib
+			// content_length → request body ölçüsü
 			attrs := []any{
 				"method", r.Method,
 				"path", r.URL.Path,
@@ -54,6 +59,12 @@ func Logger(logger *slog.Logger) func(http.Handler) http.Handler {
 				"bytes", rec.bytes,
 				"request_id", FromContext(r.Context()),
 				"remote_addr", r.RemoteAddr,
+				"user_agent", r.UserAgent(),
+				"forwarded_for", r.Header.Get("X-Forwarded-For"),
+				"referer", r.Referer(),
+				"content_length", r.ContentLength,
+				"scheme", schemeFromRequest(r),
+				"host", r.Host,
 			}
 
 			if rec.status >= 500 {
@@ -63,4 +74,17 @@ func Logger(logger *slog.Logger) func(http.Handler) http.Handler {
 			}
 		})
 	}
+}
+
+// schemeFromRequest returns "https" if the request was made over TLS or
+// behind a proxy that set X-Forwarded-Proto, otherwise "http".
+// PR #263: Loki loglarına scheme əlavə etmək üçün.
+func schemeFromRequest(r *http.Request) string {
+	if r.TLS != nil {
+		return "https"
+	}
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		return proto
+	}
+	return "http"
 }
