@@ -5,7 +5,6 @@ import (
         "fmt"
         "log/slog"
 
-        "rdc-source/pkg/azmk"
         "rdc-source/pkg/lw"
 )
 

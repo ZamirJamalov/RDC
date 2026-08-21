@@ -175,14 +175,14 @@ func (e *CreditEngine) resolveCustomerAge(ctx context.Context, customerPIN, seri
                         "error", err)
                 return 0
         }
-        if resp == nil || resp.DateOfBirth == "" {
+        if resp == nil || resp.BirthDate == "" {
                 return 0
         }
-        dob, err := time.Parse("2006-01-02", resp.DateOfBirth)
+        dob, err := time.Parse("2006-01-02", resp.BirthDate)
         if err != nil {
                 slog.Warn("failed to parse DOB from personal info — age unknown (fail-soft)",
                         "customer_pin", customerPIN,
-                        "dob", resp.DateOfBirth,
+                        "dob", resp.BirthDate,
                         "error", err)
                 return 0
         }
@@ -231,12 +231,14 @@ func (e *CreditEngine) resolveAkbHistory(ctx context.Context, customerPIN, seria
                 analytics.akbHistoryAvailable = false
                 return
         }
-        if resp == nil || len(resp.Liabilities) == 0 {
+        if resp == nil || resp.Inquiry == nil || resp.Inquiry.Liabilities == nil || len(resp.Inquiry.Liabilities.Liability) == 0 {
                 // No liabilities = no history to evaluate. Treat as "available but empty"
                 // so the caller knows the call succeeded. All metrics remain 0.
                 analytics.akbHistoryAvailable = true
                 return
         }
+
+        liabilities := resp.Inquiry.Liabilities.Liability
 
         now := time.Now()
         window3m := now.AddDate(0, -3, 0)
@@ -253,7 +255,7 @@ func (e *CreditEngine) resolveAkbHistory(ctx context.Context, customerPIN, seria
                 maxActiveDelay int
         )
 
-        for _, lib := range resp.Liabilities {
+        for _, lib := range liabilities {
                 // Active liability metrics (rules 6 + 12)
                 isActive := isAkbLiabilityActive(lib.CreditStatus)
                 if isActive {
