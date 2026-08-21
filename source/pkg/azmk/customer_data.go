@@ -832,8 +832,13 @@ func (p *HTTPCustomerDataProvider) doRequestWithRetry(ctx context.Context, req *
 	var lastErr error
 
 	for attempt := 0; attempt <= maxRetries; attempt++ {
-		if reqBody, ok := req.Body.(*strings.Reader); ok {
-			reqBody.Seek(0, io.SeekStart)
+		// PR #267: req.Body io.ReadCloser-dir, *strings.Reader type assertion
+		// işləmir (Close() yoxdur). Əvəzinə Go standart GetBody() istifadə et.
+		if attempt > 0 && req.GetBody != nil {
+			newBody, err := req.GetBody()
+			if err == nil {
+				req.Body = newBody
+			}
 		}
 
 		resp, err := p.httpClient.Do(req)
