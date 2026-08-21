@@ -158,18 +158,6 @@ func (e *CreditEngine) resolveAkbScoreAndStopFactors(ctx context.Context, custom
         }
         return fallback, "", false
 }
-        // Per AKB semantics (PR #55):
-        //   Point == 1 → stop factor present (Response holds the 2-letter code)
-        //   Point >  1 → real credit score
-        //   Point == 0 → AKB returned no useful data (treat as fail-soft)
-        if resp.Return.Point == 1 {
-                return 0, resp.Return.Response, true
-        }
-        if resp.Return.Point == 0 {
-                return fallback, "", false
-        }
-        return resp.Return.Point, "", false
-}
 
 // resolveCustomerAge fetches the customer's personal info from LW (via DIN)
 // and computes age in years from DateOfBirth. Returns 0 if the date cannot
