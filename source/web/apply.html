@@ -316,9 +316,44 @@
                         <input type="text" value="+994" disabled class="input-field w-16 sm:w-20 px-2 sm:px-3 py-3 sm:py-3.5 rounded-xl text-center text-sm sm:text-base font-semibold shrink-0">
                         <input type="tel" x-model="form.phone" placeholder="50 123 45 67" maxlength="9"
                                class="input-field flex-1 min-w-0 px-3 sm:px-4 py-3 sm:py-3.5 rounded-xl text-base sm:text-lg font-semibold"
-                               :disabled="otpSent"
+                               :disabled="otpSent || incomeRejected"
                                @input="form.phone = form.phone.replace(/[^0-9]/g, '')">
                     </div>
+                </div>
+
+                <!-- PR #271: Resmi gelir yoxlaması — bəli/xeyr -->
+                <div x-show="!incomeRejected">
+                    <label class="text-sm text-gray-400 mb-2 block">Rəsmi gəliriniz varmı? <span class="text-red-400">*</span></label>
+                    <div class="flex gap-3">
+                        <button type="button" @click="form.hasOfficialIncome = true"
+                                :disabled="otpSent"
+                                :class="form.hasOfficialIncome === true ? 'bg-teal-500 text-white border-teal-500' : 'input-field text-gray-300 hover:border-teal-400'"
+                                class="flex-1 py-3 rounded-xl text-base font-semibold border transition">
+                            ✓ Bəli
+                        </button>
+                        <button type="button" @click="form.hasOfficialIncome = false"
+                                :disabled="otpSent"
+                                :class="form.hasOfficialIncome === false ? 'bg-rose-500 text-white border-rose-500' : 'input-field text-gray-300 hover:border-rose-400'"
+                                class="flex-1 py-3 rounded-xl text-base font-semibold border transition">
+                            ✗ Xeyr
+                        </button>
+                    </div>
+                </div>
+
+                <!-- PR #271: 'Xeyr' secilende reject mesajı -->
+                <div x-show="incomeRejected" x-cloak class="bg-rose-500/10 border border-rose-500/30 rounded-xl p-5 text-center">
+                    <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-rose-500/20 border border-rose-500/40 flex items-center justify-center">
+                        <svg class="w-10 h-10 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-bold text-rose-200 mb-2">Müraciətiniz qəbul edilmədi</h3>
+                    <p class="text-sm text-rose-300/80 max-w-sm mx-auto">
+                        Rəsmi gəlir olmadığına görə kredit müraciətiniz qəbul edilmir.
+                    </p>
+                    <a href="/landing" class="inline-block mt-4 text-teal-400 hover:text-teal-300 text-sm transition">
+                        ← Ana səhifəyə qayıt
+                    </a>
                 </div>
 
                 <!-- OTP section -->
@@ -334,8 +369,8 @@
 
                 <!-- Action buttons -->
                 <div class="pt-4">
-                    <button x-show="!otpSent" @click="sendOtp"
-                            :disabled="loading || applicationId || !form.fin || !form.serialPrefix || !form.serialNumber || !form.phone"
+                    <button x-show="!otpSent && !incomeRejected" @click="sendOtp"
+                            :disabled="loading || applicationId || !form.fin || !form.serialPrefix || !form.serialNumber || !form.phone || form.hasOfficialIncome === null"
                             class="cta-btn w-full text-white font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
                         <span x-show="!loading">OTP Göndər →</span>
                         <span x-show="loading" class="flex items-center gap-2">
@@ -803,6 +838,7 @@ function applyApp() {
             serialPrefix: 'AZE',
             serialNumber: '',
             phone: '',
+            hasOfficialIncome: null,  // PR #271: true=bəli, false=xeyr, null=seçilməyib
             otp: '',
             amount: 0,
             term: 0, // PR #230: istifadəçi tərəfindən seçilən müddət
@@ -838,6 +874,8 @@ function applyApp() {
         kycVerifyEnabled: true, // PR #206: backend-dən gəlir (AZMK_KYC_VERIFY_ENABLED)
 
         // OTP/UI state
+        // PR #271: resmi gelir yoxlaması — 'xeyr' secilende reject mesajı
+        incomeRejected: false,
         otpSent: false,
 
         // PR #188: Video record state
@@ -1114,6 +1152,9 @@ function applyApp() {
             this.engineStatus = '';
             this.engineRejectionReason = '';
             this.isTechnicalError = false;
+            // PR #271: incomeRejected və hasOfficialIncome sıfırla
+            this.incomeRejected = false;
+            this.form.hasOfficialIncome = null;
             // PR #256: blockedRejectionDays sıfırla
             this.blockedRejectionDays = -1;
             this.applicationId = null;
@@ -1253,6 +1294,23 @@ function applyApp() {
         async sendOtp() {
             this.error = '';
             this.loading = true;
+
+            // PR #271: 'Xeyr' secilende — resmi gelir yoxdursa müraciəti reject et
+            if (this.form.hasOfficialIncome === false) {
+                this.incomeRejected = true;
+                this.loading = false;
+                this.clearState();
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                return;
+            }
+
+            // PR #271: hasOfficialIncome seçilməyibsə xəta göstər
+            if (this.form.hasOfficialIncome === null) {
+                this.error = 'Zəhmət olmasa rəsmi gəliriniz olub-olmadığını qeyd edin';
+                this.loading = false;
+                return;
+            }
+
             // PR #202: OTP göndərilməsi zamanı təkrar klik qadağan et
             // Əgər artıq applicationId varsa (əvvəlki uğurlu göndermə), təkrar göndermə
             if (this.applicationId) {
