@@ -489,18 +489,6 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
 				}
 			}
 		}
-	} else {
-		blacklisted, err := s.creditEngine.lwProvider.CheckBlacklist(ctx, customerPIN)
-		if err != nil {
-			slog.Warn("early cutoff: LW blacklist check failed — fail-soft (skip)", "error", err)
-			hasServiceError = true // PR #198
-		} else {
-			s.logCutoff(ctx, appID, "LW_BLACKLIST", "LW Qara siyahı yoxlaması", "LW_CHECK_BLACKLIST", true, !blacklisted,
-				fmt.Sprintf("blacklisted = %v", blacklisted), "blacklisted = false", "")
-			if blacklisted {
-				setRejection("LW_BLACKLIST")
-			}
-		}
 	}
 afterOwnerData: // PR #205: cache hit halında bura jump edilir
 	if shouldReturn() {

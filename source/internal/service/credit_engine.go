@@ -10,13 +10,15 @@ import (
 
         "rdc-source/internal/model"
         "rdc-source/internal/repository"
+        "rdc-source/pkg/azmk"
         "rdc-source/pkg/lw"
 )
 
 // CreditEngine processes loan applications through the credit decision pipeline.
 type CreditEngine struct {
-        lwProvider lw.Provider
-        appRepo    ApplicationStore
+        lwProvider           lw.Provider
+        appRepo              ApplicationStore
+        customerDataProvider azmk.CustomerDataProvider // PR #265
 }
 
 // NewCreditEngine creates a new CreditEngine with the given dependencies.
@@ -29,6 +31,11 @@ func NewCreditEngine(provider lw.Provider, repo ApplicationStore) *CreditEngine 
         }
 }
 
+// SetCustomerDataProvider injects the AZMK CustomerDataProvider (PR #265).
+func (e *CreditEngine) SetCustomerDataProvider(provider azmk.CustomerDataProvider) {
+        e.customerDataProvider = provider
+}
+
 // PreValidate checks whether the requested amount and term are valid for the customer's
 // credit level BEFORE creating the application. Returns a descriptive error if not.
 //
@@ -39,10 +46,15 @@ func NewCreditEngine(provider lw.Provider, repo ApplicationStore) *CreditEngine 
 // a non-zero score it overrides the request-supplied value. If LW fails or returns
 // 0, the request-supplied value is used as a fallback (preserving backward compat).
 func (e *CreditEngine) PreValidate(ctx context.Context, customerPIN string, amount float64, termMonths int, akbScore int) error {
-        // 1. Get customer loans from LW
-        customerLoans, err := e.lwProvider.GetCustomerLoans(ctx, customerPIN)
-        if err != nil {
-                return fmt.Errorf("failed to fetch customer loans from LW: %w", err)
+        // PR #265: AZMK InquireByIdCard (LW silindi)
+        customerLoans := &lw.CustomerLoansResponse{Loans: []lw.CustomerLoan{}}
+        if e.customerDataProvider != nil {
+                history, err := e.customerDataProvider.InquireByIdCard(ctx, customerPIN, "")
+                if err != nil {
+                        slog.Warn("PreValidate: AZMK InquireByIdCard failed — fail-soft", "customer_pin", customerPIN, "error", err)
+                } else if history != nil {
+                        customerLoans = convertAzmkHistoryToLwLoans(history)
+                }
         }
 
         // 2. Resolve AKB score (LW first, request value as fallback)
@@ -119,19 +131,33 @@ func (e *CreditEngine) resolveAkbScore(ctx context.Context, customerPIN string, 
 //
 // The caller populates the loanAnalytics struct with these values before
 // invoking computeDecision / runChecks.
+// PR #265: DB cache + AZMK, LW silindi
 func (e *CreditEngine) resolveAkbScoreAndStopFactors(ctx context.Context, customerPIN string, fallback int) (score int, stopFactorCode string, hasStopFactor bool) {
-        resp, err := e.lwProvider.GetAkbScore(ctx, customerPIN, "")
-        if err != nil {
-                slog.Warn("failed to fetch AKB score from LW — using request fallback",
-                        "customer_pin", customerPIN,
-                        "fallback_score", fallback,
-                        "error", err)
-                return fallback, "", false
+        // 1. DB cache — PR #228
+        dbScore := e.appRepo.GetRecentAkbScore(ctx, customerPIN)
+        if dbScore > 0 {
+                slog.Info("resolveAkbScore: using DB cache", "customer_pin", customerPIN, "akb_score", dbScore)
+                return dbScore, "", false
         }
-        if resp == nil || resp.Return == nil {
-                return fallback, "", false
+        // 2. AZMK GetMkrScore fallback
+        if e.customerDataProvider != nil {
+                mkrScore, err := e.customerDataProvider.GetMkrScore(ctx, customerPIN, "")
+                if err != nil {
+                        slog.Warn("resolveAkbScore: AZMK GetMkrScore failed — using request fallback",
+                                "customer_pin", customerPIN, "fallback_score", fallback, "error", err)
+                        return fallback, "", false
+                }
+                if mkrScore != nil && mkrScore.Score.Calculated {
+                        if mkrScore.Score.Point == 1 {
+                                return 0, mkrScore.Score.Response, true
+                        }
+                        if mkrScore.Score.Point > 1 {
+                                return mkrScore.Score.Point, "", false
+                        }
+                }
         }
-
+        return fallback, "", false
+}
         // Per AKB semantics (PR #55):
         //   Point == 1 → stop factor present (Response holds the 2-letter code)
         //   Point >  1 → real credit score
@@ -149,8 +175,12 @@ func (e *CreditEngine) resolveAkbScoreAndStopFactors(ctx context.Context, custom
 // and computes age in years from DateOfBirth. Returns 0 if the date cannot
 // be parsed or GetPersonalInfo fails — the caller treats 0 as "unknown age"
 // and does NOT reject on it (fail-soft).
+// PR #265: AZMK GetPersonalInfo (LW silindi)
 func (e *CreditEngine) resolveCustomerAge(ctx context.Context, customerPIN, serial string) int {
-        resp, err := e.lwProvider.GetPersonalInfo(ctx, customerPIN, serial)
+        if e.customerDataProvider == nil {
+                return 0
+        }
+        resp, err := e.customerDataProvider.GetPersonalInfo(ctx, customerPIN, serial)
         if err != nil {
                 slog.Warn("failed to fetch personal info from LW — age unknown (fail-soft)",
                         "customer_pin", customerPIN,
@@ -199,8 +229,13 @@ func (e *CreditEngine) resolveCustomerAge(ctx context.Context, customerPIN, seri
 //
 // Time windows are computed from time.Now() (application date) going backwards,
 // per business requirement: "kredit müraciəti etdiyi tarixden geri sayılır".
+// PR #265: AZMK InquireByIdCard (LW silindi)
 func (e *CreditEngine) resolveAkbHistory(ctx context.Context, customerPIN, serial string, analytics *loanAnalytics) {
-        resp, err := e.lwProvider.GetAkbHistory(ctx, customerPIN, serial)
+        if e.customerDataProvider == nil {
+                analytics.akbHistoryAvailable = false
+                return
+        }
+        resp, err := e.customerDataProvider.InquireByIdCard(ctx, customerPIN, serial)
         if err != nil {
                 slog.Warn("failed to fetch AKB history from LW — skipping AKB-history rules (fail-soft)",
                         "customer_pin", customerPIN,
@@ -316,10 +351,15 @@ func (e *CreditEngine) ProcessApplication(ctx context.Context, appID int) error 
                 return fmt.Errorf("failed to get application %d: %w", appID, err)
         }
 
-        // Step 3: Get customer loans from LW
-        customerLoans, err := e.lwProvider.GetCustomerLoans(ctx, app.CustomerPIN)
-        if err != nil {
-                return fmt.Errorf("failed to fetch customer loans from LW: %w", err)
+        // PR #265: Step 3 — AZMK InquireByIdCard (LW silindi)
+        customerLoans := &lw.CustomerLoansResponse{Loans: []lw.CustomerLoan{}}
+        if e.customerDataProvider != nil {
+                history, err := e.customerDataProvider.InquireByIdCard(ctx, app.CustomerPIN, app.CustomerSerial)
+                if err != nil {
+                        slog.Warn("ProcessApplication: AZMK InquireByIdCard failed — fail-soft", "application_id", appID, "error", err)
+                } else if history != nil {
+                        customerLoans = convertAzmkHistoryToLwLoans(history)
+                }
         }
 
         // Step 4: Pre-compute loan analytics
@@ -338,27 +378,18 @@ func (e *CreditEngine) ProcessApplication(ctx context.Context, appID int) error 
         // Step 5c: Resolve AKB credit history metrics (PR #52, rules 2/6/7/8/9/10/12)
         e.resolveAkbHistory(ctx, app.CustomerPIN, app.CustomerSerial, analytics)
 
-        // Step 6: Blacklist check (T-1.5, fail-open)
-        blacklisted, blacklistErr := e.lwProvider.CheckBlacklist(ctx, app.CustomerPIN)
-        if blacklistErr != nil {
-                slog.Warn("failed to check blacklist — treating as not blacklisted",
-                        "application_id", appID,
-                        "customer_pin", app.CustomerPIN,
-                        "error", blacklistErr)
-                blacklisted = false
-        }
-
-        // Step 6b: AZMK blacklist check (PR #53, rule 5, fail-soft)
-        azmkBlacklisted, azmkErr := e.lwProvider.GetAzmkBlacklist(ctx, app.CustomerPIN)
-        if azmkErr != nil {
-                slog.Warn("failed to check AZMK blacklist — skipping AZMK rule (fail-soft)",
-                        "application_id", appID,
-                        "customer_pin", app.CustomerPIN,
-                        "error", azmkErr)
-                analytics.azmkCheckAvailable = false
-        } else {
-                analytics.azmkCheckAvailable = true
-                analytics.azmkBlacklisted = azmkBlacklisted
+        // PR #265: Step 6 — AZMK GetOwnerData (LW silindi)
+        blacklisted := false
+        if e.customerDataProvider != nil {
+                ownerData, ownerErr := e.customerDataProvider.GetOwnerData(ctx, app.CustomerPIN, app.CustomerSerial)
+                if ownerErr != nil {
+                        slog.Warn("ProcessApplication: AZMK GetOwnerData failed — treating as not blacklisted",
+                                "application_id", appID, "customer_pin", app.CustomerPIN, "error", ownerErr)
+                } else if ownerData != nil {
+                        blacklisted = ownerData.CustomerCheck.BlacklistStatus
+                        analytics.azmkCheckAvailable = true
+                        analytics.azmkBlacklisted = blacklisted
+                }
         }
 
         // Step 7: Determine credit level + unlock phase
@@ -408,4 +439,33 @@ func (e *CreditEngine) ProcessApplication(ctx context.Context, appID int) error 
         }
 
         return nil
+}
+
+
+// convertAzmkHistoryToLwLoans converts AZMK CreditHistory to lw.CustomerLoansResponse
+// so existing computeAnalytics logic can be reused (PR #265).
+func convertAzmkHistoryToLwLoans(history *azmk.CreditHistory) *lw.CustomerLoansResponse {
+        resp := &lw.CustomerLoansResponse{Loans: []lw.CustomerLoan{}}
+        if history == nil || history.Inquiry == nil || history.Inquiry.Liabilities == nil {
+                return resp
+        }
+        for i, lib := range history.Inquiry.Liabilities.Liability {
+                status := "completed"
+                if lib.IsActive() {
+                        status = "active"
+                }
+                resp.Loans = append(resp.Loans, lw.CustomerLoan{
+                        ID:              i + 1,
+                        LmsLoanID:       lib.ID,
+                        LoanType:        lib.CreditType,
+                        Amount:          lib.InitialAmount,
+                        RemainingAmount: lib.OutstandingDebtMain,
+                        Status:          status,
+                        DelayDays:       lib.DaysMainSumOverdue,
+                        StartDate:       lib.GrantedOn,
+                })
+        }
+        resp.LoanCount = len(resp.Loans)
+        resp.HasExistingLoans = resp.LoanCount > 0
+        return resp
 }
