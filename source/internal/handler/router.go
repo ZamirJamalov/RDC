@@ -94,6 +94,7 @@ func NewRouter(
 	protectedAuth := middleware.RequireAuth(authSvc)
 	mux.Handle("PUT /api/applications/{id}/complete", protectedAuth(http.HandlerFunc(appHandler.CompleteApplication)))
 	mux.Handle("PUT /api/applications/{id}/contacts", protectedAuth(http.HandlerFunc(appHandler.UpdateContacts)))                           // PR #124
+	mux.Handle("PUT /api/applications/{id}/contact-notes", protectedAuth(http.HandlerFunc(appHandler.UpdateContactNotes)))                   // PR #266: zəng qeydləri
 	mux.Handle("PUT /api/applications/{id}/address", protectedAuth(http.HandlerFunc(appHandler.UpdateAddress)))                             // PR #245: faktiki ünvan redaktəsi
 	mux.Handle("POST /api/applications/{id}/registration-address", protectedAuth(http.HandlerFunc(appHandler.BackfillRegistrationAddress))) // PR #245: qeydiyyat ünvanı backfill
 	mux.Handle("PUT /api/applications/{id}/timer", protectedAuth(http.HandlerFunc(appHandler.UpdateTimer)))                                 // PR #134

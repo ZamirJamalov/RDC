@@ -342,6 +342,16 @@ func (m *mockApplicationStore) UpdateApplicationDiscount(_ context.Context, id i
 	return nil
 }
 
+// UpdateContactNotes — PR #266: mock implementation.
+func (m *mockApplicationStore) UpdateContactNotes(_ context.Context, id int, app *model.LoanApplication) error {
+	if existing, ok := m.appByID[id]; ok {
+		existing.Contact1CallNote = app.Contact1CallNote
+		existing.Contact2CallNote = app.Contact2CallNote
+		existing.Contact3CallNote = app.Contact3CallNote
+	}
+	return nil
+}
+
 // UpdateContacts — PR #124: mock implementation.
 func (m *mockApplicationStore) UpdateContacts(_ context.Context, id int, app *model.LoanApplication) error {
 	if existing, ok := m.appByID[id]; ok {

@@ -37,6 +37,11 @@ type LoanApplication struct {
 	Contact1Verified    *bool  `json:"contact1_verified,omitempty"`
 	Contact2Verified    *bool  `json:"contact2_verified,omitempty"`
 	Contact3Verified    *bool  `json:"contact3_verified,omitempty"`
+	// PR #266: ekspertin zəng zamanı qeydləri (hər kontakt üçün ayrı).
+	// Frontend blur olanda avtomatik save olunur.
+	Contact1CallNote string `json:"contact1_call_note,omitempty"`
+	Contact2CallNote string `json:"contact2_call_note,omitempty"`
+	Contact3CallNote string `json:"contact3_call_note,omitempty"`
 	ActualAddress       string `json:"actual_address,omitempty"`       // factiki ünvan (T-5.6) — ekspert redaktə edə bilər (PR #245)
 	RegistrationAddress string `json:"registration_address,omitempty"` // PR #245: AZMK GetPersonalInfo-dən gələn qeydiyyat ünvanı (read-only)
 

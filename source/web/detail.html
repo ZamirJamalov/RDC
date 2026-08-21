@@ -479,6 +479,20 @@
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
                                     </button>
                                 </div>
+                                <!-- PR #266: Zəng qeydi — blur olanda avtomatik save olunur -->
+                                <div class="pl-7 mt-1">
+                                    <textarea x-model="contact.callNote"
+                                              @blur="saveContactNote(idx)"
+                                              :disabled="isReadOnly"
+                                              rows="2" maxlength="1000"
+                                              placeholder="Zəng zamanı qeyd (müşahidə, razılıq, səbəb və s.)"
+                                              class="field-input !py-1.5 w-full text-xs resize-none disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100"></textarea>
+                                    <div class="flex items-center justify-between mt-0.5">
+                                        <span class="text-[10px] text-gray-400" x-show="contact.noteSaving">Saxlanılır...</span>
+                                        <span class="text-[10px] text-emerald-500" x-show="contact.noteSaved && !contact.noteSaving">✓ Saxlanıldı</span>
+                                        <span class="text-[10px] text-gray-400 ml-auto" x-text="(contact.callNote || '').length + '/1000'"></span>
+                                    </div>
+                                </div>
                             </div>
                         </template>
                     </div>
@@ -1095,6 +1109,33 @@
                 // PR #125: yoxlama düymələri (verify/reject)
                 // PR #137: təkrar ad varsa verify/reject etmək olmaz
                 // PR #138: nömrə tam deyilsə verify/reject etmək olmaz
+                // PR #266: zəng qeydini blur olanda save et
+                async saveContactNote(idx) {
+                    const c = this.contacts[idx];
+                    if (!c) return;
+                    c.noteSaving = true;
+                    c.noteSaved = false;
+                    try {
+                        const resp = await fetch(`/api/applications/${this.internalId}/contact-notes`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                contact1_call_note: this.contacts[0]?.callNote || '',
+                                contact2_call_note: this.contacts[1]?.callNote || '',
+                                contact3_call_note: this.contacts[2]?.callNote || '',
+                            })
+                        });
+                        if (!resp.ok) throw new Error('Qeyd saxlanılmadı');
+                        c.noteSaved = true;
+                        setTimeout(() => { c.noteSaved = false; }, 3000);
+                    } catch (e) {
+                        this.actionError = `Kontakt ${idx + 1}: qeyd saxlanılmadı — ${e.message}`;
+                        setTimeout(() => { this.actionError = ''; }, 5000);
+                    } finally {
+                        c.noteSaving = false;
+                    }
+                },
+
                 async verifyContact(idx, verified) {
                     const c = this.contacts[idx];
                     if (!c || !c.phone) return;
@@ -1178,6 +1219,8 @@
                                 savedRelation: rel1,
                                 savedName: name1,
                                 verified: this.app.contact1_verified === true ? true : (this.app.contact1_verified === false ? false : null),
+                                callNote: this.app.contact1_call_note || '',
+                                noteSaving: false, noteSaved: false,
                                 editing: false
                             };
                         }
@@ -1193,6 +1236,8 @@
                                 savedRelation: rel2,
                                 savedName: name2,
                                 verified: this.app.contact2_verified === true ? true : (this.app.contact2_verified === false ? false : null),
+                                callNote: this.app.contact2_call_note || '',
+                                noteSaving: false, noteSaved: false,
                                 editing: false
                             };
                         }
@@ -1208,6 +1253,8 @@
                                 savedRelation: rel3,
                                 savedName: name3,
                                 verified: this.app.contact3_verified === true ? true : (this.app.contact3_verified === false ? false : null),
+                                callNote: this.app.contact3_call_note || '',
+                                noteSaving: false, noteSaved: false,
                                 editing: false
                             };
                         }

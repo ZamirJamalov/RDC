@@ -131,6 +131,8 @@ type ApplicationStore interface {
 
 	// PR #124: kontakt nömrələri və yoxlanma statusu (pending_approval-da da işləyir)
 	UpdateContacts(ctx context.Context, id int, app *model.LoanApplication) error
+	// UpdateContactNotes saves expert call notes for each contact (PR #266).
+	UpdateContactNotes(ctx context.Context, id int, app *model.LoanApplication) error
 
 	// PR #134: müraciət timer-ı saxla
 	UpdateTimer(ctx context.Context, id int, seconds int) error

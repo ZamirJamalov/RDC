@@ -205,6 +205,14 @@ func (s *ApplicationService) fetchCustomerDataFromAzmk(ctx context.Context, cust
 	return data
 }
 
+// UpdateContactNotesRequest is the body for PUT /api/applications/{id}/contact-notes (PR #266).
+// Ekspertin zəng zamanı qeydləri — frontend blur event çağırır.
+type UpdateContactNotesRequest struct {
+	Contact1CallNote string `json:"contact1_call_note,omitempty"`
+	Contact2CallNote string `json:"contact2_call_note,omitempty"`
+	Contact3CallNote string `json:"contact3_call_note,omitempty"`
+}
+
 // UpdateContactsRequest is the body for PUT /api/applications/{id}/contacts.
 // PR #124: ekspert kontakt nömrələrini və yoxlanma statusunu saxlayır.
 // Bu endpoint pending_approval statusunda da işləyir (CompleteApplication-a alternativ).
@@ -360,6 +368,29 @@ func (s *ApplicationService) SetProcessedBy(ctx context.Context, appID int, user
 		return fmt.Errorf("invalid application id")
 	}
 	return s.repo.UpdateProcessedBy(ctx, appID, userID, username)
+}
+
+// SetContactNotes saves expert call notes for each contact (PR #266).
+// Frontend blur event çağırır — yalnız call notes save olunur (phone/relation yox).
+func (s *ApplicationService) SetContactNotes(ctx context.Context, appID int, req *UpdateContactNotesRequest) error {
+	if appID <= 0 {
+		return fmt.Errorf("invalid application id")
+	}
+	app, err := s.repo.GetApplicationByID(ctx, appID)
+	if err != nil {
+		return fmt.Errorf("application not found: %w", err)
+	}
+	if model.IsFinal(app.Status) {
+		return fmt.Errorf("qərar verildikdən sonra qeydlər dəyişdirilə bilməz")
+	}
+	app.Contact1CallNote = req.Contact1CallNote
+	app.Contact2CallNote = req.Contact2CallNote
+	app.Contact3CallNote = req.Contact3CallNote
+	if err := s.repo.UpdateContactNotes(ctx, appID, app); err != nil {
+		return fmt.Errorf("failed to save contact notes: %w", err)
+	}
+	slog.Info("contact call notes updated", "application_id", appID)
+	return nil
 }
 
 // SetContactsAudit records which expert updated contact numbers.
