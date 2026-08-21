@@ -5,7 +5,6 @@ import (
         "fmt"
         "log/slog"
         "math"
-        "strings"
         "time"
 
         "rdc-source/internal/model"
@@ -266,7 +265,11 @@ func (e *CreditEngine) resolveAkbHistory(ctx context.Context, customerPIN, seria
                 }
 
                 // Per-month history metrics (rules 2, 7, 8, 9, 10)
-                for _, h := range lib.History {
+                // PR #270: lib.History *azmk.History pointer-dır, HistoryItem slice range üçün.
+                if lib.History == nil {
+                        continue
+                }
+                for _, h := range lib.History.HistoryItem {
                         period, err := time.Parse("2006-01", h.ReportingPeriod)
                         if err != nil {
                                 // Unparseable period — skip this entry rather than failing the whole call.
@@ -307,11 +310,11 @@ func (e *CreditEngine) resolveAkbHistory(ctx context.Context, customerPIN, seria
 }
 
 // isAkbLiabilityActive returns true if the liability's credit status indicates
-// the loan is currently active (not closed / written off / sold).
-// AKB CreditStatus values: "active", "closed", "written_off", "sold",
-// "court", "expired". We treat only "active" as active.
+// the loan is currently active.
+// PR #270: AZMK CreditStatus "007" = aktiv (PR #174). Köhnə LW "active" string yox.
+// Liability.IsActive() metodu da eyni qaydanı istifadə edir.
 func isAkbLiabilityActive(status string) bool {
-        return strings.EqualFold(status, "active")
+        return status == "007"
 }
 
 // ProcessApplication runs the full credit decision pipeline for a loan application.
