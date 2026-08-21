@@ -1914,37 +1914,30 @@ function applyApp() {
         </div>
         <!-- Body: təlimatlar -->
         <div class="p-5 space-y-3">
-            <div class="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 flex gap-3">
-                <svg class="w-5 h-5 text-amber-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4a2 2 0 00-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z"/>
+            <!-- PR #273: sarı fon oxunmurdu — slate-700/50 fon, açıq mətn (oxunabilir) -->
+            <div class="bg-slate-700/50 border border-slate-500/40 rounded-lg p-3 flex gap-3">
+                <svg class="w-5 h-5 text-sky-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                 </svg>
-                <p class="text-sm text-amber-200">Video qeydə alınmadan öncə aşağıdakı qaydalara diqqətlə nəzər yetirin.</p>
+                <p class="text-sm text-slate-100">Video qeydə alınmadan öncə aşağıdakı qaydalara diqqətlə nəzər yetirin.</p>
             </div>
 
             <ul class="space-y-2.5 text-sm text-[var(--alpul-text-soft)]">
                 <li class="flex gap-2.5">
                     <span class="w-5 h-5 rounded-full bg-[var(--alpul-accent)]/20 text-[var(--alpul-accent)] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">1</span>
-                    <span>Üzünüz <strong class="text-[var(--alpul-text)]">aydın görünməlidir</strong> — işığın üzünüzə düşməsinə əmin olun.</span>
+                    <span>Təqdim edilən <strong class="text-[var(--alpul-text)]">text (mətn) tam və səlis</strong> şəkildə oxunmalıdır.</span>
                 </li>
                 <li class="flex gap-2.5">
                     <span class="w-5 h-5 rounded-full bg-[var(--alpul-accent)]/20 text-[var(--alpul-accent)] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">2</span>
-                    <span><strong class="text-[var(--alpul-text)]">Kənar şəxslər olmamalıdır</strong> — yalnız siz görünməlisiniz.</span>
+                    <span>Video çəkilişin <strong class="text-[var(--alpul-text)]">müddəti ən azı 10 (on) saniyə</strong> olmalıdır.</span>
                 </li>
                 <li class="flex gap-2.5">
                     <span class="w-5 h-5 rounded-full bg-[var(--alpul-accent)]/20 text-[var(--alpul-accent)] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">3</span>
-                    <span>Kameraya <strong class="text-[var(--alpul-text)]">düz baxın</strong> və başınızı hərəkət etdirməyin.</span>
+                    <span>Video yazıda <strong class="text-[var(--alpul-text)]">kənar şəxslər olmamalıdır</strong>.</span>
                 </li>
                 <li class="flex gap-2.5">
                     <span class="w-5 h-5 rounded-full bg-[var(--alpul-accent)]/20 text-[var(--alpul-accent)] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">4</span>
-                    <span><strong class="text-[var(--alpul-text)]">Səssiz mühit</strong> seçin — xarici səs-küy olmasın.</span>
-                </li>
-                <li class="flex gap-2.5">
-                    <span class="w-5 h-5 rounded-full bg-[var(--alpul-accent)]/20 text-[var(--alpul-accent)] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">5</span>
-                    <span>Şəxsiyyəti təsdiq edən <strong class="text-[var(--alpul-text)]">şəxsiyyət vəsiqənizi</strong> hazırlayın (əgər tələb olunarsa).</span>
-                </li>
-                <li class="flex gap-2.5">
-                    <span class="w-5 h-5 rounded-full bg-[var(--alpul-accent)]/20 text-[var(--alpul-accent)] text-xs font-bold flex items-center justify-center shrink-0 mt-0.5">6</span>
-                    <span>Video qeyd <strong class="text-[var(--alpul-text)]">fasiləsiz</strong> olmalıdır — kəsilməyə icazə verilmir.</span>
+                    <span>Üz görünüşünə təsir edən <strong class="text-[var(--alpul-text)]">yan faktorlar, zəif işıq şəraiti, aşağı keyfiyyətli görüntü olmamalıdır</strong>.</span>
                 </li>
             </ul>
         </div>
