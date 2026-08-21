@@ -174,20 +174,44 @@ func (p *HTTPProvider) SetAuditDB(db *sql.DB, appID *int) {
 
 // SetAuditAppID sets the current application ID for audit logging.
 // PR #168: hər müraciət üçün dinamik olaraq appID set etmək.
+// PR #259: DEPRECATED — shared mutable state race yaradırdı. Əvəzinə
+// context.WithValue + AppIDFromContext istifadə olunur. Backward-compat üçün saxlanılır.
 func (p *HTTPProvider) SetAuditAppID(appID *int) {
         p.appID = appID
 }
 
+// contextKey type for context value keys (PR #259).
+type contextKey string
+
+// appIDKey is the context key for application ID (PR #259).
+const appIDKey contextKey = "azmk_app_id"
+
+// WithAppID returns a new context with the given application ID (PR #259).
+// Thread-safe way to pass appID to auditLog without shared mutable state.
+func WithAppID(ctx context.Context, appID *int) context.Context {
+        return context.WithValue(ctx, appIDKey, appID)
+}
+
+// AppIDFromContext extracts the application ID from the context (PR #259).
+func AppIDFromContext(ctx context.Context) *int {
+        if v, ok := ctx.Value(appIDKey).(*int); ok {
+                return v
+        }
+        return nil
+}
+
 // auditLog writes a service call audit log to the database.
-func (p *HTTPProvider) auditLog(serviceName, method, url, reqBody, respBody string, statusCode int, durationMs int, errMsg string) {
+// PR #259: appID context-dən oxunur — shared mutable state race aradan qaldırıldı.
+func (p *HTTPProvider) auditLog(ctx context.Context, serviceName, method, url, reqBody, respBody string, statusCode int, durationMs int, errMsg string) {
         if p.auditDB == nil {
                 return // audit logging disabled
         }
-        _, err := p.auditDB.Exec(`
+        appID := AppIDFromContext(ctx) // PR #259: context-dən oxu (thread-safe)
+        _, err := p.auditDB.ExecContext(ctx, `
                 INSERT INTO service_audit_logs
                         (application_id, service_name, method, url, request_body, response_body, status_code, duration_ms, error)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                p.appID, serviceName, method, url, reqBody, respBody, statusCode, durationMs, errMsg)
+                appID, serviceName, method, url, reqBody, respBody, statusCode, durationMs, errMsg)
         if err != nil {
                 slog.Warn("failed to write audit log", "error", err, "service", serviceName)
         }
