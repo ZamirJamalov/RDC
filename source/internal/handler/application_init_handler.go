@@ -201,6 +201,32 @@ func (h *ApplicationHandler) UpdateAddress(w http.ResponseWriter, r *http.Reques
 	writeJSON(w, http.StatusOK, app)
 }
 
+// UpdateContactNotes handles PUT /api/applications/{id}/contact-notes (PR #266).
+// Ekspertin zəng zamanı qeydləri saxlayır — frontend blur event çağırır.
+func (h *ApplicationHandler) UpdateContactNotes(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || id <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid application id")
+		return
+	}
+	var req service.UpdateContactNotesRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		return
+	}
+	// 1000 simvol limit (migration NVARCHAR(1000))
+	if len(req.Contact1CallNote) > 1000 || len(req.Contact2CallNote) > 1000 || len(req.Contact3CallNote) > 1000 {
+		writeError(w, http.StatusBadRequest, "qeyd 1000 simvoldan artıq ola bilməz")
+		return
+	}
+	if err := h.service.SetContactNotes(r.Context(), id, &req); err != nil {
+		slog.Error("update contact notes failed", "application_id", id, "error", err)
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
 // BackfillRegistrationAddress handles POST /api/applications/{id}/registration-address.
 // PR #245: PR #245-dən əvvəl yaradılmış müraciətlər üçün AZMK GetPersonalInfo-dən
 // qeydiyyat ünvanını gətirir və DB-də saxlayır (one-time, fail-soft).

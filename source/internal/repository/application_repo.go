@@ -77,6 +77,8 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
 	var kycID, partnerID, cardID, lwApplicationID sql.NullString
 	// PR #124: kontakt yoxlanma statusu
 	var contact1Verified, contact2Verified, contact3Verified sql.NullBool
+	// PR #266: kontakt zəng qeydləri
+	var contact1CallNote, contact2CallNote, contact3CallNote sql.NullString
 	// PR #142: processed_by fields
 	var processedByUserID sql.NullInt64
 	var processedByUsername sql.NullString
@@ -97,6 +99,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                        contact1_relation, contact2_relation, contact3_relation,
                        contact1_name, contact2_name, contact3_name,
                        contact1_verified, contact2_verified, contact3_verified,
+                       contact1_call_note, contact2_call_note, contact3_call_note,
                        card_number, customer_phone, customer_serial,
                        customer_confirmed_at, card_ownership_confirmed,
                        discount_code, discount_amount,
@@ -139,6 +142,9 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
 		&contact1Verified,
 		&contact2Verified,
 		&contact3Verified,
+		&contact1CallNote,
+		&contact2CallNote,
+		&contact3CallNote,
 		&app.CardNumber,
 		&customerPhone,
 		&customerSerial,
@@ -251,6 +257,10 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
 	}
 	app.MyGovCheckedByUsername = mygovCheckedByUsername.String
 	app.MyGovCheckedAt = mygovCheckedAt.String
+	// PR #266: kontakt zəng qeydləri
+	app.Contact1CallNote = contact1CallNote.String
+	app.Contact2CallNote = contact2CallNote.String
+	app.Contact3CallNote = contact3CallNote.String
 	// PR #249: actual_address audit fields
 	if actualAddressUpdatedByUserID.Valid {
 		uid := int(actualAddressUpdatedByUserID.Int64)
@@ -575,6 +585,26 @@ func (r *ApplicationRepo) checkLastRejectionCutoff(ctx context.Context, customer
 
 	// Validity period expired — customer can re-apply
 	return 0, "", 0, nil
+}
+
+// UpdateContactNotes saves the expert's call notes for each contact (PR #266).
+// Called when the frontend textarea loses focus (blur event).
+func (r *ApplicationRepo) UpdateContactNotes(ctx context.Context, id int, app *model.LoanApplication) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE loan_applications
+		SET contact1_call_note = ?,
+		    contact2_call_note = ?,
+		    contact3_call_note = ?,
+		    updated_at = GETDATE()
+		WHERE id = ?`,
+		nullableString(app.Contact1CallNote),
+		nullableString(app.Contact2CallNote),
+		nullableString(app.Contact3CallNote),
+		id)
+	if err != nil {
+		return fmt.Errorf("failed to update contact call notes: %w", err)
+	}
+	return nil
 }
 
 // UpdateContacts saves contact phone numbers, relations, and verification status.
