@@ -920,12 +920,13 @@
                     }
                     // PR #226: MyGov ön şərtləri pending_expert üçün də tələb olunur
                     // (MyGov paneli bu statusda göstərilir — PR #224)
+                    // PR #274: İş yeri və pensiya yoxlamalarından ən azı BİRİ keçilməlidir
+                    // (hər ikisi eyni anda tələb olunmur — biri kifayətdir)
                     if (this.app?.status === 'pending_approval' || this.app?.status === 'pending_expert') {
-                        if (this.employmentResult !== 'passed') {
-                            errors.push('MyGov İş Yeri: Yoxlanılmayıb və ya uğursuz');
-                        }
-                        if (this.pensionResult !== 'passed') {
-                            errors.push('MyGov Pensiya: Yoxlanılmayıb və ya uğursuz');
+                        const empPassed = this.employmentResult === 'passed';
+                        const penPassed = this.pensionResult === 'passed';
+                        if (!empPassed && !penPassed) {
+                            errors.push('MyGov: İş yeri və ya Pensiya yoxlamasından ən azı biri keçilməlidir');
                         }
                     }
                     if (!this.complianceChecked) {
