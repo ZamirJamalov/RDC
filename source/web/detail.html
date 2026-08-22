@@ -570,53 +570,8 @@
                     </div>
                 </section>
 
-                <!-- Ekspert Qərarı -->
-                <section x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert'" class="panel p-4 col-span-12 lg:col-span-4 flex flex-col">
-                    <div class="flex items-center gap-2 mb-3">
-                        <span class="icon-chip">⚖️</span>
-                        <h2 class="panel-title text-sm font-bold tracking-wide uppercase">Ekspert Qərarı</h2>
-                    </div>
-
-                    <div class="space-y-2.5 flex-1 flex flex-col">
-                        <!-- Təsdiq -->
-                        <button @click="approve()" class="w-full bg-emerald-600 text-white px-3 py-2.5 rounded-lg hover:bg-emerald-700 font-semibold text-sm transition disabled:opacity-50 flex items-center justify-center gap-2"
-                                :disabled="actionLoading">
-                            <svg x-show="!actionLoading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                            <svg x-show="actionLoading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                            <span x-text="actionLoading ? 'Əməliyyat...' : 'Təsdiq Et'"></span>
-                        </button>
-
-                        <!-- İmtina: dropdown -->
-                        <select x-model="rejectReason" class="field-input text-sm">
-                            <option value="">İmtina səbəbini seçin...</option>
-                            <option value="MANUAL_FAKE_INFO">Yalan məlumat</option>
-                            <option value="MANUAL_WRONG_NUMBER">Nömrə yanlışdır</option>
-                            <option value="MANUAL_ROUGH_BEHAVIOR">Kobud rəftar</option>
-                            <option value="MANUAL_DOCS_INVALID">Sənədlər uyğun deyil</option>
-                            <option value="MANUAL_INCOME_LOW">Gəlir kifayət deyil</option>
-                            <option value="MANUAL_CONTACTS_WRONG">Əlaqə nömrələri yanlış</option>
-                            <option value="MANUAL_MYGOV_DENIED">MyGov icazə verilmədi</option>
-                            <option value="MANUAL_COMPLIANCE_FAILED">Komplyans uğursuzluğu</option>
-                            <option value="MANUAL_OTHER">Digər</option>
-                        </select>
-
-                        <input x-show="rejectReason === 'MANUAL_OTHER'" type="text" x-model="rejectReasonCustom" placeholder="Səbəbi daxil edin..."
-                               class="field-input text-sm">
-
-                        <!-- İmtina button -->
-                        <button @click="reject()" class="w-full bg-rose-600 text-white px-3 py-2.5 rounded-lg hover:bg-rose-700 font-semibold text-sm transition disabled:opacity-50 flex items-center justify-center gap-2"
-                                :disabled="actionLoading || !rejectReason">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
-                            <span x-text="actionLoading ? 'Əməliyyat...' : 'İmtina Et'"></span>
-                        </button>
-
-                        <!-- Messages -->
-                        <div x-show="actionMessage" class="bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-2 rounded-md text-xs mt-auto" x-text="actionMessage"></div>
-                        <div x-show="actionError" class="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 rounded-md text-xs mt-auto" x-text="actionError"></div>
-                    </div>
-                </section>
-
-                <!-- PR #275: Komplyans Yoxlaması — row 2-də 4 cols (full-width row 3 silindi) -->
+                <!-- PR #276: Komplyans Yoxlaması — ortada (Ekspert Qərarı sağda) -->
+                <!-- PR #275: row 2-də 4 cols (full-width row 3 silindi) -->
                 <!-- PR #226: pending_expert üçün də göstər — complianceChecked düyməsi bu bölmədədir -->
                 <section x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert'" class="panel p-4 col-span-12 lg:col-span-4 flex flex-col">
                     <div class="flex items-center gap-2 mb-3">
@@ -669,6 +624,52 @@
                     <p class="text-[10px] text-gray-500 mt-2">
                         💡 Uğursuz olarsa, "Ekspert Qərarı" → <strong>"Komplyans uğursuzluğu"</strong> seçin.
                     </p>
+                </section>
+
+                <!-- PR #276: Ekspert Qərarı — en sağda -->
+                <section x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert'" class="panel p-4 col-span-12 lg:col-span-4 flex flex-col">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="icon-chip">⚖️</span>
+                        <h2 class="panel-title text-sm font-bold tracking-wide uppercase">Ekspert Qərarı</h2>
+                    </div>
+
+                    <div class="space-y-2.5 flex-1 flex flex-col">
+                        <!-- Təsdiq -->
+                        <button @click="approve()" class="w-full bg-emerald-600 text-white px-3 py-2.5 rounded-lg hover:bg-emerald-700 font-semibold text-sm transition disabled:opacity-50 flex items-center justify-center gap-2"
+                                :disabled="actionLoading">
+                            <svg x-show="!actionLoading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                            <svg x-show="actionLoading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                            <span x-text="actionLoading ? 'Əməliyyat...' : 'Təsdiq Et'"></span>
+                        </button>
+
+                        <!-- İmtina: dropdown -->
+                        <select x-model="rejectReason" class="field-input text-sm">
+                            <option value="">İmtina səbəbini seçin...</option>
+                            <option value="MANUAL_FAKE_INFO">Yalan məlumat</option>
+                            <option value="MANUAL_WRONG_NUMBER">Nömrə yanlışdır</option>
+                            <option value="MANUAL_ROUGH_BEHAVIOR">Kobud rəftar</option>
+                            <option value="MANUAL_DOCS_INVALID">Sənədlər uyğun deyil</option>
+                            <option value="MANUAL_INCOME_LOW">Gəlir kifayət deyil</option>
+                            <option value="MANUAL_CONTACTS_WRONG">Əlaqə nömrələri yanlış</option>
+                            <option value="MANUAL_MYGOV_DENIED">MyGov icazə verilmədi</option>
+                            <option value="MANUAL_COMPLIANCE_FAILED">Komplyans uğursuzluğu</option>
+                            <option value="MANUAL_OTHER">Digər</option>
+                        </select>
+
+                        <input x-show="rejectReason === 'MANUAL_OTHER'" type="text" x-model="rejectReasonCustom" placeholder="Səbəbi daxil edin..."
+                               class="field-input text-sm">
+
+                        <!-- İmtina button -->
+                        <button @click="reject()" class="w-full bg-rose-600 text-white px-3 py-2.5 rounded-lg hover:bg-rose-700 font-semibold text-sm transition disabled:opacity-50 flex items-center justify-center gap-2"
+                                :disabled="actionLoading || !rejectReason">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                            <span x-text="actionLoading ? 'Əməliyyat...' : 'İmtina Et'"></span>
+                        </button>
+
+                        <!-- Messages -->
+                        <div x-show="actionMessage" class="bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-2 rounded-md text-xs mt-auto" x-text="actionMessage"></div>
+                        <div x-show="actionError" class="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 rounded-md text-xs mt-auto" x-text="actionError"></div>
+                    </div>
                 </section>
 
             </div>
