@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"log/slog"
 	"net/http"
 
 	"rdc-source/internal/middleware"
@@ -94,7 +93,7 @@ func NewRouter(
 	protectedAuth := middleware.RequireAuth(authSvc)
 	mux.Handle("PUT /api/applications/{id}/complete", protectedAuth(http.HandlerFunc(appHandler.CompleteApplication)))
 	mux.Handle("PUT /api/applications/{id}/contacts", protectedAuth(http.HandlerFunc(appHandler.UpdateContacts)))                           // PR #124
-	mux.Handle("PUT /api/applications/{id}/contact-notes", protectedAuth(http.HandlerFunc(appHandler.UpdateContactNotes)))                   // PR #266: zəng qeydləri
+	mux.Handle("PUT /api/applications/{id}/contact-notes", protectedAuth(http.HandlerFunc(appHandler.UpdateContactNotes)))                  // PR #266: zəng qeydləri
 	mux.Handle("PUT /api/applications/{id}/address", protectedAuth(http.HandlerFunc(appHandler.UpdateAddress)))                             // PR #245: faktiki ünvan redaktəsi
 	mux.Handle("POST /api/applications/{id}/registration-address", protectedAuth(http.HandlerFunc(appHandler.BackfillRegistrationAddress))) // PR #245: qeydiyyat ünvanı backfill
 	mux.Handle("PUT /api/applications/{id}/timer", protectedAuth(http.HandlerFunc(appHandler.UpdateTimer)))                                 // PR #134
@@ -149,13 +148,10 @@ func NewRouter(
 	mux.Handle("GET /api/admin/feature-flags/{key}", protectedAuth(adminAuth(http.HandlerFunc(featureFlagHandler.Get))))
 	mux.Handle("PUT /api/admin/feature-flags/{key}", protectedAuth(adminAuth(http.HandlerFunc(featureFlagHandler.Toggle))))
 
-	// Wrap with middleware: CORS → RequestID → Recovery → Logger → mux
-	// PR #149: CORS added as outermost middleware
-	var handler http.Handler = mux
-	handler = middleware.Logger(slog.Default())(handler)
-	handler = middleware.Recovery(slog.Default())(handler)
-	handler = middleware.RequestID(handler)
-	handler = middleware.CORS(allowedOrigin)(handler)
-
-	return handler
+	// PR #292: middleware zənciri (Logger/Recovery/RequestID/CORS) router-dən
+	// çıxarıldı və main.go-da root handler-ə tətbiq olundu.
+	// Səbəb: bu router yalnız /api/ yollarını idarə edir — HTML səhifə keçidləri
+	// (/dashboard, /apply, /detail və s.) mux-a heç çatmırdı, ona görə loglanmırdı.
+	// İndi bütün request-lər (HTML + API + asset) vahid zəncirdən keçir.
+	return mux
 }

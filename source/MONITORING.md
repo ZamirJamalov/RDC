@@ -70,6 +70,49 @@ sum by (level) (rate({job="go-app"}[5m]))
 `level` promtail tərəfindən **label** kimi çıxarılır (pipeline_stages), ona
 görə `{job="go-app", level="ERROR"}` kimi də filtrləyə bilərsiniz.
 
+### HTTP request logları (PR #292)
+
+Hər HTTP request (HTML səhifə, API, asset) `request_completed` mesajı ilə
+loglanır və aşağıdakı sahələri daşıyır:
+
+| Sahə | Məna | Nümunə |
+|---|---|---|
+| `type` | `page` / `api` / `asset` / `other` | `page` |
+| `path` | Hansı səhifə/endpoint | `/dashboard` |
+| `ip` | Client IP (XFF varsa ilk dəyər, yoxsa RemoteAddr) | `85.132.55.12` |
+| `os` / `browser` / `device` | UserAgent-dən parse | `Windows` / `Chrome` / `desktop` |
+| `method`, `status`, `duration_ms` | Standart request məlumatı | `GET`, `200`, `42` |
+| `referer` | Hansı səhifədən keçid edilib | `http://localhost:8000/landing` |
+| `request_id`, `user_agent`, `host` | Əlavə kontekst | |
+
+Nümunə sorğular:
+
+```logql
+# yalnız HTML səhifə keçidləri (hansı səhifə, kim, nə vaxt)
+{job="go-app"} | json | type="page"
+
+# konkret IP-dən girişlər
+{job="go-app"} | json | ip="85.132.55.12"
+
+# Windows istifadəçilərinin səhifə keçidləri
+{job="go-app"} | json | type="page" | os="Windows"
+
+# OS üzrə səhifə baxış sayı (qrafik)
+sum by (os) (rate({job="go-app"} | json | type="page" [5m]))
+
+# 5xx-lər (WARN səviyyəsində loglanır)
+{job="go-app"} | json | level="WARN"
+```
+
+Qeydlər:
+
+- Asset-lər (css/js/png...) **DEBUG** səviyyəsində loglanır — default
+  `LOG_LEVEL=info` ilə Loki çirklənmir; lazım olsa `LOG_LEVEL=debug` ilə görünür.
+- `ip` sahəsi `X-Forwarded-For` başlığına əsaslanır və spoof ola bilər —
+  yalnız müşahidə üçündür, təhlükəsizlik qərarları üçün istifadə edilməməlidir.
+- Səhifə siyahısı (`/`, `/login`, `/dashboard`...) `main.go`-dakı
+  `cleanURLMap` ilə sinxron saxlanmalıdır.
+
 ## 3. Log səviyyəsi
 
 App `LOG_LEVEL` env dəstəkləyir (default: `info`):
