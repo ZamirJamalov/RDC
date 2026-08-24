@@ -645,19 +645,14 @@
                         <!-- İmtina: dropdown -->
                         <select x-model="rejectReason" class="field-input text-sm">
                             <option value="">İmtina səbəbini seçin...</option>
-                            <option value="MANUAL_FAKE_INFO">Yalan məlumat</option>
-                            <option value="MANUAL_WRONG_NUMBER">Nömrə yanlışdır</option>
-                            <option value="MANUAL_ROUGH_BEHAVIOR">Kobud rəftar</option>
-                            <option value="MANUAL_DOCS_INVALID">Sənədlər uyğun deyil</option>
-                            <option value="MANUAL_INCOME_LOW">Gəlir kifayət deyil</option>
-                            <option value="MANUAL_CONTACTS_WRONG">Əlaqə nömrələri yanlış</option>
-                            <option value="MANUAL_MYGOV_DENIED">MyGov icazə verilmədi</option>
-                            <option value="MANUAL_COMPLIANCE_FAILED">Komplyans uğursuzluğu</option>
-                            <option value="MANUAL_OTHER">Digər</option>
+                            <option value="MANUAL_VIDEO_MISMATCH">Video uyğunsuzluq (1 gün gözləmə)</option>
+                            <option value="MANUAL_COMPLIANCE_FAILED">Open Sanction və HMS yoxlama (daimi — təkrar müraciət mümkün deyil)</option>
+                            <option value="MANUAL_NUMBER_NOT_PROVIDED">Nömrə təqdim etmir (24 saat)</option>
+                            <option value="MANUAL_CONTACTS_NEGATIVE">Əlaqə nömrələrindən mənfi rəy (14 gün)</option>
+                            <option value="MANUAL_ROUGH_BEHAVIOR">Müştərinin kobud rəftarı (10 gün)</option>
+                            <option value="MANUAL_CALL_INTERFERENCE">Zəng zamanı kənar müdaxilə (0 gün)</option>
+                            <option value="MANUAL_GETCONTACT_NEGATIVE">GetContact — mənfi taq (30 gün)</option>
                         </select>
-
-                        <input x-show="rejectReason === 'MANUAL_OTHER'" type="text" x-model="rejectReasonCustom" placeholder="Səbəbi daxil edin..."
-                               class="field-input text-sm">
 
                         <!-- İmtina button -->
                         <button @click="reject()" class="w-full bg-rose-600 text-white px-3 py-2.5 rounded-lg hover:bg-rose-700 font-semibold text-sm transition disabled:opacity-50 flex items-center justify-center gap-2"
@@ -687,7 +682,6 @@
                 actionMessage: '',
                 actionError: '',
                 rejectReason: '',
-                rejectReasonCustom: '',
                 theme: localStorage.getItem('alpul_theme') || 'light',
 
                 // PR #142: Auth
@@ -1314,14 +1308,10 @@
                     this.actionMessage = '';
                     this.actionError = '';
                     try {
-                        let reason = this.rejectReason;
-                        if (this.rejectReason === 'MANUAL_OTHER' && this.rejectReasonCustom) {
-                            reason = 'MANUAL_OTHER:' + this.rejectReasonCustom;
-                        }
                         const resp = await fetch('/api/expert/' + this.internalId + '/reject', {
                             method: 'PUT',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ reason: reason })
+                            body: JSON.stringify({ reason: this.rejectReason })
                         });
                         if (!resp.ok) {
                             const err = await resp.json();
