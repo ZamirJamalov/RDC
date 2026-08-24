@@ -40,6 +40,8 @@ type ApplicationService struct {
 
 	// PR #171: Cutoff stop-on-first-fail — false=bütün kesimlər həmişə yoxlanılır
 	cutoffStopOnFirstFail bool
+	// PR #278: Cutoff checks enabled — false=cutoff-lar TAMAMƏN skip olunur
+	cutoffChecksEnabled   bool
 
 	// PR #188: Video record service (Kvadrat Lab)
 	videoRecordProvider    videorecord.Provider
@@ -124,6 +126,12 @@ func (s *ApplicationService) SetKycVerifyEnabled(enabled bool) {
 // Frontend bu dəyərə əsasən KYC loading ekranını göstər/gizlət.
 func (s *ApplicationService) IsKycVerifyEnabled() bool {
 	return s.kycVerifyEnabled
+}
+
+// SetCutoffChecksEnabled controls whether cutoff checks run at all (PR #278).
+// false = cutoff-lar TAMAMƏN skip olunur (heç bir kesim yoxlanılmır).
+func (s *ApplicationService) SetCutoffChecksEnabled(enabled bool) {
+	s.cutoffChecksEnabled = enabled
 }
 
 // SetCutoffStopOnFirstFail controls cutoff behavior (PR #171).

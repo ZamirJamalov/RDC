@@ -103,6 +103,11 @@ type Config struct {
         // false = bütün kesimlər həmişə yoxlanılır (birinci rədd səbəbi qaytarılır)
         CutoffStopOnFirstFail    bool   // default: true
 
+        // PR #278: Cutoff checks enabled/disabled toggle
+        // true (default) = cutoff-lar yoxlanılır
+        // false = cutoff-lar TAMAMƏN SKIP olunur (heç bir kesim yoxlanılmır)
+        CutoffChecksEnabled      bool   // default: true
+
         // PR #142: Authentication
         AdminInitialPassword string // default admin password (used only on first startup when no users exist)
         AuthSessionTTLHours  int    // session token validity in hours (default: 8)
@@ -184,6 +189,9 @@ func Load() *Config {
 
                 // PR #171: Cutoff stop-on-first-fail toggle
                 CutoffStopOnFirstFail: getEnvBool("CUTOFF_STOP_ON_FIRST_FAIL", true),
+
+                // PR #278: Cutoff checks enabled/disabled toggle
+                CutoffChecksEnabled: getEnvBool("CUTOFF_CHECKS_ENABLED", true),
 
                 // PR #142: Authentication
                 AdminInitialPassword: getEnv("ADMIN_INITIAL_PASSWORD", ""),
