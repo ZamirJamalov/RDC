@@ -508,7 +508,7 @@ func (p *HTTPProvider) CreateApplication(ctx context.Context, req *ApplicationCr
         if err != nil {
                 return "", err
         }
-        slog.Info("AZMK Application created", "application_id", id)
+        slog.Info("PR #281: step 7 — AZMK Application created", "step", "7.application_create", "application_id", id)
         return id, nil
 }
 
@@ -520,7 +520,7 @@ func (p *HTTPProvider) CheckSign(ctx context.Context, applicationID string) (boo
         }
         signed := strings.Contains(strings.ToLower(body), "already signed") ||
                 strings.Contains(strings.ToLower(body), "signed")
-        slog.Info("AZMK Sign check", "application_id", applicationID, "signed", signed, "response", body)
+        slog.Info("PR #281: step 8 — AZMK Sign check", "step", "8.sign_check", "application_id", applicationID, "signed", signed)
         return signed, nil
 }
 

@@ -297,7 +297,8 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
 	// PR #221: credit engine artıq OTP verify mərhələsində cutoff-ları işlədib.
 	// Customer-confirm-də credit engine çağırmırıq — müraciət pending_expert-ə keçir.
 	// Expert dashboard-da təsdiq/redd edəcək (approve/reject).
-	slog.Info("customer-confirm: application saved, transitioning to pending_expert (RDC dashboard)",
+	slog.Info("PR #281: step 6 — customer confirmed, transitioning to pending_expert (RDC dashboard)",
+		"step", "6.customer_confirm",
 		"application_id", appID,
 		"customer_pin", app.CustomerPIN,
 		"amount", app.Amount,
