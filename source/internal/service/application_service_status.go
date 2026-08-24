@@ -159,10 +159,17 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
                 // imzalanma yoxlanılır və pul köçürülür.
                 if s.azmkProvider != nil && app.PartnerID != "" {
                         if err := s.azmkCreateSignDisburse(ctx, app, totalAmount); err != nil {
-                                slog.Error("AZMK approve flow failed (non-fatal — application is still approved)",
+                                slog.Error("PR #283: AZMK approve flow failed — rolling back approval",
                                         "application_id", id,
                                         "error", err)
-                                // Non-fatal: müştəri approve olunub, AZMK xətası ayrı log lanır
+                                rejectReason := fmt.Sprintf("AZMK approve flow failed: %v", err)
+                                if err := s.repo.UpdateApplicationDecision(ctx, id,
+                                        model.StatusRejected, creditLevel, rejectReason, app.Amount, app.ApprovedRate, totalAmount); err != nil {
+                                        slog.Error("PR #283: failed to rollback approval after AZMK failure",
+                                                "application_id", id,
+                                                "error", err)
+                                }
+                                return nil, fmt.Errorf("AZMK approve flow uğursuz: %w", err)
                         }
                 }
         }
