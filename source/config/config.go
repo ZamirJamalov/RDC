@@ -108,6 +108,9 @@ type Config struct {
         // false = cutoff-lar TAMAMƏN SKIP olunur (heç bir kesim yoxlanılmır)
         CutoffChecksEnabled      bool   // default: true
 
+        // PR #279: EMPLOYMENT_TENURE minimum staj (ay)
+        EmploymentTenureMinMonths int // default: 6
+
         // PR #142: Authentication
         AdminInitialPassword string // default admin password (used only on first startup when no users exist)
         AuthSessionTTLHours  int    // session token validity in hours (default: 8)
@@ -192,6 +195,9 @@ func Load() *Config {
 
                 // PR #278: Cutoff checks enabled/disabled toggle
                 CutoffChecksEnabled: getEnvBool("CUTOFF_CHECKS_ENABLED", true),
+
+                // PR #279: EMPLOYMENT_TENURE minimum staj (ay)
+                EmploymentTenureMinMonths: getEnvInt("EMPLOYMENT_TENURE_MIN_MONTHS", 6),
 
                 // PR #142: Authentication
                 AdminInitialPassword: getEnv("ADMIN_INITIAL_PASSWORD", ""),
