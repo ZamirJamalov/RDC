@@ -171,11 +171,11 @@ func main() {
 		customerDataProvider = azmk.NewHTTPCustomerDataProvider(cfg.AzmkCustomerDataURL, cfg.AzmkUsername, cfg.AzmkPassword, cfg.AzmkTimeoutS)
 	}
 	appService.SetCustomerDataProvider(customerDataProvider)
-	creditEngine.SetCustomerDataProvider(customerDataProvider) // PR #265
-	appService.SetCutoffRepo(cutoffResultRepo)                     // PR #168
-	appService.SetKycVerifyEnabled(cfg.AzmkKycVerifyEnabled)       // PR #170
-	appService.SetCutoffStopOnFirstFail(cfg.CutoffStopOnFirstFail) // PR #171
-	appService.SetCutoffChecksEnabled(cfg.CutoffChecksEnabled)     // PR #278
+	creditEngine.SetCustomerDataProvider(customerDataProvider)         // PR #265
+	appService.SetCutoffRepo(cutoffResultRepo)                         // PR #168
+	appService.SetKycVerifyEnabled(cfg.AzmkKycVerifyEnabled)           // PR #170
+	appService.SetCutoffStopOnFirstFail(cfg.CutoffStopOnFirstFail)     // PR #171
+	appService.SetCutoffChecksEnabled(cfg.CutoffChecksEnabled)         // PR #278
 	appService.SetReferralDiscountPercent(cfg.ReferralDiscountPercent) // PR #284
 
 	// PR #163: Audit log — CustomerData provider-a DB əlaqəsi ver
@@ -213,8 +213,8 @@ func main() {
 	mygovProvider := newMyGovProvider(cfg)
 	mygovRepo := repository.NewMyGovRepo(db)
 	mygovService := service.NewMyGovService(mygovProvider, mygovRepo, appRepo, otpProvider, cfg.MyGovClientID, cfg.MyGovRedirectURI, cfg.MyGovWebURL)
-	mygovService.SetCustomerDataProvider(customerDataProvider) // PR #239: AZMK GetEmployeeInfoByPin
-	mygovService.SetCutoffRepo(cutoffResultRepo)               // PR #242: EMPLOYMENT_TENURE / DISABILITY_GROUP1 cutoff_results-a yazılır
+	mygovService.SetCustomerDataProvider(customerDataProvider)               // PR #239: AZMK GetEmployeeInfoByPin
+	mygovService.SetCutoffRepo(cutoffResultRepo)                             // PR #242: EMPLOYMENT_TENURE / DISABILITY_GROUP1 cutoff_results-a yazılır
 	mygovService.SetEmploymentTenureMinMonths(cfg.EmploymentTenureMinMonths) // PR #279: parametrik staj həddi
 
 	// --- Handler layer ---
@@ -300,13 +300,26 @@ func main() {
 		fileServer.ServeHTTP(w, r)
 	})
 
+	// PR #292: middleware zənciri router-in içinə deyil, ROOT handler-ə tətbiq olunur.
+	// Əvvəl zəncir yalnız /api/ router-in içində idi — HTML səhifə keçidləri
+	// (/dashboard, /apply, /detail...) heç bir middleware-dən keçmirdi və nə
+	// terminalda, nə də Loki-də görünmürdü.
+	// Zəncir sırası: CORS → RequestID → Logger → Recovery → handler.
+	// Logger Recovery-dən KƏNAR-dadır ki, panic baş verdikdə Recovery-nin qaytardığı
+	// 500 statusu da "request_completed" kimi loglansın (əvvəl panic-lər
+	// request_completed olmadan itirdi).
+	rootHandler := middleware.Logger(slog.Default())(
+		middleware.Recovery(slog.Default())(httpHandler))
+	rootHandler = middleware.RequestID(rootHandler)
+	rootHandler = middleware.CORS(cfg.AllowedOrigin)(rootHandler)
+
 	// --- Start the HTTP server with graceful shutdown ---
 	// PR #259: HTTP server timeout-ları — concurrency və security üçün.
 	// ReadTimeout/WriteTimeout 200s — KYC verify polling 180s overhead üçün.
 	// ReadHeaderTimeout 10s — slowloris attack qorunması.
 	srv := &http.Server{
 		Addr:              cfg.ServerAddr,
-		Handler:           httpHandler,
+		Handler:           rootHandler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       200 * time.Second,
 		WriteTimeout:      200 * time.Second,
