@@ -1,0 +1,72 @@
+# PR #290: Lokal log storage — Loki + Promtail + Grafana
+#
+# App host-da işləyir (SQL Server lokal olduğundan), stdout-a JSON log yazır:
+#   go run . 2>&1 | tee app.log
+# Promtail source/ qovluğundakı app.log-u oxuyub Loki-yə göndərir.
+#
+# Başlatma:  docker compose up -d
+# Grafana:   http://localhost:3001 (admin / admin)
+# Loki:      http://localhost:3100
+#
+# Detallar: MONITORING.md
+
+services:
+  loki:
+    image: grafana/loki:2.9.4
+    container_name: loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      # PR #290: Loki datası restart-da itmasin (default local-config /tmp/loki istifadə edir)
+      - loki-data:/tmp/loki
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:2.9.4
+    container_name: promtail
+    volumes:
+      - ./promtail-config.yml:/etc/promtail/config.yml:ro
+      # PR #290: faylı deyil, source/ qovluğunu mount edirik.
+      # Faylı birbaşa mount etmək təhlükəlidir: app.log yoxdursa Docker QOVLUQ yaradır.
+      # Qovluq + glob __path__ (promtail-config.yml) → app.log sonra yarananda avtomatik götürülür.
+      - ./:/var/log/app:ro
+      # PR #290: positions.yaml (harada qaldığım) restart-da itmasin — yoxdursa faylı
+      # başdan oxuyub Loki-yə dublikat göndərərdi.
+      - promtail-data:/tmp
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - monitoring
+    restart: unless-stopped
+    depends_on:
+      - loki
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: grafana
+    ports:
+      # PR #290: host-da 3000 adətən məşğuldur (ollama-webui və s.) — 3001 istifadə edirik
+      - "3001:3000"
+    environment:
+      # Dev üçün default — prod-da mütləq dəyişin!
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      # PR #290: Loki datasource avtomatik provision olunur — əl ilə əlavə etmək lazım deyil
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    networks:
+      - monitoring
+    restart: unless-stopped
+    depends_on:
+      - loki
+
+networks:
+  monitoring:
+
+volumes:
+  loki-data:
+  promtail-data:
+  grafana-data:
