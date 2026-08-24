@@ -27,18 +27,21 @@ type MyGovService struct {
 	customerDataProvider azmk.CustomerDataProvider
 	// PR #242: cutoff nəticələri — EMPLOYMENT_TENURE, DISABILITY_GROUP1
 	cutoffRepo *repository.CutoffResultRepo
+	// PR #279: EMPLOYMENT_TENURE minimum staj (ay, default: 6)
+	employmentTenureMinMonths int
 }
 
 // NewMyGovService creates a new MyGovService.
 func NewMyGovService(provider mygov.Provider, repo *repository.MyGovRepo, appRepo *repository.ApplicationRepo, smsProvider otp.Provider, clientID, redirectURI, webURL string) *MyGovService {
 	return &MyGovService{
-		provider:    provider,
-		repo:        repo,
-		appRepo:     appRepo,
-		smsProvider: smsProvider,
-		clientID:    clientID,
-		redirectURI: redirectURI,
-		webURL:      webURL,
+		provider:                  provider,
+		repo:                      repo,
+		appRepo:                   appRepo,
+		smsProvider:               smsProvider,
+		clientID:                  clientID,
+		redirectURI:               redirectURI,
+		webURL:                    webURL,
+		employmentTenureMinMonths: 6, // PR #279: default
 	}
 }
 
@@ -52,6 +55,14 @@ func (s *MyGovService) SetCustomerDataProvider(provider azmk.CustomerDataProvide
 // VerifyEmployment/VerifyPension nəticələri cutoff_results cədvəlinə yazılır.
 func (s *MyGovService) SetCutoffRepo(repo *repository.CutoffResultRepo) {
 	s.cutoffRepo = repo
+}
+
+// SetEmploymentTenureMinMonths sets the EMPLOYMENT_TENURE threshold (PR #279).
+// Default: 6 (config EMPLOYMENT_TENURE_MIN_MONTHS).
+func (s *MyGovService) SetEmploymentTenureMinMonths(months int) {
+	if months > 0 {
+		s.employmentTenureMinMonths = months
+	}
 }
 
 // GenerateLink creates a MyGov consent deeplink and sends it via SMS

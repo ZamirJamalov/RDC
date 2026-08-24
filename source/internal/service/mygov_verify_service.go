@@ -95,15 +95,15 @@ func (s *MyGovService) VerifyEmployment(ctx context.Context, appID int) (*MyGovV
 	}
 
 	// 3. Run the EMPLOYMENT_TENURE cutoff check
-	passed, months, reason := checkEmploymentTenureFromEmployeeInfo(info)
+	passed, months, reason := checkEmploymentTenureFromEmployeeInfo(info, s.employmentTenureMinMonths)
 
 	// PR #242: nəticəni cutoff_results-a yaz
 	actualValue := ""
 	if months >= 0 {
 		actualValue = fmt.Sprintf("%.1f ay", months)
 	}
-	s.logCutoff(ctx, appID, "EMPLOYMENT_TENURE", "İş yerində minimum 6 ay staj", serviceName,
-		true, passed, actualValue, ">= 6 ay", reason)
+	s.logCutoff(ctx, appID, "EMPLOYMENT_TENURE", fmt.Sprintf("İş yerində minimum %d ay staj", s.employmentTenureMinMonths), serviceName,
+		true, passed, actualValue, fmt.Sprintf(">= %d ay", s.employmentTenureMinMonths), reason)
 
 	resp := &MyGovVerifyResponse{
 		ApplicationID: appID,
@@ -235,7 +235,7 @@ func (s *MyGovService) VerifyPension(ctx context.Context, appID int) (*MyGovVeri
 // tarix hesablana bilmədikdə months = -1.
 //
 // Returns (passed bool, months float64, reason string).
-func checkEmploymentTenureFromEmployeeInfo(info *mygov.EmployeeInfoResponse) (bool, float64, string) {
+func checkEmploymentTenureFromEmployeeInfo(info *mygov.EmployeeInfoResponse, minMonths int) (bool, float64, string) {
 	if info == nil || info.Data == nil || info.Data.Response == nil {
 		return false, -1, "İş yeri məlumatı tapılmadı (cavab boşdur)"
 	}
@@ -290,16 +290,15 @@ func checkEmploymentTenureFromEmployeeInfo(info *mygov.EmployeeInfoResponse) (bo
 	// Staj: başlama tarixindən bu günə, 30 günlük aylarla ("kesim" həddi 6 ay) — PR #255
 	months := time.Since(signDate).Hours() / 24 / 30
 
-	if months >= employmentTenureMinMonths {
-		return true, months, fmt.Sprintf("İş yerində staj %.1f ay (%s, %s — ≥ 6 ay) — uyğundur",
-			months, dateKind, employerName)
+	if months >= minMonths {
+		return true, months, fmt.Sprintf("İş yerində staj %.1f ay (%s, %s — ≥ %d ay) — uyğundur",
+			months, dateKind, employerName, minMonths)
 	}
-	return false, months, fmt.Sprintf("İş yerində staj %.1f ay (< 6 ay) — imtina (EMPLOYMENT_TENURE)%s",
-		months, employerSuffix(employerName))
+	return false, months, fmt.Sprintf("İş yerində staj %.1f ay (< %d ay) — imtina (EMPLOYMENT_TENURE)%s",
+		months, minMonths, employerSuffix(employerName))
 }
 
-// employmentTenureMinMonths is the EMPLOYMENT_TENURE cutoff threshold.
-const employmentTenureMinMonths = 6
+// PR #279: employmentTenureMinMonths artıq MyGovService field-dır (config: EMPLOYMENT_TENURE_MIN_MONTHS)
 
 // employerSuffix formats the employer name for reason messages.
 func employerSuffix(employerName string) string {

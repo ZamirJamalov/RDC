@@ -183,6 +183,7 @@ func main() {
 	mygovService := service.NewMyGovService(mygovProvider, mygovRepo, appRepo, otpProvider, cfg.MyGovClientID, cfg.MyGovRedirectURI, cfg.MyGovWebURL)
 	mygovService.SetCustomerDataProvider(customerDataProvider) // PR #239: AZMK GetEmployeeInfoByPin
 	mygovService.SetCutoffRepo(cutoffResultRepo)               // PR #242: EMPLOYMENT_TENURE / DISABILITY_GROUP1 cutoff_results-a yazılır
+	mygovService.SetEmploymentTenureMinMonths(cfg.EmploymentTenureMinMonths) // PR #279: parametrik staj həddi
 
 	// --- Handler layer ---
 	lwMockHandler := handler.NewLWMockHandler(lwProvider)
