@@ -37,6 +37,13 @@ type DiscountCodeStore interface {
 	// Future use: customer dashboard "my codes" view.
 	GetByOwnerCustomerID(ctx context.Context, customerID int) ([]*model.DiscountCode, error)
 
+	// GetByApplicationID returns the most recent discount code generated for
+	// a given application (issued_from_application_id = appID).
+	// PR #284: disburse success referal SMS-i üçün — approve zamanı generasiya
+	// olunmuş kodu tapmaq üçün istifadə olunur.
+	// Returns sql.ErrNoRows (wrapped) if not found.
+	GetByApplicationID(ctx context.Context, appID int) (*model.DiscountCode, error)
+
 	// --- Tx-aware variants (used by approval transaction in PR #95) ---
 
 	// CreateTx is the tx-aware variant of Create.

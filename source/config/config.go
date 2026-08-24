@@ -65,6 +65,9 @@ type Config struct {
         SimaUseMock  bool
         SimaTimeoutS int
 
+        // PR #284: SIMA KYC biometrik link — SMS-də göndərilən URL (boşsa SMS getmir)
+        SimaKycWebURL string
+
         // MyGov Provider configuration (T-4.8)
         MyGovBaseURL  string
         MyGovApiKey   string
@@ -110,6 +113,9 @@ type Config struct {
 
         // PR #279: EMPLOYMENT_TENURE minimum staj (ay)
         EmploymentTenureMinMonths int // default: 6
+
+        // PR #284: Referal SMS endirim faizi (disburse success SMS-indəki X% parametri)
+        ReferralDiscountPercent int // default: 5
 
         // PR #142: Authentication
         AdminInitialPassword string // default admin password (used only on first startup when no users exist)
@@ -163,6 +169,8 @@ func Load() *Config {
                 SimaApiKey:             getEnv("SIMA_API_KEY", ""),
                 SimaUseMock:            getEnvBool("SIMA_USE_MOCK", true),
                 SimaTimeoutS:           getEnvInt("SIMA_TIMEOUT_S", 15),
+                // PR #284: SIMA KYC biometrik link SMS-i üçün (boş = SMS göndərilmir)
+                SimaKycWebURL:          getEnv("SIMA_KYC_WEB_URL", ""),
                 MyGovBaseURL:           getEnv("MYGOV_BASE_URL", "http://localhost:8083"),
                 MyGovApiKey:            getEnv("MYGOV_API_KEY", ""),
                 MyGovUseMock:           getEnvBool("MYGOV_USE_MOCK", true),
@@ -198,6 +206,9 @@ func Load() *Config {
 
                 // PR #279: EMPLOYMENT_TENURE minimum staj (ay)
                 EmploymentTenureMinMonths: getEnvInt("EMPLOYMENT_TENURE_MIN_MONTHS", 6),
+
+                // PR #284: Referal SMS endirim faizi (X% parametri)
+                ReferralDiscountPercent: getEnvInt("REFERRAL_DISCOUNT_PERCENT", 5),
 
                 // PR #142: Authentication
                 AdminInitialPassword: getEnv("ADMIN_INITIAL_PASSWORD", ""),

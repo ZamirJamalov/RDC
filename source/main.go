@@ -176,6 +176,8 @@ func main() {
 	appService.SetKycVerifyEnabled(cfg.AzmkKycVerifyEnabled)       // PR #170
 	appService.SetCutoffStopOnFirstFail(cfg.CutoffStopOnFirstFail) // PR #171
 	appService.SetCutoffChecksEnabled(cfg.CutoffChecksEnabled)     // PR #278
+	appService.SetSimaKycURL(cfg.SimaKycWebURL)                     // PR #284
+	appService.SetReferralDiscountPercent(cfg.ReferralDiscountPercent) // PR #284
 
 	// PR #163: Audit log — CustomerData provider-a DB əlaqəsi ver
 	if httpCDP, ok := customerDataProvider.(*azmk.HTTPCustomerDataProvider); ok {

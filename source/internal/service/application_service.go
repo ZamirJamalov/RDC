@@ -41,7 +41,7 @@ type ApplicationService struct {
 	// PR #171: Cutoff stop-on-first-fail — false=bütün kesimlər həmişə yoxlanılır
 	cutoffStopOnFirstFail bool
 	// PR #278: Cutoff checks enabled — false=cutoff-lar TAMAMƏN skip olunur
-	cutoffChecksEnabled   bool
+	cutoffChecksEnabled bool
 
 	// PR #188: Video record service (Kvadrat Lab)
 	videoRecordProvider    videorecord.Provider
@@ -52,6 +52,11 @@ type ApplicationService struct {
 
 	// PR #205: Service cache (service_audit_logs üzərindən)
 	serviceCacheRepo *repository.ServiceCacheRepo
+
+	// PR #284: SIMA KYC biometrik link (SMS ilə göndərilir, boşsa SMS yox)
+	simaKycURL string
+	// PR #284: Referal SMS endirim faizi (X% parametri)
+	referralDiscountPercent int
 }
 
 // NewApplicationService creates a new ApplicationService.
@@ -126,6 +131,18 @@ func (s *ApplicationService) SetKycVerifyEnabled(enabled bool) {
 // Frontend bu dəyərə əsasən KYC loading ekranını göstər/gizlət.
 func (s *ApplicationService) IsKycVerifyEnabled() bool {
 	return s.kycVerifyEnabled
+}
+
+// SetSimaKycURL sets the SIMA KYC biometric link (PR #284).
+// URL boşdursa KYC zamanı biometrik link SMS-i göndərilmir.
+func (s *ApplicationService) SetSimaKycURL(url string) {
+	s.simaKycURL = url
+}
+
+// SetReferralDiscountPercent sets the referral SMS discount percent (PR #284).
+// Disburse success SMS-indəki "X%" parametri (məs. 5 → "5% endirim").
+func (s *ApplicationService) SetReferralDiscountPercent(percent int) {
+	s.referralDiscountPercent = percent
 }
 
 // SetCutoffChecksEnabled controls whether cutoff checks run at all (PR #278).

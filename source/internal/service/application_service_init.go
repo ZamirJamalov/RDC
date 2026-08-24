@@ -327,6 +327,29 @@ func (s *ApplicationService) runAzmkKycAndPartner(ctx context.Context, app *mode
 		"application_id", app.ID,
 		"kyc_id", kycID)
 
+	// PR #284: SIMA KYC zamanı müştəriyə biometrik eyniləşdirmə link-i SMS ilə göndər.
+	// Müştəri linkə keçid edib biometriyanı tamamladıqda AZMK KYC VERIFIED olur —
+	// aşağıdakı polling bunu gözləyir. URL konfiqurasiyadan gəlir (SIMA_KYC_WEB_URL);
+	// boşdursa SMS göndərilmir (warn). Xəta non-fatal — KYC axını davam edir.
+	if s.smsProvider != nil && app.CustomerPhone != "" {
+		if s.simaKycURL == "" {
+			slog.Warn("PR #284: SIMA_KYC_WEB_URL boşdur — biometrik link SMS-i göndərilmir",
+				"application_id", app.ID)
+		} else {
+			kycSms := fmt.Sprintf("Hörmətli müştəri,biometrik eyniləşdirmə üçün linkə keçid edin: %s", s.simaKycURL)
+			if err := s.smsProvider.Send(ctx, app.CustomerPhone, kycSms); err != nil {
+				slog.Error("PR #284: biometrik link SMS-i göndərilə bilmədi (non-fatal)",
+					"application_id", app.ID,
+					"phone", app.CustomerPhone,
+					"error", err)
+			} else {
+				slog.Info("PR #284: biometrik link SMS-i göndərildi",
+					"application_id", app.ID,
+					"phone", app.CustomerPhone)
+			}
+		}
+	}
+
 	// 2. Verify KYC — PR #155: 3 dəqiqə polling (hər 3 san., maksimum 60 cəhd)
 	// AZMK status: SENT → VERIFIED (və ya Invalidid)
 	// SENT olanda polling edirik — müştəri verify edənə qədər gözləyirik.
