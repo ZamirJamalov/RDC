@@ -589,11 +589,12 @@ func TestCustomerConfirm_NewCustomerGoesPendingExpert(t *testing.T) {
 	}
 }
 
-// TestCustomerConfirm_EliteCustomerGoesPendingExpert verifies that even an
-// elite customer (2 completed valuable loans, AKB 750) ends up in
-// pending_expert with credit_level populated from the offer — the expert
-// still reviews the application in the RDC dashboard.
-func TestCustomerConfirm_EliteCustomerGoesPendingExpert(t *testing.T) {
+// TestCustomerConfirm_ValuableCustomerGoesPendingExpert verifies that a
+// valuable customer (currentLevel=valuable, AKB 650) ends up in pending_expert
+// with credit_level from the offer. PR #265: GetOffer loans AZMK InquireByIdCard-dan
+// gəlir (LW deyil) — AZMK history-də LevelAtClose yoxdur, ona görə valuable-dan
+// elite promotion-u loan history üzərindən mümkün deyil və valuable qalır.
+func TestCustomerConfirm_ValuableCustomerGoesPendingExpert(t *testing.T) {
 	ctx := context.Background()
 
 	store := newConfirmStore()
@@ -605,7 +606,8 @@ func TestCustomerConfirm_EliteCustomerGoesPendingExpert(t *testing.T) {
 	}
 
 	lwProvider := newConfirmLWProvider()
-	// 2 completed valuable loans → elite
+	// NOTE PR #265: GetOffer artıq LW loans istifadə etmir (AZMK InquireByIdCard);
+	// bu setup yalnız resolveAkbScore üçün lazımdır.
 	lwProvider.loans = &lw.CustomerLoansResponse{
 		CustomerPIN:      "PIN1",
 		HasExistingLoans: true,
@@ -640,8 +642,8 @@ func TestCustomerConfirm_EliteCustomerGoesPendingExpert(t *testing.T) {
 	if app.Status != model.StatusPendingExpert {
 		t.Errorf("status = %q, want pending_expert (expert still reviews, PR #221)", app.Status)
 	}
-	if app.CreditLevel != model.CreditLevelElite {
-		t.Errorf("credit_level = %q, want elite (determined from offer)", app.CreditLevel)
+	if app.CreditLevel != model.CreditLevelValuable {
+		t.Errorf("credit_level = %q, want valuable (PR #265: AZMK history has no LevelAtClose — no promotion)", app.CreditLevel)
 	}
 }
 

@@ -310,38 +310,67 @@ func (s *ApplicationService) generateAndSendDiscountSMS(ctx context.Context, app
                 return
         }
 
-        // Send SMS to the customer with their new code.
-        if customerPhone == "" {
-                slog.Warn("approval: customer_phone empty — cannot send discount code SMS",
-                        "application_id", appID,
-                        "customer_pin", customerPIN,
-                        "discount_code", newCode.Code)
-                return
-        }
+        // PR #284: kod approve zamanı generasiya olunur, amma SMS burada göndərilmir —
+        // referal SMS-i disburse success-də göndərilir (sendReferralSMSOnDisburse).
+        slog.Info("approval: discount code generated (referral SMS will be sent on disburse success, PR #284)",
+                "application_id", appID,
+                "customer_pin", customerPIN,
+                "discount_code", newCode.Code)
+}
 
+// sendReferralSMSOnDisburse sends the referral SMS after a successful disburse (PR #284).
+// Text: "Endirim kodunu dostunla paylaş,dostun X% endirimlə kredit əldə etsin,sən də
+// növbəti kreditində X% endirim qazan! Kod: 123456(referal kodu)"
+// X% — REFERRAL_DISCOUNT_PERCENT konfiqurasiyasından (referralDiscountPercent).
+// Kod — approve zamanı generasiya olunmuş referal kodu (GetByApplicationID).
+// Bütün xətalar non-fatal — disburse uğuru təsirlənmir.
+func (s *ApplicationService) sendReferralSMSOnDisburse(ctx context.Context, app *model.LoanApplication) {
         if s.smsProvider == nil {
-                slog.Warn("approval: smsProvider nil — cannot send discount code SMS",
-                        "application_id", appID,
-                        "discount_code", newCode.Code)
+                slog.Warn("disburse: smsProvider nil — referral SMS göndərilə bilmədi",
+                        "application_id", app.ID)
+                return
+        }
+        if app.CustomerPhone == "" {
+                slog.Warn("disburse: customer_phone empty — referral SMS göndərilə bilmədi",
+                        "application_id", app.ID)
+                return
+        }
+        if s.discountSvc == nil {
+                slog.Warn("disburse: discountSvc nil — referral SMS göndərilə bilmədi",
+                        "application_id", app.ID)
                 return
         }
 
-        smsMsg := fmt.Sprintf("Hormetli musteri, sizin kreditiniz tesdiq edildi! Endirim kodunuz: %s. Bu kodu novbeti kredit goturenle paylasin — komisiya endirimi yararlan.", newCode.Code)
-        if err := s.smsProvider.Send(ctx, customerPhone, smsMsg); err != nil {
-                slog.Error("approval: failed to send discount code SMS (non-fatal)",
-                        "application_id", appID,
-                        "customer_pin", customerPIN,
-                        "phone", customerPhone,
-                        "discount_code", newCode.Code,
+        // Approve zamanı generasiya olunmuş kodu tap
+        code, err := s.discountSvc.repo.GetByApplicationID(ctx, app.ID)
+        if err != nil {
+                slog.Error("disburse: failed to fetch referral code for application (non-fatal)",
+                        "application_id", app.ID,
                         "error", err)
                 return
         }
 
-        slog.Info("approval: discount code SMS sent",
-                "application_id", appID,
-                "customer_pin", customerPIN,
-                "phone", customerPhone,
-                "discount_code", newCode.Code)
+        percent := s.referralDiscountPercent
+        if percent <= 0 {
+                percent = 5 // default
+        }
+
+        smsMsg := fmt.Sprintf("Endirim kodunu dostunla paylaş,dostun %d%% endirimlə kredit əldə etsin,sən də növbəti kreditində %d%% endirim qazan! Kod: %s(referal kodu)",
+                percent, percent, code.Code)
+        if err := s.smsProvider.Send(ctx, app.CustomerPhone, smsMsg); err != nil {
+                slog.Error("disburse: failed to send referral SMS (non-fatal)",
+                        "application_id", app.ID,
+                        "phone", app.CustomerPhone,
+                        "discount_code", code.Code,
+                        "error", err)
+                return
+        }
+
+        slog.Info("disburse: referral SMS sent",
+                "application_id", app.ID,
+                "phone", app.CustomerPhone,
+                "discount_code", code.Code,
+                "discount_percent", percent)
 }
 
 // azmkCreateSignDisburse performs the AZMK Online Lending approve flow:
@@ -445,6 +474,9 @@ func (s *ApplicationService) azmkCreateSignDisburse(ctx context.Context, app *mo
                 "amount", totalAmount,
                 "term", app.TermMonths,
                 "interest_rate", annualInterestRate)
+
+        // PR #284: disburse success — müştəriyə referal kodu SMS-i göndər (non-fatal)
+        s.sendReferralSMSOnDisburse(ctx, app)
 
         return nil
 }

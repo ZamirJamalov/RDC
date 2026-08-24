@@ -226,3 +226,58 @@ func (r *DiscountCodeRepo) GetByOwnerCustomerID(ctx context.Context, customerID 
 
         return codes, nil
 }
+
+// GetByApplicationID returns the most recent discount code generated for the
+// given application (issued_from_application_id = appID).
+// PR #284: disburse success referal SMS-i üçün — approve zamanı generasiya
+// olunmuş kod tapılır. sql.ErrNoRows (wrapped) qaytarır, kod yoxdursa.
+func (r *DiscountCodeRepo) GetByApplicationID(ctx context.Context, appID int) (*model.DiscountCode, error) {
+        var c model.DiscountCode
+        var issuedFromAppID, usedByAppID sql.NullInt64
+        var usedAt, validUntil sql.NullTime
+
+        err := r.db.QueryRowContext(ctx, `
+                SELECT TOP 1 id, code, issued_to_customer_id, issued_from_application_id,
+                       discount_type, discount_value, status,
+                       used_by_application_id, used_at, valid_until, created_at
+                FROM discount_codes
+                WHERE issued_from_application_id = ?
+                ORDER BY id DESC`, appID).Scan(
+                &c.ID,
+                &c.Code,
+                &c.IssuedToCustomerID,
+                &issuedFromAppID,
+                &c.DiscountType,
+                &c.DiscountValue,
+                &c.Status,
+                &usedByAppID,
+                &usedAt,
+                &validUntil,
+                &c.CreatedAt,
+        )
+        if err != nil {
+                if err == sql.ErrNoRows {
+                        return nil, fmt.Errorf("discount code for application %d not found: %w", appID, err)
+                }
+                return nil, fmt.Errorf("failed to query discount code by application: %w", err)
+        }
+
+        if issuedFromAppID.Valid {
+                id := int(issuedFromAppID.Int64)
+                c.IssuedFromApplicationID = &id
+        }
+        if usedByAppID.Valid {
+                id := int(usedByAppID.Int64)
+                c.UsedByApplicationID = &id
+        }
+        if usedAt.Valid {
+                t := usedAt.Time
+                c.UsedAt = &t
+        }
+        if validUntil.Valid {
+                t := validUntil.Time
+                c.ValidUntil = &t
+        }
+
+        return &c, nil
+}

@@ -112,6 +112,23 @@ func (m *mockDiscountCodeStore) GetByOwnerCustomerID(_ context.Context, _ int) (
         return result, nil
 }
 
+// GetByApplicationID — PR #284: issued_from_application_id = appID olan ən son kodu qaytarır.
+func (m *mockDiscountCodeStore) GetByApplicationID(_ context.Context, appID int) (*model.DiscountCode, error) {
+        var found *model.DiscountCode
+        for _, c := range m.codes {
+                if c.IssuedFromApplicationID != nil && *c.IssuedFromApplicationID == appID {
+                        if found == nil || c.ID > found.ID {
+                                copied := *c
+                                found = &copied
+                        }
+                }
+        }
+        if found == nil {
+                return nil, sql.ErrNoRows
+        }
+        return found, nil
+}
+
 // =========================================================
 // Tests for DiscountCodeService
 // =========================================================
