@@ -33,8 +33,10 @@ import (
 
 // Provider is the interface for AZMK Online Lending operations.
 type Provider interface {
-        // KYC creates a KYC session and returns the KYC ID.
-        KYC(ctx context.Context, req *KYCRequest) (string, error)
+        // KYC creates a KYC session and returns the KYC ID + the biometric
+        // verification URL (SIMA link, formed dynamically by AZMK — PR #285).
+        // URL boş qaytara bilər (AZMK response-da olmadıqda).
+        KYC(ctx context.Context, req *KYCRequest) (string, string, error)
 
         // VerifyKYC checks if the KYC session is verified.
         VerifyKYC(ctx context.Context, kycID string) (bool, error)
@@ -400,22 +402,54 @@ func parseIDResponse(body string) (string, error) {
         return "", fmt.Errorf("azmk: could not parse ID from response: %s", body)
 }
 
+// parseKYCResponse extracts the KYC ID + biometric verification URL from the
+// AZMK /kyc response (PR #285). Supported formats:
+//   - {"id": "...", "url": "..."}          — ID + dinamik SIMA link
+//   - {"id": "...", "redirectUrl": "..."}  — ID + dinamik link (alternativ açar)
+//   - {"id": "..."}                        — yalnız ID (URL yoxdur)
+//   - plain string                          — ID kimi interpretasiya olunur
+func parseKYCResponse(body string) (string, string, error) {
+        trimmed := strings.TrimSpace(body)
+
+        // Try JSON with optional URL fields
+        var jsonResp struct {
+                ID          string `json:"id"`
+                URL         string `json:"url"`
+                RedirectURL string `json:"redirectUrl"`
+        }
+        if err := json.Unmarshal([]byte(trimmed), &jsonResp); err == nil && jsonResp.ID != "" {
+                url := jsonResp.URL
+                if url == "" {
+                        url = jsonResp.RedirectURL
+                }
+                return jsonResp.ID, url, nil
+        }
+
+        // Fallback: plain string (no URL)
+        id, err := parseIDResponse(body)
+        if err != nil {
+                return "", "", err
+        }
+        return id, "", nil
+}
+
 // ============================================================
 // Provider methods
 // ============================================================
 
-// KYC creates a KYC session and returns the KYC ID.
-func (p *HTTPProvider) KYC(ctx context.Context, req *KYCRequest) (string, error) {
+// KYC creates a KYC session and returns the KYC ID + biometric URL (PR #285:
+// URL AZMK tərəfindən dinamik formalaşdırılır — config-dən statik götürülmür).
+func (p *HTTPProvider) KYC(ctx context.Context, req *KYCRequest) (string, string, error) {
         body, err := p.doPost(ctx, "/kyc", req)
         if err != nil {
-                return "", err
+                return "", "", err
         }
-        id, err := parseIDResponse(body)
+        id, url, err := parseKYCResponse(body)
         if err != nil {
-                return "", err
+                return "", "", err
         }
-        slog.Info("AZMK KYC created", "kyc_id", id)
-        return id, nil
+        slog.Info("AZMK KYC created", "kyc_id", id, "kyc_url", url)
+        return id, url, nil
 }
 
 // VerifyKYC checks if the KYC session is verified.
@@ -545,10 +579,12 @@ type MockProvider struct{}
 
 func NewMockProvider() *MockProvider { return &MockProvider{} }
 
-func (m *MockProvider) KYC(_ context.Context, _ *KYCRequest) (string, error) {
+func (m *MockProvider) KYC(_ context.Context, _ *KYCRequest) (string, string, error) {
         id := "MOCK-KYC-0001"
-        slog.Info("mock AZMK KYC", "kyc_id", id)
-        return id, nil
+        // PR #285: mock-da dinamik URL (real AZMK kimi) — ID əsaslı qurulur
+        url := fmt.Sprintf("https://sima.example.com/verify?kycId=%s", id)
+        slog.Info("mock AZMK KYC", "kyc_id", id, "kyc_url", url)
+        return id, url, nil
 }
 
 func (m *MockProvider) VerifyKYC(_ context.Context, kycID string) (bool, error) {

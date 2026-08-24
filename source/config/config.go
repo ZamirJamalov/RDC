@@ -65,9 +65,6 @@ type Config struct {
         SimaUseMock  bool
         SimaTimeoutS int
 
-        // PR #284: SIMA KYC biometrik link — SMS-də göndərilən URL (boşsa SMS getmir)
-        SimaKycWebURL string
-
         // MyGov Provider configuration (T-4.8)
         MyGovBaseURL  string
         MyGovApiKey   string
@@ -169,8 +166,6 @@ func Load() *Config {
                 SimaApiKey:             getEnv("SIMA_API_KEY", ""),
                 SimaUseMock:            getEnvBool("SIMA_USE_MOCK", true),
                 SimaTimeoutS:           getEnvInt("SIMA_TIMEOUT_S", 15),
-                // PR #284: SIMA KYC biometrik link SMS-i üçün (boş = SMS göndərilmir)
-                SimaKycWebURL:          getEnv("SIMA_KYC_WEB_URL", ""),
                 MyGovBaseURL:           getEnv("MYGOV_BASE_URL", "http://localhost:8083"),
                 MyGovApiKey:            getEnv("MYGOV_API_KEY", ""),
                 MyGovUseMock:           getEnvBool("MYGOV_USE_MOCK", true),

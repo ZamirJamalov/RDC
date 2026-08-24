@@ -313,8 +313,10 @@ func (s *ApplicationService) runAzmkKycAndPartner(ctx context.Context, app *mode
 	}
 
 	// 1. Create KYC session
+	// PR #285: KYC URL (biometrik link) AZMK tərəfindən dinamik formalaşdırılır
+	// və response-dan götürülür — statik config (SIMA_KYC_WEB_URL) silindi.
 	kycReq := &azmk.KYCRequest{PartnerData: pd}
-	kycID, err := s.azmkProvider.KYC(ctx, kycReq)
+	kycID, kycURL, err := s.azmkProvider.KYC(ctx, kycReq)
 	if err != nil {
 		slog.Error("AZMK KYC creation failed",
 			"application_id", app.ID,
@@ -327,25 +329,28 @@ func (s *ApplicationService) runAzmkKycAndPartner(ctx context.Context, app *mode
 		"application_id", app.ID,
 		"kyc_id", kycID)
 
-	// PR #284: SIMA KYC zamanı müştəriyə biometrik eyniləşdirmə link-i SMS ilə göndər.
+	// PR #284/#285: SIMA KYC zamanı müştəriyə biometrik eyniləşdirmə link-i SMS ilə göndər.
 	// Müştəri linkə keçid edib biometriyanı tamamladıqda AZMK KYC VERIFIED olur —
-	// aşağıdakı polling bunu gözləyir. URL konfiqurasiyadan gəlir (SIMA_KYC_WEB_URL);
-	// boşdursa SMS göndərilmir (warn). Xəta non-fatal — KYC axını davam edir.
+	// aşağıdakı polling bunu gözləyir.
+	// PR #285: link AZMK KYC response-undan DİNAMİK götürülür (statik config yoxdur).
+	// URL boş qayıdarsa SMS göndərilmir (warn). Xəta non-fatal — KYC axını davam edir.
 	if s.smsProvider != nil && app.CustomerPhone != "" {
-		if s.simaKycURL == "" {
-			slog.Warn("PR #284: SIMA_KYC_WEB_URL boşdur — biometrik link SMS-i göndərilmir",
-				"application_id", app.ID)
+		if kycURL == "" {
+			slog.Warn("PR #285: AZMK KYC response-da URL yoxdur — biometrik link SMS-i göndərilmir",
+				"application_id", app.ID,
+				"kyc_id", kycID)
 		} else {
-			kycSms := fmt.Sprintf("Hörmətli müştəri,biometrik eyniləşdirmə üçün linkə keçid edin: %s", s.simaKycURL)
+			kycSms := fmt.Sprintf("Hörmətli müştəri,biometrik eyniləşdirmə üçün linkə keçid edin: %s", kycURL)
 			if err := s.smsProvider.Send(ctx, app.CustomerPhone, kycSms); err != nil {
-				slog.Error("PR #284: biometrik link SMS-i göndərilə bilmədi (non-fatal)",
+				slog.Error("PR #285: biometrik link SMS-i göndərilə bilmədi (non-fatal)",
 					"application_id", app.ID,
 					"phone", app.CustomerPhone,
 					"error", err)
 			} else {
-				slog.Info("PR #284: biometrik link SMS-i göndərildi",
+				slog.Info("PR #285: biometrik link SMS-i göndərildi (dinamik URL)",
 					"application_id", app.ID,
-					"phone", app.CustomerPhone)
+					"phone", app.CustomerPhone,
+					"kyc_id", kycID)
 			}
 		}
 	}
