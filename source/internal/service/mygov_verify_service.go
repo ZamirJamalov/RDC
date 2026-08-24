@@ -241,8 +241,16 @@ func checkEmploymentTenureFromEmployeeInfo(info *mygov.EmployeeInfoResponse) (bo
 	}
 
 	active := info.Data.Response.Active
+	deactive := info.Data.Response.Deactive
+
+	// PR #277: Aktiv iş yeri yoxdursa — deaktiv qeydlərə baxıb aydın mesaj ver.
+	// İstifadəçi heç vaxt işləməyibsə (hər ikisi boş) və ya işləyib amma
+	// hazırda deaktivdirsə — cutoff reject edir (EMPLOYMENT_TENURE).
 	if len(active) == 0 {
-		return false, -1, "Aktiv iş yeri tapılmadı (Active bölməsi boşdur)"
+		if len(deactive) > 0 {
+			return false, -1, "Aktiv iş yeri yoxdur — əvvəlki iş yerləri deaktivdir (EMPLOYMENT_TENURE)"
+		}
+		return false, -1, "Aktiv iş yeri yoxdur — iş məlumatı tapılmadı (heç vaxt işləməyib, EMPLOYMENT_TENURE)"
 	}
 
 	// Əsas iş yerini seç (WorkPlaceType Label "1" = Əsas); yoxdursa ilk qeyd
