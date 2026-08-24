@@ -46,6 +46,37 @@ func main() {
 		"lw_base_url", cfg.LWBaseURL,
 	)
 
+	slog.Info("PR #282: application configuration",
+		"step", "0.config",
+		"log_level", cfg.LogLevel,
+		"server_addr", cfg.ServerAddr,
+		"db_host", cfg.DBHost,
+		"db_name", cfg.DBName,
+		"lw_use_mock", cfg.UseMockLW,
+		"lw_use_stub", cfg.UseStubLW,
+		"lw_base_url", cfg.LWBaseURL,
+		"lw_timeout_s", cfg.LWTimeoutS,
+		"azmk_use_mock", cfg.AzmkUseMock,
+		"azmk_base_url", cfg.AzmkBaseURL,
+		"azmk_timeout_s", cfg.AzmkTimeoutS,
+		"azmk_kyc_verify_enabled", cfg.AzmkKycVerifyEnabled,
+		"azmk_customer_data_use_mock", cfg.AzmkCustomerDataUseMock,
+		"azmk_customer_data_url", cfg.AzmkCustomerDataURL,
+		"azmk_branch_code", cfg.AzmkBranchCode,
+		"azmk_product_id", cfg.AzmkProductID,
+		"cutoff_checks_enabled", cfg.CutoffChecksEnabled,
+		"cutoff_stop_on_first_fail", cfg.CutoffStopOnFirstFail,
+		"employment_tenure_min_months", cfg.EmploymentTenureMinMonths,
+		"video_record_enabled", cfg.VideoRecordEnabled,
+		"video_record_use_mock", cfg.VideoRecordUseMock,
+		"video_record_base_url", cfg.VideoRecordBaseURL,
+		"rate_limit_per_minute", cfg.RateLimitPerMinute,
+		"otp_rate_limit_per_min", cfg.OTPRateLimitPerMin,
+		"discount_rate_per_min", cfg.DiscountRatePerMin,
+		"allowed_origin", cfg.AllowedOrigin,
+		"auth_session_ttl_hours", cfg.AuthSessionTTLHours,
+	)
+
 	// Connect to SQL Server
 	db, err := sql.Open("mssql", cfg.DSN())
 	if err != nil {
