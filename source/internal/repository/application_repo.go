@@ -534,6 +534,8 @@ func (r *ApplicationRepo) GetRecentPendingApplication(ctx context.Context, custo
 // the customer can re-apply.
 // PR #256: Returns (appID, "rejected", daysRemaining, nil) if still blocked.
 // daysRemaining = 0 means permanent rejection.
+// PR #288: validity_days=99999 (=274 il) — daimi blok üçün unikal konvensiya;
+// köhnə validity_days=0 rows da daimi qəbul olunur (backward compat).
 // Returns (0, "", 0, nil) if the customer can re-apply.
 func (r *ApplicationRepo) checkLastRejectionCutoff(ctx context.Context, customerPIN string) (int, string, int, error) {
 	var appID int
@@ -571,8 +573,10 @@ func (r *ApplicationRepo) checkLastRejectionCutoff(ctx context.Context, customer
 		return 0, "", 0, fmt.Errorf("failed to check cutoff validity: %w", err)
 	}
 
-	// validity_days = 0 means permanent rejection
-	if validityDays == 0 {
+	// PR #288: permanent rejection. validity_days = 99999 — daimi blok (unikal
+	// konvensiya). 0 da daimi kimi qəbul olunur (köhnə rule-lar üçün backward
+	// compat — 0 heç vaxt "dərhal icazə" demək deyil).
+	if validityDays == 0 || validityDays >= 99999 {
 		return appID, "rejected", 0, nil // permanent block
 	}
 
