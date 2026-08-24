@@ -290,7 +290,7 @@ func checkEmploymentTenureFromEmployeeInfo(info *mygov.EmployeeInfoResponse, min
 	// Staj: başlama tarixindən bu günə, 30 günlük aylarla ("kesim" həddi 6 ay) — PR #255
 	months := time.Since(signDate).Hours() / 24 / 30
 
-	if months >= minMonths {
+	if months >= float64(minMonths) {
 		return true, months, fmt.Sprintf("İş yerində staj %.1f ay (%s, %s — ≥ %d ay) — uyğundur",
 			months, dateKind, employerName, minMonths)
 	}
