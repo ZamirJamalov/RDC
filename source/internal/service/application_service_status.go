@@ -14,7 +14,7 @@ import (
 type UpdateStatusRequest struct {
         Status          string `json:"status"`           // "approved" or "rejected"
         CreditLevel     string `json:"credit_level"`     // required when status is "approved" (e.g. "new", "trusted", "valuable", "elite")
-        RejectionReason string `json:"rejection_reason"` // PR #258: MANUAL_* cutoff code (məs: MANUAL_FAKE_INFO)
+        RejectionReason string `json:"rejection_reason"` // PR #258/#287: MANUAL_* cutoff code (məs: MANUAL_VIDEO_MISMATCH)
 }
 
 // UpdateStatus manually sets an application's status.
@@ -488,7 +488,7 @@ func (s *ApplicationService) azmkCreateSignDisburse(ctx context.Context, app *mo
 //   - plan/fakt hesabatlarında görünsün
 //   - checkLastRejectionCutoff validity_days bloku işləsin (PR #256)
 //
-// rejectionReason format: "MANUAL_FAKE_INFO" və ya "MANUAL_OTHER:custom text"
+// rejectionReason format: "MANUAL_VIDEO_MISMATCH" və ya "MANUAL_VIDEO_MISMATCH:əlavə mətn"
 // cutoff_code üçün prefix ayrılır, details üçün tam mətn saxlanılır.
 func (s *ApplicationService) logManualRejection(ctx context.Context, appID int, rejectionReason string) {
 	if s.cutoffRepo == nil {
