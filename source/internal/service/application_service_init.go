@@ -417,6 +417,13 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
 	// PR #171/#172: firstRejection — ilk rədd səbəbi.
 	// cutoffStopOnFirstFail=true olanda ilk rədd-də dayanır.
 	// cutoffStopOnFirstFail=false olanda bütün kesimlər yoxlanılır.
+	// PR #278: CutoffChecksEnabled=false olanda cutoff-lar TAMAMƏN skip olunur.
+	// Heç bir kesim yoxlanılmır — müraciət birbaşa pending_customer qalır.
+	if !s.cutoffChecksEnabled {
+		slog.Info("cutoff checks DISABLED — skipping all cutoffs", "application_id", app.ID)
+		return "", nil
+	}
+
 	firstRejection := ""
 	// PR #198: hasServiceError — hər hansı xarici servis xətası olub?
 	// Əgər varsa, ALL_CHECKS_PASSED true olmamalıdır (check edilməyib).
