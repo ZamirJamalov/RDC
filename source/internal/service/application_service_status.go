@@ -431,7 +431,7 @@ func (s *ApplicationService) azmkCreateSignDisburse(ctx context.Context, app *mo
                 return fmt.Errorf("AZMK disburse failed: %w", err)
         }
 
-        slog.Info("AZMK: full approve flow completed (create + sign + disburse)",
+        slog.Info("PR #281: step 7-9 completed — AZMK full approve flow (create + sign + disburse)",
                 "application_id", app.ID,
                 "lw_application_id", lwAppID,
                 "card_id", app.CardID,

@@ -273,7 +273,8 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
 	// 5. Cutoff keçdi — PR #221: status pending_customer qalır (pending_expert-ə keçmə)
 	// Cutoff-lar işlədi, amma istifadəçi hələ "Təsdiq edirəm" düyməsini klikləməyib.
 	// Customer-confirm-də pending_expert-ə keçəcək (RDC dashboard-a göndərilir).
-	slog.Info("application verified, KYC passed, early cutoff passed, waiting for customer confirm",
+	slog.Info("PR #281: step 1-4 completed — OTP verified, KYC passed, partner registered, cutoffs passed",
+		"step", "1.otp_verify",
 		"application_id", app.ID,
 		"customer_pin", app.CustomerPIN,
 		"kyc_id", app.KycID,
@@ -321,7 +322,8 @@ func (s *ApplicationService) runAzmkKycAndPartner(ctx context.Context, app *mode
 			"error", err)
 		return fmt.Errorf("KYC yaradıla bilmədi: %w", err)
 	}
-	slog.Info("AZMK KYC session created",
+	slog.Info("PR #281: step 2 — AZMK KYC session created",
+		"step", "2.kyc_create",
 		"application_id", app.ID,
 		"kyc_id", kycID)
 
@@ -377,7 +379,8 @@ func (s *ApplicationService) runAzmkKycAndPartner(ctx context.Context, app *mode
 			"error", err)
 		return fmt.Errorf("Partner qeydiyyatı uğursuz: %w", err)
 	}
-	slog.Info("AZMK Partner registered",
+	slog.Info("PR #281: step 3 — AZMK Partner registered",
+		"step", "3.partner_register",
 		"application_id", app.ID,
 		"kyc_id", kycID,
 		"partner_id", partnerID)
@@ -420,7 +423,7 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
 	// PR #278: CutoffChecksEnabled=false olanda cutoff-lar TAMAMƏN skip olunur.
 	// Heç bir kesim yoxlanılmır — müraciət birbaşa pending_customer qalır.
 	if !s.cutoffChecksEnabled {
-		slog.Info("cutoff checks DISABLED — skipping all cutoffs", "application_id", app.ID)
+		slog.Info("PR #281: step 4 — cutoff checks DISABLED — skipping all cutoffs", "step", "4.cutoff", "application_id", app.ID, "cutoff_enabled", false)
 		return "", nil
 	}
 
