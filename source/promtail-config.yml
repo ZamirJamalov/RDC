@@ -1,0 +1,42 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  # PR #290: container restart olanda pozisiya itmasin — /tmp volume-dadir
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: go-app-logs
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: go-app
+          app: rdc
+          # PR #290: DIQQƏT — fayl deyil, QOVLUQ mount olunur (docker-compose.yml-ə bax).
+          # Səbəb: əgər app.log mövcud deyilsə və faylı birbaşa mount etsək,
+          # Docker onun ƏVƏZİNƏ QOVLUQ yaradır və hər şey sınırdır.
+          # Qovluq mount + glob: app.log sonra yarananda promtail avtomatik görür.
+          __path__: /var/log/app/app.log
+    pipeline_stages:
+      # App artıq JSON loglayır (slog.NewJSONHandler — main.go):
+      # {"time":"2026-08-24T23:18:12.345+04:00","level":"INFO","msg":"...", ...}
+      - json:
+          expressions:
+            level: level
+            msg: msg
+            time: time
+      # level-i label kimi göndər — Grafana-da ERROR/WARN filtrasiyası üçün
+      - labels:
+          level:
+      # Loki-də real hadisə vaxtı (scrape vaxtı deyil) — köhnə loglar geri oxunanda düzgün vaxt.
+      # JSON olmayan sətirlər (panic stack trace, driver çıxışı) parse alınmayanda
+      # drop olunmur — "fudge" (default) davranışı ilə düzgün sıralama saxlanılır.
+      - timestamp:
+          source: time
+          format: RFC3339Nano
+          action_on_failure: fudge

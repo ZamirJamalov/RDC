@@ -1,0 +1,3 @@
+# PR #290: app.log lokal işləmə zamanı yaranır (tee) — koda commit olunmur.
+# Promtail source/ qovluğunu mount edib oxuyur (docker-compose.yml).
+/app.log
