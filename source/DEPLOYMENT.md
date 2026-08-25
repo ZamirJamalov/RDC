@@ -179,8 +179,12 @@ nano deploy/rdc.env
 ### Başlatma — serverdəki eyni əmr (ssh yerinə sudo)
 
 ```bash
-sudo bash -c 'pkill -x rdc 2>/dev/null; su -s /bin/bash rdc -c "cd /opt/rdc && set -a && . /dev/stdin && set +a && { nohup /opt/rdc/rdc >> /opt/rdc/monitoring/app.log 2>&1 < /dev/null & }"' < deploy/rdc.env
+sudo bash -c 'pkill -x rdc 2>/dev/null; set -a; . /dev/stdin; set +a; su -m -s /bin/bash rdc -c "cd /opt/rdc && { nohup /opt/rdc/rdc >> /opt/rdc/monitoring/app.log 2>&1 < /dev/null & }"' < deploy/rdc.env
 ```
+
+Qeyd: env ROOT shell-də oxunur, `su -m` onu `rdc` istifadəçisinə ötürür.
+(env-i su-dan sonra oxumaq olmaz — ssh/sudo stdin-i root-a aid pipe-dır,
+`rdc` onu açanda "Permission denied" alır — PR #303.)
 
 ### Yoxlama
 
@@ -232,3 +236,4 @@ bash deploy/run-remote.sh root@localhost
 | `başlamadı` + no such file | install.sh işlədilməyib (`/opt/rdc/rdc` yoxdur) |
 | ssh bağlana bilmir | ssh servisi söndürülüb / root girişi bağlı |
 | App işləyir, Grafana boşdur | monitorinq compose-u söndürülüb |
+| `bash: /dev/stdin: Permission denied` | köhnə versiya — PR #303-də düzəldilib |

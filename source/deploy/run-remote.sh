@@ -20,12 +20,16 @@ ENV_FILE="$(cd "$(dirname "$0")" && pwd)/rdc.env"
 grep -q '^MIGRATIONS_DROP_RECREATE=true' "${ENV_FILE}" && echo "⚠ XƏBƏRDARLIQ: DB SİLİNƏCƏK (MIGRATIONS_DROP_RECREATE=true)!" || true
 
 # ===================== ƏSAS HİSSƏ =====================
-# env ssh stdin ilə gedir → su içində . /dev/stdin oxuyur → set -a export edir
-# → nohup background-a düşür. { ... & } qrupu vacibdir: & yalnız nohup-u
-# background-a salır (yoxsa stdin /dev/null olar və env boş gələr).
+# Ardıcıllıq (PR #303 düzəlişi):
+#   1) env ROOT shell-də oxunur:        set -a; . /dev/stdin; set +a
+#   2) su -m env-i rdc-yə ÖTÜRÜR (preserve) — proses env-ilə doğulur
+#   3) { nohup ... & } — yalnız nohup background-a düşür
+# Niyə env su-dan ƏVVƏL oxunur: ssh stdin-i root-a aid pipe-dır (mode 600),
+# rdc istifadəçisi onu /dev/stdin-dən AÇA BİLMƏZ ("Permission denied").
 ssh "${TARGET}" '
   pkill -x rdc 2>/dev/null && { echo "== köhnə rdc dayandırıldı"; sleep 1; }
-  su -s /bin/bash rdc -c "cd /opt/rdc && set -a && . /dev/stdin && set +a && { nohup /opt/rdc/rdc >> /opt/rdc/monitoring/app.log 2>&1 < /dev/null & }"
+  set -a; . /dev/stdin; set +a
+  su -m -s /bin/bash rdc -c "cd /opt/rdc && { nohup /opt/rdc/rdc >> /opt/rdc/monitoring/app.log 2>&1 < /dev/null & }"
   sleep 2
   if pgrep -x rdc >/dev/null; then
       echo "== rdc İŞLƏYİR ✓  PID: $(pgrep -x rdc)"
