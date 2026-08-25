@@ -2,6 +2,8 @@
 .env
 .env.local
 .env.*.local
+# PR #298: laptop-side secrets for run-remote.sh (never commit)
+source/deploy/rdc.env
 
 # Go binaries
 *.exe

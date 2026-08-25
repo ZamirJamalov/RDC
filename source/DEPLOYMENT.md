@@ -29,21 +29,21 @@ scp rdc user@server:/opt/rdc/
 
 ## 3. Env dəyişənləri
 
-Məcburi (yalnız 3 dənə):
+Məcburi (yalnız 3 dənə) — `deploy/rdc.env` faylında (laptopda):
 
 ```bash
-export DB_HOST=10.0.0.5
-export DB_USER=rdc_user
-export DB_PASSWORD=********
+DB_HOST=10.0.0.5
+DB_USER=rdc_user
+DB_PASSWORD=********
 ```
 
 Vacib optional-lar:
 
 ```bash
-export DB_PORT=1433                 # default: 1433
-export DB_NAME=RDC                  # default: RDC
-export SERVER_ADDR=":8000"          # default: :8000
-export LOG_LEVEL=info               # TƏK DƏYƏR — minimum səviyyə (bax: aşağıdakı cədvəl)
+DB_PORT=1433                 # default: 1433
+DB_NAME=RDC                  # default: RDC
+SERVER_ADDR=:8000            # default: :8000
+LOG_LEVEL=info               # TƏK DƏYƏR — minimum səviyyə (bax: aşağıdakı cədvəl)
 ```
 
 ### LOG_LEVEL — necə işləyir?
@@ -71,26 +71,55 @@ Qeyd: `MIGRATIONS_DROP_RECREATE` artıq default **`false`**-dur (PR #294, fail-c
 sıfırdan qurmaq istəyəndə açıq şəkildə `MIGRATIONS_DROP_RECREATE=true` yazın
 (cədvəllər DROP olunur və yenidən seed olunur — bütün data silinir).
 
-### Serverdə qalan parametrlər — /etc/rdc/env (PR #297)
+### Bütün parametrlər — laptopda deploy/rdc.env (PR #298)
 
-DB-dən başqa bütün parametrlər (AZMK, MyGov, LW, OTP, video və s.) serverdə
-**bir faylda** saxlanılır: `/etc/rdc/env` (root-only, chmod 600).
-`install.sh` onu `deploy/env.example` şablonundan yaradır — şablonda
-**parollar yoxdur** (kommentdə placeholder), serverdə əl ilə doldurulur:
-
-```bash
-sudo nano /etc/rdc/env        # parolları doldur (DB_PASSWORD, AZMK_PASSWORD)
-sudo systemctl restart rdc
-```
-
-`EnvironmentFile` unit-dəki `Environment=` sətirlərini üstələyir — faylda
-olan açar qalib gelir. Dəyişiklik həmişə restart tələb edir.
-
-## 4. İşə salma
+**Parollar serverdə saxlanmır.** Bütün parametrlər (DB, AZMK, MyGov, LW, OTP,
+video və s.) laptopda bir faylda saxlanılır: `deploy/rdc.env`
+(şablon: `deploy/env.example`; `rdc.env` .gitignore-dadır — git-ə getmir).
 
 ```bash
-./rdc
+cp deploy/env.example deploy/rdc.env     # laptopda, bir dəfə
+nano deploy/rdc.env                      # parolları doldur (DB_PASSWORD, AZMK_PASSWORD)
 ```
+
+App başlanarkən `run-remote.sh` bu faylı **şifrələnmiş ssh kanalı** ilə
+birbaşa prosesin env-inə ötürür:
+
+- serverdə **heç bir fayla yazılmır** (disk təmiz qalır)
+- `bash_history`-yə düşmür
+- yalnız app işləyən müddətdə prosesin RAM-ında yaşayır
+
+## 4. İşə salma — 1 əmr (PR #298)
+
+Laptopdan:
+
+```bash
+bash deploy/run-remote.sh user@server
+```
+
+Script: köhnə prosesi dayandırır → `rdc.env`-i ssh stdin ilə proses env-inə
+ötürür → app-ı `rdc` istifadəçisi ilə `nohup`-la başladır (terminal bağlansa
+da yaşayır) → logları `/opt/rdc/monitoring/app.log`-a yazır (Loki zənciri).
+
+Gündəlik əmrlər:
+
+| Əməliyyat | Əmr |
+|---|---|
+| Başlat / restart | `bash deploy/run-remote.sh user@server` |
+| Status | `ssh user@server 'pgrep -x rdc; tail -20 /opt/rdc/monitoring/app.log'` |
+| Dayandır | `ssh user@server 'pkill -x rdc'` |
+| Parametr dəyiş | laptopda `deploy/rdc.env` redaktə et → restart əmri |
+
+Serverdə əl ilə (alternativ):
+
+```bash
+cd /opt/rdc
+set -a; . /path/to/env-fayl; set +a        # env-lər (export kimi)
+nohup ./rdc >> monitoring/app.log 2>&1 &
+```
+
+⚠️ Diqqət: `export KEY=parol` şəklində əl ilə yazsanız parol serverdə
+`~/.bash_history`-yə düşür — ona görə laptopdan `run-remote.sh` üstünlük təşkil edir.
 
 Startup-da migration-lar avtomatik tətbiq olunur (binary-nin içindən, diskdən
 oxunmur). Yeni migration əlavə etdikdə binary yenidən build olunmalıdır.
@@ -105,7 +134,8 @@ zəncir belədir:
 ```
 Yəni executable tək başına çatmaz — 2 şey lazımdır:
 
-1. **stdout → app.log yönləndirməsi** (aşağıdakı variantlardan biri)
+1. **stdout → app.log yönləndirməsi** (`run-remote.sh` bunu özü edir;
+   alternativlər aşağıda)
 2. **Monitorinq stack-i** (loki + promtail + grafana): `docker compose up -d`
    (bax: `MONITORING.md`)
 
@@ -126,9 +156,11 @@ cd /opt/rdc
 `2>&1` — stderr-i (panic-lər, driver mesajları) stdout-a qoşur;
 `tee` — həm ekranda göstərir, həm fayla yazır.
 
-### Variant B — systemd (prod üçün tövsiyə)
+### Variant B — systemd (opsional)
 
-systemd stdout-u avtomatik fayla yönləndirir — `tee` lazım deyil:
+systemd stdout-u avtomatik fayla yönləndirir — `tee` lazım deyil.
+PR #298-dən sonra əsas yol `run-remote.sh`-dir; systemd yalnız avtomatik
+restart istəyəndə lazımdır (placeholder-ləri əl ilə doldurun).
 
 ```ini
 [Service]
@@ -137,17 +169,16 @@ StandardOutput=append:/opt/rdc/monitoring/app.log
 StandardError=append:/opt/rdc/monitoring/app.log
 ```
 
-**Avtomatik yol (PR #296):** bütün Variant B addımlarını (istifadəçi, qovluqlar,
-unit generasiyası, service, monitorinq stack-i) bir əmrlə:
+**Quraşdırma (install.sh):** istifadəçi, qovluqlar, monitorinq stack-i (və
+opsional systemd unit) bir əmrlə (PR #298-dən sonra DB parolu soruşulmur):
 
 ```bash
 # serverdə, source/ qovluğunda (rdc binary orada olmalıdır):
-sudo env DB_HOST=10.0.0.5 DB_USER=rdc_user DB_PASSWORD=*** \
-     GRAFANA_ADMIN_PASSWORD=güclüparol bash deploy/install.sh
-# və ya interaktiv: sudo bash deploy/install.sh (env-ləri soruşur)
+sudo env GRAFANA_ADMIN_PASSWORD=güclüparol bash deploy/install.sh
 ```
 
-Şablon: `deploy/rdc.service` (placeholder-lər install.sh ilə doldurulur).
+Şablon: `deploy/rdc.service` (DB placeholder-lərini systemd yolu üçün əl ilə
+doldurun — app-ın özü run-remote.sh ilə başladılır).
 
 ### Promtail-in faylı tapması üçün
 

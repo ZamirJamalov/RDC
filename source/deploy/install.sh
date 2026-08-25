@@ -6,17 +6,20 @@
 #   source/ qovluğunda (rdc binary + docker-compose.yml + promtail-config.yml
 #   + grafana/ bir yerdə olanda) root ilə:
 #
-#     sudo bash deploy/install.sh                          # interaktiv (env soruşur)
-#     sudo env DB_HOST=10.0.0.5 DB_USER=sa DB_PASSWORD=*** bash deploy/install.sh
-#     sudo env ... GRAFANA_ADMIN_PASSWORD=strongpass LOG_LEVEL=info bash deploy/install.sh
+#     sudo bash deploy/install.sh
+#     sudo env GRAFANA_ADMIN_PASSWORD=strongpass LOG_LEVEL=info bash deploy/install.sh
+#
+# PR #298: app parametrləri (DB, AZMK və s.) burada SORUŞULMUR — onlar
+# laptopdakı deploy/rdc.env-də saxlanılır və app başlanarkə
+# deploy/run-remote.sh ilə birbaşa proses env-inə ötürülür (diske yazılmır).
 #
 # NƏ EDİR:
 #   1. Ön şərtləri yoxlayır (root, docker, compose, binary, systemd >= 240)
 #   2. rdc sistem istifadəçisi yaradır (yoxdursa)
 #   3. /opt/rdc/ strukturu qurur: binary + monitorinq faylları
 #   4. app.log yaradır (rdc istifadəçisi yaza bilsin deyə)
-#   5. rdc.service generasiya edir (placeholder-ləri doldurub)
-#   6. systemd service işə salır + avtostart
+#   5. rdc.service generasiya edir (opsional systemd yolu üçün)
+#   6. systemd unit-i quraşdırır (BAŞLATMIR — app run-remote.sh ilə işə salınır)
 #   7. Monitorinq stack-i (loki + promtail + grafana) qaldırır
 #   8. Yoxlayır və nəticəni göstərir
 #
@@ -96,32 +99,17 @@ if [[ "${GRAFANA_ADMIN_PASSWORD}" == "admin" ]]; then
     warn "Prod üçün: sudo env GRAFANA_ADMIN_PASSWORD=güclüparol bash deploy/install.sh"
 fi
 
-# PR #297: parollar hələ doldurulmayıbsa (şablonda kommentdə qalıbsa) xəbərdarlıq
-if [[ -f /etc/rdc/env ]] && grep -qE '^#[[:space:]]*(DB_PASSWORD|AZMK_PASSWORD)=' /etc/rdc/env; then
-    warn "/etc/rdc/env içində parollar hələ doldurulmayıb (DB_PASSWORD, AZMK_PASSWORD)."
-    warn "Doldurun:  sudo nano /etc/rdc/env   (kommentdən çıxarın, dəyəri yazın)"
-    warn "Sonra:     sudo systemctl restart rdc"
-fi
+# PR #298: parollar artıq laptopda — deploy/rdc.env (şablon: deploy/env.example)
+log "Parollar serverdə saxlanmır: laptopda deploy/rdc.env + run-remote.sh"
 
 log "OK: binary, monitorinq faylları, docker, systemd ${SYSTEMD_VER}"
 
-# ------------------------- 2) DB env-ləri -------------------------
-log "2/8 DB parametrləri..."
-
-if [[ -z "${DB_HOST:-}" ]]; then
-    read -rp "DB_HOST (SQL Server hostu): " DB_HOST
-fi
-if [[ -z "${DB_USER:-}" ]]; then
-    read -rp "DB_USER: " DB_USER
-fi
-if [[ -z "${DB_PASSWORD:-}" ]]; then
-    read -rp "DB_PASSWORD: " -s DB_PASSWORD
-    echo
-fi
-if [[ -z "${DB_HOST}" || -z "${DB_USER}" || -z "${DB_PASSWORD}" ]]; then
-    err "DB_HOST / DB_USER / DB_PASSWORD boş ola bilməz."
-    exit 1
-fi
+# ------------------------- 2) Parametrlər (PR #298: soruşulmur) -------------------------
+log "2/8 Parametrlər..."
+log "App parametrləri (DB, AZMK, MyGov və s.) install zamanı SORUŞULMUR."
+log "Onlar laptopdakı deploy/rdc.env-də saxlanılır (şablon: deploy/env.example)"
+log "və app başlanarkə deploy/run-remote.sh ilə ötürülür:"
+log "  bash deploy/run-remote.sh user@bu-server"
 
 # ------------------------- 3) İstifadəçi + qovluqlar -------------------------
 log "3/8 İstifadəçi və qovluqlar..."
@@ -157,15 +145,8 @@ fi
 chown "${RDC_USER}:${RDC_USER}" "${MON_HOME}/app.log"
 chmod 640 "${MON_HOME}/app.log"
 
-# PR #297: /etc/rdc/env — əlavə parametrlər (AZMK, MyGov, LW, video və s.)
-# Parollar YALNIZ burada saxlanılır (repo-da yoxdur) — chmod 600, root-only.
-install -d -o root -g root -m 755 /etc/rdc
-if [[ ! -f /etc/rdc/env ]]; then
-    install -m 600 -o root -g root "${SCRIPT_DIR}/env.example" /etc/rdc/env
-    log "Yaradıldı: /etc/rdc/env (şablon kopyalandı, chmod 600)"
-else
-    log "/etc/rdc/env artıq mövcuddur — toxunulmadı (mövcud dəyərlər qorunur)"
-fi
+# PR #298: parollar serverdə faylda saxlanMIR. deploy/env.example artıq
+# laptop tərəfi şablondur (deploy/rdc.env kimi istifadə olunur — run-remote.sh).
 
 log "Yerləşdirildi: ${RDC_HOME}/rdc, ${MON_HOME}/{docker-compose.yml,promtail-config.yml,grafana/,app.log}"
 
@@ -176,9 +157,6 @@ UNIT_SRC="${SCRIPT_DIR}/rdc.service"
 UNIT_DST="/etc/systemd/system/${SERVICE_NAME}.service"
 
 sed \
-    -e "s|__DB_HOST__|$(sed_escape "${DB_HOST}")|g" \
-    -e "s|__DB_USER__|$(sed_escape "${DB_USER}")|g" \
-    -e "s|__DB_PASSWORD__|$(sed_escape "${DB_PASSWORD}")|g" \
     -e "s|__DB_PORT__|$(sed_escape "${DB_PORT}")|g" \
     -e "s|__DB_NAME__|$(sed_escape "${DB_NAME}")|g" \
     -e "s|__SERVER_ADDR__|$(sed_escape "${SERVER_ADDR}")|g" \
@@ -188,28 +166,13 @@ chmod 644 "${UNIT_DST}"
 
 log "Yaradıldı: ${UNIT_DST}"
 
-# ------------------------- 6) Service işəsalma -------------------------
-log "6/8 systemd service..."
+# ------------------------- 6) systemd unit (BAŞLADILMIR) -------------------------
+log "6/8 systemd unit (opsional yol)..."
 
 systemctl daemon-reload
-systemctl enable "${SERVICE_NAME}" >/dev/null
-if systemctl is-active --quiet "${SERVICE_NAME}"; then
-    systemctl restart "${SERVICE_NAME}"
-    log "Service restart edildi (əvvəl aktiv idi)"
-else
-    systemctl start "${SERVICE_NAME}"
-    log "Service başladıldı"
-fi
-
-sleep 2
-if ! systemctl is-active --quiet "${SERVICE_NAME}"; then
-    err "Service İŞƏ DÜŞMƏDİ. Diaqnostika:"
-    systemctl --no-pager -l status "${SERVICE_NAME}" || true
-    echo "--- app.log son sətirlər: ---"
-    tail -20 "${MON_HOME}/app.log" || true
-    exit 1
-fi
-log "Service ACTIVE: systemctl status ${SERVICE_NAME}"
+log "Unit quraşdırıldı (başladILMADI): systemctl status ${SERVICE_NAME}"
+log "PR #298: app run-remote.sh ilə başladılır (laptopdan):"
+log "  bash deploy/run-remote.sh user@bu-server"
 
 # ------------------------- 7) Monitorinq stack-i -------------------------
 log "7/8 Monitorinq stack-i (loki + promtail + grafana)..."
@@ -237,7 +200,7 @@ APP_PORT="${APP_PORT:-8000}"
 if curl -sf -o /dev/null "http://localhost:${APP_PORT}/" ; then
     log "App: cavab verir (http://localhost:${APP_PORT})"
 else
-    warn "App port ${APP_PORT} cavab vermir — service statusunu yoxlayın"
+    warn "App port ${APP_PORT} cavab vermir — run-remote.sh ilə başladın"
     FAIL=1
 fi
 
@@ -245,12 +208,12 @@ echo
 echo "============================================================"
 echo " QURAŞDIRMA TAMAMLANDI"
 echo "============================================================"
-echo " App:            systemctl status ${SERVICE_NAME}"
-echo " Env (parollar): sudo nano /etc/rdc/env   → sonra systemctl restart rdc"
+echo " App başlatma:   laptopdan: bash deploy/run-remote.sh user@bu-server"
+echo " Parametrlər:    laptopda deploy/rdc.env (şablon: deploy/env.example)"
 echo " Loglar:         tail -f ${MON_HOME}/app.log"
 echo " Grafana:        http://<server-ip>:3001  (${GRAFANA_ADMIN_PASSWORD} / ***)"
 echo " Loki sorğusu:   {job=\"go-app\"}"
-echo " Dayandırma:     sudo systemctl stop ${SERVICE_NAME}"
+echo " Dayandırma:     ssh user@server 'pkill -x rdc'"
 echo " Monitorinq:     cd ${MON_HOME} && docker compose down"
 echo "============================================================"
 if [[ ${FAIL} -eq 1 ]]; then

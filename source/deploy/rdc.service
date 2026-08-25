@@ -1,9 +1,10 @@
 # rdc.service — systemd unit şablonu (PR #296)
 #
 # BU FAYLI birbaşa /etc/systemd/system/ qoymayın — placeholder-lər var
-# (__DB_HOST__ və s.). deploy/install.sh onları avtomatik əvəz edir.
+# (__DB_HOST__ və s.). OPSIONAL systemd yoludur: PR #298-dən sonra app
+# normalda deploy/run-remote.sh ilə başladılır (parollar diske yazılmır).
 #
-# Əl ilə qurmaq istəsəniz: placeholder-ləri doldurub kopyalayın:
+# systemd istifadə etmək istəsəniz: placeholder-ləri ƏL İLƏ doldurub kopyalayın:
 #   sudo cp rdc.service /etc/systemd/system/rdc.service
 #   sudo systemctl daemon-reload && sudo systemctl enable --now rdc
 #
@@ -33,9 +34,9 @@ Environment=DB_NAME=__DB_NAME__
 Environment=SERVER_ADDR=__SERVER_ADDR__
 Environment=LOG_LEVEL=__LOG_LEVEL__
 
-# PR #297: qalan parametrlər (AZMK, MyGov, LW, OTP, video və s.) bu fayldan
-# oxunur. install.sh /etc/rdc/env yaradır (şablon: deploy/env.example,
-# parollar orada doldurulur — repo-da parol YOXDUR).
+# PR #297/#298: qalan parametrlər (AZMK, MyGov, LW, OTP, video və s.) bu
+# fayldan oxunur. /etc/rdc/env-i ƏL İLƏ yaradın (şablon: deploy/env.example,
+# parollar orada doldurulur — repo-da parol YOXDUR; chmod 600 root-only).
 # EnvironmentFile yuxarıdakı Environment= sətirlərini üstələyir;
 # "-" prefiksi: fayl yoxdursa xəta vermir.
 EnvironmentFile=-/etc/rdc/env
