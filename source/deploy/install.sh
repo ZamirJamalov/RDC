@@ -96,6 +96,13 @@ if [[ "${GRAFANA_ADMIN_PASSWORD}" == "admin" ]]; then
     warn "Prod üçün: sudo env GRAFANA_ADMIN_PASSWORD=güclüparol bash deploy/install.sh"
 fi
 
+# PR #297: parollar hələ doldurulmayıbsa (şablonda kommentdə qalıbsa) xəbərdarlıq
+if [[ -f /etc/rdc/env ]] && grep -qE '^#[[:space:]]*(DB_PASSWORD|AZMK_PASSWORD)=' /etc/rdc/env; then
+    warn "/etc/rdc/env içində parollar hələ doldurulmayıb (DB_PASSWORD, AZMK_PASSWORD)."
+    warn "Doldurun:  sudo nano /etc/rdc/env   (kommentdən çıxarın, dəyəri yazın)"
+    warn "Sonra:     sudo systemctl restart rdc"
+fi
+
 log "OK: binary, monitorinq faylları, docker, systemd ${SYSTEMD_VER}"
 
 # ------------------------- 2) DB env-ləri -------------------------
@@ -149,6 +156,16 @@ if [[ ! -f "${MON_HOME}/app.log" ]]; then
 fi
 chown "${RDC_USER}:${RDC_USER}" "${MON_HOME}/app.log"
 chmod 640 "${MON_HOME}/app.log"
+
+# PR #297: /etc/rdc/env — əlavə parametrlər (AZMK, MyGov, LW, video və s.)
+# Parollar YALNIZ burada saxlanılır (repo-da yoxdur) — chmod 600, root-only.
+install -d -o root -g root -m 755 /etc/rdc
+if [[ ! -f /etc/rdc/env ]]; then
+    install -m 600 -o root -g root "${SCRIPT_DIR}/env.example" /etc/rdc/env
+    log "Yaradıldı: /etc/rdc/env (şablon kopyalandı, chmod 600)"
+else
+    log "/etc/rdc/env artıq mövcuddur — toxunulmadı (mövcud dəyərlər qorunur)"
+fi
 
 log "Yerləşdirildi: ${RDC_HOME}/rdc, ${MON_HOME}/{docker-compose.yml,promtail-config.yml,grafana/,app.log}"
 
@@ -229,6 +246,7 @@ echo "============================================================"
 echo " QURAŞDIRMA TAMAMLANDI"
 echo "============================================================"
 echo " App:            systemctl status ${SERVICE_NAME}"
+echo " Env (parollar): sudo nano /etc/rdc/env   → sonra systemctl restart rdc"
 echo " Loglar:         tail -f ${MON_HOME}/app.log"
 echo " Grafana:        http://<server-ip>:3001  (${GRAFANA_ADMIN_PASSWORD} / ***)"
 echo " Loki sorğusu:   {job=\"go-app\"}"

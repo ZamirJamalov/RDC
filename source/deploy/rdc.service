@@ -33,6 +33,13 @@ Environment=DB_NAME=__DB_NAME__
 Environment=SERVER_ADDR=__SERVER_ADDR__
 Environment=LOG_LEVEL=__LOG_LEVEL__
 
+# PR #297: qalan parametrlər (AZMK, MyGov, LW, OTP, video və s.) bu fayldan
+# oxunur. install.sh /etc/rdc/env yaradır (şablon: deploy/env.example,
+# parollar orada doldurulur — repo-da parol YOXDUR).
+# EnvironmentFile yuxarıdakı Environment= sətirlərini üstələyir;
+# "-" prefiksi: fayl yoxdursa xəta vermir.
+EnvironmentFile=-/etc/rdc/env
+
 # PR #295 Variant B: loglar app.log-a — Promtail ordan Loki-yə göndərir.
 # Qovluq mountu (docker-compose) eyni qovluğu oxuyur.
 StandardOutput=append:/opt/rdc/monitoring/app.log

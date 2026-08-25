@@ -71,6 +71,21 @@ Qeyd: `MIGRATIONS_DROP_RECREATE` artıq default **`false`**-dur (PR #294, fail-c
 sıfırdan qurmaq istəyəndə açıq şəkildə `MIGRATIONS_DROP_RECREATE=true` yazın
 (cədvəllər DROP olunur və yenidən seed olunur — bütün data silinir).
 
+### Serverdə qalan parametrlər — /etc/rdc/env (PR #297)
+
+DB-dən başqa bütün parametrlər (AZMK, MyGov, LW, OTP, video və s.) serverdə
+**bir faylda** saxlanılır: `/etc/rdc/env` (root-only, chmod 600).
+`install.sh` onu `deploy/env.example` şablonundan yaradır — şablonda
+**parollar yoxdur** (kommentdə placeholder), serverdə əl ilə doldurulur:
+
+```bash
+sudo nano /etc/rdc/env        # parolları doldur (DB_PASSWORD, AZMK_PASSWORD)
+sudo systemctl restart rdc
+```
+
+`EnvironmentFile` unit-dəki `Environment=` sətirlərini üstələyir — faylda
+olan açar qalib gelir. Dəyişiklik həmişə restart tələb edir.
+
 ## 4. İşə salma
 
 ```bash
