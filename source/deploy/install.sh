@@ -177,6 +177,17 @@ log "  bash deploy/run-remote.sh user@bu-server"
 # ------------------------- 7) Monitorinq stack-i -------------------------
 log "7/8 Monitorinq stack-i (loki + promtail + grafana)..."
 
+# PR #307: 'container name /loki is already in use' conflict-ının qarşısı.
+# Səbəb: compose faylında container_name-lər SABİTDİR; eyni adlı konteyner
+# başqa project-dən qalıbsa (məs. əvvəl source/ qovluğundan manual
+# `docker compose up`), yeni project onları təkrar istifadə edə bilmir.
+# Volume-lar (loki-data, grafana-data) silinMİR — yalnız konteynerlər yenidən yaranır.
+EXISTING="$(docker ps -a --format '{{.Names}}' | grep -Ex 'loki|promtail|grafana' || true)"
+if [[ -n "${EXISTING}" ]]; then
+    warn "Eyni adlı köhnə konteynerlər təmizlənir: $(echo "${EXISTING}" | tr '\n' ' ')"
+    docker rm -f loki promtail grafana >/dev/null 2>&1 || true
+fi
+
 docker compose -f "${MON_HOME}/docker-compose.yml" --project-directory "${MON_HOME}" up -d
 
 log "Container-lar: $(docker ps --filter name=loki --filter name=promtail --filter name=grafana --format '{{.Names}}' | tr '\n' ' ')"
