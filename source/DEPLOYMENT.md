@@ -3,11 +3,23 @@
 App **1 əmrlə** işə salınır (laptopdan):
 
 ```bash
-bash deploy/run-remote.sh user@server
+bash deploy/run-remote.sh root@server
 ```
 
+İki rejim var (PR #310):
+
+| Rejim | Əmr | Nə tələb edir |
+|---|---|---|
+| **Real server** | `bash deploy/run-remote.sh root@SERVER_IP` | ssh + root açarı (serverdə) |
+| **Lokal test** (laptop özü "server"dir) | `sudo bash deploy/run-remote.sh local` | yalnız `sudo` — ssh/sshd/açar YOX |
+
+Hər ikisi eyni `deploy/rdc.env`-i oxuyur, eyni `/opt/rdc/` strukturundan işlədir
+(hər iki maşında `install.sh` ilə qurulmuş) və logları eyni `app.log`-a yazır → Loki.
+Fərq yalnız icra kanalındadır: ssh ilə uzaqda, yoxsa birbaşa lokaldа.
+
 Parollar **serverdə saxlanmır** — laptopda `deploy/rdc.env` faylındadır və
-başlanğıc anında şifrələnmiş ssh kanalı ilə birbaşa prosesin env-inə ötürülür.
+başlanğıc anında şifrələnmiş ssh kanalı ilə (və ya lokal rejimdə birbaşa)
+prosesin env-inə ötürülür.
 
 ## Binary tam self-contained-dir (PR #293)
 
@@ -74,7 +86,8 @@ data güvəndədir. Yalnız dev-də DB-ni sıfırdan qurmaq istəyəndə açıq 
 ## 5. İşə salma: 1 əmr
 
 ```bash
-bash deploy/run-remote.sh user@server
+bash deploy/run-remote.sh root@server      # real server
+sudo bash deploy/run-remote.sh local        # lokal test (PR #310: ssh-suz)
 ```
 
 Script nə edir:
@@ -98,7 +111,7 @@ istifadəçi üçün parolsuz sudo (`sudo -n`) tələb olunur.
 
 | Əməliyyat | Əmr (laptopdan) |
 |---|---|
-| Başlat / restart | `bash deploy/run-remote.sh user@server` |
+| Başlat / restart | `bash deploy/run-remote.sh root@server` — lokal test: `sudo bash deploy/run-remote.sh local` |
 | Status | `ssh user@server 'pgrep -x rdc; tail -20 /opt/rdc/monitoring/app.log'` |
 | Logları canlı izlə | `ssh user@server 'tail -f /opt/rdc/monitoring/app.log'` (çıxmaq: Ctrl+C) |
 | Dayandır | `ssh user@server 'pkill -x rdc'` |
@@ -121,7 +134,7 @@ Vacib: **restart üçün heç nə axtarmaq lazım deyil** — `run-remote.sh` ö
 ### Ssenari: bir günün axını
 
 ```
-1. bash deploy/run-remote.sh user@server      → "rdc İŞLƏYİR ✓ PID: 722"
+1. bash deploy/run-remote.sh root@server    → "rdc İŞLƏYİR ✓ PID: 722"
 2. Laptopun qapağını bağlayırsınız            → app İŞLƏMƏYƏ DAVAM EDİR
 3. Sabah yoxlamaq istəyirsiniz:
    ssh user@server 'pgrep -x rdc'             → 722  (tapdınız ✓)
@@ -239,17 +252,40 @@ cd /opt/rdc/monitoring && docker compose down   # lokal "server" monitorinqi
 cd <repo>/source && docker compose up -d        # dev monitorinqini geri qaytarın
 ```
 
-### Opsional: `run-remote.sh`-in özünü ssh ilə test etmək
+### Lokal test: `run-remote.sh` (PR #310 — ssh tələb etmir)
+
+```bash
+sudo bash deploy/run-remote.sh local
+```
+
+- ssh / sshd / root parolu / açar — HEÇ BİRİ tələb olunmur
+- yalnız `sudo` (lokal rejim `su rdc` üçün root tələb edir)
+- eyni rdc.env, eyni /opt/rdc/ yolu, eyni loglar → real server axınından fərqi yalnız ssh kanalının olmamasıdır
+
+### Opsional: `run-remote.sh`-i ssh ilə test etmək (real server axını)
+
+Açarla (tövsiyə — Ubuntu-da root parol-ssh qadağandır):
+
+```bash
+ssh-keygen -t ed25519 -N ""                      # yoxdursa
+sudo mkdir -p /root/.ssh && sudo chmod 700 /root/.ssh
+cat ~/.ssh/id_ed25519.pub | sudo tee -a /root/.ssh/authorized_keys
+sudo chmod 600 /root/.ssh/authorized_keys
+
+bash deploy/run-remote.sh root@localhost          # sudo SUZ!
+```
+
+Alternativ (tövsiyə olunmur) — parol ilə:
 
 ```bash
 sudo passwd root        # root parolu təyin edin (yalnız lokal test üçün)
 sudo sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
-sudo systemctl enable --now ssh && sudo systemctl restart ssh
+sudo systemctl restart ssh
 
 bash deploy/run-remote.sh root@localhost
 
 # Test sonrası MUTLƏQ geri qaytarın:
-#   PermitRootLogin no  +  sudo systemctl restart ssh
+#   PermitRootLogin prohibit-password  +  sudo systemctl restart ssh
 ```
 
 ### Problemlər (real serverdə də eynidir)
@@ -261,4 +297,5 @@ bash deploy/run-remote.sh root@localhost
 | `başlamadı` + no such file | install.sh işlədilməyib (`/opt/rdc/rdc` yoxdur) |
 | ssh bağlana bilmir | ssh servisi söndürülüb / root girişi bağlı |
 | App işləyir, Grafana boşdur | monitorinq compose-u söndürülüb |
+| `su: Authentication failure` | ssh target root deyil — `root@server` ilə bağlanın və ya `local` rejimi (PR #309/#310) |
 | `bash: /dev/stdin: Permission denied` | köhnə versiya — PR #303-də düzəldilib |
