@@ -87,6 +87,10 @@ type Config struct {
 	AzmkDisbursementFee float64 // 0 (həmişə 0, gələcəkdə dəyişə bilər)
 	AzmkUseMock         bool    // mock mode (test üçün)
 	AzmkTimeoutS        int     // HTTP timeout
+
+	// PR #312: AZMK imza gözləmə worker-ı
+	AzmkSignPollIntervalS int // AZMK_SIGN_POLL_INTERVAL_S — status sorğusu intervalı (san, default 300 = 5 dəq)
+	AzmkSignTimeoutS      int // AZMK_SIGN_TIMEOUT_S — imza limiti (san, default 10800 = 3 saat)
 	// PR #123: AZMK Basic Auth
 	AzmkUsername string // AZMK servisinə qoşulma üçün username
 	AzmkPassword string // AZMK servisinə qoşulma üçün password
@@ -182,6 +186,8 @@ func Load() *Config {
 		AzmkCardExpiring:    getEnv("AZMK_CARD_EXPIRING", "2030-01-01"),
 		AzmkDisbursementFee: getEnvFloat("AZMK_DISBURSEMENT_FEE", 0.0),
 		AzmkUseMock:         getEnvBool("AZMK_USE_MOCK", true),
+		AzmkSignPollIntervalS: getEnvInt("AZMK_SIGN_POLL_INTERVAL_S", 300),
+		AzmkSignTimeoutS:      getEnvInt("AZMK_SIGN_TIMEOUT_S", 10800),
 		AzmkTimeoutS:        getEnvInt("AZMK_TIMEOUT_S", 30),
 		AzmkUsername:        getEnv("AZMK_USERNAME", ""),
 		AzmkPassword:        getEnv("AZMK_PASSWORD", ""),

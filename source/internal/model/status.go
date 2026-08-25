@@ -8,6 +8,10 @@ package model
 //      pending → checking → approved | rejected | pending_approval
 //                                        ↑            ↓
 //                                        └── approved / rejected (operator decision)
+//
+// PR #312 (AZMK sign flow): expert approve + AZMK application create success →
+// pending_signature → (customer signs within 3h, worker polls) → disbursed
+//                   → (timeout) → rejected
 const (
         // StatusPending means the application was just created and has not been picked
         // up by the credit engine yet.
@@ -37,11 +41,20 @@ const (
         // details (loan amount, term, card, contacts, address) and trigger the
         // credit engine.
         StatusPendingExpert = "pending_expert"
+
+	// StatusPendingSignature means the AZMK application was created successfully
+	// after expert approval, and the system is waiting for the customer to sign
+	// the contract (3 hours). PR #312: background worker polls GET /application/{id}/status.
+	StatusPendingSignature = "pending_signature"
+
+	// StatusDisbursed means the customer signed the contract and the loan amount
+	// was transferred to their card. PR #312: terminal state after successful disburse.
+	StatusDisbursed = "disbursed"
 )
 
 // IsFinal reports whether the status is a terminal state.
 func IsFinal(status string) bool {
-        return status == StatusApproved || status == StatusRejected
+        return status == StatusApproved || status == StatusRejected || status == StatusDisbursed
 }
 
 // IsActive reports whether the status indicates the application is still being
@@ -49,6 +62,7 @@ func IsFinal(status string) bool {
 func IsActive(status string) bool {
         return status == StatusPending || status == StatusChecking ||
                 status == StatusPendingApproval || status == StatusPendingCustomer ||
+                status == StatusPendingSignature ||
                 status == StatusPendingExpert
 }
 

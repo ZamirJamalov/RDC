@@ -21,7 +21,7 @@ func (r *ApplicationRepo) GetCustomerCurrentLevel(ctx context.Context, customerP
 	err := r.db.QueryRowContext(ctx, `
 		SELECT TOP 1 id, credit_level
 		FROM loan_applications
-		WHERE customer_pin = ? AND status = 'approved'
+		WHERE customer_pin = ? AND status IN ('approved', 'disbursed')
 		ORDER BY updated_at DESC`, customerPIN).Scan(&appID, &level)
 	if err != nil {
 		if err == sql.ErrNoRows {

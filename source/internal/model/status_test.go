@@ -11,6 +11,7 @@ func TestIsFinal(t *testing.T) {
 	}{
 		{StatusApproved, true},
 		{StatusRejected, true},
+		{StatusDisbursed, true},
 		{StatusPending, false},
 		{StatusChecking, false},
 		{StatusPendingApproval, false},
@@ -36,6 +37,8 @@ func TestIsActive(t *testing.T) {
 	}{
 		{StatusPending, true},
 		{StatusChecking, true},
+		{StatusPendingSignature, true},
+		{StatusDisbursed, false},
 		{StatusPendingApproval, true},
 		{StatusApproved, false},
 		{StatusRejected, false},
