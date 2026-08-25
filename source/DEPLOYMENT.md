@@ -239,17 +239,40 @@ cd /opt/rdc/monitoring && docker compose down   # lokal "server" monitorinqi
 cd <repo>/source && docker compose up -d        # dev monitorinqini geri qaytarın
 ```
 
-### Opsional: `run-remote.sh`-in özünü ssh ilə test etmək
+### Lokal test: `run-remote.sh` (PR #310 — ssh tələb etmir)
+
+```bash
+sudo bash deploy/run-remote.sh local
+```
+
+- ssh / sshd / root parolu / açar — HEÇ BİRİ tələb olunmur
+- yalnız `sudo` (lokal rejim `su rdc` üçün root tələb edir)
+- eyni rdc.env, eyni /opt/rdc/ yolu, eyni loglar → real server axınından fərqi yalnız ssh kanalının olmamasıdır
+
+### Opsional: `run-remote.sh`-i ssh ilə test etmək (real server axını)
+
+Açarla (tövsiyə — Ubuntu-da root parol-ssh qadağandır):
+
+```bash
+ssh-keygen -t ed25519 -N ""                      # yoxdursa
+sudo mkdir -p /root/.ssh && sudo chmod 700 /root/.ssh
+cat ~/.ssh/id_ed25519.pub | sudo tee -a /root/.ssh/authorized_keys
+sudo chmod 600 /root/.ssh/authorized_keys
+
+bash deploy/run-remote.sh root@localhost          # sudo SUZ!
+```
+
+Alternativ (tövsiyə olunmur) — parol ilə:
 
 ```bash
 sudo passwd root        # root parolu təyin edin (yalnız lokal test üçün)
 sudo sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
-sudo systemctl enable --now ssh && sudo systemctl restart ssh
+sudo systemctl restart ssh
 
 bash deploy/run-remote.sh root@localhost
 
 # Test sonrası MUTLƏQ geri qaytarın:
-#   PermitRootLogin no  +  sudo systemctl restart ssh
+#   PermitRootLogin prohibit-password  +  sudo systemctl restart ssh
 ```
 
 ### Problemlər (real serverdə də eynidir)
@@ -261,4 +284,5 @@ bash deploy/run-remote.sh root@localhost
 | `başlamadı` + no such file | install.sh işlədilməyib (`/opt/rdc/rdc` yoxdur) |
 | ssh bağlana bilmir | ssh servisi söndürülüb / root girişi bağlı |
 | App işləyir, Grafana boşdur | monitorinq compose-u söndürülüb |
+| `su: Authentication failure` | ssh target root deyil — `root@server` ilə bağlanın və ya `local` rejimi (PR #309/#310) |
 | `bash: /dev/stdin: Permission denied` | köhnə versiya — PR #303-də düzəldilib |
