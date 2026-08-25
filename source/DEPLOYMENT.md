@@ -3,11 +3,23 @@
 App **1 əmrlə** işə salınır (laptopdan):
 
 ```bash
-bash deploy/run-remote.sh user@server
+bash deploy/run-remote.sh root@server
 ```
 
+İki rejim var (PR #310):
+
+| Rejim | Əmr | Nə tələb edir |
+|---|---|---|
+| **Real server** | `bash deploy/run-remote.sh root@SERVER_IP` | ssh + root açarı (serverdə) |
+| **Lokal test** (laptop özü "server"dir) | `sudo bash deploy/run-remote.sh local` | yalnız `sudo` — ssh/sshd/açar YOX |
+
+Hər ikisi eyni `deploy/rdc.env`-i oxuyur, eyni `/opt/rdc/` strukturundan işlədir
+(hər iki maşında `install.sh` ilə qurulmuş) və logları eyni `app.log`-a yazır → Loki.
+Fərq yalnız icra kanalındadır: ssh ilə uzaqda, yoxsa birbaşa lokaldа.
+
 Parollar **serverdə saxlanmır** — laptopda `deploy/rdc.env` faylındadır və
-başlanğıc anında şifrələnmiş ssh kanalı ilə birbaşa prosesin env-inə ötürülür.
+başlanğıc anında şifrələnmiş ssh kanalı ilə (və ya lokal rejimdə birbaşa)
+prosesin env-inə ötürülür.
 
 ## Binary tam self-contained-dir (PR #293)
 
@@ -74,7 +86,8 @@ data güvəndədir. Yalnız dev-də DB-ni sıfırdan qurmaq istəyəndə açıq 
 ## 5. İşə salma: 1 əmr
 
 ```bash
-bash deploy/run-remote.sh user@server
+bash deploy/run-remote.sh root@server      # real server
+sudo bash deploy/run-remote.sh local        # lokal test (PR #310: ssh-suz)
 ```
 
 Script nə edir:
@@ -98,7 +111,7 @@ istifadəçi üçün parolsuz sudo (`sudo -n`) tələb olunur.
 
 | Əməliyyat | Əmr (laptopdan) |
 |---|---|
-| Başlat / restart | `bash deploy/run-remote.sh user@server` |
+| Başlat / restart | `bash deploy/run-remote.sh root@server` — lokal test: `sudo bash deploy/run-remote.sh local` |
 | Status | `ssh user@server 'pgrep -x rdc; tail -20 /opt/rdc/monitoring/app.log'` |
 | Logları canlı izlə | `ssh user@server 'tail -f /opt/rdc/monitoring/app.log'` (çıxmaq: Ctrl+C) |
 | Dayandır | `ssh user@server 'pkill -x rdc'` |
@@ -121,7 +134,7 @@ Vacib: **restart üçün heç nə axtarmaq lazım deyil** — `run-remote.sh` ö
 ### Ssenari: bir günün axını
 
 ```
-1. bash deploy/run-remote.sh user@server      → "rdc İŞLƏYİR ✓ PID: 722"
+1. bash deploy/run-remote.sh root@server    → "rdc İŞLƏYİR ✓ PID: 722"
 2. Laptopun qapağını bağlayırsınız            → app İŞLƏMƏYƏ DAVAM EDİR
 3. Sabah yoxlamaq istəyirsiniz:
    ssh user@server 'pgrep -x rdc'             → 722  (tapdınız ✓)
