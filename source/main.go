@@ -96,8 +96,15 @@ func main() {
 	db.SetConnMaxLifetime(5 * time.Minute)
 	slog.Info("connected to SQL Server", "max_open_conns", 50, "max_idle_conns", 10, "conn_max_lifetime", "5m")
 
-	// Run database migrations
-	if err := migration.Run(db, "migrations", migration.Options{
+	// Run database migrations.
+	// PR #293: migrations binary-nin içində embed olunub (migrations_embed.go) —
+	// diskdə migrations/ qovluğu tələb olunmur, executable tək başına kifayətdir.
+	migrationsFS, err := fs.Sub(migrationFiles, "migrations")
+	if err != nil {
+		slog.Error("failed to create sub filesystem for migrations", "error", err)
+		os.Exit(1)
+	}
+	if err := migration.Run(db, migrationsFS, migration.Options{
 		DropRecreate: cfg.MigrationsDropRecreate,
 	}); err != nil {
 		slog.Error("migration failed", "error", err)
