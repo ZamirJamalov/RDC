@@ -20,6 +20,8 @@
 #   4. app.log yaradır (rdc istifadəçisi yaza bilsin deyə)
 #   5. rdc.service generasiya edir (opsional systemd yolu üçün)
 #   6. systemd unit-i quraşdırır (BAŞLATMIR — app run-remote.sh ilə işə salınır)
+#      + sshd yoxlayır, yoxdursa quraşdırır (run-remote.sh ssh ilə işləyir;
+#        localhost testində laptopda da sshd lazımdır — PR #308)
 #   7. Monitorinq stack-i (loki + promtail + grafana) qaldırır
 #   8. Yoxlayır və nəticəni göstərir
 #
@@ -173,6 +175,36 @@ systemctl daemon-reload
 log "Unit quraşdırıldı (başladILMADI): systemctl status ${SERVICE_NAME}"
 log "PR #298: app run-remote.sh ilə başladılır (laptopdan):"
 log "  bash deploy/run-remote.sh user@bu-server"
+
+# PR #308: run-remote.sh app-i ssh üzərindən başladır. Real serverdə port 22
+# artıq dinlənilir → bu blok ötülür. Localhost testində (install.sh +
+# run-remote.sh eyni maşında) sshd yoxdursa quraşdırılır.
+log "sshd yoxlanılır (run-remote.sh ssh ilə işləyir)..."
+if ss -tln 2>/dev/null | grep -q ':22 ' || systemctl is-active --quiet ssh || systemctl is-active --quiet sshd; then
+    log "sshd aktivdir ✓ — run-remote.sh işləyəcək"
+else
+    warn "sshd yoxdur (port 22 dinləmir) — openssh-server quraşdırılır..."
+    if command -v apt-get >/dev/null 2>&1; then
+        DEBIAN_FRONTEND=noninteractive apt-get install -y openssh-server
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf install -y openssh-server
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y openssh-server
+    elif command -v zypper >/dev/null 2>&1; then
+        zypper --non-interactive install openssh-server
+    else
+        warn "Tanınan paket meneceri yoxdur — openssh-server-i əl ilə quraşdırın"
+    fi
+    # Servis adı fərqlidir: Debian/Ubuntu → ssh, RHEL/CentOS → sshd
+    systemctl enable --now ssh 2>/dev/null || systemctl enable --now sshd 2>/dev/null || \
+        warn "sshd başladıla bilmədi — əl ilə: systemctl enable --now ssh"
+    if ss -tln 2>/dev/null | grep -q ':22 '; then
+        log "sshd QALXDI (port 22) ✓"
+        log "Parolsuz ssh üçün (opsional): ssh-keygen -t ed25519 && ssh-copy-id user@bu-server"
+    else
+        warn "sshd hələ dinləmir — yoxlayın: systemctl status ssh"
+    fi
+fi
 
 # ------------------------- 7) Monitorinq stack-i -------------------------
 log "7/8 Monitorinq stack-i (loki + promtail + grafana)..."
