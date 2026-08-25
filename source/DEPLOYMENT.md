@@ -43,13 +43,13 @@ Vacib optional-lar:
 export DB_PORT=1433                 # default: 1433
 export DB_NAME=RDC                  # default: RDC
 export SERVER_ADDR=":8000"          # default: :8000
-export MIGRATIONS_DROP_RECREATE=false   # PROD-DA MÜTLƏQ false! (default true — dev üçün)
 export LOG_LEVEL=info               # info | debug | warn | error
 ```
 
-Qeyd: `MIGRATIONS_DROP_RECREATE` default `true`-dur (dev rejimi — cədvəllər
-sıfırdan qurulur). Production-da mütləq `false` edin, əks halda restart-da
-bütün data silinir.
+Qeyd: `MIGRATIONS_DROP_RECREATE` artıq default **`false`**-dur (PR #294, fail-closed)
+— prod-da heç nə yazmasanız da data güvəndədir. Yalnız **dev-də** DB-ni
+sıfırdan qurmaq istəyəndə açıq şəkildə `MIGRATIONS_DROP_RECREATE=true` yazın
+(cədvəllər DROP olunur və yenidən seed olunur — bütün data silinir).
 
 ## 4. İşə salma
 
