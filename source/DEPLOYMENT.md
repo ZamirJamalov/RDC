@@ -137,6 +137,25 @@ app (stdout, JSON) → app.log (run-remote.sh redirect) → Promtail → Loki �
 - Monitorinq stack-i install.sh ilə qalxır və reboot-da avtomatik qalxır (docker restart policy)
 - Grafana: `http://<server>:3001` → Explore → `{job="go-app"}`
 
+### Kənar servislərin sorğu/cavabları (PR #304)
+
+Kənar servislərə (AZMK, LW, OTP, MyGov, SIMA, Video) gedən hər HTTP sorğusu və
+cavabı Loki-yə düşür — `msg="external_call"`. Parol/token dəyərləri avtomatik
+maskalanır (`***`), body-lər 4000 simvola kimi kəsilir.
+
+Grafana Explore → Loki sorğuları:
+
+```logql
+# hamısı
+{job="go-app"} | json | msg="external_call"
+# yalnız AZMK (məs: application create + cavabı)
+{job="go-app"} | json | service="azmk"
+# yalnız xətalar
+{job="go-app"} | json | msg="external_call" | level="ERROR"
+```
+
+Söndürmək: `EXTERNAL_REQRESP_LOG=false` (`deploy/rdc.env`) → restart.
+
 ```bash
 curl -s "http://localhost:3100/ready"     # Loki hazırdır? (serverdə)
 ```
