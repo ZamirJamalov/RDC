@@ -1,0 +1,51 @@
+# rdc.service — systemd unit şablonu (PR #296)
+#
+# BU FAYLI birbaşa /etc/systemd/system/ qoymayın — placeholder-lər var
+# (__DB_HOST__ və s.). deploy/install.sh onları avtomatik əvəz edir.
+#
+# Əl ilə qurmaq istəsəniz: placeholder-ləri doldurub kopyalayın:
+#   sudo cp rdc.service /etc/systemd/system/rdc.service
+#   sudo systemctl daemon-reload && sudo systemctl enable --now rdc
+#
+# Qeyd: StandardOutput=append: üçün systemd >= 240 lazımdır
+# (Ubuntu 20.04+, Debian 11+ — problem deyil).
+
+[Unit]
+Description=RDC Loan Application Service
+After=network.target
+
+[Service]
+Type=simple
+User=rdc
+Group=rdc
+
+# Binary (install.sh /opt/rdc/rdc qoyur)
+ExecStart=/opt/rdc/rdc
+
+# --- Məcburi env-lər (install.sh doldurur) ---
+Environment=DB_HOST=__DB_HOST__
+Environment=DB_USER=__DB_USER__
+Environment=DB_PASSWORD=__DB_PASSWORD__
+
+# --- Optional env-lər (default qiymətlər) ---
+Environment=DB_PORT=__DB_PORT__
+Environment=DB_NAME=__DB_NAME__
+Environment=SERVER_ADDR=__SERVER_ADDR__
+Environment=LOG_LEVEL=__LOG_LEVEL__
+
+# PR #295 Variant B: loglar app.log-a — Promtail ordan Loki-yə göndərir.
+# Qovluq mountu (docker-compose) eyni qovluğu oxuyur.
+StandardOutput=append:/opt/rdc/monitoring/app.log
+StandardError=append:/opt/rdc/monitoring/app.log
+
+# Crash olanda avtomatik yenidən başlat (5 san gözləmə ilə)
+Restart=on-failure
+RestartSec=5
+
+# Təhlükəsizlik: lazımsız imtiyaz vermirik
+NoNewPrivileges=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
