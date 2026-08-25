@@ -60,7 +60,7 @@ func truncate(s string) string {
 
 // Call logs one external service request/response to Loki.
 //
-// service: "azmk", "lw", "otp", "mygov", "sima", "video", "azmk_customer_data"
+// service: "azmk" (lending + customer data), "lw", "otp", "mygov", "sima", "video"
 // op:      əməliyyat adı (məs. "AZMK_APPLICATION_CREATE", "send_sms")
 // errMsg:  boş deyilsə sətir ERROR səviyyəsində loglanır.
 func Call(service, op, method, url, reqBody string, statusCode int, respBody string, durationMs int, errMsg string) {

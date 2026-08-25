@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"rdc-source/pkg/extlog" // PR #305: xarici çağırışların Loki log-u
 	"rdc-source/pkg/mygov"
 )
 
@@ -891,7 +892,9 @@ func (p *HTTPCustomerDataProvider) SetAuditAppID(appID *int) {
 
 // auditLog writes a service call audit log to the database.
 // PR #259: appID context-dən oxunur (thread-safe).
+// PR #305: həmçinin Loki-yə yazılır (DB audit-dən asılı deyil) — POST body də daxil.
 func (p *HTTPCustomerDataProvider) auditLog(ctx context.Context, serviceName, method, url, reqBody, respBody string, statusCode int, durationMs int, errMsg string) {
+	extlog.Call("azmk", serviceName, method, url, reqBody, statusCode, respBody, durationMs, errMsg)
 	if p.auditDB == nil {
 		return
 	}

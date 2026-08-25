@@ -84,6 +84,12 @@ Script nə edir:
 4. app-ı `rdc` istifadəçisi ilə `nohup`-la başladır — terminalı bağlasanız da **işləməyə davam edir**
 5. logları `/opt/rdc/monitoring/app.log`-a yazır (Loki zənciri — aşağıda)
 6. prosesin qalxdığını yoxlayır + son logları göstərir
+7. binary-nin build vaxtını göstərir — köhnə binary görünsün deyə (PR #305)
+
+⚠ DIQQƏT (PR #305): `run-remote.sh` **build ETMİR** — serverdə hazır duran
+`/opt/rdc/rdc` binary-ni başladır. Kod dəyişəndə əvvəlcə yenidən build + copy:
+`go build -o rdc . && sudo cp rdc /opt/rdc/rdc` (bax: bölmə 9 "Kod dəyişəndə").
+Yoxlama: `strings /opt/rdc/rdc | grep -c external_call` → 0-dırsa binary köhnədir.
 
 Qeyd: root kimi bağlanmaq ən sadədir (`su` parol soruşmur); qeyri-root
 istifadəçi üçün parolsuz sudo (`sudo -n`) tələb olunur.
