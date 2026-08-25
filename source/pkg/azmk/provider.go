@@ -106,7 +106,7 @@ type LoanData struct {
         Amount         float64 `json:"amount"`         // total_amount (principal + commission)
         Term           int     `json:"term"`           // months
         BranchCode     string  `json:"branchCode"`     // config-dən (məs. "HO")
-        InterestRate   float64 `json:"interestRate"`   // annual_interest_rate (məs. 55)
+        InterestRate   float64 `json:"interestRate"`   // KƏSR formatında göndərilir: 0.48 (= 48%), 0.30 (= 30%) — PR #311
         DisbursementFee float64 `json:"disbursementFee"` // 0 (həmişə)
         LetterNumber   string  `json:"letterNumber"`   // boş
         // Disburse üçün:

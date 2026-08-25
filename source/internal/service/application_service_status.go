@@ -387,7 +387,7 @@ func (s *ApplicationService) sendReferralSMSOnDisburse(ctx context.Context, app 
 //   - amount: total_amount (principal + commission)
 //   - term: app.TermMonths
 //   - branchCode: config-dən (AZMK_BRANCH_CODE)
-//   - interestRate: annual_interest_rate (credit_levels-dən)
+//   - interestRate: annual_interest_rate (credit_levels-dən) — AZMK KƏSR formatında göndərilir: 48 → 0.48, 30 → 0.30 (PR #311)
 //   - disbursementFee: config-dən (AZMK_DISBURSEMENT_FEE, həmişə 0)
 func (s *ApplicationService) azmkCreateSignDisburse(ctx context.Context, app *model.LoanApplication, totalAmount float64) error {
         // annual_interest_rate-i credit_levels-dən al
@@ -412,7 +412,7 @@ func (s *ApplicationService) azmkCreateSignDisburse(ctx context.Context, app *mo
                         Amount:          totalAmount,
                         Term:            app.TermMonths,
                         BranchCode:      s.azmkBranch,
-                        InterestRate:    annualInterestRate,
+                        InterestRate:    annualInterestRate / 100.0, // PR #311: AZMK kəsr gözləyir (48 → 0.48)
                         DisbursementFee: s.azmkDisbursementFee,
                         LetterNumber:    "",
                 },
@@ -473,7 +473,8 @@ func (s *ApplicationService) azmkCreateSignDisburse(ctx context.Context, app *mo
                 "card_id", app.CardID,
                 "amount", totalAmount,
                 "term", app.TermMonths,
-                "interest_rate", annualInterestRate)
+                "interest_rate", annualInterestRate,
+                "interest_rate_sent", annualInterestRate/100.0)
 
         // PR #284: disburse success — müştəriyə referal kodu SMS-i göndər (non-fatal)
         s.sendReferralSMSOnDisburse(ctx, app)
