@@ -8,6 +8,9 @@ import (
         "io"
         "net/http"
         "strings"
+        "time"
+
+        "rdc-source/pkg/extlog" // PR #304: xarici çağırışların Loki log-u
 )
 
 // getJSON sends a GET request and decodes the JSON response into target.
@@ -35,7 +38,7 @@ func (p *HTTPProvider) postJSON(ctx context.Context, path string, payload interf
         if err != nil {
                 return fmt.Errorf("failed to marshal request body: %w", err)
         }
-        body, err := p.doRequest(ctx, http.MethodPost, url, bytes.NewReader(bodyBytes))
+        body, err := p.doRequest(ctx, http.MethodPost, url, bodyBytes)
         if err != nil {
                 return err
         }
@@ -88,8 +91,14 @@ func previewBody(body []byte) string {
 
 // doRequest sends an HTTP request with the API key header and returns the
 // response body. Returns an error for non-2xx status codes.
-func (p *HTTPProvider) doRequest(ctx context.Context, method, url string, body io.Reader) ([]byte, error) {
-        req, err := http.NewRequestWithContext(ctx, method, url, body)
+// PR #304: body []byte kimi qəbul olunur (Loki log-u üçün); hər çağırış
+// extlog ilə Loki-yə yazılır (service="lw").
+func (p *HTTPProvider) doRequest(ctx context.Context, method, url string, body []byte) ([]byte, error) {
+        var reqBody io.Reader
+        if body != nil {
+                reqBody = bytes.NewReader(body)
+        }
+        req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
         if err != nil {
                 return nil, fmt.Errorf("failed to create request: %w", err)
         }
@@ -100,20 +109,36 @@ func (p *HTTPProvider) doRequest(ctx context.Context, method, url string, body i
                 req.Header.Set("Content-Type", "application/json")
         }
 
+        start := time.Now()
         resp, err := p.client.Do(req)
+        durationMs := int(time.Since(start).Milliseconds())
         if err != nil {
+                extlog.Call("lw", lwOp(url), method, url, string(body), 0, "", durationMs, err.Error())
                 return nil, fmt.Errorf("HTTP request failed: %w", err)
         }
         defer resp.Body.Close()
 
         respBody, err := io.ReadAll(resp.Body)
         if err != nil {
+                extlog.Call("lw", lwOp(url), method, url, string(body), resp.StatusCode, "", durationMs, err.Error())
                 return nil, fmt.Errorf("failed to read response body: %w", err)
         }
 
         if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-                return nil, fmt.Errorf("LW returned HTTP %d: %s", resp.StatusCode, string(respBody))
+                errMsg := fmt.Sprintf("LW returned HTTP %d: %s", resp.StatusCode, string(respBody))
+                extlog.Call("lw", lwOp(url), method, url, string(body), resp.StatusCode, string(respBody), durationMs, errMsg)
+                return nil, fmt.Errorf("%s", errMsg)
         }
 
+        extlog.Call("lw", lwOp(url), method, url, string(body), resp.StatusCode, string(respBody), durationMs, "")
         return respBody, nil
+}
+
+// lwOp derives a short op name from the URL path for Loki logs (PR #304).
+// Məs: https://host/api/router/init?x=1 → lw_api_router_init
+func lwOp(rawurl string) string {
+        u := strings.SplitN(rawurl, "?", 2)[0]
+        u = strings.Trim(u, "/")
+        u = strings.ReplaceAll(u, "/", "_")
+        return "lw_" + u
 }

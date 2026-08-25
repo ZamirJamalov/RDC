@@ -22,6 +22,8 @@ import (
 	"time"
 
 	"rdc-source/internal/model"
+
+	"rdc-source/pkg/extlog" // PR #304: xarici çağırışların Loki log-u
 )
 
 // Provider is the interface for the video record service.
@@ -185,6 +187,8 @@ func (p *HTTPProvider) doRequest(ctx context.Context, method, url string, body [
 // PR #260: appID context-dən oxunur — shared mutable state race aradan qaldırıldı.
 // PR #259-da AZMK provider-lər refactor edildi, bu PR videorecord provider-i də əhatə edir.
 func (p *HTTPProvider) auditLog(ctx context.Context, serviceName, method, url, reqBody, respBody string, statusCode int, durationMs int, errMsg string) {
+	// PR #304: həmçinin Loki-yə yaz (DB audit-dən asılı deyil).
+	extlog.Call("video", serviceName, method, url, reqBody, statusCode, respBody, durationMs, errMsg)
 	if p.auditDB == nil {
 		return
 	}

@@ -12,6 +12,8 @@ import (
         "net/http"
         "strings"
         "time"
+
+        "rdc-source/pkg/extlog" // PR #304: xarici çağırışların Loki log-u
 )
 
 // ============================================================
@@ -254,6 +256,9 @@ func AppIDFromContext(ctx context.Context) *int {
 // auditLog writes a service call audit log to the database.
 // PR #259: appID context-dən oxunur — shared mutable state race aradan qaldırıldı.
 func (p *HTTPProvider) auditLog(ctx context.Context, serviceName, method, url, reqBody, respBody string, statusCode int, durationMs int, errMsg string) {
+        // PR #304: həmçinin Loki-yə yaz (slog → app.log → Promtail → Loki).
+        // auditDB nil olsa belə Loki-yə yazılır (DB audit-ə asılı deyil).
+        extlog.Call("azmk", serviceName, method, url, reqBody, statusCode, respBody, durationMs, errMsg)
         if p.auditDB == nil {
                 return // audit logging disabled
         }
