@@ -122,6 +122,18 @@ StandardOutput=append:/opt/rdc/monitoring/app.log
 StandardError=append:/opt/rdc/monitoring/app.log
 ```
 
+**Avtomatik yol (PR #296):** bütün Variant B addımlarını (istifadəçi, qovluqlar,
+unit generasiyası, service, monitorinq stack-i) bir əmrlə:
+
+```bash
+# serverdə, source/ qovluğunda (rdc binary orada olmalıdır):
+sudo env DB_HOST=10.0.0.5 DB_USER=rdc_user DB_PASSWORD=*** \
+     GRAFANA_ADMIN_PASSWORD=güclüparol bash deploy/install.sh
+# və ya interaktiv: sudo bash deploy/install.sh (env-ləri soruşur)
+```
+
+Şablon: `deploy/rdc.service` (placeholder-lər install.sh ilə doldurulur).
+
 ### Promtail-in faylı tapması üçün
 
 `promtail-config.yml`-də `__path__: /var/log/app/app.log` yazılıb və bu,
