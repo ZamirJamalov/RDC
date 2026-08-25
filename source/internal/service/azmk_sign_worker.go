@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -28,11 +29,14 @@ import (
 //	AZMK_SIGN_POLL_INTERVAL_S (default 300 = 5 dəq)
 //	AZMK_SIGN_TIMEOUT_S       (default 10800 = 3 saat)
 //
-// NOTE: disburse uğurlu olanda status yazılışı guarded update-dir
-// (MarkDisbursedIfPendingSignature) — eyni müraciət iki dəfə disbursed
-// ola bilməz. Disburse uğurlayıb status yazılışı alınmazsa AZMK tərəfində
-// təkrar disburse cəhdi idempotent rədd olunmalıdır (AZMK tövsiyəsi ilə
-// təsdiqlənməlidir).
+// NOTE (cüt disburse qorunması): AZMK təkrar disburse sorğusunu idempotent
+// rədd etmir — ona görə claim protokolu istifadə olunur:
+//   1. pending_signature → disbursing (atomik claim, ClaimForDisburse)
+//   2. disburse sorğusu YALNIZ claim-i qazanan icra edir
+//   3. uğur → disbursed; xəta → disburse_failed (auto-retry YOXDUR)
+// Proses disbursing-də qalsa (crash) — nəticə naməlumdur, növbəti tick-də
+// disburse_failed edilir və manual yoxlama tələb olunur.
+// Beləliklə disburse sorğusu sistemdən MAKSİMUM 1 dəfə çıxır.
 
 // StartAzmkSignWorker launches the background sign-polling daemon.
 // Non-blocking: dərhal qayıdır, worker ayrıca goroutine-da işləyir.
@@ -56,10 +60,41 @@ func (s *ApplicationService) StartAzmkSignWorker(intervalS, timeoutS int) {
 	}()
 }
 
-// pollPendingSignatures processes one tick: all pending_signature apps.
+// pollPendingSignatures processes one tick: stuck disbursing sweep + all
+// pending_signature apps.
+//
+// TICK SIRASI: (1) disbursing sweep ƏVVƏL işlədilir — worker tək goroutine-də
+// ardıcıl işləyir, ona görə tick-in başında görülən hər hansı disbursing
+// statusu keçmiş prosesdən qalmışdır (crash mid-disburse) və nəticəsi
+// naməlumdur → disburse_failed (auto-retry YOXDUR, manual review).
+// NOTE: bu fərziyyə tək-install deployment üçün doğrudur (systemd rdc.service).
 func (s *ApplicationService) pollPendingSignatures(ctx context.Context, timeoutS int) {
 	if s.azmkProvider == nil {
 		return
+	}
+
+	// 0) Keçmiş prosesdən qalan disbursing — nəticə naməlum, disburse_failed et.
+	stuck, err := s.repo.ListByStatus(ctx, model.StatusDisbursing)
+	if err != nil {
+		slog.Warn("PR #312: sign worker — failed to list disbursing",
+			"error", err)
+		return
+	}
+	for i := range stuck {
+		id := stuck[i].ID
+		reason := "AZMK disburse nəticəsi naməlum (proses disburse zamanı yenidən başladı) — manual yoxlama lazımdır"
+		applied, markErr := s.repo.MarkDisburseFailed(ctx, id, reason)
+		if markErr != nil {
+			slog.Error("PR #312: sign worker — failed to mark stuck disbursing as disburse_failed",
+				"application_id", id, "error", markErr)
+			continue
+		}
+		if applied {
+			slog.Error("PR #312: stuck disbursing detected — marked disburse_failed, manual review required",
+				"application_id", id,
+				"lw_application_id", stuck[i].LwApplicationID,
+				"note", "AZMK tərəfindən pulun keçib-keçmədiyi yoxlanmalıdır")
+		}
 	}
 
 	apps, err := s.repo.ListByStatus(ctx, model.StatusPendingSignature)
@@ -133,32 +168,60 @@ func (s *ApplicationService) pollOneSignature(ctx context.Context, id, timeoutS 
 		return
 	}
 
-	// İmzalandı → disburse et.
+	// İmzalandı → disburse. PR #312 claim protokolu (cüt disburse qorunması):
+	//   1) pending_signature → disbursing (atomik claim)
+	//   2) AZMK disburse sorğusu yalnız claim qazanılıbsa göndərilir
+	//   3) uğur → disbursed; xəta → disburse_failed (auto-retry YOXDUR)
+	claimed, err := s.repo.ClaimForDisburse(ctx, app.ID)
+	if err != nil {
+		slog.Warn("PR #312: sign worker — claim for disburse failed (will retry next tick)",
+			"application_id", id, "error", err)
+		return
+	}
+	if !claimed {
+		slog.Info("PR #312: sign worker — disburse already claimed by another process, skipping",
+			"application_id", id)
+		return
+	}
+
 	disburseReq := &azmk.DisburseRequest{
 		LoanData: azmk.LoanData{
-			ApplicationID: app.LwApplicationID,
+			ApplicationID: app.LwApplicationID, // AZMK təsdiqi: disburse applicationId istifadə edir
 			CardID:        app.CardID,
 		},
 	}
 	if err := s.azmkProvider.Disburse(ctx, disburseReq); err != nil {
-		slog.Error("PR #312: sign worker — disburse failed (will retry next tick)",
+		// Xətanın nəticəsi naməlum ola bilər (timeout = AZMK icra etmiş ola bilər)
+		// → auto-retry YOXDUR, manual review üçün disburse_failed et.
+		reason := fmt.Sprintf("AZMK disburse xətası: %v", err)
+		applied, markErr := s.repo.MarkDisburseFailed(ctx, app.ID, reason)
+		if markErr != nil {
+			slog.Error("PR #312: sign worker — disburse failed AND marking failed (stuck in disbursing, next tick will mark disburse_failed)",
+				"application_id", id, "disburse_error", err, "mark_error", markErr)
+			return
+		}
+		slog.Error("PR #312: disburse failed — marked disburse_failed, manual review required (NO auto-retry)",
 			"application_id", id,
 			"lw_application_id", app.LwApplicationID,
 			"card_id", app.CardID,
-			"error", err)
+			"disburse_error", err,
+			"marked", applied)
 		return
 	}
 
-	// Guarded update: yalnız hələ pending_signature-dursa disbursed et.
-	applied, err := s.repo.MarkDisbursedIfPendingSignature(ctx, app.ID)
+	// Guarded update: disbursing → disbursed.
+	applied, err := s.repo.MarkDisbursedFromDisbursing(ctx, app.ID)
 	if err != nil {
-		slog.Error("PR #312: sign worker — disbursed amma status yazıla bilmədi (DB xətası)",
+		// Disburse UĞURLU amma status yazıla bilmədi — status disbursing qalır,
+		// növbəti tick-də stuck-sweep onu disburse_failed edəcək (nəticə naməlum
+		// kimi) → admin AZMK-da yoxlayıb manual disbursed edər. Təkrar disburse YOX.
+		slog.Error("PR #312: sign worker — disburse OK ama status yazıla bilmədi (next tick marks disburse_failed, manual fix needed)",
 			"application_id", id, "error", err)
 		return
 	}
 	if !applied {
 		slog.Warn("PR #312: sign worker — status dəyişib, disbursed yazılmadı",
-			"application_id", id, "current_status", app.Status)
+			"application_id", id)
 		return
 	}
 

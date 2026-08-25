@@ -628,9 +628,16 @@ func (s *ApplicationService) ListPendingApproval(ctx context.Context) ([]model.L
 	if err != nil {
 		return nil, fmt.Errorf("failed to list pending_signature: %w", err)
 	}
+	// PR #312: disburse_failed — disburse xətası/nəticəsi naməlum, manual
+	// yoxlama tələb olunur — admin bunu dashboard-da görməlidir.
+	failedApps, err := s.repo.ListByStatus(ctx, model.StatusDisburseFailed)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list disburse_failed: %w", err)
+	}
 	// Birləşdir və tarixə görə sırala (oldest first)
 	all := append(expertApps, approvalApps...)
 	all = append(all, signApps...)
+	all = append(all, failedApps...)
 	// Bubble sort by CreatedAt (kiçik list üçün kifayətdir)
 	for i := 0; i < len(all); i++ {
 		for j := i + 1; j < len(all); j++ {

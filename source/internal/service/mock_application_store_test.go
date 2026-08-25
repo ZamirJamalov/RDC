@@ -513,7 +513,15 @@ func (m *mockApplicationStore) UpdateAzmkLoanID(_ context.Context, _ int, _ stri
 	return nil
 }
 
-func (m *mockApplicationStore) MarkDisbursedIfPendingSignature(_ context.Context, _ int) (bool, error) {
+func (m *mockApplicationStore) ClaimForDisburse(_ context.Context, _ int) (bool, error) {
+	return true, nil
+}
+
+func (m *mockApplicationStore) MarkDisbursedFromDisbursing(_ context.Context, _ int) (bool, error) {
+	return true, nil
+}
+
+func (m *mockApplicationStore) MarkDisburseFailed(_ context.Context, _ int, _ string) (bool, error) {
 	return true, nil
 }
 

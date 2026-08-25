@@ -476,7 +476,7 @@ func (r *ApplicationRepo) HasPendingApplication(ctx context.Context, customerPIN
 	var status string
 	err := r.db.QueryRowContext(ctx, `
                 SELECT TOP 1 id, status FROM loan_applications
-                WHERE customer_pin = ? AND status IN ('pending', 'checking', 'pending_approval', 'pending_expert', 'pending_signature')
+                WHERE customer_pin = ? AND status IN ('pending', 'checking', 'pending_approval', 'pending_expert', 'pending_signature', 'disbursing', 'disburse_failed')
                 ORDER BY id DESC`, customerPIN).Scan(&appID, &status)
 	if err != nil {
 		if err == sql.ErrNoRows {

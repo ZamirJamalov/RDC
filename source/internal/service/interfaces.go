@@ -111,9 +111,15 @@ type ApplicationStore interface {
 	UpdateAzmkCreated(ctx context.Context, id int, lwApplicationID string) error
 	// UpdateAzmkLoanID saves the AZMK loanId from GET /application/{id}/status.
 	UpdateAzmkLoanID(ctx context.Context, id int, loanID string) error
-	// MarkDisbursedIfPendingSignature atomically sets status=disbursed; returns
-	// false if the app was no longer pending_signature (concurrent change).
-	MarkDisbursedIfPendingSignature(ctx context.Context, id int) (bool, error)
+	// ClaimForDisburse atomically transitions pending_signature → disbursing;
+	// returns true if this caller won the claim (only then may it call Disburse).
+	// Cüt disburse qorunması — AZMK təkrar sorğunu idempotent rədd etmir.
+	ClaimForDisburse(ctx context.Context, id int) (bool, error)
+	// MarkDisbursedFromDisbursing transitions disbursing → disbursed (guarded).
+	MarkDisbursedFromDisbursing(ctx context.Context, id int) (bool, error)
+	// MarkDisburseFailed transitions disbursing → disburse_failed (manual review,
+	// auto-retry YOXDUR). Xəta rejection_reason-də saxlanılır.
+	MarkDisburseFailed(ctx context.Context, id int, reason string) (bool, error)
 	// ExpireAzmkSignIfTimeout rejects the app if azmk_created_at is older than
 	// timeoutSeconds; returns true if this call expired it.
 	ExpireAzmkSignIfTimeout(ctx context.Context, id int, timeoutSeconds int) (bool, error)
