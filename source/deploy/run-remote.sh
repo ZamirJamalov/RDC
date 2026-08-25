@@ -28,6 +28,7 @@ grep -q '^MIGRATIONS_DROP_RECREATE=true' "${ENV_FILE}" && echo "⚠ XƏBƏRDARLI
 # rdc istifadəçisi onu /dev/stdin-dən AÇA BİLMƏZ ("Permission denied").
 ssh "${TARGET}" '
   pkill -x rdc 2>/dev/null && { echo "== köhnə rdc dayandırıldı"; sleep 1; }
+  stat -c "== binary build vaxtı: %y (run-remote.sh build ETMİR!)" /opt/rdc/rdc 2>/dev/null || true
   set -a; . /dev/stdin; set +a
   su -m -s /bin/bash rdc -c "cd /opt/rdc && { nohup /opt/rdc/rdc >> /opt/rdc/monitoring/app.log 2>&1 < /dev/null & }"
   sleep 2
