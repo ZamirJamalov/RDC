@@ -19,6 +19,16 @@ ENV_FILE="$(cd "$(dirname "$0")" && pwd)/rdc.env"
 [ -f "${ENV_FILE}" ] || { echo "XƏTA: ${ENV_FILE} yoxdur (cp env.example rdc.env)"; exit 1; }
 grep -q '^MIGRATIONS_DROP_RECREATE=true' "${ENV_FILE}" && echo "⚠ XƏBƏRDARLIQ: DB SİLİNƏCƏK (MIGRATIONS_DROP_RECREATE=true)!" || true
 
+# PR #309: 'su -m rdc' (parolsuz) yalnız ROOT ssh seansında mümkündür.
+# root@ olmayan targetdə uzaq tərəf aydın xəta verəcək — burada qabaqcadan warning.
+case "${TARGET}" in
+    root@*) ;;
+    *)
+        echo "[UYARI] Target root deyil ('${TARGET}') — 'su rdc' uzaqda parol soruşub çökəcək."
+        echo "[UYARI] Doğrusu:  bash deploy/run-remote.sh root@server"
+        ;;
+esac
+
 # ===================== ƏSAS HİSSƏ =====================
 # Ardıcıllıq (PR #303 düzəlişi):
 #   1) env ROOT shell-də oxunur:        set -a; . /dev/stdin; set +a
@@ -27,6 +37,13 @@ grep -q '^MIGRATIONS_DROP_RECREATE=true' "${ENV_FILE}" && echo "⚠ XƏBƏRDARLI
 # Niyə env su-dan ƏVVƏL oxunur: ssh stdin-i root-a aid pipe-dır (mode 600),
 # rdc istifadəçisi onu /dev/stdin-dən AÇA BİLMƏZ ("Permission denied").
 ssh "${TARGET}" '
+  # PR #309: root yoxlaması — su rdc (parolsuz) yalnız root üçün işləyir.
+  # Əks halda su Password: soruşur (rdc-in parolu yoxdur) → Authentication failure.
+  if [ "$(id -u)" -ne 0 ]; then
+      echo "XƏTA: ssh seansı ROOT deyil — su rdc üçün root lazımdır."
+      echo "İstifadə: bash deploy/run-remote.sh root@bu-server"
+      exit 1
+  fi
   pkill -x rdc 2>/dev/null && { echo "== köhnə rdc dayandırıldı"; sleep 1; }
   stat -c "== binary build vaxtı: %y (run-remote.sh build ETMİR!)" /opt/rdc/rdc 2>/dev/null || true
   set -a; . /dev/stdin; set +a
