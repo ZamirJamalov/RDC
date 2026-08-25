@@ -94,8 +94,38 @@ istifadəçi üçün parolsuz sudo (`sudo -n`) tələb olunur.
 |---|---|
 | Başlat / restart | `bash deploy/run-remote.sh user@server` |
 | Status | `ssh user@server 'pgrep -x rdc; tail -20 /opt/rdc/monitoring/app.log'` |
+| Logları canlı izlə | `ssh user@server 'tail -f /opt/rdc/monitoring/app.log'` (çıxmaq: Ctrl+C) |
 | Dayandır | `ssh user@server 'pkill -x rdc'` |
 | Parametr dəyiş | `deploy/rdc.env` redaktə et → restart əmri |
+
+### `nohup`-dan sonra prosesi necə tapmaq olar?
+
+`nohup` prosesi terminaldan qoparıb sistemə verir — bundan sonra o **hər hansı
+terminalın "içində" deyil**. Ona görə onu PID/ilə və ya **adı ilə** (`rdc`)
+tapırsınız, çıxışı isə `app.log` faylına gedir (ekranı yoxdur):
+
+```bash
+ssh user@server 'pgrep -x rdc'        # PID göstərir (məs: 722)
+ssh user@server 'ps aux | grep rdc'   # tam məlumat (nə vaxtdan işləyir və s.)
+```
+
+Vacib: **restart üçün heç nə axtarmaq lazım deyil** — `run-remote.sh` özü
+əvvəl köhnə prosesi öldürür (`pkill -x rdc`), sonra yenisini başladır.
+
+### Ssenari: bir günün axını
+
+```
+1. bash deploy/run-remote.sh user@server      → "rdc İŞLƏYİR ✓ PID: 722"
+2. Laptopun qapağını bağlayırsınız            → app İŞLƏMƏYƏ DAVAM EDİR
+3. Sabah yoxlamaq istəyirsiniz:
+   ssh user@server 'pgrep -x rdc'             → 722  (tapdınız ✓)
+4. Parametr dəyişmək istəyirsiniz:
+   rdc.env-i redaktə edirsiniz → run-remote.sh
+   → "köhnə rdc dayandırıldı" → "İŞLƏYİR ✓ PID: 801" (yeni proses)
+```
+
+Qeyd: logları brauzerdən də izləmək olar — Grafana `http://<server>:3001`
+→ Explore → `{job="go-app"}` (bax: bölmə 7). Terminala ehtiyac qalmır.
 
 ## 7. Loglar → Loki
 
