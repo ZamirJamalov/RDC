@@ -34,3 +34,6 @@ Thumbs.db
 # Build artifacts
 /bin/
 /dist/
+
+# PR #306: bütün .env faylları — parol saxlaya bilər (deploy/env.example tutulmur)
+*.env
