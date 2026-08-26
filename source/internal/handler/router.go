@@ -79,6 +79,8 @@ func NewRouter(
 	mux.Handle("POST /api/applications/init/verify", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.VerifyInitApplication)))
 	mux.HandleFunc("POST /api/applications", appHandler.Create)
 	mux.HandleFunc("POST /api/applications/{id}/customer-confirm", appHandler.CustomerConfirm) // PR #58
+	// PR #313: müştərinin AZMK-da qeydiyyatda olan kartları (maskalı) — apply səhifəsi üçün
+	mux.Handle("GET /api/applications/{id}/cards", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.GetCustomerCards)))
 	// PR #149: Changed GET → POST (FIN in body, not URL query param)
 	mux.Handle("POST /api/applications/offer", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.GetOffer)))
 	mux.HandleFunc("GET /api/applications/{id}", appHandler.GetByID)
