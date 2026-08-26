@@ -114,6 +114,12 @@
         }
         .input-field::placeholder { color: var(--alpul-text-soft); opacity: 0.5; }
 
+        /* PR #316: kart seçimi dropdown-u — açılan siyahı da theme rənglərində olsun */
+        select.input-field option {
+            background: var(--alpul-input-bg);
+            color: var(--alpul-text);
+        }
+
         input[type="range"] {
             -webkit-appearance: none;
             appearance: none;
@@ -540,23 +546,21 @@
                         <span x-show="cardsLoading" class="text-xs text-gray-500 ml-2">yüklənir...</span>
                     </label>
 
-                    <!-- Köhnə kartlar + "yeni kart" seçimi (yalnız kartlar olanda görünür) -->
-                    <div x-show="savedCards.length > 0" x-cloak class="space-y-2 mb-3">
-                        <template x-for="card in savedCards" :key="card.id">
-                            <label class="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition"
-                                   :class="selectedCardId === card.id ? 'border-teal-500/60 bg-teal-500/10' : 'border-white/10 bg-black/20 hover:bg-white/5'">
-                                <input type="radio" name="savedCardChoice" :value="card.id" x-model="selectedCardId"
-                                       class="w-4 h-4 accent-teal-500 flex-shrink-0">
-                                <span class="font-mono text-sm tracking-wider text-gray-200" x-text="card.code"></span>
-                                <span class="text-xs text-gray-500 ml-auto">bitmə: <span x-text="card.expiring"></span></span>
-                            </label>
-                        </template>
-                        <label class="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition"
-                               :class="selectedCardId === '' ? 'border-teal-500/60 bg-teal-500/10' : 'border-white/10 bg-black/20 hover:bg-white/5'">
-                            <input type="radio" name="savedCardChoice" value="" x-model="selectedCardId"
-                                   class="w-4 h-4 accent-teal-500 flex-shrink-0">
-                            <span class="text-sm text-gray-300 font-semibold">Başqa kart istifadə edəcəyəm (yeni kart daxil et)</span>
-                        </label>
+                    <!-- PR #316: köhnə kartlar radio siyahısı → dropdown (kart çox olanda uzun siyahı pis görünürdü).
+                         Yalnız maskalı kod göstərilir; son seçim "yeni kart daxil et" (value="") → klassik axın. -->
+                    <div x-show="savedCards.length > 0" x-cloak class="mb-3">
+                        <div class="relative">
+                            <select x-model="selectedCardId"
+                                    class="input-field w-full px-4 py-3.5 pr-10 rounded-xl text-base font-mono tracking-wider cursor-pointer appearance-none">
+                                <template x-for="card in savedCards" :key="card.id">
+                                    <option :value="card.id" x-text="card.code"></option>
+                                </template>
+                                <option value="">Başqa kart istifadə edəcəyəm (yeni kart daxil et)</option>
+                            </select>
+                            <svg class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4" style="color: var(--alpul-text-soft)" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </div>
                     </div>
 
                     <!-- Yeni kart daxiletmə: kartlar yoxdursa HƏMİŞƏ; kartlar varsa yalnız "yeni kart" seçiləndə -->
