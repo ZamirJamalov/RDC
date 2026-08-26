@@ -149,10 +149,10 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
                         s.markDiscountCodeUsed(ctx, app.DiscountCode, id)
                 }
 
-                // PR #95: generate a new discount code for the approved customer and
-                // send an SMS with the code. The customer can share this code with
-                // others to give them a commission discount on their next loan.
-                s.generateAndSendDiscountSMS(ctx, id, app.CustomerPIN, app.CustomerPhone)
+                // PR #319 (plan R1 — pre_referal_code_plan.md): referal kodunun
+                // generasiyası approve-dan köçürüldü — disburse success-da baş verir
+                // (referralOnDisburseSuccess, sign worker). Yalnız icra olunan kredit
+                // referal hüququ qazandırır.
 
                 // PR #312: AZMK Application create → pending_signature.
                 // İmza yoxlaması və disburse artıq background worker-dadır
@@ -278,53 +278,93 @@ func (s *ApplicationService) markDiscountCodeUsed(ctx context.Context, code stri
                 "code_id", dc.ID)
 }
 
-// generateAndSendDiscountSMS generates a new discount code for the approved
-// customer and sends an SMS with the code. Best-effort: failures are logged
-// but do not fail the approval.
-//
-// The SMS informs the customer that their loan was approved and gives them a
-// code they can share with others (who will get a commission discount on
-// their next loan).
-func (s *ApplicationService) generateAndSendDiscountSMS(ctx context.Context, appID int, customerPIN, customerPhone string) {
-        if s.discountSvc == nil {
+// referralOnDisburseSuccess — PR #319 (pre_referal_code_plan.md, R1+R4):
+// disburse success → 1) FIN-ə bağlı referal kodu generasiya et və store et
+// (idempotent), 2) kodu müştəriyə SMS ilə göndər (variant a — kod birbaşa
+// ötürülür, əlavə DB oxuması yoxdur).
+// Sıralama kritikdir: R1 (generasiya) → R4 (SMS).
+// Bütün addımlar non-fatal — disburse uğuruna təsir etmir.
+func (s *ApplicationService) referralOnDisburseSuccess(ctx context.Context, app *model.LoanApplication) {
+        code := s.generateAndStoreReferralCode(ctx, app) // R1
+        if code == nil {
                 return
         }
-
-        // Look up the customer to get their ID (needed for code generation).
-        customer, err := s.customerRepo.GetByPIN(ctx, customerPIN)
-        if err != nil {
-                slog.Error("approval: failed to fetch customer for discount code generation",
-                        "application_id", appID,
-                        "customer_pin", customerPIN,
-                        "error", err)
-                return
-        }
-
-        // Generate a new discount code owned by this customer.
-        newCode, err := s.discountSvc.GenerateForApplication(ctx, appID, customer.ID)
-        if err != nil {
-                slog.Error("approval: failed to generate discount code (non-fatal)",
-                        "application_id", appID,
-                        "customer_pin", customerPIN,
-                        "error", err)
-                return
-        }
-
-        // PR #284: kod approve zamanı generasiya olunur, amma SMS burada göndərilmir —
-        // referal SMS-i disburse success-də göndərilir (sendReferralSMSOnDisburse).
-        slog.Info("approval: discount code generated (referral SMS will be sent on disburse success, PR #284)",
-                "application_id", appID,
-                "customer_pin", customerPIN,
-                "discount_code", newCode.Code)
+        s.sendReferralSMSWithCode(ctx, app, code) // R4
 }
 
-// sendReferralSMSOnDisburse sends the referral SMS after a successful disburse (PR #284).
+// generateAndStoreReferralCode — plan R1: disburse success zamanı referal kodunun
+// generasiyası və store edilməsi.
+//
+// Prerequisite fix (plan): init axını customers row yaratmadığı üçün burada
+// GetOrCreate çağırılır — customers row yoxdursa yaradılır (FIN + full_name + phone).
+//
+// İdempotentlik: bu application üçün kod artıq mövcuddursa (GetByApplicationID)
+// yeni kod YARADILMIR, mövcud kod qaytarılır (təkrar disburse/poll dublikat yaratmır).
+//
+// discount_value parametri REFERRAL_DISCOUNT_PERCENT-dən götürülür (plan R1/R2).
+// Xəta halında nil qaytarır — çağıran tərəf yalnız log edir (non-fatal).
+func (s *ApplicationService) generateAndStoreReferralCode(ctx context.Context, app *model.LoanApplication) *model.DiscountCode {
+        if s.discountSvc == nil {
+                slog.Warn("disburse: discountSvc nil — referal kod generasiya olunmadı",
+                        "application_id", app.ID)
+                return nil
+        }
+        if app.CustomerPIN == "" {
+                slog.Warn("disburse: customer_pin empty — referal kod generasiya olunmadı",
+                        "application_id", app.ID)
+                return nil
+        }
+
+        // Prerequisite fix: customers row-u yoxdursa yarat (init axını yaratmır)
+        customer := &model.Customer{
+                CustomerPIN: app.CustomerPIN,
+                FullName:    app.CustomerFullName,
+                Phone:       app.CustomerPhone,
+        }
+        if err := s.customerRepo.GetOrCreate(ctx, customer); err != nil {
+                slog.Error("disburse: failed to get/create customer for referral code (non-fatal)",
+                        "application_id", app.ID,
+                        "customer_pin", app.CustomerPIN,
+                        "error", err)
+                return nil
+        }
+
+        // İdempotentlik: bu application üçün kod artıq varsa yenidən yaratma
+        if existing, err := s.discountSvc.repo.GetByApplicationID(ctx, app.ID); err == nil {
+                slog.Info("disburse: referral code already exists for application — reusing",
+                        "application_id", app.ID,
+                        "discount_code", existing.Code)
+                return existing
+        }
+
+        // discount_value = REFERRAL_DISCOUNT_PERCENT (parametrik, plan R1/R2)
+        code, err := s.discountSvc.GenerateForApplicationWithValue(ctx, app.ID, customer.ID, float64(s.referralDiscountPercent))
+        if err != nil {
+                slog.Error("disburse: failed to generate referral code (non-fatal)",
+                        "application_id", app.ID,
+                        "customer_pin", app.CustomerPIN,
+                        "error", err)
+                return nil
+        }
+
+        slog.Info("disburse: referral code generated and stored (PR #319, plan R1)",
+                "application_id", app.ID,
+                "customer_pin", app.CustomerPIN,
+                "customer_id", customer.ID,
+                "discount_code", code.Code,
+                "discount_value", code.DiscountValue)
+
+        return code
+}
+
+// sendReferralSMSWithCode sends the referral SMS after a successful disburse
+// (PR #284 → PR #319, plan R4 variant a: kod R1-dən birbaşa ötürülür).
 // Text: "Endirim kodunu dostunla paylaş,dostun X% endirimlə kredit əldə etsin,sən də
 // növbəti kreditində X% endirim qazan! Kod: 123456(referal kodu)"
-// X% — REFERRAL_DISCOUNT_PERCENT konfiqurasiyasından (referralDiscountPercent).
-// Kod — approve zamanı generasiya olunmuş referal kodu (GetByApplicationID).
+// X% — kodun discount_value sahəsindən (generateAndStoreReferralCode tərəfindən
+// REFERRAL_DISCOUNT_PERCENT ilə yazılır); fallback: referralDiscountPercent, 5.
 // Bütün xətalar non-fatal — disburse uğuru təsirlənmir.
-func (s *ApplicationService) sendReferralSMSOnDisburse(ctx context.Context, app *model.LoanApplication) {
+func (s *ApplicationService) sendReferralSMSWithCode(ctx context.Context, app *model.LoanApplication, code *model.DiscountCode) {
         if s.smsProvider == nil {
                 slog.Warn("disburse: smsProvider nil — referral SMS göndərilə bilmədi",
                         "application_id", app.ID)
@@ -335,22 +375,16 @@ func (s *ApplicationService) sendReferralSMSOnDisburse(ctx context.Context, app 
                         "application_id", app.ID)
                 return
         }
-        if s.discountSvc == nil {
-                slog.Warn("disburse: discountSvc nil — referral SMS göndərilə bilmədi",
+        if code == nil {
+                slog.Warn("disburse: referral code nil — SMS göndərilə bilmədi",
                         "application_id", app.ID)
                 return
         }
 
-        // Approve zamanı generasiya olunmuş kodu tap
-        code, err := s.discountSvc.repo.GetByApplicationID(ctx, app.ID)
-        if err != nil {
-                slog.Error("disburse: failed to fetch referral code for application (non-fatal)",
-                        "application_id", app.ID,
-                        "error", err)
-                return
+        percent := int(code.DiscountValue)
+        if percent <= 0 {
+                percent = s.referralDiscountPercent
         }
-
-        percent := s.referralDiscountPercent
         if percent <= 0 {
                 percent = 5 // default
         }
