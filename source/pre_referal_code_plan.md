@@ -1,7 +1,8 @@
 # Pre-Referal Kod Planı (Referal kod sistemi — gələcək implementasiya planı)
 
-> Status: **PLAN (implementasiya olunmayıb)** · Tarix: 2026-08-26 ·
-> Müəllif: Zamir · Əlaqəli analiz: 2026-08-26 disburse log analizi (run 1 fee=0 xətası + `sql: no rows` zənciri)
+> Status: **PLAN — R1+R4 implementasiya olundu (PR #319), R2 gələcək işdir** ·
+> Tarix: 2026-08-26 · Müəllif: Zamir ·
+> Əlaqəli analiz: 2026-08-26 disburse log analizi (run 1 fee=0 xətası + `sql: no rows` zənciri)
 
 ## Məqsəd
 

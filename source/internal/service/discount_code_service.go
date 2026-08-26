@@ -70,7 +70,7 @@ const (
 )
 
 // GenerateForApplication creates a new discount code owned by the customer
-// whose application was just approved.
+// whose application was just approved. Uses DefaultDiscountValue (2%).
 //
 // The code is generated with a cryptographically-secure random suffix and
 // retried on collision (defensive — keyspace is ~1B). The code is stored
@@ -78,11 +78,22 @@ const (
 //
 // Returns the newly-created DiscountCode (with ID + CreatedAt populated).
 func (s *DiscountCodeService) GenerateForApplication(ctx context.Context, appID, customerID int) (*model.DiscountCode, error) {
+        return s.GenerateForApplicationWithValue(ctx, appID, customerID, DefaultDiscountValue)
+}
+
+// GenerateForApplicationWithValue creates a discount code with an explicit
+// discount_value (PR #319, plan R1 — pre_referal_code_plan.md: disburse success-də
+// generasiya olunan referal kodunun dəyəri REFERRAL_DISCOUNT_PERCENT-dən gəlir).
+// discountValue <= 0 olduqda DefaultDiscountValue istifadə olunur.
+func (s *DiscountCodeService) GenerateForApplicationWithValue(ctx context.Context, appID, customerID int, discountValue float64) (*model.DiscountCode, error) {
         if appID <= 0 {
                 return nil, fmt.Errorf("invalid application id")
         }
         if customerID <= 0 {
                 return nil, fmt.Errorf("invalid customer id")
+        }
+        if discountValue <= 0 {
+                discountValue = DefaultDiscountValue
         }
 
         var created *model.DiscountCode
@@ -112,7 +123,7 @@ func (s *DiscountCodeService) GenerateForApplication(ctx context.Context, appID,
                         IssuedToCustomerID:      customerID,
                         IssuedFromApplicationID: &appID,
                         DiscountType:            DefaultDiscountType,
-                        DiscountValue:           DefaultDiscountValue,
+                        DiscountValue:           discountValue,
                         Status:                  model.DiscountStatusActive,
                 }
 

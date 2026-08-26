@@ -232,6 +232,8 @@ func (s *ApplicationService) pollOneSignature(ctx context.Context, id, timeoutS 
 		"amount", app.TotalAmount,
 		"card_id", app.CardID)
 
-	// PR #284: disburse success — müştəriyə referal kodu SMS-i (non-fatal)
-	s.sendReferralSMSOnDisburse(ctx, app)
+	// PR #319 (pre_referal_code_plan.md R1+R4): disburse success →
+	// FIN-ə bağlı referal kodu generasiya et + store et, sonra müştəriyə SMS
+	// göndər (sıralama: R1 generasiya → R4 SMS; non-fatal).
+	s.referralOnDisburseSuccess(ctx, app)
 }
