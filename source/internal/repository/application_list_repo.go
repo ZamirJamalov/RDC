@@ -14,6 +14,7 @@ import (
 // ListByStatus retrieves all applications with the given status, ordered by
 // oldest first (FIFO — experts should review the oldest applications first).
 // Used by the expert queue endpoint to list pending_approval applications.
+// PR #313: rejection_reason de qaytarilir — "Imtina olunmus" tab-da sebeb gosterilir.
 //
 // PR #94: includes discount_code so the expert dashboard can show whether
 // the customer entered a referral code (transparency for the decision).
@@ -23,6 +24,7 @@ func (r *ApplicationRepo) ListByStatus(ctx context.Context, status string) ([]mo
                        loan_purpose, status, credit_level, approved_amount, approved_rate,
                        total_amount,
                        discount_code,
+                       rejection_reason,
                        created_at, updated_at
                 FROM loan_applications
                 WHERE status = ?
@@ -36,13 +38,13 @@ func (r *ApplicationRepo) ListByStatus(ctx context.Context, status string) ([]mo
         for rows.Next() {
                 var app model.LoanApplication
                 var rawPublicID mssql.UniqueIdentifier
-                var creditLevel, loanPurpose, discountCode sql.NullString
+                var creditLevel, loanPurpose, discountCode, rejectionReason sql.NullString
                 var approvedAmount, approvedRate, totalAmount sql.NullFloat64
                 if err := rows.Scan(
                         &app.ID, &rawPublicID, &app.CustomerPIN, &app.CustomerFullName, &app.Amount,
                         &app.TermMonths, &loanPurpose, &app.Status, &creditLevel,
                         &approvedAmount, &approvedRate, &totalAmount,
-                        &discountCode,
+                        &discountCode, &rejectionReason,
                         &app.CreatedAt, &app.UpdatedAt,
                 ); err != nil {
                         return nil, fmt.Errorf("failed to scan application: %w", err)
@@ -54,6 +56,7 @@ func (r *ApplicationRepo) ListByStatus(ctx context.Context, status string) ([]mo
                 app.ApprovedRate = approvedRate.Float64
                 app.TotalAmount = totalAmount.Float64 // PR #224
                 app.DiscountCode = discountCode.String
+                app.RejectionReason = rejectionReason.String // PR #313
                 apps = append(apps, app)
         }
         if err = rows.Err(); err != nil {
