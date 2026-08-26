@@ -75,6 +75,8 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
 	var discountAmount sql.NullFloat64
 	// PR #116: AZMK Online Lending fields
 	var kycID, partnerID, cardID, lwApplicationID sql.NullString
+	// PR #312: AZMK imza axını sahələri
+	var azmkLoanID, azmkCreatedAt sql.NullString
 	// PR #124: kontakt yoxlanma statusu
 	var contact1Verified, contact2Verified, contact3Verified sql.NullBool
 	// PR #266: kontakt zəng qeydləri
@@ -103,7 +105,7 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
                        card_number, customer_phone, customer_serial,
                        customer_confirmed_at, card_ownership_confirmed,
                        discount_code, discount_amount,
-                       kyc_id, partner_id, card_id, lw_application_id,
+                       kyc_id, partner_id, card_id, lw_application_id, azmk_loan_id, azmk_created_at,
                        timer_seconds,
                        processed_by_user_id, processed_by_username,
                        contacts_updated_by_user_id, contacts_updated_by_username, contacts_updated_at,
@@ -156,6 +158,8 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
 		&partnerID,
 		&cardID,
 		&lwApplicationID,
+	&azmkLoanID,
+	&azmkCreatedAt,
 		&app.TimerSeconds,
 		&processedByUserID,
 		&processedByUsername,
@@ -233,6 +237,9 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
 	app.PartnerID = partnerID.String
 	app.CardID = cardID.String
 	app.LwApplicationID = lwApplicationID.String
+	// PR #312: AZMK imza axını sahələri
+	app.AzmkLoanID = azmkLoanID.String
+	app.AzmkCreatedAt = azmkCreatedAt.String
 	// PR #142: processed_by fields
 	if processedByUserID.Valid {
 		uid := int(processedByUserID.Int64)
@@ -469,7 +476,7 @@ func (r *ApplicationRepo) HasPendingApplication(ctx context.Context, customerPIN
 	var status string
 	err := r.db.QueryRowContext(ctx, `
                 SELECT TOP 1 id, status FROM loan_applications
-                WHERE customer_pin = ? AND status IN ('pending', 'checking', 'pending_approval', 'pending_expert')
+                WHERE customer_pin = ? AND status IN ('pending', 'checking', 'pending_approval', 'pending_expert', 'pending_signature', 'disbursing', 'disburse_failed')
                 ORDER BY id DESC`, customerPIN).Scan(&appID, &status)
 	if err != nil {
 		if err == sql.ErrNoRows {

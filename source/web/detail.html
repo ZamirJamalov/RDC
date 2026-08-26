@@ -181,6 +181,10 @@
                       'bg-emerald-100 text-emerald-800': app?.status === 'approved',
                       'bg-rose-100 text-rose-800': app?.status === 'rejected',
                       'bg-teal-100 text-teal-800': app?.status === 'pending' || app?.status === 'checking' || app?.status === 'pending_expert' || app?.status === 'pending_customer',
+                      'bg-indigo-100 text-indigo-800': app?.status === 'pending_signature',
+                      'bg-blue-100 text-blue-800': app?.status === 'disbursed',
+                      'bg-orange-100 text-orange-800': app?.status === 'disbursing',
+                      'bg-rose-100 text-rose-700': app?.status === 'disburse_failed',
                       'bg-gray-200 text-gray-700': app?.status === 'cancelled'
                   }"
                   x-text="app?.status || ''">
@@ -495,6 +499,52 @@
                                 </div>
                             </div>
                         </template>
+                    </div>
+                </section>
+
+                <!-- PR #312: AZMK imza gözləmə paneli (pending_signature / disbursing / disbursed / disburse_failed) -->
+                <section x-show="app?.status === 'pending_signature' || app?.status === 'disbursing' || app?.status === 'disbursed' || app?.status === 'disburse_failed'" class="panel p-4 col-span-12">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="icon-chip">✍️</span>
+                        <h3 class="font-bold text-sm" x-text="app?.status === 'disbursed' ? 'Kredit verildi (disbursed)' : (app?.status === 'disbursing' ? 'Kredit köçürülür (disbursing)' : (app?.status === 'disburse_failed' ? 'Köçürmə xətası — manual yoxlama lazımdır' : 'Müqavilə imzası gözlənir'))"></h3>
+                    </div>
+                    <div class="bg-indigo-50 border border-indigo-200 rounded-lg p-3 text-sm text-indigo-900"
+                         x-show="app?.status === 'pending_signature'">
+                        AZMK-da kredit müraciəti yaradılıb. Müştəri müqaviləni imzalayana qədər
+                        sistem avtomatik olaraq statusu yoxlayır (hər bir neçə dəqiqədən bir).
+                        Müştəri imzaladıqda kredit avtomatik olaraq kartına köçürülür;
+                        3 saat ərzində imzalamasa müraciət avtomatik imtina edilir.
+                    </div>
+                    <div class="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-sm text-emerald-900"
+                         x-show="app?.status === 'disbursed'">
+                        Müştəri müqaviləni imzaladı və kredit məbləği kartına köçürüldü.
+                    </div>
+                    <div class="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm text-orange-900"
+                         x-show="app?.status === 'disbursing'">
+                        Müştəri imzaladı — AZMK disburse sorğusu göndərilir. Bu keçid statusdur
+                        (adətən bir neçə saniyə çəkir); proses bu anda yenidən başlayarsa
+                        müraciət avtomatik "manual yoxlama" statusuna keçəcək.
+                    </div>
+                    <div class="bg-rose-50 border border-rose-200 rounded-lg p-3 text-sm text-rose-900"
+                         x-show="app?.status === 'disburse_failed'">
+                        <div class="font-semibold mb-1">Köçürmə (disburse) alınmadı və ya nəticəsi naməlumdur.</div>
+                        Sistem təkrar cəhd ETMİR (cüt köçürmə riskinə görə). Zəhmət olmasa AZMK
+                        tərəfindən bu application üçün pulun keçib-keçmədiyini yoxlayın:
+                        <div class="font-mono break-all mt-1 bg-white/60 rounded p-1.5" x-text="app?.rejection_reason || '-'"></div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 text-sm">
+                        <div>
+                            <div class="text-gray-500 text-xs mb-0.5">AZMK Application ID</div>
+                            <div class="font-mono break-all" x-text="app?.lw_application_id || '-'"></div>
+                        </div>
+                        <div>
+                            <div class="text-gray-500 text-xs mb-0.5">AZMK Kredit № (loanId)</div>
+                            <div class="font-mono break-all" x-text="app?.azmk_loan_id || '-'"></div>
+                        </div>
+                        <div>
+                            <div class="text-gray-500 text-xs mb-0.5">Yaradılma vaxtı (AZMK)</div>
+                            <div class="font-mono break-all" x-text="app?.azmk_created_at || '-'"></div>
+                        </div>
                     </div>
                 </section>
 
@@ -843,7 +893,7 @@
 
                 // PR #135: read-only status — approved/rejected olanda bütün kontakt inputları disabled
                 get isReadOnly() {
-                    return this.app && (this.app.status === 'approved' || this.app.status === 'rejected');
+                    return this.app && (this.app.status === 'approved' || this.app.status === 'rejected' || this.app.status === 'pending_signature' || this.app.status === 'disbursed' || this.app.status === 'disbursing' || this.app.status === 'disburse_failed');
                 },
 
                 // PR #134: Timer display (00:00:00 format)
@@ -1263,7 +1313,7 @@
                         // PR #134/#225: Timer — pending_approval və pending_expert statusunda başlat
                         if (this.app && (this.app.status === 'pending_approval' || this.app.status === 'pending_expert') && !this.timerStopped) {
                             this.startTimer();
-                        } else if (this.app && (this.app.status === 'approved' || this.app.status === 'rejected')) {
+                        } else if (this.app && (this.app.status === 'approved' || this.app.status === 'rejected' || this.app.status === 'pending_signature' || this.app.status === 'disbursed' || this.app.status === 'disbursing' || this.app.status === 'disburse_failed')) {
                             this.stopTimer();
                         }
                     }

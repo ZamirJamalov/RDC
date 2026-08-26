@@ -154,11 +154,11 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
                 // others to give them a commission discount on their next loan.
                 s.generateAndSendDiscountSMS(ctx, id, app.CustomerPIN, app.CustomerPhone)
 
-                // PR #119: AZMK Application create + Sign check + Disburse
-                // Ekspert approve etdikdə AZMK-da kredit müraciəti yaradılır,
-                // imzalanma yoxlanılır və pul köçürülür.
+                // PR #312: AZMK Application create → pending_signature.
+                // İmza yoxlaması və disburse artıq background worker-dadır
+                // (StartAzmkSignWorker — GET /application/{id}/status polling).
                 if s.azmkProvider != nil && app.PartnerID != "" {
-                        if err := s.azmkCreateSignDisburse(ctx, app, totalAmount); err != nil {
+                        if err := s.azmkCreateApplication(ctx, app, totalAmount); err != nil {
                                 slog.Error("PR #283: AZMK approve flow failed — rolling back approval",
                                         "application_id", id,
                                         "error", err)
@@ -373,13 +373,19 @@ func (s *ApplicationService) sendReferralSMSOnDisburse(ctx context.Context, app 
                 "discount_percent", percent)
 }
 
-// azmkCreateSignDisburse performs the AZMK Online Lending approve flow:
+// azmkCreateApplication performs the first step of the AZMK approve flow:
 //   1. Application create (POST /application/create) → lw_application_id
-//   2. Sign check (GET /application/{id}/sign) — "already signed" yoxla
-//   3. Disburse (POST /application/disburse) — pulu karta köçür
+//   2. Müraciət pending_signature statusuna keçir — müştəri müqaviləni
+//      imzalayana qədər background worker gözləyir (PR #312)
 //
-// PR #119: ekspert approve zamanı çağrılır. Bütün addımlar best-effort:
-// xəta olanda approval uğurlu sayılır, AZMK xətası log lanır.
+// PR #312: imza yoxlaması (köhnə GET /application/{id}/sign) və disburse
+// buradan ÇIXARILDI — bunları StartAzmkSignWorker daemon-u görür:
+//   - hər AZMK_SIGN_POLL_INTERVAL_S saniyədə GET /application/{id}/status
+//   - signed=true → avtomatik disburse → status=disbursed
+//   - AZMK_SIGN_TIMEOUT_S (default 3 saat) bitərsə → rejected
+//
+// Xəta halında (create və ya DB yazı uğursuz) error qaytarır — çağıran
+// tərəf (UpdateStatus) approval-u rejected-ə rollback edir.
 //
 // LoanData sahələri:
 //   - clientId: partner_id (KYC/Partner registration-dan)
@@ -389,97 +395,61 @@ func (s *ApplicationService) sendReferralSMSOnDisburse(ctx context.Context, app 
 //   - branchCode: config-dən (AZMK_BRANCH_CODE)
 //   - interestRate: annual_interest_rate (credit_levels-dən) — AZMK KƏSR formatında göndərilir: 48 → 0.48, 30 → 0.30 (PR #311)
 //   - disbursementFee: config-dən (AZMK_DISBURSEMENT_FEE, həmişə 0)
-func (s *ApplicationService) azmkCreateSignDisburse(ctx context.Context, app *model.LoanApplication, totalAmount float64) error {
-        // annual_interest_rate-i credit_levels-dən al
-        approvedCount, _ := s.repo.CountApprovedAtLevel(ctx, app.CustomerPIN, app.CreditLevel)
-        unlockPhase := 1
-        if approvedCount > 0 {
-                unlockPhase = 2
-        }
-        annualInterestRate, err := s.repo.GetCreditLevelInterestRate(ctx, app.CreditLevel, app.Amount, app.TermMonths, unlockPhase)
-        if err != nil {
-                slog.Warn("AZMK: failed to fetch annual_interest_rate — using 0",
-                        "application_id", app.ID,
-                        "error", err)
-                annualInterestRate = 0
-        }
+func (s *ApplicationService) azmkCreateApplication(ctx context.Context, app *model.LoanApplication, totalAmount float64) error {
+	// annual_interest_rate-i credit_levels-dən al
+	approvedCount, _ := s.repo.CountApprovedAtLevel(ctx, app.CustomerPIN, app.CreditLevel)
+	unlockPhase := 1
+	if approvedCount > 0 {
+		unlockPhase = 2
+	}
+	annualInterestRate, err := s.repo.GetCreditLevelInterestRate(ctx, app.CreditLevel, app.Amount, app.TermMonths, unlockPhase)
+	if err != nil {
+		slog.Warn("AZMK: failed to fetch annual_interest_rate — using 0",
+			"application_id", app.ID,
+			"error", err)
+		annualInterestRate = 0
+	}
 
-        // 1. AZMK Application create
-        appReq := &azmk.ApplicationCreateRequest{
-                LoanData: azmk.LoanData{
-                        ClientID:        app.PartnerID,
-                        ProductID:       s.azmkProductID,
-                        Amount:          totalAmount,
-                        Term:            app.TermMonths,
-                        BranchCode:      s.azmkBranch,
-                        InterestRate:    annualInterestRate / 100.0, // PR #311: AZMK kəsr gözləyir (48 → 0.48)
-                        DisbursementFee: s.azmkDisbursementFee,
-                        LetterNumber:    "",
-                },
-        }
+	// 1. AZMK Application create
+	appReq := &azmk.ApplicationCreateRequest{
+		LoanData: azmk.LoanData{
+			ClientID:        app.PartnerID,
+			ProductID:       s.azmkProductID,
+			Amount:          totalAmount,
+			Term:            app.TermMonths,
+			BranchCode:      s.azmkBranch,
+			InterestRate:    annualInterestRate / 100.0, // PR #311: AZMK kəsr gözləyir (48 → 0.48)
+			DisbursementFee: s.azmkDisbursementFee,
+			LetterNumber:    "",
+		},
+	}
 
-        lwAppID, err := s.azmkProvider.CreateApplication(ctx, appReq)
-        if err != nil {
-                return fmt.Errorf("AZMK application create failed: %w", err)
-        }
+	lwAppID, err := s.azmkProvider.CreateApplication(ctx, appReq)
+	if err != nil {
+		return fmt.Errorf("AZMK application create failed: %w", err)
+	}
 
-        // lw_application_id saxla
-        app.LwApplicationID = lwAppID
-        if err := s.repo.UpdateApplicationDetails(ctx, app.ID, app); err != nil {
-                slog.Warn("AZMK: failed to save lw_application_id",
-                        "application_id", app.ID,
-                        "lw_application_id", lwAppID,
-                        "error", err)
-        }
+	// 2. Statusu pending_signature et + lw_application_id/azmk_created_at yaz.
+	// Bu yazı UĞURSUZ olsa error qaytarırıq (caller rejected-ə rollback edir) —
+	// əks halda AZMK-da yaranan application izsiz qalar və worker onu tapmaz.
+	if err := s.repo.UpdateAzmkCreated(ctx, app.ID, lwAppID); err != nil {
+		slog.Error("PR #312: failed to save pending_signature state",
+			"application_id", app.ID,
+			"lw_application_id", lwAppID,
+			"error", err)
+		return fmt.Errorf("AZMK application yaradıldı amma DB-ə yazıla bilmədi: %w", err)
+	}
+	app.LwApplicationID = lwAppID
 
-        // 2. Sign check — "already signed" yoxla
-        // Bu addım asinxron ola bilər (müştəri SIMA ilə imzalayana qədər gözləmək)
-        // Hazırda dərhal yoxlayırıq — əgər imzalanmayıbsa, disburse etmirik
-        signed, err := s.azmkProvider.CheckSign(ctx, lwAppID)
-        if err != nil {
-                slog.Warn("AZMK: sign check failed — skipping disburse",
-                        "application_id", app.ID,
-                        "lw_application_id", lwAppID,
-                        "error", err)
-                return nil // sign check xətası — disburse etmə
-        }
-        if !signed {
-                slog.Info("AZMK: contract not yet signed — disburse will be triggered later",
-                        "application_id", app.ID,
-                        "lw_application_id", lwAppID)
-                return nil // hələ imzalanmayıb — disburse etmə
-        }
+	slog.Info("PR #312: AZMK application created — waiting for customer signature",
+		"application_id", app.ID,
+		"lw_application_id", lwAppID,
+		"amount", totalAmount,
+		"term", app.TermMonths,
+		"interest_rate", annualInterestRate,
+		"interest_rate_sent", annualInterestRate/100.0)
 
-        // 3. Disburse — pulu karta köçür
-        disburseReq := &azmk.DisburseRequest{
-                LoanData: azmk.LoanData{
-                        ApplicationID: lwAppID,
-                        CardID:        app.CardID,
-                },
-        }
-
-        if err := s.azmkProvider.Disburse(ctx, disburseReq); err != nil {
-                slog.Error("AZMK: disburse failed",
-                        "application_id", app.ID,
-                        "lw_application_id", lwAppID,
-                        "card_id", app.CardID,
-                        "error", err)
-                return fmt.Errorf("AZMK disburse failed: %w", err)
-        }
-
-        slog.Info("PR #281: step 7-9 completed — AZMK full approve flow (create + sign + disburse)",
-                "application_id", app.ID,
-                "lw_application_id", lwAppID,
-                "card_id", app.CardID,
-                "amount", totalAmount,
-                "term", app.TermMonths,
-                "interest_rate", annualInterestRate,
-                "interest_rate_sent", annualInterestRate/100.0)
-
-        // PR #284: disburse success — müştəriyə referal kodu SMS-i göndər (non-fatal)
-        s.sendReferralSMSOnDisburse(ctx, app)
-
-        return nil
+	return nil
 }
 
 

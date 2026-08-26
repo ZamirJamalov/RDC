@@ -1,9 +1,9 @@
 package service
 
 import (
-	"time"
 	"context"
 	"database/sql"
+	"time"
 
 	"rdc-source/internal/model"
 	"rdc-source/internal/repository"
@@ -502,6 +502,32 @@ var errNotFound = errNotFoundSentinel{}
 type errNotFoundSentinel struct{}
 
 func (errNotFoundSentinel) Error() string { return "application not found (mock)" }
+
+// --- PR #312: AZMK imza gözləmə axını (minimal stubs) ---
+
+func (m *mockApplicationStore) UpdateAzmkCreated(_ context.Context, _ int, _ string) error {
+	return nil
+}
+
+func (m *mockApplicationStore) UpdateAzmkLoanID(_ context.Context, _ int, _ string) error {
+	return nil
+}
+
+func (m *mockApplicationStore) ClaimForDisburse(_ context.Context, _ int) (bool, error) {
+	return true, nil
+}
+
+func (m *mockApplicationStore) MarkDisbursedFromDisbursing(_ context.Context, _ int) (bool, error) {
+	return true, nil
+}
+
+func (m *mockApplicationStore) MarkDisburseFailed(_ context.Context, _ int, _ string) (bool, error) {
+	return true, nil
+}
+
+func (m *mockApplicationStore) ExpireAzmkSignIfTimeout(_ context.Context, _ int, _ int) (bool, error) {
+	return false, nil
+}
 
 // newMockStore returns a mockApplicationStore with sensible defaults:
 // no errors, empty results, commission=0, approvedCount=0. Tests should override

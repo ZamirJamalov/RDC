@@ -160,6 +160,10 @@ func main() {
 	}
 	appService.SetAzmkProvider(azmkProvider, cfg.AzmkBranchCode, cfg.AzmkCardExpiring, cfg.AzmkProductID, cfg.AzmkDisbursementFee)
 
+	// PR #312: AZMK imza gözləmə worker-ı — pending_signature müraciətlərini
+	// poll edir, imzalananda avtomatik disburse edir, vaxt bitəndə reject edir.
+	appService.StartAzmkSignWorker(cfg.AzmkSignPollIntervalS, cfg.AzmkSignTimeoutS)
+
 	// PR #163: Audit log — AZMK provider-lara DB əlaqəsi ver
 	if httpProvider, ok := azmkProvider.(*azmk.HTTPProvider); ok {
 		httpProvider.SetAuditDB(db, nil)

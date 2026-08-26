@@ -28,7 +28,7 @@ import (
 //   3. Partner       — POST /partner (PartnerData + kycId göndər → Partner ID qaytar)
 //   4. Card          — POST /card (CardData göndər → Card ID qaytar)
 //   5. App Create    — POST /application/create (LoanData göndər → Application ID qaytar)
-//   6. Sign          — GET  /application/{id}/sign (already signed yoxla)
+//   6. Sign Status   — GET  /application/{id}/status (loanId, loanStatus, smsSent, signed) — PR #312
 //   7. Disburse      — POST /application/disburse (LoanData + cardId göndər)
 //
 // Base URL nümunə: https://web.azmk.az:7077/LW_CREDIT_HOUSE/services/OnlineLendingService
@@ -50,8 +50,10 @@ type Provider interface {
         // CreateApplication creates a loan application and returns the Application ID.
         CreateApplication(ctx context.Context, req *ApplicationCreateRequest) (string, error)
 
-        // CheckSign checks if the application contract is signed.
-        CheckSign(ctx context.Context, applicationID string) (bool, error)
+	// GetApplicationStatus fetches the AZMK application status (sign + loan info).
+	// PR #312: GET /application/{id}/status — replaces the old /sign endpoint.
+	// The Signed field tells whether the customer signed the contract.
+	GetApplicationStatus(ctx context.Context, applicationID string) (*ApplicationStatus, error)
 
         // Disburse disburses the loan to the customer's card.
         Disburse(ctx context.Context, req *DisburseRequest) error
@@ -122,6 +124,18 @@ type ApplicationCreateRequest struct {
 // DisburseRequest is the body for POST /application/disburse.
 type DisburseRequest struct {
         LoanData LoanData `json:"LoanData"`
+}
+
+// ApplicationStatus is the response for GET /application/{id}/status.
+// PR #312: köhnə /sign endpoint-i əvəzinə bu struktur istifadə olunur.
+// Nümunə cavab:
+//
+//	{"loanId":"HO0030210","loanStatus":"S002","smsSent":true,"signed":false}
+type ApplicationStatus struct {
+	LoanID     string `json:"loanId"`     // AZMK kredit hesab nömrəsi (məs. "HO0030210")
+	LoanStatus string `json:"loanStatus"` // AZMK status kodu (məs. "S002")
+	SMSSent    bool   `json:"smsSent"`    // imza SMS-i göndərilibmi
+	Signed     bool   `json:"signed"`     // müştəri müqaviləni imzalayıb?
 }
 
 // ============================================================
@@ -517,16 +531,25 @@ func (p *HTTPProvider) CreateApplication(ctx context.Context, req *ApplicationCr
         return id, nil
 }
 
-// CheckSign checks if the application contract is signed.
-func (p *HTTPProvider) CheckSign(ctx context.Context, applicationID string) (bool, error) {
-        body, err := p.doGet(ctx, "/application/"+applicationID+"/sign")
-        if err != nil {
-                return false, err
-        }
-        signed := strings.Contains(strings.ToLower(body), "already signed") ||
-                strings.Contains(strings.ToLower(body), "signed")
-        slog.Info("PR #281: step 8 — AZMK Sign check", "step", "8.sign_check", "application_id", applicationID, "signed", signed)
-        return signed, nil
+// GetApplicationStatus fetches the AZMK application status via
+// GET /application/{id}/status. PR #312: replaces the old CheckSign
+// (GET /application/{id}/sign) endpoint which was incorrect.
+func (p *HTTPProvider) GetApplicationStatus(ctx context.Context, applicationID string) (*ApplicationStatus, error) {
+	body, err := p.doGet(ctx, "/application/"+applicationID+"/status")
+	if err != nil {
+		return nil, err
+	}
+	var st ApplicationStatus
+	if err := json.Unmarshal([]byte(body), &st); err != nil {
+		return nil, fmt.Errorf("parse application status response: %w", err)
+	}
+	slog.Info("PR #312: AZMK application status",
+		"application_id", applicationID,
+		"loan_id", st.LoanID,
+		"loan_status", st.LoanStatus,
+		"sms_sent", st.SMSSent,
+		"signed", st.Signed)
+	return &st, nil
 }
 
 // Disburse disburses the loan to the customer's card.
@@ -579,9 +602,20 @@ func (m *MockProvider) CreateApplication(_ context.Context, _ *ApplicationCreate
         return id, nil
 }
 
-func (m *MockProvider) CheckSign(_ context.Context, applicationID string) (bool, error) {
-        slog.Info("mock AZMK Sign check", "application_id", applicationID, "signed", true)
-        return true, nil
+func (m *MockProvider) GetApplicationStatus(_ context.Context, applicationID string) (*ApplicationStatus, error) {
+	st := &ApplicationStatus{
+		LoanID:     "MOCK-LOAN-0001",
+		LoanStatus: "S002",
+		SMSSent:    true,
+		Signed:     true, // mock: həmişə imzalanıb — worker dərhal disburse edir
+	}
+	slog.Info("mock AZMK application status",
+		"application_id", applicationID,
+		"loan_id", st.LoanID,
+		"loan_status", st.LoanStatus,
+		"sms_sent", st.SMSSent,
+		"signed", st.Signed)
+	return st, nil
 }
 
 func (m *MockProvider) Disburse(_ context.Context, req *DisburseRequest) error {

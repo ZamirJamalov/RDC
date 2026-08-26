@@ -105,6 +105,25 @@ type ApplicationStore interface {
 	// completes the application (used by CompleteApplication flow).
 	UpdateApplicationDetails(ctx context.Context, id int, app *model.LoanApplication) error
 
+	// PR #312: AZMK imza gözləmə axını (pending_signature → disbursed).
+	// UpdateAzmkCreated sets status=pending_signature + lw_application_id +
+	// azmk_created_at (UTC) after a successful AZMK application create.
+	UpdateAzmkCreated(ctx context.Context, id int, lwApplicationID string) error
+	// UpdateAzmkLoanID saves the AZMK loanId from GET /application/{id}/status.
+	UpdateAzmkLoanID(ctx context.Context, id int, loanID string) error
+	// ClaimForDisburse atomically transitions pending_signature → disbursing;
+	// returns true if this caller won the claim (only then may it call Disburse).
+	// Cüt disburse qorunması — AZMK təkrar sorğunu idempotent rədd etmir.
+	ClaimForDisburse(ctx context.Context, id int) (bool, error)
+	// MarkDisbursedFromDisbursing transitions disbursing → disbursed (guarded).
+	MarkDisbursedFromDisbursing(ctx context.Context, id int) (bool, error)
+	// MarkDisburseFailed transitions disbursing → disburse_failed (manual review,
+	// auto-retry YOXDUR). Xəta rejection_reason-də saxlanılır.
+	MarkDisburseFailed(ctx context.Context, id int, reason string) (bool, error)
+	// ExpireAzmkSignIfTimeout rejects the app if azmk_created_at is older than
+	// timeoutSeconds; returns true if this call expired it.
+	ExpireAzmkSignIfTimeout(ctx context.Context, id int, timeoutSeconds int) (bool, error)
+
 	// UpdateAkbScore updates only the akb_score field. PR #228.
 	UpdateAkbScore(ctx context.Context, id int, akbScore int) error
 

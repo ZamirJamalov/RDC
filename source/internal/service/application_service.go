@@ -608,9 +608,9 @@ func (s *ApplicationService) GetChecks(ctx context.Context, id int) ([]model.App
 	return s.repo.GetCheckResults(ctx, id)
 }
 
-// ListPendingApproval retrieves all applications in pending_expert or pending_approval status.
+// ListPendingApproval retrieves all applications in pending_expert, pending_approval və pending_signature (PR #312) statusunda olan müraciətləri qaytarır.
 // PR #221/#223: customer-confirm artıq pending_expert-ə keçir (əvvəl pending_approval idi).
-// Expert dashboard hər ikisini göstərməlidir.
+// Expert dashboard hər üçünü göstərir — pending_signature imza gözləyən müraciətlərdir.
 // Ordered by oldest first (FIFO).
 func (s *ApplicationService) ListPendingApproval(ctx context.Context) ([]model.LoanApplication, error) {
 	expertApps, err := s.repo.ListByStatus(ctx, model.StatusPendingExpert)
@@ -621,8 +621,23 @@ func (s *ApplicationService) ListPendingApproval(ctx context.Context) ([]model.L
 	if err != nil {
 		return nil, fmt.Errorf("failed to list pending_approval: %w", err)
 	}
+	// PR #312: pending_signature — AZMK application yaradılıb, müştərinin
+	// imzası gözlənir. Ekspert artıq action edə bilmir, amma admin
+	// dashboard-da bu "gözləyən" müraciətləri görməlidir.
+	signApps, err := s.repo.ListByStatus(ctx, model.StatusPendingSignature)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list pending_signature: %w", err)
+	}
+	// PR #312: disburse_failed — disburse xətası/nəticəsi naməlum, manual
+	// yoxlama tələb olunur — admin bunu dashboard-da görməlidir.
+	failedApps, err := s.repo.ListByStatus(ctx, model.StatusDisburseFailed)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list disburse_failed: %w", err)
+	}
 	// Birləşdir və tarixə görə sırala (oldest first)
 	all := append(expertApps, approvalApps...)
+	all = append(all, signApps...)
+	all = append(all, failedApps...)
 	// Bubble sort by CreatedAt (kiçik list üçün kifayətdir)
 	for i := 0; i < len(all); i++ {
 		for j := i + 1; j < len(all); j++ {

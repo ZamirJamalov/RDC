@@ -8,6 +8,12 @@ package model
 //      pending → checking → approved | rejected | pending_approval
 //                                        ↑            ↓
 //                                        └── approved / rejected (operator decision)
+//
+// PR #312 (AZMK sign flow): expert approve + AZMK create success →
+// pending_signature → (müştəri 3 saat ərzində imzalayır, worker poll edir)
+//   → disbursing (claim) → disbursed
+//   → (imza vaxtı bitdi) → rejected
+//   → (disburse xətası / nəticə naməlum) → disburse_failed (manual review)
 const (
         // StatusPending means the application was just created and has not been picked
         // up by the credit engine yet.
@@ -37,11 +43,32 @@ const (
         // details (loan amount, term, card, contacts, address) and trigger the
         // credit engine.
         StatusPendingExpert = "pending_expert"
+
+	// StatusPendingSignature means the AZMK application was created successfully
+	// after expert approval, and the system is waiting for the customer to sign
+	// the contract (3 hours). PR #312: background worker polls GET /application/{id}/status.
+	StatusPendingSignature = "pending_signature"
+
+	// StatusDisbursed means the customer signed the contract and the loan amount
+	// was transferred to their card. PR #312: terminal state after successful disburse.
+	StatusDisbursed = "disbursed"
+
+	// StatusDisbursing means the sign worker claimed the application and is
+	// calling the AZMK disburse service right now. PR #312: transient claim
+	// status — cüt disburse-un qarşısını alır (bura yalnız pending_signature-dən
+	// atomik keçidlə daxil olmaq olar, auto-retry YOXDUR).
+	StatusDisbursing = "disbursing"
+
+	// StatusDisburseFailed means the disburse call failed OR its outcome is
+	// unknown (proses disburse zamanı yenidən başladı). PR #312: avtomatik
+	// təkrar cəhd YOXDUR — manual yoxlama tələb olunur (pul keçib-keçmədiyini
+	// AZMK tərəfindən yoxlamaq lazımdır).
+	StatusDisburseFailed = "disburse_failed"
 )
 
 // IsFinal reports whether the status is a terminal state.
 func IsFinal(status string) bool {
-        return status == StatusApproved || status == StatusRejected
+        return status == StatusApproved || status == StatusRejected || status == StatusDisbursed || status == StatusDisburseFailed
 }
 
 // IsActive reports whether the status indicates the application is still being
@@ -49,6 +76,8 @@ func IsFinal(status string) bool {
 func IsActive(status string) bool {
         return status == StatusPending || status == StatusChecking ||
                 status == StatusPendingApproval || status == StatusPendingCustomer ||
+                status == StatusPendingSignature ||
+                status == StatusDisbursing ||
                 status == StatusPendingExpert
 }
 

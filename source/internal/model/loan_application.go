@@ -66,6 +66,9 @@ type LoanApplication struct {
 	PartnerID       string `json:"partner_id,omitempty"`        // Partner registration-dan qaytarılan ID
 	CardID          string `json:"card_id,omitempty"`           // Card registration-dan qaytarılan ID
 	LwApplicationID string `json:"lw_application_id,omitempty"` // Application create-dən qaytarılan ID
+	// PR #312: AZMK imza axını sahələri
+	AzmkLoanID    string `json:"azmk_loan_id,omitempty"`    // GET /application/{id}/status cavabından gələn loanId (məs. "HO0030210")
+	AzmkCreatedAt string `json:"azmk_created_at,omitempty"` // AZMK application yaradılma anı (UTC) — 3 saatlıq imza limiti bunun üzərindən
 
 	// PR #134: Muraciət üzərində işləmə vaxtı (saniyə)
 	TimerSeconds int `json:"timer_seconds,omitempty"`

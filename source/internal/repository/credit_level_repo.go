@@ -63,7 +63,7 @@ func (r *ApplicationRepo) CountApprovedAtLevel(ctx context.Context, customerPIN 
         var count int
         err := r.db.QueryRowContext(ctx, `
                 SELECT COUNT(*) FROM loan_applications
-                WHERE customer_pin = ? AND credit_level = ? AND status = 'approved'`,
+                WHERE customer_pin = ? AND credit_level = ? AND status IN ('approved', 'disbursed')`,
                 customerPIN, level).Scan(&count)
         if err != nil {
                 return 0, fmt.Errorf("failed to count approved applications at level: %w", err)
