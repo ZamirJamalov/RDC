@@ -74,10 +74,21 @@ feature-u işləmir (disburse-a təsiri yoxdur — non-fatal).
   (`CalculateDiscount(dc, interestAmount)`)
 - Təsdiq zamanı kod `MarkUsed` ilə bağlanır
 
-### R4 — SMS (mövcuddur)
+### R4 — SMS (mexanizm hazırdır, amma kodun mənbəyi R1-ə asılıdır)
 
 - Disburse success-dan sonra owner-ə referal SMS göndərilir
-  (`sendReferralSMSOnDisburse`, PR #284) — kod generasiyasından sonra çağrılmalı
+  (`sendReferralSMSOnDisburse`, PR #284) — transport/şablon/göndərilmə hazırdır
+- **SMS-in içindəki kodun mənbəyi** (R1↔R4 sərhədi):
+  - hazırda: `GetByApplicationID(ctx, app.ID)` — approve zamanı generasiya
+    olunmuş kodu DB-dən oxuyur (bug-a görə `sql: no rows` ilə nəticələnir)
+  - yeni planda iki variant:
+    - **(a) tövsiyə olunur:** R1-in `GenerateForApplication` çağırışı qaytardığı
+    kod obyektini birbaşa SMS addımına ötürmək — əlavə DB oxuması yoxdur
+    - (b) R1 generasiyasından dərhal sonra `GetByApplicationID` ilə oxumaq —
+    hazırdakı mexanizm qalır, sadəcə generasiya vaxtı dəyişir
+- **Sıralama kritikdir:** R1 (generasiya) → R4 (SMS). Funksiyadakı
+  "Approve zamanı generasiya olunmuş kodu tap" şərhi/məntiqi R1 ilə birgə
+  yenilənməlidir
 
 ## Qəbul meyarları
 
@@ -86,6 +97,8 @@ feature-u işləmir (disburse-a təsiri yoxdur — non-fatal).
 - [ ] Disburse success → `discount_codes`-da FIN-ə bağlı `active` kod yaranır,
       dəyəri `REFERRAL_DISCOUNT_PERCENT`-ə bərabərdir
 - [ ] Təkrar disburse/disburse-status poll kodu dublikat yaratmır
+- [ ] Referal SMS-də göndərilən kod R1-də generasiya olunan (store olunmuş)
+      kodla eynidir — SMS generasiyadan SONRA göndərilir
 - [ ] Owner növbəti levelə adlayanda endirim tətbiq olunur (R2)
 - [ ] Başqa müştəri kodu apply.html-də yazanda endirim alır, kod `used` olur
 - [ ] Owner öz kodunu istifadə edə bilmir (self-use prevention qalır)
