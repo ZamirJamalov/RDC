@@ -54,19 +54,13 @@ func (f *fakeAzmkOnlineProvider) GetCards(_ context.Context, _ string) ([]azmk.C
 	return f.cards, nil
 }
 
-// newCardsTestStore: app 1 = pending_customer (PublicID dolu), app 2 = köhnə
-// təsdiqlənmiş müraciət eyni PIN-lə, card_id ilə (HasRegisteredCard = true).
+// newCardsTestStore: app 1 = pending_customer (PublicID və PartnerID dolu).
+// PR #313 (yenilənib): AZMK = həqiqət mənbəyi — köhnə kartların siyahısı
+// lokal DB tarixçəsindən deyil, birbaşa AZMK-dan gəlir.
 func newCardsTestStore() *mockApplicationStore {
 	store := newConfirmStore()
 	store.appByID[1].PublicID = "11111111-2222-3333-4444-555555555555"
 	store.appByID[1].PartnerID = "PARTNER-1"
-	store.appByID[2] = &model.LoanApplication{
-		ID:          2,
-		PublicID:    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-		CustomerPIN: "PIN1",
-		Status:      model.StatusApproved,
-		CardID:      "OLD-CARD-1",
-	}
 	return store
 }
 
@@ -102,15 +96,14 @@ func TestGetCustomerCards_ListsActiveCardsOnly(t *testing.T) {
 	}
 }
 
-// TestGetCustomerCards_NoPreviousCard_SkipsAzmk — müştəri heç vaxt kart
-// qeyd etməyibsə AZMK çağırılmır (lazımsız xarici sorğu yoxdur).
-func TestGetCustomerCards_NoPreviousCard_SkipsAzmk(t *testing.T) {
+// TestGetCustomerCards_EmptyFromAzmk — AZMK boş siyahı qaytararsa (yeni
+// müştəri, kart heç qeyd edilməyib) UI yalnız yeni-kart daxiletmə göstərir.
+// PR #313 (yenilənib): AZMK = həqiqət mənbəyi — siyahı hər zaman AZMK-dan
+// sorğulanır, lokal DB ön-şərti yoxdur (drop-recreate problemi aradan qalxdı).
+func TestGetCustomerCards_EmptyFromAzmk(t *testing.T) {
 	ctx := context.Background()
 	store := newCardsTestStore()
-	delete(store.appByID, 2) // köhnə kartlı müraciəti sil → HasRegisteredCard = false
-	provider := &fakeAzmkOnlineProvider{cards: []azmk.CardInfo{
-		{ID: "CARD-1", Type: "CARD", Code: "****-****-****-5559", Expiring: "2030-01-01"},
-	}}
+	provider := &fakeAzmkOnlineProvider{cards: []azmk.CardInfo{}}
 	svc := newCardsTestService(store, provider)
 
 	cards, err := svc.GetCustomerCardsByPublicID(ctx, "11111111-2222-3333-4444-555555555555")
@@ -120,8 +113,8 @@ func TestGetCustomerCards_NoPreviousCard_SkipsAzmk(t *testing.T) {
 	if len(cards) != 0 {
 		t.Fatalf("expected 0 cards, got %d", len(cards))
 	}
-	if provider.getCards != 0 {
-		t.Errorf("AZMK must not be called when customer has no previous card, got %d calls", provider.getCards)
+	if provider.getCards != 1 {
+		t.Errorf("AZMK GetCards must be called exactly once, got %d calls", provider.getCards)
 	}
 }
 

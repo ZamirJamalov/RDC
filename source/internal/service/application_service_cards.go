@@ -17,10 +17,11 @@ import (
 //
 // Axın:
 //   - Müştəri apply addımında (pending_customer) kart daxil edərkən backend
-//     yoxlayır: bu PIN ilə əvvəlki müraciətlərdən birində kart qeyd edilibmi?
-//     (loan_applications.card_id doludur)
-//   - Edilibsə → AZMK GET /card/{partner_id} ilə partnerin kartları gətirilir
-//     və müştəriyə SEÇİM göstərilir: köhnə kartlardan biri YA yeni kart.
+//     AZMK GET /card/{partner_id} ilə partnerin köhnə kartlarını sorğulayır
+//     (AZMK = həqiqət mənbəyi — lokal DB tarixçəsindən asılı deyilik:
+//     DB drop-recreate olsa belə AZMK-da qeydiyyatda olan kartlar itmir).
+//   - Kartlar varsa müştəriyə SEÇİM göstərilir: köhnə kartlardan biri YA
+//     yeni kart; kart yoxdursa (404/boş) klassik yeni-kart daxiletmə qalır.
 //   - Köhnə kart seçilərsə confirm-də selected_card_id göndərilir, AZMK
 //     RegisterCard ÇAĞIRILMIR (kart artıq qeydiyyatdadır), card_id birbaşa
 //     yazılır və disburse bu kart üzərindən gedir.
@@ -61,19 +62,6 @@ func (s *ApplicationService) GetCustomerCardsByPublicID(ctx context.Context, pub
 
 	// AZMK deaktivdir / partner hələ qeydiyyatdan keçməyib → köhnə kart yoxdur.
 	if s.azmkProvider == nil || app.PartnerID == "" {
-		return []CustomerCard{}, nil
-	}
-
-	// Ön-şərt (PR #243 ruhu — lazımsız AZMK sorğularından qaçın): bu müştəri
-	// heç vaxt kart qeyd etməyibsə AZMK çağırmağa ehtiyac yoxdur.
-	hasCard, err := s.repo.HasRegisteredCard(ctx, app.CustomerPIN, app.ID)
-	if err != nil {
-		// Fail-soft: xəta olanda yenə də AZMK sorğuya ehtiyac yoxdur.
-		slog.Warn("PR #313: HasRegisteredCard failed — returning empty card list",
-			"application_id", app.ID, "error", err)
-		return []CustomerCard{}, nil
-	}
-	if !hasCard {
 		return []CustomerCard{}, nil
 	}
 
