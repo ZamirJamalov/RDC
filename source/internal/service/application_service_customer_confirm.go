@@ -41,6 +41,10 @@ type CustomerConfirmRequest struct {
 	DiscountCode string `json:"discount_code,omitempty"`
 	// PR #230: istifadəçi tərəfindən seçilən müddət (əgər bir neçə term varsa)
 	TermMonths int `json:"term_months,omitempty"`
+	// PR #313: müştərinin AZMK-da əvvəldən qeydiyyatda olan kartı seçilibsə
+	// onun AZMK card ID-si. Dolu olanda card_number ignore edilir (yeni kart
+	// daxil edilmir) və RegisterCard çağrılmır — kart artıq qeydiyyatdadır.
+	SelectedCardID string `json:"selected_card_id,omitempty"`
 }
 
 // CustomerConfirmApplication finalizes the customer-side of the application flow.
@@ -69,7 +73,9 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
 	if req.Amount <= 0 {
 		return nil, fmt.Errorf("amount must be greater than zero")
 	}
-	if len(req.CardNumber) != 16 {
+	// PR #313: köhnə kart seçilibsə card_number tələb olunmur (maskalı kod
+	// AZMK-dan götürülür). Yeni kart daxil edilirsə 16 rəqəm tələb olunur.
+	if req.SelectedCardID == "" && len(req.CardNumber) != 16 {
 		return nil, fmt.Errorf("card_number must be exactly 16 digits")
 	}
 	if req.ActualAddress == "" {
@@ -98,6 +104,34 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
 	}
 	if app.Status != model.StatusPendingCustomer {
 		return nil, fmt.Errorf("müraciət təsdiq oluna bilməz (cari status: %s) — yalnız OTP təsdiq olunmuş müraciətlər təsdiqlənə bilər", app.Status)
+	}
+
+	// PR #313: köhnə kart seçilib — AZMK kart siyahısında bu tətbiqin
+	// partner-i altında olduğunu təsdiqlə. Bu, başqa partnerin kart ID-si
+	// ilə disburse-a yol vermir (fraud qorunması) və bitmiş kartı bloklayır.
+	var selectedCard *azmk.CardInfo
+	if req.SelectedCardID != "" {
+		if s.azmkProvider == nil || app.PartnerID == "" {
+			return nil, fmt.Errorf("seçilmiş kart təsdiqlənə bilmədi — zəhmət olmasa yeni kart daxil edin")
+		}
+		cards, err := s.azmkProvider.GetCards(ctx, app.PartnerID)
+		if err != nil {
+			slog.Error("PR #313: AZMK GetCards failed during confirm",
+				"application_id", appID,
+				"partner_id", app.PartnerID,
+				"error", err)
+			return nil, fmt.Errorf("seçilmiş kart yoxlanıla bilmədi — zəhmət olmasa yeni kart daxil edin")
+		}
+		selectedCard = findActiveCardByID(cards, req.SelectedCardID, time.Now())
+		if selectedCard == nil {
+			return nil, fmt.Errorf("seçilmiş kart tapılmadı və ya bitib — zəhmət olmasa siyahıdan yenidən seçin və ya yeni kart daxil edin")
+		}
+	}
+	// Kartın göstərilən dəyəri: yeni kart üçün PAN, köhnə kart üçün AZMK
+	// maskalı kodu (16 simvola sığması üçün defissizləşdirilir).
+	cardDisplay := req.CardNumber
+	if selectedCard != nil {
+		cardDisplay = maskCardCode(selectedCard.Code)
 	}
 
 	// 2. PR #227: Fetch PersonalInfo from AZMK CustomerDataService — fail-soft.
@@ -155,7 +189,7 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
 				app.RejectionReason = fmt.Sprintf("AKB_STOP_FACTOR:%s", resp)
 				app.AkbScore = 0
 				app.Amount = req.Amount
-				app.CardNumber = req.CardNumber
+				app.CardNumber = cardDisplay
 				app.ActualAddress = req.ActualAddress
 				app.CustomerConfirmedAt = time.Now().Format(time.RFC3339)
 				app.CardOwnershipConfirmed = true
@@ -190,7 +224,7 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
 
 	app.Amount = req.Amount
 	app.TermMonths = matchedRange.TermMonths
-	app.CardNumber = req.CardNumber
+	app.CardNumber = cardDisplay
 	app.ActualAddress = req.ActualAddress
 	app.CustomerConfirmedAt = time.Now().Format(time.RFC3339)
 	app.CardOwnershipConfirmed = true
@@ -252,10 +286,19 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
 	// Expert role: MyGov verify, kontaktlar, timer, approve/reject.
 	app.Status = model.StatusPendingExpert
 
-	// PR #118: AZMK Card registration
-	// Müştəri kart nömrəsini daxil edib təsdiq edəndən sonra, kartı AZMK-ya qeyd edirik.
-	// Bu, sonradan disburse zamanı istifadə olunacaq.
-	if s.azmkProvider != nil && app.PartnerID != "" {
+	// PR #118/#313: AZMK Card registration
+	// Köhnə kart seçilibsə (selectedCard ≠ nil) kart artıq AZMK-da qeydiyyatdadır
+	// — RegisterCard çağırılmır, card_id birbaşa yazılır (disburse bunu istifadə edir).
+	// Yeni kart daxil edilibsə klassik axın: RegisterCard → card_id.
+	if selectedCard != nil {
+		app.CardID = selectedCard.ID
+		slog.Info("PR #313: previously registered card selected — skipping AZMK RegisterCard",
+			"application_id", appID,
+			"customer_pin", app.CustomerPIN,
+			"partner_id", app.PartnerID,
+			"card_id", selectedCard.ID,
+			"card_code", selectedCard.Code)
+	} else if s.azmkProvider != nil && app.PartnerID != "" {
 		cardReq := &azmk.CardRequest{
 			CardData: azmk.CardData{
 				PartnerID: app.PartnerID,

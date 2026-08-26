@@ -27,6 +27,7 @@ import (
 //   2. KYC Verify    — GET  /kyc/{id} (VERIFIED status yoxla)
 //   3. Partner       — POST /partner (PartnerData + kycId göndər → Partner ID qaytar)
 //   4. Card          — POST /card (CardData göndər → Card ID qaytar)
+//   4b. Card List    — GET  /card/{partnerId} (partnerin köhnə kartları) — PR #313
 //   5. App Create    — POST /application/create (LoanData göndər → Application ID qaytar)
 //   6. Sign Status   — GET  /application/{id}/status (loanId, loanStatus, smsSent, signed) — PR #312
 //   7. Disburse      — POST /application/disburse (LoanData + cardId göndər)
@@ -46,6 +47,12 @@ type Provider interface {
 
         // RegisterCard registers a card and returns the Card ID.
         RegisterCard(ctx context.Context, req *CardRequest) (string, error)
+
+        // GetCards lists the cards previously registered under a partner.
+        // PR #313: GET /card/{partnerId} — apply səhifəsində köhnə kart seçimi
+        // üçün. Partner üçün kart yoxdursa (HTTP 404 "Invalidid") boş siyahı
+        // qaytarır — bu xəta sayılmır.
+        GetCards(ctx context.Context, partnerID string) ([]CardInfo, error)
 
         // CreateApplication creates a loan application and returns the Application ID.
         CreateApplication(ctx context.Context, req *ApplicationCreateRequest) (string, error)
@@ -99,6 +106,20 @@ type CardData struct {
 // CardRequest is the body for POST /card.
 type CardRequest struct {
         CardData CardData `json:"CardData"`
+}
+
+// CardInfo is a single card entry from GET /card/{partnerId} (PR #313).
+// Code AZMK tərəfindən maskalanır ("****-****-****-5559") — tam PAN gəlmir.
+type CardInfo struct {
+        ID       string `json:"id"`
+        Type     string `json:"type"`
+        Code     string `json:"code"`
+        Expiring string `json:"expiring"`
+}
+
+// CardsResponse is the response body of GET /card/{partnerId}.
+type CardsResponse struct {
+        Data []CardInfo `json:"data"`
 }
 
 // LoanData is the payload for application create and disburse.
@@ -517,6 +538,28 @@ func (p *HTTPProvider) RegisterCard(ctx context.Context, req *CardRequest) (stri
         return id, nil
 }
 
+// GetCards lists the cards registered under a partner (PR #313).
+// GET /card/{partnerId} → {"data":[{"id","type","code","expiring"},...]}.
+// AZMK mövcud olmayan partner üçün HTTP 404 ("Invalidid") qaytarır — bu
+// normal haldır (heç kart qeyd edilməyib): boş siyahı qaytarılır.
+func (p *HTTPProvider) GetCards(ctx context.Context, partnerID string) ([]CardInfo, error) {
+        body, err := p.doGet(ctx, "/card/"+partnerID)
+        if err != nil {
+                if strings.Contains(err.Error(), "HTTP 404") {
+                        slog.Info("PR #313: AZMK card list — no cards for partner (404)",
+                                "partner_id", partnerID)
+                        return []CardInfo{}, nil
+                }
+                return nil, err
+        }
+        var resp CardsResponse
+        if err := json.Unmarshal([]byte(body), &resp); err != nil {
+                return nil, fmt.Errorf("parse card list response: %w", err)
+        }
+        slog.Info("PR #313: AZMK card list", "partner_id", partnerID, "count", len(resp.Data))
+        return resp.Data, nil
+}
+
 // CreateApplication creates a loan application and returns the Application ID.
 func (p *HTTPProvider) CreateApplication(ctx context.Context, req *ApplicationCreateRequest) (string, error) {
         body, err := p.doPost(ctx, "/application/create", req)
@@ -594,6 +637,16 @@ func (m *MockProvider) RegisterCard(_ context.Context, _ *CardRequest) (string, 
         id := "MOCK-CARD-0001"
         slog.Info("mock AZMK Card", "card_id", id)
         return id, nil
+}
+
+// GetCards — PR #313 mock: bir kart qaytarır (ID RegisterCard mock-u ilə eynidir,
+// seçilmiş-kart axınını test etmək üçün uyğundur).
+func (m *MockProvider) GetCards(_ context.Context, partnerID string) ([]CardInfo, error) {
+        cards := []CardInfo{
+                {ID: "MOCK-CARD-0001", Type: "CARD", Code: "****-****-****-1111", Expiring: "2030-01-01"},
+        }
+        slog.Info("mock AZMK card list", "partner_id", partnerID, "count", len(cards))
+        return cards, nil
 }
 
 func (m *MockProvider) CreateApplication(_ context.Context, _ *ApplicationCreateRequest) (string, error) {

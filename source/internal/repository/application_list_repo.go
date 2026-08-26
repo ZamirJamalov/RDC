@@ -62,6 +62,24 @@ func (r *ApplicationRepo) ListByStatus(ctx context.Context, status string) ([]mo
         return apps, nil
 }
 
+// HasRegisteredCard checks whether the customer (by PIN) has ANY earlier
+// application (excludeAppID-dən fərqli) with a registered AZMK card
+// (card_id doludur). PR #313: apply səhifəsində köhnə kartların siyahısını
+// yalnız bu şərt olanda AZMK-dan istəyirik — lazımsız xarici sorğuların
+// qarşısını alır.
+func (r *ApplicationRepo) HasRegisteredCard(ctx context.Context, customerPIN string, excludeAppID int) (bool, error) {
+        var count int
+        err := r.db.QueryRowContext(ctx, `
+                SELECT COUNT(1) FROM loan_applications
+                WHERE customer_pin = ? AND id <> ?
+                  AND card_id IS NOT NULL AND card_id <> ''`,
+                customerPIN, excludeAppID).Scan(&count)
+        if err != nil {
+                return false, fmt.Errorf("failed to check registered cards: %w", err)
+        }
+        return count > 0, nil
+}
+
 // GetApplicationByPublicID fetches a loan application by its UUID public_id.
 // PR #191: xarici API və UI public_id UUID istifadə edir.
 // PR #192: UUID string mssql.UniqueIdentifier-a çevrilir (string → UNIQUEIDENTIFIER conversion xətası fix).

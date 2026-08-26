@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -347,4 +348,36 @@ func (h *ApplicationHandler) CustomerConfirm(w http.ResponseWriter, r *http.Requ
 	}
 
 	writeJSON(w, http.StatusOK, app)
+}
+
+// GetCustomerCards handles GET /api/applications/{id}/cards (PR #313).
+// Public endpoint (UUID əsasında, customer-confirm qədər açıq): müştərinin
+// AZMK-da əvvəldən qeydiyyatda olan kartlarının MASKALI siyahısını qaytarır.
+// Apply səhifəsi bunu kart seçimi üçün istifadə edir:
+//   - cards boşdur → müştəri yeni kart daxil edir (klassik axın)
+//   - cards doludur → radio siyahıda köhnə kartlar + "yeni kart" seçimi
+//
+// Cavabda yalnız maskalı kod var ("****-****-****-5559") — tam PAN yoxdur.
+func (h *ApplicationHandler) GetCustomerCards(w http.ResponseWriter, r *http.Request) {
+	publicID, err := parsePathUUID(r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid application id")
+		return
+	}
+
+	cards, err := h.service.GetCustomerCardsByPublicID(r.Context(), publicID)
+	if err != nil {
+		if errors.Is(err, service.ErrApplicationNotFound) {
+			writeError(w, http.StatusNotFound, "müraciət tapılmadı")
+			return
+		}
+		slog.Error("get customer cards failed", "public_id", publicID, "error", err)
+		writeError(w, http.StatusBadRequest, sanitizeError(err))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"cards": cards,
+		"count": len(cards),
+	})
 }

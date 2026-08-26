@@ -533,19 +533,49 @@
                         <p x-show="availableTerms.length <= 1" class="text-xs text-gray-500 mt-2">Müddət: <span x-text="selectedRange?.term_months || '—'"></span> ay</p>
                     </div>
 
-                <!-- Card number -->
+                <!-- PR #313: Kart seçimi — AZMK-da qeydiyyatda olan kartlar (maskalı) və ya yeni kart -->
                 <div>
-                    <label class="text-sm text-gray-400 mb-2 block">Kart nömrəsi (16 rəqəm) <span class="text-red-400">*</span></label>
-                    <input type="text" x-model="form.cardNumber" maxlength="19" placeholder="4169 7312 3456 7890"
-                           class="input-field w-full px-4 py-3.5 rounded-xl text-lg font-mono tracking-wider"
-                           @input="formatCardNumber()">
+                    <label x-show="savedCards.length > 0" class="text-sm text-gray-400 mb-2 block">
+                        Kart <span class="text-red-400">*</span>
+                        <span x-show="cardsLoading" class="text-xs text-gray-500 ml-2">yüklənir...</span>
+                    </label>
+
+                    <!-- Köhnə kartlar + "yeni kart" seçimi (yalnız kartlar olanda görünür) -->
+                    <div x-show="savedCards.length > 0" x-cloak class="space-y-2 mb-3">
+                        <template x-for="card in savedCards" :key="card.id">
+                            <label class="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition"
+                                   :class="selectedCardId === card.id ? 'border-teal-500/60 bg-teal-500/10' : 'border-white/10 bg-black/20 hover:bg-white/5'">
+                                <input type="radio" name="savedCardChoice" :value="card.id" x-model="selectedCardId"
+                                       class="w-4 h-4 accent-teal-500 flex-shrink-0">
+                                <span class="font-mono text-sm tracking-wider text-gray-200" x-text="card.code"></span>
+                                <span class="text-xs text-gray-500 ml-auto">bitmə: <span x-text="card.expiring"></span></span>
+                            </label>
+                        </template>
+                        <label class="flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition"
+                               :class="selectedCardId === '' ? 'border-teal-500/60 bg-teal-500/10' : 'border-white/10 bg-black/20 hover:bg-white/5'">
+                            <input type="radio" name="savedCardChoice" value="" x-model="selectedCardId"
+                                   class="w-4 h-4 accent-teal-500 flex-shrink-0">
+                            <span class="text-sm text-gray-300 font-semibold">Başqa kart istifadə edəcəyəm (yeni kart daxil et)</span>
+                        </label>
+                    </div>
+
+                    <!-- Yeni kart daxiletmə: kartlar yoxdursa HƏMİŞƏ; kartlar varsa yalnız "yeni kart" seçiləndə -->
+                    <div x-show="savedCards.length === 0 || selectedCardId === ''" class="mt-2">
+                        <label class="text-sm text-gray-400 mb-2 block">Kart nömrəsi (16 rəqəm) <span class="text-red-400">*</span></label>
+                        <input type="text" x-model="form.cardNumber" maxlength="19" placeholder="4169 7312 3456 7890"
+                               class="input-field w-full px-4 py-3.5 rounded-xl text-lg font-mono tracking-wider"
+                               @input="formatCardNumber()">
+                    </div>
                 </div>
 
                 <!-- Card ownership checkbox -->
                 <label class="flex items-start gap-3 cursor-pointer p-3 rounded-xl hover:bg-white/5 transition">
                     <input type="checkbox" x-model="form.cardConfirmed"
                            class="mt-0.5 w-5 h-5 rounded accent-teal-500 flex-shrink-0">
-                    <span class="text-xs text-gray-300 font-semibold leading-tight">Bu kart məlumatının mən tərəfimdən daxil edilməsini təsdiq edirəm.</span>
+                    <span class="text-xs text-gray-300 font-semibold leading-tight"
+                          x-text="(savedCards.length > 0 && selectedCardId)
+                              ? 'Seçdiyim kartın mənim kartım olduğunu və bu kartın kredit məqsədilə istifadəsinə razılığımı təsdiq edirəm.'
+                              : 'Bu kart məlumatının mən tərəfimdən daxil edilməsini təsdiq edirəm.'"></span>
                 </label>
 
                 <!-- Address -->
@@ -610,7 +640,7 @@
                 <!-- Confirm button -->
                 <button @click="confirmApplication"
                         x-ref="confirmBtn"
-                        :disabled="loading || !form.amount || form.cardNumber.replace(/\s/g, '').length !== 16 || !form.cardConfirmed || !form.address || !form.rulesConfirmed || discountValid === 'invalid' || (videoRequired && !videoRecorded)"
+                        :disabled="loading || !form.amount || !cardSelectionValid || !form.cardConfirmed || !form.address || !form.rulesConfirmed || discountValid === 'invalid' || (videoRequired && !videoRecorded)"
                         class="cta-btn w-full text-white font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
                     <span x-show="!loading">Təsdiq edirəm →</span>
                     <span x-show="loading" class="flex items-center gap-2">
@@ -832,6 +862,13 @@ function applyApp() {
         // Application state
         applicationId: null,
 
+        // PR #313: AZMK-da qeydiyyatda olan köhnə kartlar (maskalı)
+        // savedCards doludur → müştəriyə kart seçimi göstərilir;
+        // selectedCardId = '' → "yeni kart daxil edirəm" seçilib.
+        savedCards: [],
+        cardsLoading: false,
+        selectedCardId: '',
+
         // Form fields
         form: {
             fin: '',
@@ -1041,6 +1078,10 @@ function applyApp() {
                 if (this.currentStep === 2 && this.applicationId && !this.form.phone) {
                     this.restorePhoneFromApplication();
                 }
+                // PR #313: step 2-yə restore olunduqda köhnə kartları yenidən yüklə
+                if (this.currentStep === 2 && this.applicationId) {
+                    this.loadSavedCards();
+                }
             }
         },
 
@@ -1176,6 +1217,9 @@ function applyApp() {
             this.form.cardNumber = '';
             this.form.cardConfirmed = false;
             this.form.address = '';
+            // PR #313: kart seçimi state-ini sıfırla
+            this.savedCards = [];
+            this.selectedCardId = '';
             this.form.rulesConfirmed = false;
             this.form.discountCode = '';
             this.discountValid = '';
@@ -1286,6 +1330,35 @@ function applyApp() {
         formatCardNumber() {
             let digits = this.form.cardNumber.replace(/\s/g, '').replace(/[^0-9]/g, '');
             this.form.cardNumber = digits.replace(/(\d{4})(?=\d)/g, '$1 ');
+        },
+
+        // PR #313: Müştərinin AZMK-da qeydiyyatda olan köhnə kartlarını yüklə.
+        // Fail-soft: xəta olanda siyahı boş qalır → müştəri yeni kart daxil edir.
+        async loadSavedCards() {
+            if (!this.applicationId) return;
+            this.cardsLoading = true;
+            try {
+                const resp = await fetch(`/api/applications/${this.applicationId}/cards`);
+                if (!resp.ok) return; // fail-soft — yeni kart UI qalır
+                const data = await resp.json();
+                this.savedCards = data.cards || [];
+                // Default: ilk köhnə kart seçili olsun (qayıdan müştəri üçün az klik)
+                if (this.savedCards.length > 0) {
+                    this.selectedCardId = this.savedCards[0].id;
+                }
+            } catch (e) {
+                // fail-soft — şəbəkə xətası yeni kart daxiletməni bloklamır
+            } finally {
+                this.cardsLoading = false;
+            }
+        },
+
+        // PR #313: kart seçimi etibarımdır?
+        // - köhnə kart seçilibsə → etibarlıdır
+        // - yeni kart rejimindədirsə → 16 rəqəm daxil edilməlidir
+        get cardSelectionValid() {
+            if (this.savedCards.length > 0 && this.selectedCardId) return true;
+            return this.form.cardNumber.replace(/\s/g, '').length === 16;
         },
 
         // PR #70: Get combined serial (prefix + number)
@@ -1461,6 +1534,7 @@ function applyApp() {
                 this.currentStep = 2;
                 this.saveState();
                 this.checkVideoRequired(); // PR #188: video record tələbini yoxla
+                this.loadSavedCards(); // PR #313: köhnə kartları yüklə (varsa)
             } catch (e) {
                 this.stopKYCCountdown(); // PR #155: countdown dayandır
                 this.error = e.message;
@@ -1514,7 +1588,8 @@ function applyApp() {
                     body: JSON.stringify({
                         amount: this.form.amount,
                         term_months: this.form.term || this.selectedRange?.term_months, // PR #230
-                        card_number: this.form.cardNumber.replace(/\s/g, ''), // PR #70: strip spaces
+                        card_number: this.selectedCardId ? '' : this.form.cardNumber.replace(/\s/g, ''), // PR #70/#313: köhnə kart seçilibsə boş göndər
+                        selected_card_id: this.selectedCardId || '', // PR #313: köhnə kart seçilibsə AZMK card ID
                         actual_address: this.form.address,
                         card_ownership_confirmed: this.form.cardConfirmed,
                         rules_confirmed: this.form.rulesConfirmed, // PR #92: internal rules ack
