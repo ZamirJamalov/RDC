@@ -95,6 +95,20 @@
             </div>
         </div>
 
+        <!-- PR #313: Tab filter — Gözləyən / İmtina olunmuş -->
+        <div class="flex gap-2 mb-4">
+            <button @click="switchTab('pending')"
+                    :class="tab === 'pending' ? 'alpul-btn text-white' : 'border border-gray-300 text-gray-600 hover:bg-gray-100'"
+                    class="px-4 py-2 rounded-lg text-sm font-medium transition">
+                Gözləyən
+            </button>
+            <button @click="switchTab('rejected')"
+                    :class="tab === 'rejected' ? 'bg-red-500 text-white' : 'border border-gray-300 text-gray-600 hover:bg-gray-100'"
+                    class="px-4 py-2 rounded-lg text-sm font-medium transition">
+                İmtina olunmuş
+            </button>
+        </div>
+
         <!-- Loading -->
         <div x-show="loading" class="text-center py-8 text-gray-500">
             Yuklenir...
@@ -105,8 +119,8 @@
         </div>
 
         <!-- Empty -->
-        <div x-show="!loading && !error && applications.length === 0" class="text-center py-8 text-gray-500">
-            Heç bir muraciet yoxdur.
+        <div x-show="!loading && !error && applications.length === 0" class="text-center py-8 text-gray-500"
+             x-text="tab === 'rejected' ? 'Heç bir imtina olunmuş muraciet yoxdur.' : 'Heç bir muraciet yoxdur.'">
         </div>
 
         <!-- Application List -->
@@ -128,6 +142,10 @@
                                 <p x-show="app.processed_by_username" class="text-xs text-gray-400 mt-1">
                                     <span class="font-medium">İşləyən:</span> <span x-text="app.processed_by_username"></span>
                                 </p>
+                                <!-- PR #313: İmtina səbəbi (rejected tab-da) -->
+                                <p x-show="app.rejection_reason" class="text-xs text-red-600 mt-1">
+                                    <span class="font-medium">İmtina səbəbi:</span> <span x-text="app.rejection_reason"></span>
+                                </p>
                             </div>
                         </div>
                         <div class="text-right">
@@ -143,7 +161,7 @@
                                       'bg-red-100 text-red-700': app.status === 'disburse_failed',
                                       'bg-gray-200 text-gray-700': app.status === 'cancelled'
                                   }"
-                                  x-text="app.status">
+                                  x-text="statusAz(app.status)">
                             </span>
                             <p class="text-sm text-gray-400 mt-2" x-text="app.credit_level ? ('Səviyyə: ' + levelAz(app.credit_level)) : ''"></p>
                         </div>
@@ -159,6 +177,7 @@
                 applications: [],
                 loading: false,
                 error: '',
+                tab: 'pending', // PR #313: 'pending' | 'rejected' 
                 authChecking: true,
                 currentUser: null,
                 theme: localStorage.getItem('alpul_theme') || 'light',
@@ -209,11 +228,20 @@
                     window.location.href = '/login';
                 },
 
+                // PR #313: tab keçidi
+                switchTab(t) {
+                    if (this.tab === t) return;
+                    this.tab = t;
+                    this.load();
+                },
+
                 async load() {
                     this.loading = true;
                     this.error = '';
                     try {
-                        const resp = await fetch('/api/expert/queue');
+                        // PR #313: rejected tab → ?status=rejected
+                        const url = this.tab === 'rejected' ? '/api/expert/queue?status=rejected' : '/api/expert/queue';
+                        const resp = await fetch(url);
                         if (resp.status === 401) {
                         window.clearAuthToken();
                             window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
@@ -233,6 +261,24 @@
     </script>
 
     <script>
+        // PR #313: status Azərbaycanca (badge-də raw status yerinə)
+        function statusAz(status) {
+            const map = {
+                'pending': 'Gözləyir',
+                'checking': 'Yoxlanılır',
+                'pending_customer': 'Müştəri gözləyir',
+                'pending_expert': 'Ekspert gözləyir',
+                'pending_approval': 'Təsdiq gözləyir',
+                'approved': 'Təsdiqləndi',
+                'rejected': 'İmtina olunmuş',
+                'pending_signature': 'İmza gözləyir',
+                'disbursing': 'Köçürülür',
+                'disbursed': 'Köçürülüb',
+                'disburse_failed': 'Köçürmə xətası'
+            };
+            return map[status] || status;
+        }
+
         // PR #236: kredit level Azərbaycanca — backend kiçik hərflə qaytarır ('valuable'),
         // ona görə lookup öncə toUpperCase ilə normallaşdırılır (regressiya düzəlişi PR #234-dən)
         function levelAz(level) {

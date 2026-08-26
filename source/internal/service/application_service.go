@@ -648,3 +648,21 @@ func (s *ApplicationService) ListPendingApproval(ctx context.Context) ([]model.L
 	}
 	return all, nil
 }
+
+// ListRejected retrieves all rejected applications (PR #313) — RDC dashboard
+// "Imtina olunmus" tabi ucun. Siralama: yenisi evvelde (newest first).
+func (s *ApplicationService) ListRejected(ctx context.Context) ([]model.LoanApplication, error) {
+	apps, err := s.repo.ListByStatus(ctx, model.StatusRejected)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list rejected applications: %w", err)
+	}
+	// ISO string tarixler leksikografik siralanir
+	for i := 0; i < len(apps); i++ {
+		for j := i + 1; j < len(apps); j++ {
+			if apps[i].CreatedAt < apps[j].CreatedAt {
+				apps[i], apps[j] = apps[j], apps[i]
+			}
+		}
+	}
+	return apps, nil
+}

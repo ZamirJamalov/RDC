@@ -31,7 +31,25 @@ func NewExpertHandler(appSvc *service.ApplicationService) *ExpertHandler {
 // Returns all applications in pending_approval status, awaiting manual review.
 // Ordered by oldest first (FIFO — experts should review the oldest first).
 // Response: [{"id":1,"customer_pin":"...","amount":500,...}, ...]
+//
+// PR #313: ?status=rejected → imtina olunmus muracietler (RDC dashboard
+// "Imtina olunmus" tabi). Yenisi evvelde, rejection_reason daxildir.
 func (h *ExpertHandler) Queue(w http.ResponseWriter, r *http.Request) {
+        if r.URL.Query().Get("status") == model.StatusRejected {
+                apps, err := h.appSvc.ListRejected(r.Context())
+                if err != nil {
+                        slog.Error("expert queue: failed to list rejected applications", "error", err)
+                        writeExpertError(w, http.StatusInternalServerError, "failed to list rejected applications")
+                        return
+                }
+                writeExpertJSON(w, http.StatusOK, map[string]interface{}{
+                        "status":       model.StatusRejected,
+                        "count":        len(apps),
+                        "applications": apps,
+                })
+                return
+        }
+
         apps, err := h.appSvc.ListPendingApproval(r.Context())
         if err != nil {
                 slog.Error("expert queue: failed to list pending applications", "error", err)
