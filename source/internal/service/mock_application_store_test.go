@@ -208,17 +208,6 @@ func (m *mockApplicationStore) ListByStatus(_ context.Context, status string) ([
 	return result, nil
 }
 
-// HasRegisteredCard — PR #313 mock: eyni PIN-li, excludeAppID-dən fərqli və
-// card_id-si olan application varmı?
-func (m *mockApplicationStore) HasRegisteredCard(_ context.Context, customerPIN string, excludeAppID int) (bool, error) {
-	for _, app := range m.appByID {
-		if app.ID != excludeAppID && app.CustomerPIN == customerPIN && app.CardID != "" {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
 func (m *mockApplicationStore) GetCreditLevelRate(_ context.Context, _ string, _ float64, _ int, _ int) (float64, error) {
 	return m.commission, m.rateErr
 }
