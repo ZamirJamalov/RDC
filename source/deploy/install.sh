@@ -24,6 +24,8 @@
 #      + sshd yoxlayır, yoxdursa quraşdırır (run-remote.sh ssh ilə işləyir;
 #        localhost testində laptopda da sshd lazımdır — PR #308)
 #   7. Monitorinq stack-i (loki + promtail + grafana) qaldırır
+#      + Loki sorğu limiti tətbiq olunur (LOKI_MAX_OUTSTANDING_REQUESTS,
+#        default 1000 — "too many outstanding requests" qarşısı, PR #325)
 #   8. Yoxlayır və nəticəni göstərir
 #
 # Təkrar işlətmək təhlükəsizdir (idempotent): mövcud olanı yeniden yaratmır,
@@ -49,6 +51,10 @@ DB_NAME="${DB_NAME:-RDC}"
 SERVER_ADDR="${SERVER_ADDR:-:8000}"
 LOG_LEVEL="${LOG_LEVEL:-info}"
 GRAFANA_ADMIN_PASSWORD="${GRAFANA_ADMIN_PASSWORD:-admin}"
+# PR #325: Loki sorğu limiti — "too many outstanding requests" (429) qarşısı.
+# Geniş zaman aralığında sorğular parçalanır; hər parça 1 outstanding
+# request-dir. Loki default-u 100-dür, compose faylında 1000 qoyulub.
+LOKI_MAX_OUTSTANDING_REQUESTS="${LOKI_MAX_OUTSTANDING_REQUESTS:-1000}"
 
 # ------------------------- Köməkçi funksiyalar -------------------------
 log()  { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
@@ -199,6 +205,13 @@ if [[ "${GRAFANA_ADMIN_PASSWORD}" != "admin" ]]; then
         "${MON_HOME}/docker-compose.yml"
 fi
 
+# PR #325: Loki sorğu limiti (compose faylında default 1000; env ilə fərqli
+# verilibsə əvəz olunur — GRAFANA_ADMIN_PASSWORD ilə eyni pattern)
+if [[ "${LOKI_MAX_OUTSTANDING_REQUESTS}" != "1000" ]]; then
+    sed -i "s|max-outstanding-requests-per-tenant=1000|max-outstanding-requests-per-tenant=${LOKI_MAX_OUTSTANDING_REQUESTS}|" \
+        "${MON_HOME}/docker-compose.yml"
+fi
+
 # app.log — rdc istifadəçisi yazmalı, promtail (docker/root) oxumalı
 if [[ ! -f "${MON_HOME}/app.log" ]]; then
     touch "${MON_HOME}/app.log"
@@ -280,6 +293,8 @@ if [[ -n "${EXISTING}" ]]; then
 fi
 
 docker compose -f "${MON_HOME}/docker-compose.yml" --project-directory "${MON_HOME}" up -d
+
+log "Loki sorğu limiti: max-outstanding-requests-per-tenant=${LOKI_MAX_OUTSTANDING_REQUESTS} (PR #325)"
 
 log "Container-lar: $(docker ps --filter name=loki --filter name=promtail --filter name=grafana --format '{{.Names}}' | tr '\n' ' ')"
 
