@@ -184,10 +184,22 @@ func (s *ApplicationService) pollOneSignature(ctx context.Context, id, timeoutS 
 		return
 	}
 
+	// PR #323: disburse LoanData tam doldurulur — create (azmkCreateApplication)
+	// ilə eyni dəyərlərlə. AZMK hazırda yalnız applicationId istifadə etsə də,
+	// request log/audit üçün məlumatlı olmalıdır və gələcək AZMK
+	// validasiyalarına qarşı da təhlükəsizdir.
 	disburseReq := &azmk.DisburseRequest{
 		LoanData: azmk.LoanData{
-			ApplicationID: app.LwApplicationID, // AZMK təsdiqi: disburse applicationId istifadə edir
-			CardID:        app.CardID,
+			ClientID:        app.PartnerID,
+			ProductID:       s.azmkProductID,
+			Amount:          app.TotalAmount,
+			Term:            app.TermMonths,
+			BranchCode:      s.azmkBranch,
+			InterestRate:    s.annualInterestRateForApp(ctx, app) / 100.0, // PR #311: AZMK kəsr gözləyir (48 → 0.48)
+			DisbursementFee: s.azmkDisbursementFee,
+			LetterNumber:    "",
+			ApplicationID:   app.LwApplicationID, // AZMK təsdiqi: disburse applicationId istifadə edir
+			CardID:          app.CardID,
 		},
 	}
 	if err := s.azmkProvider.Disburse(ctx, disburseReq); err != nil {
@@ -231,6 +243,10 @@ func (s *ApplicationService) pollOneSignature(ctx context.Context, id, timeoutS 
 		"azmk_loan_id", app.AzmkLoanID,
 		"amount", app.TotalAmount,
 		"card_id", app.CardID)
+
+	// PR #323: müştəriyə "kreditiniz təsdiq edildi" SMS-i — referal SMS-indən
+	// (PR #319) ƏVVƏL, çünki əsas əməliyyat bildirişi prioritetlidir. Non-fatal.
+	s.sendDisburseApprovalSMS(ctx, app)
 
 	// PR #319 (pre_referal_code_plan.md R1+R4): disburse success →
 	// FIN-ə bağlı referal kodu generasiya et + store et, sonra müştəriyə SMS
