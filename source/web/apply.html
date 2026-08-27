@@ -599,7 +599,7 @@
                                x-model="form.discountCode"
                                @input="formatDiscountCode()"
                                placeholder="ALPUL-XXXXXX"
-                               maxlength="13"
+                               maxlength="12"
                                class="input-field w-full px-4 py-3.5 rounded-xl uppercase tracking-wider font-mono">
                     </div>
                     <p x-show="discountValid === 'invalid'" class="text-xs text-rose-400 mt-1.5 font-medium">
@@ -1755,8 +1755,8 @@ function applyApp() {
             }
             // yalnız A-Z, 0-9, - saxla
             v = v.replace(/[^A-Z0-9-]/g, '');
-            // maksimum 13 simvol
-            if (v.length > 13) v = v.substring(0, 13);
+            // maksimum 12 simvol (ALPUL- prefix 6 + 6 random suffix)
+            if (v.length > 12) v = v.substring(0, 12);
 
             // PR #104: əgər formatdan sonra yalnız 'ALPUL-' qaldısa, təmizlə
             if (v === 'ALPUL-') {
@@ -1779,7 +1779,7 @@ function applyApp() {
 
             // Reset state if code is empty or too short
             const code = this.form.discountCode.trim();
-            if (code.length < 13) {
+            if (code.length < 12) {
                 this.discountValid = '';
                 this.discountPreview = '';
                 return;
