@@ -53,6 +53,36 @@ scp rdc user@server:/opt/rdc/
 sudo env GRAFANA_ADMIN_PASSWORD=güclüparol bash deploy/install.sh
 ```
 
+### install.sh env dəyişənləri (rdc.env-ilə QARIŞDIRMAYIN)
+
+Bu dəyişənlər yalnız **quraşdırma anında** oxunur — `sudo env X=Y bash
+install.sh` ilə ötürülür. `deploy/rdc.env`-ə yazmağın faydası yoxdur:
+rdc.env-i app oxuyur, install.sh yox (iki fərqli kanal):
+
+| Kanal | Nə oxuyur | Nə zaman | Dəyişənlər |
+|---|---|---|---|
+| `sudo env ... install.sh` | install.sh | yalnız install vaxtı | aşağıdakı cədvəl |
+| `deploy/rdc.env` + `run-remote.sh` | app (Go config) | hər restartda | DB, AZMK, REFERRAL_DISCOUNT_PERCENT və s. |
+
+| Dəyişən | Default | Təsir | Nə zaman dəyişmək |
+|---|---|---|---|
+| `GRAFANA_ADMIN_PASSWORD` | `admin` | Grafana admin parolu (`:3001`) | prod-da mütləq güclü parol |
+| `LOKI_MAX_OUTSTANDING_REQUESTS` | `1000` | Loki sorğu limiti — geniş zaman aralıqlı sorğularda `429 too many outstanding requests` qarşısı (PR #325) | 1000 də az olsa (çox paralel dashboard/çox böyük aralıqlar) |
+| `LOG_LEVEL` | `info` | systemd unit-dəki default log səviyyəsi | app-in öz LOG_LEVEL-i isə rdc.env-dən oxunur (bölmə 4) |
+| `DB_PORT` | `1433` | systemd unit şablonu | unit yolundan istifadə edirsinizsə |
+| `DB_NAME` | `RDC` | systemd unit şablonu | eyni | 
+| `SERVER_ADDR` | `:8000` | systemd unit şablonu | port dəyişəndə |
+
+Nümunə — birdən çox dəyişən:
+
+```bash
+sudo env GRAFANA_ADMIN_PASSWORD=güclüparol LOKI_MAX_OUTSTANDING_REQUESTS=5000 \
+  bash deploy/install.sh
+```
+
+Qeyd: default dəyərlər kifayət edirsə heç birini vermək lazım deyil —
+`sudo bash deploy/install.sh` kifayətdir.
+
 Nə qurur: `rdc` istifadəçisi, `/opt/rdc/` qovluqları, monitorinq stack-i
 (loki + promtail + grafana — docker). App parametrləri soruşulmur, systemd
 service başladılır (yalnız unit faylı qoyulur — app run-remote.sh ilə işə salınır).
