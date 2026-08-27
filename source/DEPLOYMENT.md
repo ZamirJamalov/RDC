@@ -87,6 +87,8 @@ Nə qurur: `rdc` istifadəçisi, `/opt/rdc/` qovluqları, monitorinq stack-i
 (loki + promtail + grafana — docker). App parametrləri soruşulmur, systemd
 service başladılır (yalnız unit faylı qoyulur — app run-remote.sh ilə işə salınır).
 
+Statik IP lazımdırsa: **Bölmə 10** (`deploy/set_static_ip.sh`).
+
 ## 4. Parametrlər: laptopda `deploy/rdc.env`
 
 ```bash
@@ -329,3 +331,48 @@ bash deploy/run-remote.sh root@localhost
 | App işləyir, Grafana boşdur | monitorinq compose-u söndürülüb |
 | `su: Authentication failure` | ssh target root deyil — `root@server` ilə bağlanın və ya `local` rejimi (PR #309/#310) |
 | `bash: /dev/stdin: Permission denied` | köhnə versiya — PR #303-də düzəldilib |
+
+## 10. Server statik IP — `deploy/set_static_ip.sh` (PR #328)
+
+Şirkətdən verilən statik IP-ni Ubuntu serverdə avtomatik qurmaq üçün.
+`install.sh`-dən asılı deyil — şəbəkə konfiqi netplan ilə yazılır.
+
+### İstifadə
+
+```bash
+scp deploy/set_static_ip.sh user@SERVER:/tmp/
+ssh user@SERVER
+sudo STATIC_IP=192.168.1.50 GATEWAY=192.168.1.1 DNS_SERVERS=10.0.0.1,8.8.8.8 \
+  bash /tmp/set_static_ip.sh
+```
+
+### Env dəyişənləri
+
+| Dəyişən | Məcburi | Default | İzah |
+|---|---|---|---|
+| `STATIC_IP` | bəli | — | verilən statik IP (məs: `192.168.1.50`) |
+| `GATEWAY` | xeyr | cari default route, yoxdursa subnet-in `.1`-i | şlyuz (IT-dən dəqiqləşdirin) |
+| `DNS_SERVERS` | xeyr | `8.8.8.8,1.1.1.1` | vergüllə ayrılmış DNS-lər |
+| `PREFIX` | xeyr | `24` | `/24` üçün 24, `/16` üçün 16 |
+| `INTERFACE` | xeyr | ilk `en*`/`eth*` interfeys | `ip link show` ilə yoxlayın |
+| `NO_SCREEN` | xeyr | — | `1` = screen-siz icra (fiziki konsolda) |
+
+### Təhlükəsizlik mexanizmləri
+
+- **screen**: script avtomatik `static_ip` screen sessiyasında işə düşür (yoxdursa
+  quraşdırır) — SSH kəsilsə belə proses və rollback davam edir.
+  Geri qoşulma: `sudo screen -r static_ip`. Log: `/root/set_static_ip.screen.log`.
+- **Backup**: mövcud netplan faylları `/root/netplan_backup_<vaxt>/`-a saxlanılır.
+- **Avtomatik rollback**: tətbiqdən sonra gateway/DNS ping alınmırsa köhnə konfiq
+  geri qaytarılır (`netplan generate` xətasında da).
+- **cloud-init deaktiv** edilir — reboot-dan sonra konfiq reset olunmur.
+- Dəyişiklikdən əvvəl parametrləri göstərib `yes` ilə təsdiq istəyir.
+
+### Problemlər
+
+| Görünən | Səbəb / həll |
+|---|---|
+| `XƏTA: STATIC_IP mütləqdir` | env ötürülməyib — `sudo STATIC_IP=... bash ...` |
+| rollback baş verir, şəbəkə əslində işləyir | ICMP ping bloklanıb — GATEWAY-i və ya şirkət DNS-ini dəqiq verin |
+| SSH kəsildi, nə oldu bilmirəm | `sudo screen -r static_ip` və ya `/root/set_static_ip.screen.log`-a baxın |
+| Konfiq itib (rollback olub) | `/root/netplan_backup_*/` içindəki yaml-ları `/etc/netplan/`-a köçürün |
