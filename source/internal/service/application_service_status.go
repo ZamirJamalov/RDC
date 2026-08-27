@@ -282,6 +282,9 @@ func (s *ApplicationService) markDiscountCodeUsed(ctx context.Context, code stri
 // "kreditiniz təsdiq edildi" bildirişi. Referal SMS-indən (PR #319) əvvəl
 // çağırılır — əsas əməliyyat bildirişi prioritetlidir. Non-fatal: SMS xətası
 // disburse nəticəsini pozmur, yalnız log lanır.
+// Mətn: "...kartınıza köçürüldü. Müştəri kodunuz: HO0030210." — kod =
+// azmk_loan_id (AZMK status cavabından, worker disburse-dan əvvəl yazır);
+// boş olsa (loanId hələ gəlməyibsə) hissə ötürülür.
 func (s *ApplicationService) sendDisburseApprovalSMS(ctx context.Context, app *model.LoanApplication) {
 	if s.smsProvider == nil {
 		slog.Warn("disburse: smsProvider nil — approval SMS göndərilə bilmədi",
@@ -294,8 +297,11 @@ func (s *ApplicationService) sendDisburseApprovalSMS(ctx context.Context, app *m
 		return
 	}
 
-	smsMsg := fmt.Sprintf("Hörmətli müştərimiz! Sizin %.2f AZN məbləğində kreditiniz təsdiq edildi və kartınıza köçürüldü. Bize etibarınız üçün təşəkkür edirik!",
+	smsMsg := fmt.Sprintf("Hörmətli müştərimiz! Sizin %.2f AZN məbləğində kreditiniz təsdiq edildi və kartınıza köçürüldü.",
 		app.TotalAmount)
+	if app.AzmkLoanID != "" {
+		smsMsg += fmt.Sprintf(" Müştəri kodunuz: %s.", app.AzmkLoanID)
+	}
 	if err := s.smsProvider.Send(ctx, app.CustomerPhone, smsMsg); err != nil {
 		slog.Error("disburse: failed to send approval SMS (non-fatal)",
 			"application_id", app.ID,
@@ -391,7 +397,8 @@ func (s *ApplicationService) generateAndStoreReferralCode(ctx context.Context, a
 // sendReferralSMSWithCode sends the referral SMS after a successful disburse
 // (PR #284 → PR #319, plan R4 variant a: kod R1-dən birbaşa ötürülür).
 // Text: "Endirim kodunu dostunla paylaş,dostun X% endirimlə kredit əldə etsin,sən də
-// növbəti kreditində X% endirim qazan! Kod: 123456(referal kodu)"
+// növbəti kreditində X% endirim qazan! Kod: 123456"
+// PR #323: sondakı "(referal kodu)" ifadəsi silindi — SMS-də yalnız kod qalır.
 // X% — kodun discount_value sahəsindən (generateAndStoreReferralCode tərəfindən
 // REFERRAL_DISCOUNT_PERCENT ilə yazılır); fallback: referralDiscountPercent, 5.
 // Bütün xətalar non-fatal — disburse uğuru təsirlənmir.
@@ -420,7 +427,7 @@ func (s *ApplicationService) sendReferralSMSWithCode(ctx context.Context, app *m
 		percent = 5 // default
 	}
 
-	smsMsg := fmt.Sprintf("Endirim kodunu dostunla paylaş,dostun %d%% endirimlə kredit əldə etsin,sən də növbəti kreditində %d%% endirim qazan! Kod: %s(referal kodu)",
+	smsMsg := fmt.Sprintf("Endirim kodunu dostunla paylaş,dostun %d%% endirimlə kredit əldə etsin,sən də növbəti kreditində %d%% endirim qazan! Kod: %s",
 		percent, percent, code.Code)
 	if err := s.smsProvider.Send(ctx, app.CustomerPhone, smsMsg); err != nil {
 		slog.Error("disburse: failed to send referral SMS (non-fatal)",
