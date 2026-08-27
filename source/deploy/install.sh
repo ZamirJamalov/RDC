@@ -14,7 +14,8 @@
 # deploy/run-remote.sh ilə birbaşa proses env-inə ötürülür (diske yazılmır).
 #
 # NƏ EDİR:
-#   1. Ön şərtləri yoxlayır (root, docker, compose, binary, systemd >= 240)
+#   1. Ön şərtləri yoxlayır (root, binary, systemd >= 240); docker yoxdursa
+#      AVTOMATİK quraşdırır (rəsmi repo, PR #324)
 #   2. rdc sistem istifadəçisi yaradır (yoxdursa)
 #   3. /opt/rdc/ strukturu qurur: binary + monitorinq faylları
 #   4. app.log yaradır (rdc istifadəçisi yaza bilsin deyə)
@@ -57,6 +58,53 @@ err()  { printf '\033[1;31m[XETA]\033[0m %s\n' "$*" >&2; }
 # sed üçün xüsusi simvolları escape edir (&, |, \)
 sed_escape() { printf '%s' "$1" | sed -e 's/[\\|&]/\\&/g'; }
 
+# PR #324: Docker-ı rəsmi repo-dan quraşdırır (docker-ce + cli + containerd +
+# buildx + compose plugin). Yalnız apt (Debian/Ubuntu) və dnf/yum (RHEL/CentOS).
+# İnternet çıxışı tələb edir. Funksiya `if !` kontekstində çağırıldığı üçün
+# set -e ilk xətada funksiyanı dayandırır və qeyri-sıfır status qaytarır →
+# çağıran tərəf aydın xəta verir.
+install_docker() {
+    if command -v apt-get >/dev/null 2>&1; then
+        # Debian / Ubuntu — rəsmi Docker apt repo-su
+        . /etc/os-release
+        apt-get update
+        apt-get install -y ca-certificates curl
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL "https://download.docker.com/linux/${ID}/gpg" -o /etc/apt/keyrings/docker.asc
+        chmod a+r /etc/apt/keyrings/docker.asc
+        printf 'deb [arch=%s signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/%s %s stable\n' \
+            "$(dpkg --print-architecture)" "${ID}" "${VERSION_CODENAME}" \
+            > /etc/apt/sources.list.d/docker.list
+        apt-get update
+        apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    elif command -v dnf >/dev/null 2>&1; then
+        # RHEL / CentOS / Fedora — rəsmi Docker repo-su
+        dnf install -y dnf-plugins-core
+        dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+        dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y yum-utils
+        yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+        yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    else
+        warn "Tanınan paket meneceri yoxdur (apt/dnf/yum) — docker-i əl ilə quraşdırın"
+        return 1
+    fi
+}
+
+# PR #324: docker var, compose plugin yoxdur — yalnız plugin-i quraşdırır.
+install_compose_plugin() {
+    if command -v apt-get >/dev/null 2>&1; then
+        apt-get update && apt-get install -y docker-compose-plugin
+    elif command -v dnf >/dev/null 2>&1; then
+        dnf install -y docker-compose-plugin
+    elif command -v yum >/dev/null 2>&1; then
+        yum install -y docker-compose-plugin
+    else
+        return 1
+    fi
+}
+
 # ------------------------- 0) Root yoxlaması -------------------------
 if [[ ${EUID} -ne 0 ]]; then
     err "Bu script root ilə işlədilməlidir: sudo bash deploy/install.sh"
@@ -80,13 +128,24 @@ for f in docker-compose.yml promtail-config.yml grafana; do
     fi
 done
 
+# PR #324: docker yoxdursa AVTOMATİK quraşdırılır (əvvəl burada dayanırdı).
+# Rəsmi repo-dan quraşdırılır — compose plugin də birlikdə gəlir.
 if ! command -v docker >/dev/null 2>&1; then
-    err "docker yoxdur. Quraşdırın: https://docs.docker.com/engine/install/"
-    exit 1
+    warn "docker yoxdur — rəsmi repo-dan quraşdırılır (internet tələb edir)..."
+    if ! install_docker; then
+        err "Docker quraşdırıla bilmədi — əl ilə: https://docs.docker.com/engine/install/"
+        exit 1
+    fi
+    systemctl enable --now docker 2>/dev/null || warn "docker başladıla bilmədi — əl ilə: systemctl enable --now docker"
+    log "Docker quraşdırıldı: $(docker --version)"
 fi
 if ! docker compose version >/dev/null 2>&1; then
-    err "docker compose plugin yoxdur (docker-compose-v2 / docker-compose-plugin)."
-    exit 1
+    warn "docker compose plugin yoxdur — quraşdırılır..."
+    if ! install_compose_plugin; then
+        err "docker compose plugin quraşdırıla bilmədi (docker-compose-v2 / docker-compose-plugin)."
+        exit 1
+    fi
+    log "Compose plugin: $(docker compose version)"
 fi
 
 # systemd >= 240 (StandardOutput=append: üçün)
