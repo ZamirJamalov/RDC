@@ -127,7 +127,8 @@ LOG_LEVEL=debug go run . 2>&1 | tee app.log
 |---|---|---|
 | Fayl mount | `./:/var/log/app:ro` (qovluq) | Faylı birbaşa mount etmək təhlükəlidir — app.log yoxdursa Docker qovluq yaradır. Qovluq + glob → fayl sonra yarananda promtail avtomatik görür. |
 | Promtail positions | `promtail-data:/tmp` volume | Restart-da pozisiya itmasin — yoxdursa app.log başdan oxunub Loki-yə dublikat düşərdi. |
-| Loki datası | `loki-data:/tmp/loki` volume | Restart-da loglar itmesin. |
+| Loki datası | `loki-data:/tmp/loki` volume | Restart-da loglar itmasin. |
+| Loki sorğu limiti (PR #325) | `-query-scheduler.max-outstanding-requests-per-tenant=1000` (compose faylında) | Geniş zaman aralıqlı sorğular parçalanır, hər parça 1 outstanding request sayılır; Loki default-u (100) bizim həcmlə aşılırdı → Grafana-da `429 too many outstanding requests`. Override: `sudo env LOKI_MAX_OUTSTANDING_REQUESTS=5000 bash deploy/install.sh` (detallar: DEPLOYMENT.md bölmə 3). |
 | Grafana | `grafana-data` volume + provisioning | Dashboards/datasource-lar qalıcı + Loki datasource avtomatik hazır. |
 | Versiyalar | loki/promtail 2.9.4, grafana 11.1.0 | Eyni loki+promtail versiyası (uyğunluq), pinned (təkrarlanan quraşdırma). |
 | `tee app.log` vs `tee -a` | hər ikisi işləyir | `tee` (truncate) — hər run təmiz fayl; `-a` — uzun müddətli toplama. Promtail truncation-u düzgün tutur. |
