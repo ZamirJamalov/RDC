@@ -52,6 +52,12 @@ Prod server üçün repo/git/Go lazım deyil. Laptopda (və ya dev serverdə)
 bundle generasiya olunur — içində binary + self-contained quraşdırıcı +
 app parametrləri (PR #331-dən rdc.env də bundle-da gedir):
 
+    # Addım 0 (bir dəfə, PROD bundle-dan ƏVVƏL yoxla!):
+    #   nano deploy/rdc.env  →  MIGRATIONS_DROP_RECREATE=false
+    #   (true olsa generator dayanır və bundle YARANMAZ — DB silinmə qoruması;
+    #    dev-də true işlədilirsinizsə, prod bundle vaxtı mütləq false edin,
+    #    sonra istəsəniz geri qaytara bilərsiniz)
+
     # Laptopda və ya dev-də (repo olan yerdə):
     cd source/
     bash deploy/make-setup-prod.sh
