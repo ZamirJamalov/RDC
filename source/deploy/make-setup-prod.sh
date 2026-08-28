@@ -17,8 +17,9 @@
 #   cd rdc-setup
 #   sudo env GRAFANA_ADMIN_PASSWORD=güclüparol bash setup-prod.sh
 #
-# App-i başlat (laptopdan):
-#   bash deploy/run-remote.sh root@PROD
+# PR #331: rdc.env də bundle-a daxildir → setup-prod.sh onu /etc/rdc/env
+# (chmod 600, root-only) kimi quraşdırır. App artıq serverdən başladılır:
+#   sudo systemctl start rdc      (laptop/run-remote.sh lazım DEYİL)
 
 set -euo pipefail
 
@@ -60,6 +61,26 @@ for f in "${REQUIRED_FILES[@]}"; do
 done
 log "OK: delimiter toqquşması yoxdur"
 
+# PR #331: rdc.env mütləq lazımdır (bundle-a daxil olur)
+ENV_FILE_SRC="${REPO_ROOT}/deploy/rdc.env"
+if [[ ! -f "${ENV_FILE_SRC}" ]]; then
+    err "deploy/rdc.env tapılmadı — prod bundle env tələb edir"
+    err "  cp deploy/env.example deploy/rdc.env və parametrləri doldurun"
+    exit 1
+fi
+# TƏHLÜKƏSİZLİK QAPISI: prod-a DROP_RECREATE=true GETMƏMƏLİ (app başlayanda DB silinər!)
+if grep -q '^MIGRATIONS_DROP_RECREATE=true' "${ENV_FILE_SRC}"; then
+    if [[ "${FORCE_BUNDLE:-0}" == "1" ]]; then
+        warn "FORCE_BUNDLE=1 — MIGRATIONS_DROP_RECREATE=true ilə davam edilir (DİQQƏTLİ!)"
+    else
+        err "rdc.env-də MIGRATIONS_DROP_RECREATE=true — PROD üçün QADAĞANDIR (DB silinər!)"
+        err "  1) nano deploy/rdc.env → MIGRATIONS_DROP_RECREATE=false"
+        err "  2) və ya məcburi: FORCE_BUNDLE=1 bash deploy/make-setup-prod.sh"
+        exit 1
+    fi
+fi
+log "OK: deploy/rdc.env mövcuddur (bundle-a daxil olacaq)"
+
 # ------------------------- 2) Git məlumatı -------------------------
 GIT_HASH="$(git -C "${REPO_ROOT}" rev-parse --short HEAD 2>/dev/null || echo nogit)"
 GIT_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -94,8 +115,8 @@ cat > "${OUT_SCRIPT}" <<EOF
 # İstifadə (prod serverdə):
 #   sudo env GRAFANA_ADMIN_PASSWORD=güclüparol bash setup-prod.sh
 #
-# App-i başlatmaq üçün (laptopdan):
-#   bash deploy/run-remote.sh root@bu-server
+# App-i başlatmaq üçün (serverdən — PR #331, laptop/run-remote.sh lazım deyil):
+#   sudo systemctl start rdc
 
 set -euo pipefail
 
@@ -327,7 +348,25 @@ sed \
 chmod 644 "${UNIT_DST}"
 rm -f "${UNIT_SRC}"
 systemctl daemon-reload
-log "Unit quraşdırıldı (başladILMADI): systemctl status ${SERVICE_NAME}"
+# PR #331: enable (boot-da avtomatik qalxır) — amma START etmirik
+systemctl enable "${SERVICE_NAME}" 2>/dev/null || warn "systemctl enable ${SERVICE_NAME} alınmadı"
+log "Unit quraşdırıldı + enable edildi: systemctl start ${SERVICE_NAME} ilə başladın"
+
+# ------------------------- 7b) /etc/rdc/env (PR #331) -------------------------
+log "7b) /etc/rdc/env (app parametrləri)..."
+if [[ -f "${SCRIPT_DIR}/rdc.env" ]]; then
+    install -d -o root -g root -m 755 /etc/rdc
+    install -m 600 -o root -g root "${SCRIPT_DIR}/rdc.env" /etc/rdc/env
+    rm -f "${SCRIPT_DIR}/rdc.env"
+    log "/etc/rdc/env quraşdırıldı (chmod 600, root-only) — bundle nüsxəsi silindi"
+    if grep -q '^MIGRATIONS_DROP_RECREATE=true' /etc/rdc/env; then
+        warn "!!! /etc/rdc/env-də MIGRATIONS_DROP_RECREATE=true — DB SİLİNƏCƏK! Düzəldin: nano /etc/rdc/env"
+    fi
+elif [[ -f /etc/rdc/env ]]; then
+    log "/etc/rdc/env artıq mövcuddur — dəyişdirilmir (yeniləmək üçün bundle-da rdc.env olmalıdır)"
+else
+    warn "rdc.env bundle-da yoxdur və /etc/rdc/env mövcud deyil — app parametrlərsiz başlaya bilməyəcək!"
+fi
 
 # ------------------------- 8) sshd -------------------------
 log "8/11 sshd yoxlanılır..."
@@ -426,7 +465,7 @@ fi
 if curl -sf -o /dev/null "http://localhost:${APP_PORT}/" 2>/dev/null; then
     log "App: cavab verir (http://localhost:${APP_PORT})"
 else
-    warn "App port ${APP_PORT} cavab vermir — run-remote.sh ilə başladın"
+    warn "App port ${APP_PORT} cavab vermir — başladın: sudo systemctl start ${SERVICE_NAME} (normaldır, app hələ başlamayıb)"
 fi
 
 echo
@@ -434,8 +473,10 @@ echo "============================================================"
 echo " QURAŞDIRMA TAMAMLANDI"
 echo "============================================================"
 echo " Versiya:        cat ${RDC_HOME}/VERSION"
-echo " App başlatma:   laptopdan: bash deploy/run-remote.sh root@bu-server"
-echo " DİQQƏT:         deploy/rdc.env-də MIGRATIONS_DROP_RECREATE=false olmalıdır!"
+echo " App başlatma:   sudo systemctl start ${SERVICE_NAME}   (serverdən — laptop lazım deyil, PR #331)"
+echo " Update:         yeni bundle + setup-prod.sh + sudo systemctl restart ${SERVICE_NAME}"
+echo " Env:            /etc/rdc/env (chmod 600) — dəyişmək: nano + systemctl restart ${SERVICE_NAME}"
+echo " Təmizlik:       rm /root/rdc-prod-*.tgz   (içində parol var!)"
 echo " Loglar:         tail -f ${MON_HOME}/app.log"
 echo " Caddy URL:      https://${SERVER_IP}"
 echo " Grafana:        http://${SERVER_IP}:3001 (${GRAFANA_ADMIN_PASSWORD} / ***)"
@@ -461,22 +502,27 @@ STAGE="$(mktemp -d)"
 cp "${RDC_BIN}" "${STAGE}/rdc"
 cp "${OUT_SCRIPT}" "${STAGE}/setup-prod.sh"
 chmod +x "${STAGE}/setup-prod.sh"
+# PR #331: rdc.env də bundle-a daxildir (setup-prod.sh /etc/rdc/env-ə quraşdırır)
+cp "${ENV_FILE_SRC}" "${STAGE}/rdc.env"
 
 cat > "${STAGE}/VERSION" <<VERSION_EOF
-# RDC prod bundle (make-setup-prod.sh, PR #330)
+# RDC prod bundle (make-setup-prod.sh, PR #330/#331)
 source_commit=${GIT_HASH}
 generated=${GIT_DATE}
 binary_sha256=${BIN_SHA256}
+rdc_env_bundled=yes
 VERSION_EOF
 
 mkdir -p "${DIST_DIR}"
 BUNDLE="${DIST_DIR}/rdc-prod-${GIT_HASH}.tgz"
-tar czf "${BUNDLE}" -C "${STAGE}" rdc setup-prod.sh VERSION
+tar czf "${BUNDLE}" -C "${STAGE}" rdc setup-prod.sh VERSION rdc.env
 rm -rf "${STAGE}"
 
 BUNDLE_SIZE="$(du -h "${BUNDLE}" | awk '{print $1}')"
 
 log "Bundle: ${BUNDLE} (${BUNDLE_SIZE})"
+echo
+warn "⚠ Bundle-da PLAINTEXT parollar var (rdc.env) — dist/ yalnız laptopda, serverdə quraşdırmadan sonra .tgz-i silin!"
 echo
 echo "============================================================"
 echo " NÖVBƏTİ ADDIMLAR"
@@ -484,12 +530,15 @@ echo "============================================================"
 echo " 1. Prod-a köçür:"
 echo "    scp ${BUNDLE} root@PROD:/root/"
 echo
-echo " 2. Prod-da aç və qur:"
+echo " 2. Prod-da aç və qur (env daxil — /etc/rdc/env quraşdırılır):"
 echo "    ssh root@PROD"
 echo "    mkdir -p rdc-setup && tar xzf /root/rdc-prod-${GIT_HASH}.tgz -C rdc-setup"
 echo "    cd rdc-setup"
 echo "    sudo env GRAFANA_ADMIN_PASSWORD=güclüparol bash setup-prod.sh"
 echo
-echo " 3. App-i başlat (laptopdan):"
-echo "    bash deploy/run-remote.sh root@PROD"
+echo " 3. App-i başlat (serverdən — laptop lazım deyil):"
+echo "    sudo systemctl start rdc"
+echo
+echo " 4. Təmizlik (parol olan .tgz-i sil):"
+echo "    rm /root/rdc-prod-*.tgz"
 echo "============================================================"

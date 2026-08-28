@@ -46,15 +46,17 @@ scp rdc user@server:/opt/rdc/
 # Yalnız bu 1 fayl kifayətdir — web/, migrations/ daşımaq lazım deyil.
 ```
 
-## 2A. Prod: source kodu serverə GETMİR — make-setup-prod.sh (PR #330)
+## 2A. Prod: source kodu serverə GETMİR — make-setup-prod.sh (PR #330 + #331)
 
 Prod server üçün repo/git/Go lazım deyil. Laptopda (və ya dev serverdə)
-bundle generasiya olunur — içində binary + self-contained quraşdırıcı:
+bundle generasiya olunur — içində binary + self-contained quraşdırıcı +
+app parametrləri (PR #331-dən rdc.env də bundle-da gedir):
 
     # Laptopda və ya dev-də (repo olan yerdə):
     cd source/
     bash deploy/make-setup-prod.sh
-    # → dist/rdc-prod-<commit>.tgz  (rdc + setup-prod.sh + VERSION)
+    # → dist/rdc-prod-<commit>.tgz  (rdc + setup-prod.sh + VERSION + rdc.env)
+    # QAPı: rdc.env-də MIGRATIONS_DROP_RECREATE=true olsa bundle YARANMAZ
 
     # Prod-a köçür və aç:
     scp dist/rdc-prod-<commit>.tgz root@PROD:/root/
@@ -62,18 +64,36 @@ bundle generasiya olunur — içində binary + self-contained quraşdırıcı:
     mkdir -p rdc-setup && tar xzf /root/rdc-prod-<commit>.tgz -C rdc-setup
     cd rdc-setup
 
-    # Hər şeyi qurur (docker, monitorinq, Caddy, AZMK hosts, systemd):
+    # Hər şeyi qurur (docker, monitorinq, Caddy, AZMK hosts, systemd,
+    # /etc/rdc/env — rdc.env bundle-dan, chmod 600 root-only):
     sudo env GRAFANA_ADMIN_PASSWORD=güclüparol bash setup-prod.sh
 
-    # App-i başlat (laptopdan, rdc.env ilə — dəyişməyib):
-    bash deploy/run-remote.sh root@PROD
+    # App-i başlat (SERVERDƏN — laptop/run-remote.sh lazım deyil, PR #331):
+    sudo systemctl start rdc
+
+    # Təmizlik (parol olan .tgz-i serverdən sil):
+    rm /root/rdc-prod-*.tgz
 
 Env dəyişənləri install.sh ilə eynidir (SERVER_IP, AZMK_PUBLIC_IP,
 INSTALL_CADDYFILE_OVERWRITE, LOKI_MAX_OUTSTANDING_REQUESTS...).
 setup-prod.sh ƏL İLƏ dəyişdirilmir — repo dəyişəndə generatoru təkrar
 işə salın (repo = tək source of truth, drift yoxdur).
 Versiya: prod-da `cat /opt/rdc/VERSION` (commit, tarix, sha256).
-DİQQƏT (prod): `deploy/rdc.env`-də `MIGRATIONS_DROP_RECREATE=false` olmalıdır.
+
+Prod-da idarəetmə (systemd — reboot/crash-də avtomatik qalxır):
+
+    | Əməliyyat | Əmr (serverdə) |
+    |---|---|
+    | Başlat | `sudo systemctl start rdc` |
+    | Restart (update-dən sonra) | `sudo systemctl restart rdc` |
+    | Status / loglar | `systemctl status rdc` / `tail -f /opt/rdc/monitoring/app.log` |
+    | Parametr dəyiş | laptopda rdc.env dəyiş → yeni bundle → setup-prod.sh → restart |
+
+⚠ Security: bundle plaintext parollar daşıyır — `dist/` yalnız laptopda
+qalsın; serverdə quraşdırmadan sonra `.tgz` silin (setup-prod.sh bundle-dakı
+`rdc.env` nüsxəsini özü silir; `/etc/rdc/env` yalnız root oxuyur — chmod 600).
+`MIGRATIONS_DROP_RECREATE` qapısı: generator `true` olsa bundle yaratmır
+(məcburi: `FORCE_BUNDLE=1`).
 
 ## 3. Bir dəfə: server hazırlığı (install.sh)
 
