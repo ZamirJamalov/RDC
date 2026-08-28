@@ -213,7 +213,7 @@
         [data-theme="light"] .border-teal-500\/20 { border-color: rgba(45, 156, 219,0.2) !important; }
     </style>
 </head>
-<body x-data="applyApp()" x-init="init()" x-cloak data-theme="dark">
+<body x-data="applyApp()" x-init="init()" x-cloak data-theme="light">
 
 <div class="min-h-screen flex flex-col">
 
@@ -517,7 +517,7 @@
                             </div>
                         </div>
                         <input type="range" :min="rangeMin" :max="rangeMax" step="10" x-model.number="form.amount"
-                               @input="updateSelectedRange()"
+                               @input="onAmountSlider()"
                                :style="`--range-fill: ${((form.amount - rangeMin) / (rangeMax - rangeMin)) * 100}%`">
                         <div class="flex justify-between text-xs text-gray-500 mt-2">
                             <span><span x-text="rangeMin"></span> AZN</span>
@@ -861,7 +861,7 @@ function applyApp() {
         error: '',
 
         // PR #83: Theme state
-        theme: localStorage.getItem('alpul_theme') || 'dark',
+        theme: localStorage.getItem('alpul_theme') || 'light', // PR #329: ilk giriş üçün light default (əvvəl dark idi)
 
         // Application state
         applicationId: null,
@@ -956,6 +956,16 @@ function applyApp() {
         get rangeMax() {
             if (!this.offer || !this.offer.ranges || !this.offer.ranges.length) return 300;
             return Math.max(...this.offer.ranges.map(r => r.max_amount));
+        },
+
+        // PR #329: slider grid-i (rangeMin + 10n) rangeMax-a tam çatmır (məs. min=1,
+        // max=300 → son nöqtə 291) — sonu max-a snap edirik ki, istifadəçi cubuğu
+        // sona çatdıranda tam maksimum məbləğ görsənsin və seçilə bilsin.
+        onAmountSlider() {
+            if (this.form.amount < this.rangeMax && this.form.amount > this.rangeMax - 10) {
+                this.form.amount = this.rangeMax;
+            }
+            this.updateSelectedRange();
         },
 
         // PR #101/#230/#231: amount dəyişəndə selectedRange-i yenilə
