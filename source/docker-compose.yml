@@ -24,7 +24,7 @@ services:
     # bu dəyəri override edə bilər (sed ilə əvəz olunur).
     volumes:
       # PR #290: Loki datası restart-da itmasin (default local-config /tmp/loki istifadə edir)
-      - loki-data:/tmp/loki
+      - "loki-data:/tmp/loki"
     networks:
       - monitoring
     restart: unless-stopped
@@ -33,14 +33,14 @@ services:
     image: grafana/promtail:2.9.4
     container_name: promtail
     volumes:
-      - ./promtail-config.yml:/etc/promtail/config.yml:ro
+      - "./promtail-config.yml:/etc/promtail/config.yml:ro"
       # PR #290: faylı deyil, source/ qovluğunu mount edirik.
       # Faylı birbaşa mount etmək təhlükəlidir: app.log yoxdursa Docker QOVLUQ yaradır.
       # Qovluq + glob __path__ (promtail-config.yml) → app.log sonra yarananda avtomatik götürülür.
-      - ./:/var/log/app:ro
+      - "./:/var/log/app:ro"
       # PR #290: positions.yaml (harada qaldığım) restart-da itmasin — yoxdursa faylı
       # başdan oxuyub Loki-yə dublikat göndərərdi.
-      - promtail-data:/tmp
+      - "promtail-data:/tmp"
     command: -config.file=/etc/promtail/config.yml
     networks:
       - monitoring
@@ -59,9 +59,9 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
-      - grafana-data:/var/lib/grafana
+      - "grafana-data:/var/lib/grafana"
       # PR #290: Loki datasource avtomatik provision olunur — əl ilə əlavə etmək lazım deyil
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - "./grafana/provisioning:/etc/grafana/provisioning:ro"
     networks:
       - monitoring
     restart: unless-stopped

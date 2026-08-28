@@ -46,6 +46,35 @@ scp rdc user@server:/opt/rdc/
 # Yalnız bu 1 fayl kifayətdir — web/, migrations/ daşımaq lazım deyil.
 ```
 
+## 2A. Prod: source kodu serverə GETMİR — make-setup-prod.sh (PR #330)
+
+Prod server üçün repo/git/Go lazım deyil. Laptopda (və ya dev serverdə)
+bundle generasiya olunur — içində binary + self-contained quraşdırıcı:
+
+    # Laptopda və ya dev-də (repo olan yerdə):
+    cd source/
+    bash deploy/make-setup-prod.sh
+    # → dist/rdc-prod-<commit>.tgz  (rdc + setup-prod.sh + VERSION)
+
+    # Prod-a köçür və aç:
+    scp dist/rdc-prod-<commit>.tgz root@PROD:/root/
+    ssh root@PROD
+    mkdir -p rdc-setup && tar xzf /root/rdc-prod-<commit>.tgz -C rdc-setup
+    cd rdc-setup
+
+    # Hər şeyi qurur (docker, monitorinq, Caddy, AZMK hosts, systemd):
+    sudo env GRAFANA_ADMIN_PASSWORD=güclüparol bash setup-prod.sh
+
+    # App-i başlat (laptopdan, rdc.env ilə — dəyişməyib):
+    bash deploy/run-remote.sh root@PROD
+
+Env dəyişənləri install.sh ilə eynidir (SERVER_IP, AZMK_PUBLIC_IP,
+INSTALL_CADDYFILE_OVERWRITE, LOKI_MAX_OUTSTANDING_REQUESTS...).
+setup-prod.sh ƏL İLƏ dəyişdirilmir — repo dəyişəndə generatoru təkrar
+işə salın (repo = tək source of truth, drift yoxdur).
+Versiya: prod-da `cat /opt/rdc/VERSION` (commit, tarix, sha256).
+DİQQƏT (prod): `deploy/rdc.env`-də `MIGRATIONS_DROP_RECREATE=false` olmalıdır.
+
 ## 3. Bir dəfə: server hazırlığı (install.sh)
 
 ```bash
