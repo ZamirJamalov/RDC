@@ -2831,9 +2831,9 @@ function gTranslit(s) {
 }
 
 // ---- Azərbaycan ad/kömək polları ----
-var AZ_MALE = ['Əli','Anar','Elvin','Elçin','Rəşad','Orxan','İlqar','Tural','Nurlan','Samir','Fərid','Mahir','Zaur','Rauf','Kamran','Ruslan','Vüqar','Elnur','Azər','Yusif','İbrahim','Murad','Teymur','Ramil','Namiq','Arif','Fəxri','Ümid','Ceyhun','Pərviz','Şərxan','Vüsal','Babək','İsmayıl','Nihat','Rövşən','Vidadi','Səxavət','Xalid','Elgün'];
-var AZ_FEMALE = ['Aysel','Nərmin','Günay','Lala','Türkan','Xəlidə','Səbinə','Aytən','Könül','Zəhra','Mehriban','Nərgiz','Ayğün','Sədaqət','Dilarə','Fidan','Nurlanə','Aytac','Ülviyyə','Sənubər','Hümay','Şəfa','Xuraman','Leyla','Aynurə','Elnarə','İradə','Sevinc','Vüsalə','Kamala'];
-var AZ_LAST = ['Əliyev','Məmmədov','Hüseynov','Quliyev','Səfərov','Abbasov','Xəlilov','Əsgərov','Cəfərov','Bağırov','Yusifov','İsmayılov','Həsənov','Əhmədov','Orucov','Rzayev','Kərimov','Məmmədli','Hacıyev','Nəzirov','İbrahimov','Sultanov','Mikayılov','Osmanov','Səlimanov','Şükürov','Talıbov','Usubov','Vərdiyev','Zeynalov'];
+var AZ_MALE = ['Əli','Anar','Elvin','Elçin','Rəşad','Orxan','İlqar','Tural','Nurlan','Samir','Fərid','Mahir','Zaur','Rauf','Kamran','Ruslan','Vüqar','Elnur','Azər','Yusif','İbrahim','Murad','Teymur','Ramil','Namiq','Arif','Fəxri','Ümid','Ceyhun','Pərviz','Şərxan','Vüsal','Babək','İsmayıl','Nihat','Rövşən','Vidadi','Səxavət','Xalid','Elgün','Tahir','Elşən','Kənan','Ramin','Nicat','Şahin','Aydın','Faiq','Səbuhi','Rəsul','Salman','Vasif','Zakir','Toğrul','Çingiz','Oqtay','Elmar','Fərhad','Hikmət','Cəlal','Kamil','Qədir','Məmməd','Nazim','Nəsib','Pənah','Rəfael','Rizvan','Səməd','Sənan','Süleyman','Taleh','Tərlan','Vaqif','Yalçın','Əhməd','Əkrəm','Bahadır','Emil','Rəvan','Ağahüseyn','İnqilab','Məlik','Fazil'];
+var AZ_FEMALE = ['Aysel','Nərmin','Günay','Türkan','Xalidə','Səbinə','Aytən','Könül','Zəhra','Mehriban','Nərgiz','Ayğün','Sədaqət','Dilarə','Fidan','Nurlanə','Aytac','Ülviyyə','Sənubər','Hümay','Şəfa','Xuraman','Leyla','Aynurə','Elnarə','İradə','Sevinc','Vüsalə','Kamala','Afaq','Alsu','Amina','Arzu','Aydan','Aylin','Banovşə','Dürdanə','Dərya','Esmira','Fəridə','Fərqanə','Gülarə','Gülnarə','Gülsüm','Gülşən','Həcər','Həyat','Xəyalə','Xurşidə','Kifayət','Lamiyə','Lalə','Məlahət','Məryəm','Mənsurə','Nailyə','Nəzakət','Nüşabə','Pərvanə','Pəri','Rəhilə','Reyhan','Rəxsanə','Ruhiyyə','Səidə','Samirə','Sara','Sona','Sürəyya','Şəfəq','Təhminə','Təranə','Ulduz','Ülkər','Yasəmən','Zemfira','Zibeydə','Züleyxa'];
+var AZ_LAST = ['Əliyev','Məmmədov','Hüseynov','Quliyev','Səfərov','Abbasov','Xəlilov','Əsgərov','Cəfərov','Bağırov','Yusifov','İsmayılov','Həsənov','Əhmədov','Orucov','Rzayev','Kərimov','Məmmədli','Hacıyev','Nəzirov','İbrahimov','Sultanov','Mikayılov','Osmanov','Səlimanov','Şükürov','Talıbov','Usubov','Vərdiyev','Zeynalov','Ələkbərov','Əlizadə','Ağayev','Bayramov','Behbudov','Cabbarov','Dadaşov','Əbdullayev','Əfəndiyev','Fətəliyev','Qasımov','Qəhrəmanov','Qulamov','Həbibov','Hüseynli','İmanov','İsayev','Kazımov','Mahmudov','Mərdanov','Məsimov','Muradov','Mustafayev','Nağıyev','Nəcəfov','Nərimanov','Novruzov','Paşayev','Piriyev','Rəhimov','Rəsulov','Sadiqov','Səmədov','Seyidov','Şahverdiyev','Şirinov','Tağıyev','Vəliyev','Yaqubov','Zahidov'];
 var AZ_CITY_W = [['Bakı',40],['Gəncə',8],['Sumqayıt',6],['Mingəçevir',4],['Şəki',4],['Lənkəran',4],['Naxçıvan',3],['Şirvan',3],['Quba',3],['Xırdalan',3],['Şamaxı',2],['Yevlax',2],['Salyan',2],['Zaqatala',2],['Astara',2],['Qəbələ',2]];
 var AZ_STREETS = ['Nəriman Nərimanov küç.','Heydər Əliyev pr.','Azadlıq pr.','28 May küç.','Fətəli Xan Xoyski küç.','Cəfər Cabbarlı küç.','Nizami küç.','Rəsul Rza küç.','Bakıxanov küç.','Əhməd Rəcəbli küç.','Həsən Əliyev küç.','Babək pr.','Səbail küç.','Zərgərpalan küç.','Təbriz küç.','Neftçilər pr.'];
 var AZ_EMAIL_DOMAINS = ['mail.ru','inbox.ru','gmail.com','yandex.com','example.az','bk.ru'];
@@ -2858,12 +2858,71 @@ var MK_MONTH_W = [0.92,0.95,1.00,1.02,1.05,1.02,1.10,1.05,1.00,1.02,1.05,1.22]; 
 var CS_WEEK_W  = [1.0,1.12,1.12,1.10,1.08,1.02,0.72]; // bazar günü az (Sun..Sat)
 var MK_WEEK_W  = [0.85,0.95,0.95,1.0,1.05,1.25,1.15]; // cümə/şənbə artımı
 
-function makeDayPicker(r, monthW, weekW, growth) {
+// Azərbaycan bayramları (realizm v5): [MM-DD, preGünSayı, preArtım, bayramGünü, postGünSayı, postArtım]
+// Sabit bayramlar hər təqvim ilinə tətbiq olunur; market üçün tam, aptek üçün yumşaldılmış effekt
+var AZ_FIXED_HOL = [
+  ['01-01', 0, 1.00, 0.55, 3, 1.12],   // Yeni il: bayram günləri qapalı (bazarlıq dekabrın sonunda)
+  ['03-08', 2, 1.40, 1.00, 0, 1.00],   // Qadınlar günü: əvvəlki günlər hədiyyə bazarlığı
+  ['03-20', 5, 1.60, 0.65, 2, 1.05],   // Novruz: 15-19 mart bazarlığı, bayram günləri yarı-açıq
+  ['03-21', 0, 1.00, 0.65, 0, 1.00],
+  ['05-09', 1, 1.15, 1.00, 0, 1.00],   // Qələbə günü
+  ['05-28', 1, 1.10, 1.00, 0, 1.00],   // Müstəqillik günü
+  ['11-08', 1, 1.18, 1.00, 0, 1.00],   // Zəfər günü
+  ['11-09', 1, 1.18, 1.00, 0, 1.00],   // Dövlət Bayrağı günü
+  ['12-31', 6, 1.65, 0.60, 0, 1.00]    // İl sonu bazarlığı: 25-31 dekabr güclü artım
+];
+// Hərəkətli bayramlar (Ramazan/Qurban, 2022-2025) və Black Friday
+var AZ_MOVABLE_HOL = [
+  ['2023-04-21', 3, 1.30, 0.80],       // Ramazan bayramı
+  ['2023-06-28', 3, 1.38, 0.75],       // Qurban bayramı
+  ['2024-04-10', 3, 1.30, 0.80],
+  ['2024-06-16', 3, 1.38, 0.75],
+  ['2025-03-30', 3, 1.30, 0.80],
+  ['2025-06-06', 3, 1.38, 0.75]
+];
+var AZ_BLACKFRIDAY = ['2022-11-25', '2023-11-24', '2024-11-29'];
+
+// Günlük multiplikator massivi: kind='market' (tam effekt) və ya 'pharmacy' (yumşaq ~30%)
+function buildDayMults(kind) {
+  var mult = new Float64Array(GEN_DAYS), i;
+  for (i = 0; i < GEN_DAYS; i++) mult[i] = 1;
+  var k = kind === 'market' ? 1 : 0.45;
+  var WIN0 = dayIdxOf(GEN_WIN_START);              // pəncərə-relativ indeksləmə üçün offset
+  function boost(dayIdx, m) {
+    if (dayIdx >= 0 && dayIdx < GEN_DAYS) mult[dayIdx] *= 1 + (m - 1) * k;
+  }
+  var years = [2022, 2023, 2024, 2025], h, j, y;
+  for (h = 0; h < AZ_FIXED_HOL.length; h++) {
+    var hd = AZ_FIXED_HOL[h];
+    var mo = Number(hd[0].substring(0, 2)) - 1, dy = Number(hd[0].substring(3, 5));
+    for (j = 0; j < years.length; j++) {
+      y = years[j];
+      var di = dayIdxOf(Date.UTC(y, mo, dy)) - WIN0;
+      for (var p = 1; p <= hd[1]; p++) boost(di - p, hd[2]);
+      boost(di, hd[3]);
+      for (var q = 1; q <= hd[4]; q++) boost(di + q, hd[5]);
+    }
+  }
+  for (h = 0; h < AZ_MOVABLE_HOL.length; h++) {
+    var mv = AZ_MOVABLE_HOL[h];
+    var d2 = dayIdxOf(Date.UTC(Number(mv[0].substring(0, 4)), Number(mv[0].substring(5, 7)) - 1, Number(mv[0].substring(8, 10)))) - WIN0;
+    for (j = 1; j <= mv[1]; j++) boost(d2 - j, mv[2]);
+    boost(d2, mv[3]);
+  }
+  for (h = 0; h < AZ_BLACKFRIDAY.length; h++) {
+    var bf = AZ_BLACKFRIDAY[h];
+    var d3 = dayIdxOf(Date.UTC(Number(bf.substring(0, 4)), Number(bf.substring(5, 7)) - 1, Number(bf.substring(8, 10)))) - WIN0;
+    boost(d3, 1.50); boost(d3 - 1, 1.20);
+  }
+  return mult;
+}
+
+function makeDayPicker(r, monthW, weekW, growth, mults) {
   var w = [], i;
   for (i = 0; i < GEN_DAYS; i++) {
     var d = new Date(GEN_WIN_START + i * DAY_MS);
     var base = monthW[d.getUTCMonth()] * weekW[d.getUTCDay()];
-    w.push(base * (growth ? (1 + 0.55 * i / GEN_DAYS) : 1));
+    w.push(base * (mults ? mults[i] : 1) * (growth ? (1 + 0.55 * i / GEN_DAYS) : 1));
   }
   return makeCumPicker(w);
 }
@@ -2905,19 +2964,20 @@ function priceAt(hist, day) {
 // ============================================================
 // SCHEMA: APTEK
 // ============================================================
+// [INN, reseptli, ATC kodu] — realizm v5: ATC INN-dən törəyir (real kodlar)
 var PH_INN = [
-  ['Parasetamol',0],['Parasetamol/Koffein',0],['İbuprofen',0],['Nimesulid',1],['Diklofenak',1],['Ketoprofen',1],['Aspirin',0],
-  ['Amoksisillin',1],['Azitromisin',1],['Klaritromisin',1],['Sefiksim',1],['Seftriakson',1],['Doksitsiklin',1],['Levofloksasin',1],['Siprofloksasin',1],
-  ['Metronidazol',1],['Tinidazol',1],['Albendazol',1],['Pirantel',0],['Flukonazol',1],['Klotrimazol',0],['Mikonazol',0],['Ketokonazol',1],
-  ['Metformin',1],['Glibenklamid',1],['Amlodipin',1],['Enalapril',1],['Losartan',1],['Bisoprolol',1],['Metoprolol',1],['Karvedilol',1],
-  ['Furosemid',1],['Hidroxlorotiazid',1],['Spironolakton',1],['Atorvastatin',1],['Simvastatin',1],['Omeprazol',1],['Pantoprazol',1],['Ranitidin',0],
-  ['Domperidon',1],['Ondansetron',1],['Loperamid',0],['Mebeverin',1],['Drotaverin',0],['Setrizin',0],['Loratadin',0],['Desloratadin',0],
-  ['Ambroksol',0],['Asetilsistein',0],['Bromheksin',0],['Salbutamol',1],['Budesonid',1],['Montelukast',1],['Levotiroksin',1],['Ursodeoksikolik turşu',1],
-  ['Varfarin',1],['Klopidogrel',1],['Dabigatran',1],['Sildenafil',1],['Tamsulosin',1],['Finasterid',1],['Diazepam',1],['Zolpidem',1],
-  ['Amitriptilin',1],['Sertralin',1],['Fluoksetin',1],['Kolekalciferol',0],['Askorbin turşusu',0],['Sianokobalamin',0],['Fol turşusu',0],
-  ['Dəmir sulfat',0],['Maqnezium sitrat',0],['Kalsium/D3',0],['Qinka biloba',0],['Valeriana ekstraktı',0],['Arnika məlhəmi',0],
-  ['Povidon-iod',0],['Xlorheksidin',0],['Sink oksid',0],['Hidrokortizon',1],['Betametazon',1],['Mometazon',1],['Dekspantenol',0],
-  ['Glükoza',0],['Natrium xlorid 0.9%',0]
+  ['Parasetamol',0,'N02BE01'],['Parasetamol/Koffein',0,'N02BE51'],['İbuprofen',0,'M01AE01'],['Nimesulid',1,'M01AX17'],['Diklofenak',1,'M01AB05'],['Ketoprofen',1,'M01AE03'],['Aspirin',0,'N02BA01'],
+  ['Amoksisillin',1,'J01CA04'],['Azitromisin',1,'J01FA10'],['Klaritromisin',1,'J01FA09'],['Sefiksim',1,'J01DD08'],['Seftriakson',1,'J01DD04'],['Doksitsiklin',1,'J01AA02'],['Levofloksasin',1,'J01MA12'],['Siprofloksasin',1,'J01MA02'],
+  ['Metronidazol',1,'J01XD01'],['Tinidazol',1,'J01XD02'],['Albendazol',1,'P02CA03'],['Pirantel',0,'P02CC01'],['Flukonazol',1,'J02AC01'],['Klotrimazol',0,'D01AC01'],['Mikonazol',0,'D01AC52'],['Ketokonazol',1,'D01AC08'],
+  ['Metformin',1,'A10BA02'],['Glibenklamid',1,'A10BB01'],['Amlodipin',1,'C08CA01'],['Enalapril',1,'C09AA02'],['Losartan',1,'C09CA01'],['Bisoprolol',1,'C07AB07'],['Metoprolol',1,'C07AB02'],['Karvedilol',1,'C07AG02'],
+  ['Furosemid',1,'C03CA01'],['Hidroxlorotiazid',1,'C03AA03'],['Spironolakton',1,'C03DA01'],['Atorvastatin',1,'C10AA05'],['Simvastatin',1,'C10AA01'],['Omeprazol',1,'A02BC01'],['Pantoprazol',1,'A02BC02'],['Ranitidin',0,'A02BA02'],
+  ['Domperidon',1,'A03FA03'],['Ondansetron',1,'A04AA01'],['Loperamid',0,'A07DA03'],['Mebeverin',1,'A03AA04'],['Drotaverin',0,'A03AD02'],['Setrizin',0,'R06AE07'],['Loratadin',0,'R06AX13'],['Desloratadin',0,'R06AX27'],
+  ['Ambroksol',0,'R05CB06'],['Asetilsistein',0,'R05CB01'],['Bromheksin',0,'R05CB02'],['Salbutamol',1,'R03AC02'],['Budesonid',1,'R03BA02'],['Montelukast',1,'R03DC03'],['Levotiroksin',1,'H03AA01'],['Ursodeoksikolik turşu',1,'A05AA02'],
+  ['Varfarin',1,'B01AA03'],['Klopidogrel',1,'B01AC04'],['Dabigatran',1,'B01AE07'],['Sildenafil',1,'G04BE03'],['Tamsulosin',1,'G04CA02'],['Finasterid',1,'G04CB01'],['Diazepam',1,'N05BA01'],['Zolpidem',1,'N05CF02'],
+  ['Amitriptilin',1,'N06AA09'],['Sertralin',1,'N06AB06'],['Fluoksetin',1,'N06AB03'],['Kolekalsiferol',0,'A11CC05'],['Askorbin turşusu',0,'A11GA01'],['Sianokobalamin',0,'B03BA01'],['Fol turşusu',0,'B03BB01'],
+  ['Dəmir sulfat',0,'B03AA07'],['Maqnezium sitrat',0,'A06AD30'],['Kalsium/D3',0,'A12AX04'],['Qinka biloba',0,'N06AX02'],['Valeriana ekstraktı',0,'N05CM02'],['Arnika məlhəmi',0,'M02AA10'],
+  ['Povidon-iod',0,'D08AG03'],['Xlorheksidin',0,'D08AC02'],['Sink oksid',0,'D02AB02'],['Hidrokortizon',1,'D07AA02'],['Betametazon',1,'D07AC01'],['Mometazon',1,'D07AC13'],['Dekspantenol',0,'D03AX03'],
+  ['Glükoza',0,'B05BA03'],['Natrium xlorid 0.9%',0,'B05XA02']
 ];
 var PH_FORMS = [
   ['tablet','tabl.',['50 mg','100 mg','200 mg','250 mg','400 mg','500 mg','750 mg','1000 mg'],[10,20,30,50,100],1.0],
@@ -2937,8 +2997,8 @@ var PH_ROLES = [['aptekçi',4],['baş aptekçi',1],['kassir',5],['köməkçi',2]
 var PH_ROLE_SALARY = { 'aptekçi':[550,950], 'baş aptekçi':[800,1300], 'kassir':[350,550], 'köməkçi':[300,450] };
 
 var PHARMACY_DEF = {
-  id: 'pharmacy', label: 'Aptek', version: 'v4',
-  desc: 'Aptek şəbəkəsi: satışlar, partiyalar, filial stokları',
+  id: 'pharmacy', label: 'Aptek', version: 'v5',
+  desc: 'Aptek şəbəkəsi: satışlar, partiyalar, filial stokları, ATC klassifikasiyası',
   tables: [
     { name:'manufacturers', cols:[['manufacturer_id','INTEGER','PK'],['manufacturer_name','TEXT'],['country','TEXT']], fks:[], est:44 },
     { name:'suppliers', cols:[['supplier_id','INTEGER','PK'],['supplier_name','TEXT'],['contact_person','TEXT'],['phone','TEXT'],['city','TEXT']], fks:[], est:32 },
@@ -3041,7 +3101,7 @@ var PHARMACY_DEF = {
       }
       drugPrice[i] = price; drugForm[i] = f[0];
       drugPriceHist[i] = hist;
-      var atc = gPick(r, ['A','B','C','D','G','H','J','L','M','N','R','S','V']) + gPad(gRI(r, 1, 12), 2) + gPick(r, ['A','B','C']) + gPad(gRI(r, 1, 12), 2) + gPad(gRI(r, 1, 9), 1);
+      var atc = innE[2];   // realizm v5: ATC INN-dən törəyir (real kodlar)
       var rx = innE[1] ? 1 : (gChance(r, 0.12) ? 1 : 0);
       ctx.emit('drugs', [i, name, innE[0], f[0], dos, pack, atc, rx, gRI(r, 1, 44), price]);
       for (var h = 0; h < hist.length; h++) {
@@ -3119,7 +3179,7 @@ var PHARMACY_DEF = {
     // müştəri qeydiyyatdan sonra; bonus real xərclərdən hesablanır
     // realizm v3: unit_price satış gününə etibarlı qiymətdir (qiymət tarixçəsindən)
     var N_SALES = 90000;
-    var dayPick = makeDayPicker(r, PH_MONTH_W, [1,1,1,1,1,1,1], false);
+    var dayPick = makeDayPicker(r, PH_MONTH_W, [1,1,1,1,1,1,1], false, buildDayMults('pharmacy'));
     var activeBranchIds = [];                   // yalnız aktiv filiallar satış alır
     for (k = 0; k < 30; k++) if (branchActive[k]) activeBranchIds.push(k + 1);
     var activeBranchPick = makeCumPicker(activeBranchIds.map(function(id){ return branchW[id - 1]; }));
@@ -3229,8 +3289,8 @@ var MK_STORE_NAMES = ['Bahar Market','Neft Market','Günəş Market','Ailə Mark
 var MK_UNITS = [['ədəd',.45],['kq',.25],['l',.15],['paket',.15]];
 
 var MARKET_DEF = {
-  id: 'market', label: 'Market', version: 'v4',
-  desc: 'Market şəbəkəsi: qəbzlər, mağaza stokları, endirimlər, loyalty',
+  id: 'market', label: 'Market', version: 'v5',
+  desc: 'Market şəbəkəsi: qəbzlər, mağaza stokları, endirimlər, bayram mövsümlülüyü',
   tables: [
     { name:'stores', cols:[['store_id','INTEGER','PK'],['store_name','TEXT'],['format','TEXT'],['city','TEXT'],['address','TEXT'],['opened_date','TEXT']], fks:[], est:24 },
     { name:'categories', cols:[['category_id','INTEGER','PK'],['category_name','TEXT'],['parent_id','INTEGER']], fks:[['parent_id','categories','category_id']], est:84 },
@@ -3463,7 +3523,7 @@ var MARKET_DEF = {
     // receipts + items — realizm v2: qəbz yalnız açılışdan sonra, kassir qəbuldan sonra,
     // promo real endirim pəncərəsindən törəyir (unit_price = price × (1 − pct/100))
     var N_REC = 95000;
-    var dayPickM = makeDayPicker(r, MK_MONTH_W, MK_WEEK_W, true);
+    var dayPickM = makeDayPicker(r, MK_MONTH_W, MK_WEEK_W, true, buildDayMults('market'));
     var storeW2 = [];
     for (k = 0; k < 24; k++) storeW2.push(gRlog(r, 0.4, 3));
     var storePick = makeCumPicker(storeW2);
