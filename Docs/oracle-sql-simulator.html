@@ -2937,8 +2937,8 @@ var PH_ROLES = [['aptekçi',4],['baş aptekçi',1],['kassir',5],['köməkçi',2]
 var PH_ROLE_SALARY = { 'aptekçi':[550,950], 'baş aptekçi':[800,1300], 'kassir':[350,550], 'köməkçi':[300,450] };
 
 var PHARMACY_DEF = {
-  id: 'pharmacy', label: 'Aptek', version: 'v3',
-  desc: 'Aptek şəbəkəsi: satışlar, partiyalar, son istifadə tarixləri',
+  id: 'pharmacy', label: 'Aptek', version: 'v4',
+  desc: 'Aptek şəbəkəsi: satışlar, partiyalar, filial stokları',
   tables: [
     { name:'manufacturers', cols:[['manufacturer_id','INTEGER','PK'],['manufacturer_name','TEXT'],['country','TEXT']], fks:[], est:44 },
     { name:'suppliers', cols:[['supplier_id','INTEGER','PK'],['supplier_name','TEXT'],['contact_person','TEXT'],['phone','TEXT'],['city','TEXT']], fks:[], est:32 },
@@ -2947,7 +2947,8 @@ var PHARMACY_DEF = {
     { name:'drug_prices', cols:[['drug_id','INTEGER'],['price','REAL'],['valid_from','TEXT'],['valid_to','TEXT']], pkCols:['drug_id','valid_from'], fks:[['drug_id','drugs','drug_id']], est:9600, note: 'Qiymət tarixçəsi — valid_to NULL = cari qiymət' },
     { name:'staff', cols:[['staff_id','INTEGER','PK'],['fullname','TEXT'],['role','TEXT'],['branch_id','INTEGER'],['phone','TEXT'],['hire_date','TEXT'],['salary','REAL']], fks:[['branch_id','branches','branch_id']], est:150 },
     { name:'customers', cols:[['customer_id','INTEGER','PK'],['fullname','TEXT'],['phone','TEXT'],['birth_year','INTEGER'],['gender','TEXT'],['registered_at','TEXT'],['bonus_points','INTEGER']], fks:[], est:4000 },
-    { name:'batches', cols:[['batch_id','INTEGER','PK'],['drug_id','INTEGER'],['batch_no','TEXT'],['manufacture_date','TEXT'],['expiry_date','TEXT'],['quantity','INTEGER'],['supplier_id','INTEGER'],['purchase_price','REAL']], fks:[['drug_id','drugs','drug_id'],['supplier_id','suppliers','supplier_id']], est:12800 },
+    { name:'batches', cols:[['batch_id','INTEGER','PK'],['drug_id','INTEGER'],['branch_id','INTEGER'],['batch_no','TEXT'],['manufacture_date','TEXT'],['expiry_date','TEXT'],['quantity','INTEGER'],['supplier_id','INTEGER'],['purchase_price','REAL']], fks:[['drug_id','drugs','drug_id'],['branch_id','branches','branch_id'],['supplier_id','suppliers','supplier_id']], est: 12800 },
+    { name:'stock', cols:[['branch_id','INTEGER'],['drug_id','INTEGER'],['initial_quantity','INTEGER'],['quantity','INTEGER'],['min_threshold','INTEGER']], pkCols:['branch_id','drug_id'], fks:[['branch_id','branches','branch_id'],['drug_id','drugs','drug_id']], est: 21900, note: 'Filial stoku — quantity = initial_quantity − satılan (realizm v4)' },
     { name:'sales', cols:[['sale_id','INTEGER','PK'],['branch_id','INTEGER'],['staff_id','INTEGER'],['customer_id','INTEGER'],['sale_ts','TEXT'],['total_amount','REAL'],['payment_type','TEXT']], fks:[['branch_id','branches','branch_id'],['staff_id','staff','staff_id'],['customer_id','customers','customer_id']], est:90000 },
     { name:'sale_items', cols:[['sale_item_id','INTEGER','PK'],['sale_id','INTEGER'],['drug_id','INTEGER'],['quantity','INTEGER'],['unit_price','REAL'],['discount_pct','REAL']], fks:[['sale_id','sales','sale_id'],['drug_id','drugs','drug_id']], est:207000 }
   ],
@@ -2959,7 +2960,10 @@ var PHARMACY_DEF = {
     'CREATE INDEX ix_ph_prices_from ON drug_prices(valid_from)',
     'CREATE INDEX ix_ph_staff_branch ON staff(branch_id)',
     'CREATE INDEX ix_ph_batches_drug ON batches(drug_id)',
+    'CREATE INDEX ix_ph_batches_branch ON batches(branch_id)',
     'CREATE INDEX ix_ph_batches_exp ON batches(expiry_date)',
+    'CREATE INDEX ix_ph_stock_branch ON stock(branch_id)',
+    'CREATE INDEX ix_ph_stock_drug ON stock(drug_id)',
     'CREATE INDEX ix_ph_sales_branch ON sales(branch_id)',
     'CREATE INDEX ix_ph_sales_ts ON sales(sale_ts)',
     'CREATE INDEX ix_ph_sales_cust ON sales(customer_id)',
@@ -2967,7 +2971,7 @@ var PHARMACY_DEF = {
     'CREATE INDEX ix_ph_items_drug ON sale_items(drug_id)'
   ],
   gen: async function(ctx) {
-    var r = ctx.rnd, i, j;
+    var r = ctx.rnd, i, j, k;
 
     // manufacturers
     var manufs = gShuffle(r, PH_MANUF).slice(0, 44);
@@ -2994,6 +2998,11 @@ var PHARMACY_DEF = {
       branchActive.push(act);
       ctx.emit('branches', [i + 1, bname, city, gPick(r, AZ_STREETS) + ', bina ' + gRI(r, 1, 120), azPhone(r), gFmtD(gTS(gRI(r, 2012, 2022), gRI(r, 1, 12), gRI(r, 1, 28))), act]);
     }
+
+    // realizm v4: filial çəkiləri — partiya yerləşməsi və satış paylanması üçün
+    var branchW = [];
+    for (i = 0; i < 30; i++) branchW.push(gRlog(r, 0.4, 2.5));
+    var branchPick = makeCumPicker(branchW);      // bütün filiallar (partiyalar aktiv olmayanlarda da ola bilər)
 
     // drugs — realizm v3: qiymət tarixçəsi (ilk qiymət pəncərədən əvvəl, dəyişimlər pəncərə içində)
     var N_DRUGS = 3200;
@@ -3072,18 +3081,36 @@ var PHARMACY_DEF = {
     custPairs.sort(function(a, b){ return a[0] - b[0]; });
     var custRegDays = custPairs.map(function(p){ return p[0]; });
 
-    // batches
+    // filial assortimenti — realizm v4: hər filial yalnız öz dərman alt-çoxluğunu satır
+    var drugW = zipfWeights(N_DRUGS, 0.85);
+    var drugZipf = makeCumPicker(drugW);
+    var branchAssort = [], branchAssortPick = [];
+    for (i = 1; i <= 30; i++) {
+      var asz = Math.round(500 + 650 * (branchW[i - 1] - 0.4) / 2.1);   // 500..1150 — çəkiyə görə
+      var seenA = {}, arrA = [];
+      while (arrA.length < asz) {
+        var didA = drugZipf(r) + 1;
+        if (seenA[didA]) continue;
+        seenA[didA] = 1;
+        arrA.push(didA);
+      }
+      branchAssort[i] = arrA;
+      branchAssortPick[i] = makeCumPicker(arrA.map(function(id){ return drugW[id - 1]; }));
+    }
+
+    // batches — realizm v4: hər partiya konkret filialdadır (ilk 30 partiya hər filialı örtür)
     var bid = 0;
     for (i = 1; i <= N_DRUGS; i++) {
       var nb = gRI(r, 2, 6);
       for (j = 0; j < nb; j++) {
         bid++;
+        var bbr = bid <= 30 ? bid : branchPick(r) + 1;   // deterministik örtük: hər filialda ≥1 partiya
         var mfg = GEN_NOW - gRI(r, 15, 720) * DAY_MS;
         var shelf = gWPick(r, [[12,.1],[18,.15],[24,.4],[36,.35]]);
         var exp = new Date(mfg); exp.setUTCMonth(exp.getUTCMonth() + shelf);
         var qty = gChance(r, 0.04) ? 0 : gRI(r, 20, 900);
         // alış qiyməti istehsal tarixinə etibarlı satış qiymətindən törəyir (realizm v3)
-        ctx.emit('batches', [bid, i, 'B' + new Date(mfg).getUTCFullYear() + '-' + gPad(gRI(r, 1, 999999), 6), gFmtD(mfg), gFmtD(exp.getTime()), qty, gRI(r, 1, 32), gRound2(priceAt(drugPriceHist[i], dayIdxOf(mfg)) * gRF(r, 0.55, 0.8))]);
+        ctx.emit('batches', [bid, i, bbr, 'B' + new Date(mfg).getUTCFullYear() + '-' + gPad(gRI(r, 1, 999999), 6), gFmtD(mfg), gFmtD(exp.getTime()), qty, gRI(r, 1, 32), gRound2(priceAt(drugPriceHist[i], dayIdxOf(mfg)) * gRF(r, 0.55, 0.8))]);
       }
       if (i % 2000 === 0) await ctx.tick();
     }
@@ -3093,13 +3120,11 @@ var PHARMACY_DEF = {
     // realizm v3: unit_price satış gününə etibarlı qiymətdir (qiymət tarixçəsindən)
     var N_SALES = 90000;
     var dayPick = makeDayPicker(r, PH_MONTH_W, [1,1,1,1,1,1,1], false);
-    var drugZipf = makeCumPicker(zipfWeights(N_DRUGS, 0.85));
-    var branchW = [], k;
-    for (k = 0; k < 30; k++) branchW.push(gRlog(r, 0.4, 2.5));
     var activeBranchIds = [];                   // yalnız aktiv filiallar satış alır
     for (k = 0; k < 30; k++) if (branchActive[k]) activeBranchIds.push(k + 1);
     var activeBranchPick = makeCumPicker(activeBranchIds.map(function(id){ return branchW[id - 1]; }));
     var totals = new Float64Array(N_SALES + 1);
+    var soldMap = {};                           // realizm v4: "branch×100000+drug" → satılan miqdar
     var iid = 0;
     for (i = 1; i <= N_SALES; i++) {
       var ts = pickTS(r, dayPick, HR_SALES);
@@ -3115,17 +3140,31 @@ var PHARMACY_DEF = {
       var t = 0;
       for (j = 0; j < nIt; j++) {
         iid++;
-        var dId = drugZipf(r) + 1;
+        var dId = branchAssort[br][branchAssortPick[br](r)];   // realizm v4: dərman satış filialının assortimentindən
         var q = gWPick(r, [[1,.60],[2,.25],[3,.10],[4,.04],[5,.01]]);
         var disc = gWPick(r, [[0,.82],[5,.08],[10,.07],[15,.03]]);
         var baseP = priceAt(drugPriceHist[dId], dnum);      // satış günü qiyməti
         var line = q * baseP * (1 - disc / 100);
         t += gRound2(line);
+        var smk = br * 100000 + dId;
+        soldMap[smk] = (soldMap[smk] || 0) + q;
         ctx.emit('sale_items', [iid, i, dId, q, baseP, disc]);
       }
       totals[i] = gRound2(t);
       ctx.emit('sales', [i, br, st, cust, gFmtTS(ts), totals[i], gWPick(r, [['nağd',.35],['kart',.55],['onlayn',.10]])]);
       if (i % 2000 === 0) await ctx.tick();
+    }
+
+    // stock — realizm v4: initial = satılan + qalıq → quantity = initial − satılan (dəqiq tutarlı)
+    for (i = 1; i <= 30; i++) {
+      var assort = branchAssort[i];
+      for (j = 0; j < assort.length; j++) {
+        var dgn = assort[j];
+        var sold = soldMap[i * 100000 + dgn] || 0;
+        var rem = Math.round(gRlog(r, 1, 90));
+        ctx.emit('stock', [i, dgn, sold + rem, rem, gRI(r, 5, 30)]);
+      }
+      await ctx.tick();
     }
 
     // bonus_points = xərc / 10 (1 bal = 10 AZN) — real alışlardan törədilir
@@ -3190,8 +3229,8 @@ var MK_STORE_NAMES = ['Bahar Market','Neft Market','Günəş Market','Ailə Mark
 var MK_UNITS = [['ədəd',.45],['kq',.25],['l',.15],['paket',.15]];
 
 var MARKET_DEF = {
-  id: 'market', label: 'Market', version: 'v3',
-  desc: 'Market şəbəkəsi: qəbzlər, stoklar, endirimlər, loyalty',
+  id: 'market', label: 'Market', version: 'v4',
+  desc: 'Market şəbəkəsi: qəbzlər, mağaza stokları, endirimlər, loyalty',
   tables: [
     { name:'stores', cols:[['store_id','INTEGER','PK'],['store_name','TEXT'],['format','TEXT'],['city','TEXT'],['address','TEXT'],['opened_date','TEXT']], fks:[], est:24 },
     { name:'categories', cols:[['category_id','INTEGER','PK'],['category_name','TEXT'],['parent_id','INTEGER']], fks:[['parent_id','categories','category_id']], est:84 },
@@ -3200,7 +3239,7 @@ var MARKET_DEF = {
     { name:'product_prices', cols:[['product_id','INTEGER'],['price','REAL'],['valid_from','TEXT'],['valid_to','TEXT']], pkCols:['product_id','valid_from'], fks:[['product_id','products','product_id']], est:14400, note: 'Qiymət tarixçəsi — valid_to NULL = cari qiymət' },
     { name:'staff', cols:[['staff_id','INTEGER','PK'],['fullname','TEXT'],['store_id','INTEGER'],['position','TEXT'],['phone','TEXT'],['hire_date','TEXT'],['salary','REAL']], fks:[['store_id','stores','store_id']], est:290 },
     { name:'loyalty_cards', cols:[['card_id','INTEGER','PK'],['card_no','TEXT'],['holder','TEXT'],['phone','TEXT'],['registered_at','TEXT'],['points','INTEGER']], fks:[], est:18000 },
-    { name:'stock', cols:[['store_id','INTEGER'],['product_id','INTEGER'],['quantity','INTEGER'],['min_threshold','INTEGER']], pkCols:['store_id','product_id'], fks:[['store_id','stores','store_id'],['product_id','products','product_id']], est:53000 },
+    { name:'stock', cols:[['store_id','INTEGER'],['product_id','INTEGER'],['initial_quantity','REAL'],['quantity','REAL'],['min_threshold','INTEGER']], pkCols:['store_id','product_id'], fks:[['store_id','stores','store_id'],['product_id','products','product_id']], est: 55000, note: 'Mağaza stoku — quantity = initial_quantity − satılan (realizm v4)' },
     { name:'discounts', cols:[['discount_id','INTEGER','PK'],['product_id','INTEGER'],['discount_name','TEXT'],['discount_pct','INTEGER'],['start_date','TEXT'],['end_date','TEXT']], fks:[['product_id','products','product_id']], est:2400 },
     { name:'receipts', cols:[['receipt_id','INTEGER','PK'],['store_id','INTEGER'],['staff_id','INTEGER'],['card_id','INTEGER'],['receipt_ts','TEXT'],['payment_type','TEXT'],['total_amount','REAL']], fks:[['store_id','stores','store_id'],['staff_id','staff','staff_id'],['card_id','loyalty_cards','card_id']], est:95000 },
     { name:'receipt_items', cols:[['item_id','INTEGER','PK'],['receipt_id','INTEGER'],['product_id','INTEGER'],['quantity','REAL'],['unit_price','REAL'],['is_promo','INTEGER']], fks:[['receipt_id','receipts','receipt_id'],['product_id','products','product_id']], est:299000 }
@@ -3213,6 +3252,7 @@ var MARKET_DEF = {
     'CREATE INDEX ix_mk_prices_prod ON product_prices(product_id)',
     'CREATE INDEX ix_mk_prices_from ON product_prices(valid_from)',
     'CREATE INDEX ix_mk_staff_store ON staff(store_id)',
+    'CREATE INDEX ix_mk_stock_store ON stock(store_id)',
     'CREATE INDEX ix_mk_stock_prod ON stock(product_id)',
     'CREATE INDEX ix_mk_disc_prod ON discounts(product_id)',
     'CREATE INDEX ix_mk_disc_dates ON discounts(start_date, end_date)',
@@ -3383,19 +3423,21 @@ var MARKET_DEF = {
       if (i % 4000 === 0) await ctx.tick();
     }
 
-    // stock — mağaza formatına görə populyar product alt çoxluğu
-    var prodZipf = makeCumPicker(zipfWeights(N_PROD, 0.9));
+    // storeAssort — realizm v4: hər mağaza öz populyar product alt-çoxluğunu satır (stok emit-i loopdan sonra)
+    var prodW = zipfWeights(N_PROD, 0.9);
+    var prodZipf = makeCumPicker(prodW);
+    var storeAssort = [], storeAssortPick = [];
     for (i = 1; i <= 24; i++) {
       var cap2 = fmtCap[storeFmt[i - 1]];
-      var seenStock = {};
-      var emitted = 0;
-      while (emitted < cap2) {
+      var seenStock = {}, arrS = [];
+      while (arrS.length < cap2) {
         var pid = prodZipf(r) + 1;
         if (seenStock[pid]) continue;
         seenStock[pid] = 1;
-        emitted++;
-        ctx.emit('stock', [i, pid, gChance(r, 0.05) ? 0 : gRI(r, 5, 500), gRI(r, 5, 30)]);
+        arrS.push(pid);
       }
+      storeAssort[i] = arrS;
+      storeAssortPick[i] = makeCumPicker(arrS.map(function(id){ return prodW[id - 1]; }));
       await ctx.tick();
     }
 
@@ -3426,6 +3468,7 @@ var MARKET_DEF = {
     for (k = 0; k < 24; k++) storeW2.push(gRlog(r, 0.4, 3));
     var storePick = makeCumPicker(storeW2);
     var totalsM = new Float64Array(N_REC + 1);
+    var soldM = {};                             // realizm v4: "store×100000+product" → satılan miqdar
     var iidM = 0;
     for (i = 1; i <= N_REC; i++) {
       var ts2 = pickTS(r, dayPickM, HR_MARKET);
@@ -3441,7 +3484,7 @@ var MARKET_DEF = {
       var t2 = 0;
       for (j = 0; j < nIt2; j++) {
         iidM++;
-        var p2 = prodZipf(r) + 1;
+        var p2 = storeAssort[s2][storeAssortPick[s2](r)];   // realizm v4: product qəbz mağazasının assortimentindən
         var u2 = prodUnit[p2];
         var q2 = u2 === 'ədəd' || u2 === 'paket' ? gRI(r, 1, 5) : Math.round(gRF(r, 2, 30)) / 10;
         var promo = 0, unitP = priceAt(prodPriceHist[p2], dnumM);   // qəbz gününə etibarlı qiymət (realizm v3)
@@ -3450,11 +3493,26 @@ var MARKET_DEF = {
           if (ts2 >= dvs[dv][0] && ts2 <= dvs[dv][1]) { promo = 1; unitP = gRound2(unitP * (1 - dvs[dv][2] / 100)); break; }
         }
         t2 += gRound2(q2 * unitP);
+        var smk2 = s2 * 100000 + p2;
+        soldM[smk2] = (soldM[smk2] || 0) + q2;
         ctx.emit('receipt_items', [iidM, i, p2, q2, unitP, promo]);
       }
       totalsM[i] = gRound2(t2);
       ctx.emit('receipts', [i, s2, cashier, card, gFmtTS(ts2), gWPick(r, [['nağd',.30],['kart',.62],['onlayn ödəniş',.08]]), totalsM[i]]);
       if (i % 2000 === 0) await ctx.tick();
+    }
+
+    // stock — realizm v4: initial = satılan + qalıq → quantity = initial − satılan (dəqiq tutarlı)
+    for (i = 1; i <= 24; i++) {
+      var assortM = storeAssort[i];
+      for (j = 0; j < assortM.length; j++) {
+        var pgn = assortM[j];
+        var sold2 = soldM[i * 100000 + pgn] || 0;
+        var rem2 = gRound2(gRlog(r, 0.5, 80));
+        var init2 = gRound2(sold2 + rem2);
+        ctx.emit('stock', [i, pgn, init2, gRound2(init2 - sold2), gRI(r, 5, 30)]);
+      }
+      await ctx.tick();
     }
 
     // points = xərc (1 bal = 1 AZN) — real qəbzlərdən törədilir (UPDATE...FROM: tək keçidlə)
