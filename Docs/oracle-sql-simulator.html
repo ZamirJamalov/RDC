@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
 <meta charset="UTF-8">
 <!-- This site is hosted on Netlify. Anyone can build and deploy a site
@@ -173,13 +173,12 @@
   .whatsnew-head h2{font-size:19px;font-weight:700;color:var(--text);margin:0}
   .whatsnew-sub{padding:6px 28px 0;font-size:12px;color:var(--text-muted);line-height:1.6}
   .whatsnew-body{padding:14px 28px 4px}
-  .whatsnew-item{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);align-items:flex-start}
+  .whatsnew-item{padding:11px 0;border-bottom:1px solid var(--border)}
   .whatsnew-item:last-child{border-bottom:none}
-  .whatsnew-item .wi-icon{font-size:19px;line-height:1.3;flex-shrink:0;width:24px;text-align:center}
   .whatsnew-item .wi-title{font-size:13px;font-weight:600;color:var(--text)}
   .whatsnew-item .wi-desc{font-size:12px;color:var(--text-muted);line-height:1.55;margin-top:3px}
   .whatsnew-foot{padding:14px 28px 26px;display:flex;justify-content:flex-end;align-items:center;gap:12px}
-  .whatsnew-foot .wn-hint{font-size:11px;color:var(--text-muted);margin-right:auto}
+  [data-theme="light"] .whatsnew-overlay{background:rgba(27,31,36,.45)}
   @media(max-width:768px){
     .sidebar{display:none}
     .sidebar-resizer{display:none}
@@ -274,50 +273,44 @@
 <div class="whatsnew-overlay" id="whatsnewOverlay">
   <div class="whatsnew-card" role="dialog" aria-modal="true" aria-labelledby="whatsnewTitle">
     <div class="whatsnew-head">
-      <h2 id="whatsnewTitle">Nexora-SQL yeniləndi! 🎉</h2>
+      <h2 id="whatsnewTitle">Nexora-SQL yeniləndi</h2>
       <span class="wn-badge">Yeni versiya</span>
     </div>
     <div class="whatsnew-sub">SQL öyrənmək artıq daha maraqlıdır — bu yeniliklərlə tanış olun:</div>
     <div class="whatsnew-body">
       <div class="whatsnew-item">
-        <div class="wi-icon">🏥</div>
         <div>
           <div class="wi-title">Yeni sxemalar: Aptek, Market və Müştəri Xidmətləri</div>
           <div class="wi-desc">Artıq yalnız HR deyil — aptek, market və müştəri xidmətləri bazalarında da real ssenarilər üzrə məşq edə bilərsiniz. Yuxarıdakı sxema seçicisindən birini seçin.</div>
         </div>
       </div>
       <div class="whatsnew-item">
-        <div class="wi-icon">📊</div>
         <div>
           <div class="wi-title">Daha çox və daha realistik data</div>
           <div class="wi-desc">Minlərlə sətirlik real Azərbaycan dataları: adlar, şəhərlər, tarixlər, qiymətlər. Sorğularınız əsl bazada işləyirmiş kimi nəticə verir.</div>
         </div>
       </div>
       <div class="whatsnew-item">
-        <div class="wi-icon">⚡</div>
         <div>
           <div class="wi-title">Sürətli nəticələr</div>
           <div class="wi-desc">Nəticələr hissə-hissə yüklənir — minlərlə sətir belə donma olmadan göstərilir. Aşağı sürüşdürdükcə yeni sətirlər avtomatik gəlir.</div>
         </div>
       </div>
       <div class="whatsnew-item">
-        <div class="wi-icon">⌨️</div>
         <div>
           <div class="wi-title">Sorğular üçün qısa yollar</div>
           <div class="wi-desc"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> — kursorun olduğu sorğunu icra edir. SQL sözləri avtomatik BÖYÜK hərflə yazılır və rənglənir.</div>
         </div>
       </div>
       <div class="whatsnew-item">
-        <div class="wi-icon">💾</div>
         <div>
           <div class="wi-title">Sorğu tarixçəsi</div>
-          <div class="wi-desc">Bəyəndiyiniz sorğuları "Save" düyməsi ilə saxlayın — istədiyiniz vaxt sol panelin "Query History" bölməsindən geri qaytarın.</div>
+          <div class="wi-desc">İcra etdiyiniz hər sorğu avtomatik sol paneldəki "Query History" bölməsinə düşür. "Save" düyməsi isə sorğunu .sql faylı kimi kompüterinizə yadda saxlayır.</div>
         </div>
       </div>
     </div>
     <div class="whatsnew-foot">
-      <span class="wn-hint">Bu pəncərə yalnız bir dəfə göstərilir</span>
-      <button class="btn btn-run" id="whatsnewStartBtn">Başla! 🚀</button>
+      <button class="btn btn-run" id="whatsnewStartBtn">Başla</button>
     </div>
   </div>
 </div>
@@ -1565,8 +1558,8 @@ function oraValidateBlock(toks, blk, subqs) {
   if (w && w[0] <= w[1]) {
     var wAggs = oraAggRanges(toks, w[0], w[1], subqs);
     if (wAggs.length) {
-      return 'ORA-00934: group function is not allowed here — WHERE hissəsində ' +
-             toks[wAggs[0][0]].up + '() aqreqatı istifadə oluna bilməz';
+      return 'ORA-00934: group function is not allowed here — you cannot use ' +
+             toks[wAggs[0][0]].up + '() in the WHERE part';
     }
   }
 
@@ -1599,7 +1592,7 @@ function oraValidateBlock(toks, blk, subqs) {
   if (g) {
     for (var si = 0; si < items.length; si++) {
       if (oraHasWildcard(toks, items[si][0], items[si][1])) {
-        return 'ORA-00979: not a GROUP BY expression — GROUP BY ilə SELECT * istifadə oluna bilməz';
+        return 'ORA-00979: not a GROUP BY expression — you cannot use SELECT * with GROUP BY';
       }
     }
   }
@@ -1617,21 +1610,21 @@ function oraValidateBlock(toks, blk, subqs) {
         if (!refs.length) continue; // sabit / yalnız subquery
         var norm = oraNorm(toks, a, e2);
         if (groupNorms.indexOf(norm) < 0) {
-          return 'ORA-00979: not a GROUP BY expression — "' + refs[0].name +
-                 '" sütunu SELECT-də GROUP BY-a daxil edilməyib';
+          return 'ORA-00979: not a GROUP BY expression — column "' + refs[0].name +
+                 '" is not in the GROUP BY list';
         }
       } else {
         for (var ri = 0; ri < refs.length; ri++) {
           if (!groupBare[refs[ri].name]) {
-            return 'ORA-00979: not a GROUP BY expression — "' + refs[ri].name +
-                   '" sütunu GROUP BY-a daxil edilməyib';
+            return 'ORA-00979: not a GROUP BY expression — column "' + refs[ri].name +
+                   '" is not in the GROUP BY list';
           }
         }
       }
     } else if (hasAgg) {
       if (refs.length) {
-        return 'ORA-00937: not a single-group group function — "' + refs[0].name +
-               '" sütunu aqreqatlarla birlikdə yalnız GROUP BY-dan sonra istifadə oluna bilər';
+        return 'ORA-00937: not a single-group group function — column "' + refs[0].name +
+               '" must be in the GROUP BY list when you use aggregate functions';
       }
     }
   }
@@ -1642,8 +1635,8 @@ function oraValidateBlock(toks, blk, subqs) {
     var hrefs = oraRefs(toks, h[0], h[1], hAggs.concat(subqs));
     for (var hi = 0; hi < hrefs.length; hi++) {
       if (g ? !groupBare[hrefs[hi].name] : true) {
-        return 'ORA-00979: not a GROUP BY expression — HAVING-də "' + hrefs[hi].name +
-               '" sütunu GROUP BY-a daxil edilməyib';
+        return 'ORA-00979: not a GROUP BY expression — column "' + hrefs[hi].name +
+               '" in HAVING is not in the GROUP BY list';
       }
     }
   }
@@ -1670,8 +1663,8 @@ function oraValidateBlock(toks, blk, subqs) {
       var orefs = oraRefs(toks, oa, ob2, oAggs.concat(subqs));
       for (var r2 = 0; r2 < orefs.length; r2++) {
         if (!groupBare[orefs[r2].name]) {
-          return 'ORA-00979: not a GROUP BY expression — ORDER BY-də "' + orefs[r2].name +
-                 '" sütunu GROUP BY-a daxil edilməyib';
+          return 'ORA-00979: not a GROUP BY expression — column "' + orefs[r2].name +
+                 '" in ORDER BY is not in the GROUP BY list';
         }
       }
     }
@@ -1744,7 +1737,7 @@ function validateOracleSemantics(sql) {
 // ============================================================
 function initApp() {
   if (typeof initSqlJs === 'undefined') {
-    showError('sql.js kitabxanası yüklənmədi — internet bağlantısını yoxlayın (CDN).');
+    showError('The SQL library did not load. Please check your internet connection.');
     return;
   }
   initSqlJs({
@@ -1759,7 +1752,7 @@ function initApp() {
     initDB();
     buildSidebar();
   }).catch(function(e) {
-    showError('Baza başladıla bilmədi: ' + (e && e.message ? e.message : e));
+    showError('The database did not start: ' + (e && e.message ? e.message : e));
   });
 }
 
@@ -1937,13 +1930,13 @@ function formatDbError(msg) {
   }
   if (/syntax error/i.test(msg)) {
     var near = msg.match(/near\s+"([^"]*)"/i);
-    return 'ORA-00936: ifadə natamam / sintaksis xətası' + (near ? ' (yaxın "' + near[1] + '")' : '') + ' — ' + msg;
+    return 'ORA-00936: the statement is not complete (syntax error)' + (near ? ' near "' + near[1] + '"' : '') + ' — ' + msg;
   }
-  if (/wrong number of arguments/i.test(msg)) return 'ORA-00938: funksiya üçün arqument sayı düzgün deyil';
-  if (/UNIQUE constraint failed/i.test(msg)) return 'ORA-00001: unique məhdudiyyəti pozuldu';
-  if (/NOT NULL constraint failed/i.test(msg)) return 'ORA-01400: NULL daxil etmək olmaz';
-  if (/FOREIGN KEY constraint failed/i.test(msg)) return 'ORA-02291: referential integrity pozuldu';
-  return 'Xəta: ' + msg;
+  if (/wrong number of arguments/i.test(msg)) return 'ORA-00938: wrong number of arguments for this function';
+  if (/UNIQUE constraint failed/i.test(msg)) return 'ORA-00001: this value already exists (unique constraint)';
+  if (/NOT NULL constraint failed/i.test(msg)) return 'ORA-01400: you cannot put NULL here — a value is required';
+  if (/FOREIGN KEY constraint failed/i.test(msg)) return 'ORA-02291: the parent row does not exist (foreign key)';
+  return 'Error: ' + msg;
 }
 
 // Kursorun olduğu yerdəki SQL ifadəsini tapır (ifadələr ';' ilə ayrılır,
@@ -1995,8 +1988,8 @@ function executeQuery(sqlOverride) {
   hideError();
   var ed = document.getElementById('sqlEditor');
   var raw = (sqlOverride === undefined || sqlOverride === null ? ed.value : sqlOverride).trim();
-  if (!raw) { showError('Sorğu boşdur — SQL yazın.'); return; }
-  if (!db) { showError('Baza hələ yüklənməyib, bir az gözləyin (sql.js CDN-dən yüklənir).'); return; }
+  if (!raw) { showError('The query is empty. Please write a SQL query.'); return; }
+  if (!db) { showError('The database is still loading. Please wait a moment.'); return; }
   var btn = document.getElementById('runBtn');
   btn.classList.add('running');
   var t0 = performance.now();
@@ -2046,6 +2039,7 @@ function executeQuery(sqlOverride) {
         }
       }
     }
+    autoSaveHistory(raw);
     var dt = performance.now() - t0;
     document.getElementById('execTime').textContent = dt.toFixed(1) + ' ms';
   } catch (e) {
@@ -2614,15 +2608,36 @@ function loadSaved() {
   catch (e) { return []; }
 }
 
+// Save düyməsi: redaktordakı SQL-i .sql faylı kimi kompüterə endirir
 function saveQuery() {
   var ed = document.getElementById('sqlEditor');
   var sql = ed.value.trim();
-  if (!sql) { showError('Saxlamaq üçün sorğu yazın.'); return; }
-  var name = window.prompt('Sorğunun adı:', sql.substring(0, 40).replace(/\s+/g, ' '));
-  if (name === null) return;
-  if (!name.trim()) name = 'Sorğu ' + new Date().toLocaleTimeString();
+  if (!sql) { showError('The query is empty. Please write a SQL query.'); return; }
+  var d = new Date();
+  var p2 = function(x) { return (x < 10 ? '0' : '') + x; };
+  var stamp = d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate()) +
+              '_' + p2(d.getHours()) + '-' + p2(d.getMinutes()) + '-' + p2(d.getSeconds());
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([sql], { type: 'application/sql' }));
+  a.download = 'query_' + stamp + '.sql';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+}
+
+// İcra olunan sorğu tarixçəyə avtomatik düşür (son 50; eyni sorğu təkrar icra
+// olunanda yuxarı qalxır, dublikat yaranmır)
+function autoSaveHistory(sql) {
+  if (!sql) return;
   var list = loadSaved();
-  list.unshift({ name: name.trim(), sql: sql });
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].sql === sql) { list.splice(i, 1); break; }
+  }
+  var d = new Date();
+  var p2 = function(x) { return (x < 10 ? '0' : '') + x; };
+  list.unshift({ name: p2(d.getHours()) + ':' + p2(d.getMinutes()), sql: sql });
+  if (list.length > 50) list.length = 50;
   try { localStorage.setItem('oracle-sim-saved', JSON.stringify(list)); } catch (e) {}
   renderSaved();
 }
@@ -2899,8 +2914,8 @@ window.addEventListener('load', function() {
     }
   });
 
-  var theme = 'dark';
-  try { theme = localStorage.getItem('oracle-sim-theme') || 'dark'; } catch (e) {}
+  var theme = 'light';
+  try { theme = localStorage.getItem('oracle-sim-theme') || 'light'; } catch (e) {}
   applyTheme(theme);
 
   try {
@@ -4116,7 +4131,7 @@ async function activateSchema(id) {
     return;
   }
   var def = SCHEMA_DEFS[id];
-  if (!def) throw new Error('Sxema tapılmadı: ' + id);
+  if (!def) throw new Error('Schema not found: ' + id);
   if (genDbSlot && genDbSlot.id === id) {
     db = genDbSlot.database;
     buildSidebar();
@@ -4159,7 +4174,7 @@ async function onSchemaChange() {
     resultTabs = []; activeTabIdx = -1; renderTabs();
     hideError();
   } catch (e) {
-    showError('Sxema yüklənmədi: ' + (e && e.message ? e.message : e));
+    showError('The schema did not load: ' + (e && e.message ? e.message : e));
     sel.value = 'hr';
     try { await activateSchema('hr'); } catch (e2) {}
   } finally {
