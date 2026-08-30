@@ -88,7 +88,7 @@
   .font-size-label{font-size:11px;color:var(--text-muted);white-space:nowrap}
   .font-size-select{background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:4px 6px;border-radius:4px;font-size:11px;cursor:pointer;outline:none}
   .font-size-select:focus{border-color:var(--accent)}
-  .editor-wrap{flex:1;display:flex;position:relative;overflow:hidden;min-height:180px}
+  .editor-wrap{flex:1;display:flex;position:relative;overflow:hidden;min-height:120px}
   .editor-line-numbers{width:44px;background:var(--surface);padding:12px 0;text-align:right;font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:13px;line-height:1.6;color:var(--text-muted);overflow:hidden;user-select:none;flex-shrink:0;border-right:1px solid var(--border);scrollbar-width:none;-ms-overflow-style:none}
   .editor-line-numbers::-webkit-scrollbar{display:none}
   .editor-line-numbers div{padding-right:10px}
@@ -98,8 +98,10 @@
   .sql-editor::placeholder{color:var(--text-muted)}
   .sql-highlight-layer{position:absolute;top:0;left:0;width:100%;height:100%;padding:12px 16px;font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:13px;line-height:1.6;tab-size:2;overflow:hidden;white-space:pre;overflow-wrap:normal;pointer-events:none;z-index:1;color:var(--editor-color);background:transparent;border:none;margin:0}
   .sql-highlight-layer code{display:block;font-family:inherit;font-size:inherit;line-height:inherit;tab-size:inherit;white-space:pre;overflow-wrap:normal}
-  .resizer{height:5px;background:var(--border);cursor:row-resize;flex-shrink:0;transition:background .15s}
+  .resizer{height:7px;background:var(--border);cursor:row-resize;flex-shrink:0;transition:background .15s;position:relative;touch-action:none;user-select:none}
+  .resizer::after{content:'';position:absolute;left:0;right:0;top:-5px;bottom:-5px}
   .resizer:hover,.resizer.active{background:var(--accent)}
+  .sidebar-resizer{touch-action:none;user-select:none}
   .error-bar{display:none;padding:8px 16px;background:rgba(248,81,73,.1);border-bottom:1px solid var(--red);color:var(--red);font-size:12px;font-family:monospace;flex-shrink:0;align-items:center;gap:8px}
   .error-bar.show{display:flex}
   .results-area{flex:1;overflow:auto;display:flex;flex-direction:column}
@@ -126,6 +128,10 @@
   .results-table th.drag-over-left{box-shadow:inset 3px 0 0 var(--accent)}
   .results-table th.drag-over-right{box-shadow:inset -3px 0 0 var(--accent)}
   .results-table th.dragging{opacity:.4}
+  .results-table th.rownum-col{width:52px;color:var(--text-muted);cursor:default}
+  .results-table th.rownum-col:hover{color:var(--text-muted)}
+  .results-table th.rownum-col .th-content{cursor:default;justify-content:flex-end}
+  .results-table td.rownum-col{color:var(--text-muted);text-align:right;user-select:none;font-size:11px;white-space:nowrap}
   .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);gap:12px;padding:40px}
   .empty-state .es-icon{font-size:48px;opacity:.3}
   .empty-state .es-title{font-size:16px;font-weight:600;color:var(--text)}
@@ -156,6 +162,24 @@
   .results-tab .tab-close:hover{color:var(--red)}
   .results-tab.active .tab-close:hover{color:var(--red)}
   .results-grid:focus{outline:none}
+  .whatsnew-overlay{display:none;position:fixed;inset:0;background:rgba(1,4,9,.62);backdrop-filter:blur(2px);align-items:center;justify-content:center;z-index:1100;padding:20px}
+  .whatsnew-overlay.show{display:flex;animation:wnFade .25s ease}
+  .whatsnew-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;max-width:540px;width:100%;max-height:86vh;overflow:auto;box-shadow:0 24px 64px rgba(0,0,0,.45)}
+  .whatsnew-overlay.show .whatsnew-card{animation:wnCard .3s ease}
+  @keyframes wnFade{from{opacity:0}to{opacity:1}}
+  @keyframes wnCard{from{transform:translateY(14px) scale(.98);opacity:.4}to{transform:translateY(0) scale(1);opacity:1}}
+  .whatsnew-head{padding:26px 28px 0;display:flex;align-items:center;gap:14px}
+  .whatsnew-head .wn-badge{background:rgba(63,185,80,.15);color:var(--green);border:1px solid var(--green);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;padding:3px 8px;border-radius:10px;white-space:nowrap}
+  .whatsnew-head h2{font-size:19px;font-weight:700;color:var(--text);margin:0}
+  .whatsnew-sub{padding:6px 28px 0;font-size:12px;color:var(--text-muted);line-height:1.6}
+  .whatsnew-body{padding:14px 28px 4px}
+  .whatsnew-item{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--border);align-items:flex-start}
+  .whatsnew-item:last-child{border-bottom:none}
+  .whatsnew-item .wi-icon{font-size:19px;line-height:1.3;flex-shrink:0;width:24px;text-align:center}
+  .whatsnew-item .wi-title{font-size:13px;font-weight:600;color:var(--text)}
+  .whatsnew-item .wi-desc{font-size:12px;color:var(--text-muted);line-height:1.55;margin-top:3px}
+  .whatsnew-foot{padding:14px 28px 26px;display:flex;justify-content:flex-end;align-items:center;gap:12px}
+  .whatsnew-foot .wn-hint{font-size:11px;color:var(--text-muted);margin-right:auto}
   @media(max-width:768px){
     .sidebar{display:none}
     .sidebar-resizer{display:none}
@@ -244,6 +268,56 @@
         <span id="sortInfo" style="margin-left:auto"></span>
       </div>
       <div class="results-grid" id="resultsGrid" style="display:none" tabindex="0"></div>
+    </div>
+  </div>
+</div>
+<div class="whatsnew-overlay" id="whatsnewOverlay">
+  <div class="whatsnew-card" role="dialog" aria-modal="true" aria-labelledby="whatsnewTitle">
+    <div class="whatsnew-head">
+      <h2 id="whatsnewTitle">Nexora-SQL yeniləndi! 🎉</h2>
+      <span class="wn-badge">Yeni versiya</span>
+    </div>
+    <div class="whatsnew-sub">SQL öyrənmək artıq daha maraqlıdır — bu yeniliklərlə tanış olun:</div>
+    <div class="whatsnew-body">
+      <div class="whatsnew-item">
+        <div class="wi-icon">🏥</div>
+        <div>
+          <div class="wi-title">Yeni sxemalar: Aptek, Market və Müştəri Xidmətləri</div>
+          <div class="wi-desc">Artıq yalnız HR deyil — aptek, market və müştəri xidmətləri bazalarında da real ssenarilər üzrə məşq edə bilərsiniz. Yuxarıdakı sxema seçicisindən birini seçin.</div>
+        </div>
+      </div>
+      <div class="whatsnew-item">
+        <div class="wi-icon">📊</div>
+        <div>
+          <div class="wi-title">Daha çox və daha realistik data</div>
+          <div class="wi-desc">Minlərlə sətirlik real Azərbaycan dataları: adlar, şəhərlər, tarixlər, qiymətlər. Sorğularınız əsl bazada işləyirmiş kimi nəticə verir.</div>
+        </div>
+      </div>
+      <div class="whatsnew-item">
+        <div class="wi-icon">⚡</div>
+        <div>
+          <div class="wi-title">Sürətli nəticələr</div>
+          <div class="wi-desc">Nəticələr hissə-hissə yüklənir — minlərlə sətir belə donma olmadan göstərilir. Aşağı sürüşdürdükcə yeni sətirlər avtomatik gəlir.</div>
+        </div>
+      </div>
+      <div class="whatsnew-item">
+        <div class="wi-icon">⌨️</div>
+        <div>
+          <div class="wi-title">Sorğular üçün qısa yollar</div>
+          <div class="wi-desc"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> — kursorun olduğu sorğunu icra edir. SQL sözləri avtomatik BÖYÜK hərflə yazılır və rənglənir.</div>
+        </div>
+      </div>
+      <div class="whatsnew-item">
+        <div class="wi-icon">💾</div>
+        <div>
+          <div class="wi-title">Sorğu tarixçəsi</div>
+          <div class="wi-desc">Bəyəndiyiniz sorğuları "Save" düyməsi ilə saxlayın — istədiyiniz vaxt sol panelin "Query History" bölməsindən geri qaytarın.</div>
+        </div>
+      </div>
+    </div>
+    <div class="whatsnew-foot">
+      <span class="wn-hint">Bu pəncərə yalnız bir dəfə göstərilir</span>
+      <button class="btn btn-run" id="whatsnewStartBtn">Başla! 🚀</button>
     </div>
   </div>
 </div>
@@ -2099,7 +2173,9 @@ function appendRows(rows) {
   var tbody = grid.querySelector('tbody');
   if (!tbody || typeof tbody.insertAdjacentHTML !== 'function') { renderTable(); return; }
   var parts = [];
-  for (var i = 0; i < rows.length; i++) parts.push(buildRowHtml(rows[i]));
+  // Nömrələmə davamlı olsun: 201, 202, ... (currentResult artıq genişləndirilib)
+  var startNum = currentResult.length - rows.length + 1;
+  for (var i = 0; i < rows.length; i++) parts.push(buildRowHtml(rows[i], startNum + i));
   tbody.insertAdjacentHTML('beforeend', parts.join(''));
 }
 
@@ -2185,8 +2261,9 @@ function colWidth(ci) {
   return Math.min(320, Math.max(70, maxLen * 8 + 30));
 }
 
-function buildRowHtml(row) {
+function buildRowHtml(row, rownum) {
   var s = '<tr>';
+  s += '<td class="rownum-col">' + (rownum === undefined || rownum === null ? '' : rownum) + '</td>';
   for (var c = 0; c < currentColumns.length; c++) {
     var v = row[c];
     if (v === null || v === undefined) s += '<td class="null-val">(null)</td>';
@@ -2199,6 +2276,7 @@ function buildRowHtml(row) {
 function renderTable() {
   var grid = document.getElementById('resultsGrid');
   var html = ['<table class="results-table"><thead><tr>'];
+  html.push('<th class="rownum-col" style="width:52px"><div class="th-content"><span class="th-label">#</span></div></th>');
   for (var c = 0; c < currentColumns.length; c++) {
     html.push('<th data-col="' + c + '"' + (sortCol === c ? ' class="sorted"' : '') + ' style="width:' + colWidth(c) + 'px">' +
       '<div class="th-content" draggable="true" data-col="' + c + '">' +
@@ -2208,7 +2286,7 @@ function renderTable() {
   }
   html.push('</tr></thead><tbody>');
   for (var r = 0; r < currentResult.length; r++) {
-    html.push(buildRowHtml(currentResult[r]));
+    html.push(buildRowHtml(currentResult[r], r + 1));
   }
   html.push('</tbody></table>');
   grid.innerHTML = html.join('');
@@ -2269,14 +2347,16 @@ function attachTableEvents() {
   var dragFrom = -1;
   for (var i = 0; i < ths.length; i++) {
     (function(th) {
-      var ci = parseInt(th.getAttribute('data-col'), 10);
+      var ciStr = th.getAttribute('data-col');
+      if (ciStr === null || ciStr === undefined) return; // "#" sətir nömrəsi sütunu — sort/sürüklə yox
+      var ci = parseInt(ciStr, 10);
       th.addEventListener('click', function(e) {
         if (e.target && e.target.classList && e.target.classList.contains('col-resize-handle')) return;
         if (th.getAttribute('data-resized') === '1') { th.removeAttribute('data-resized'); return; }
         sortByCol(ci);
       });
       var handle = th.querySelector('.col-resize-handle');
-      handle.addEventListener('mousedown', function(e) {
+      if (handle) handle.addEventListener('mousedown', function(e) {
         e.preventDefault();
         e.stopPropagation();
         var startX = e.clientX;
@@ -2294,7 +2374,7 @@ function attachTableEvents() {
         document.addEventListener('mouseup', mu);
       });
       var content = th.querySelector('.th-content');
-      content.addEventListener('dragstart', function(e) {
+      if (content) content.addEventListener('dragstart', function(e) {
         dragFrom = ci;
         if (e.dataTransfer && e.dataTransfer.setData) e.dataTransfer.setData('text/plain', String(ci));
         if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
@@ -2581,43 +2661,135 @@ function toggleTheme() {
   try { localStorage.setItem('oracle-sim-theme', next); } catch (e) {}
 }
 
+// Redaktor ↔ nəticələr ayırıcısı üçün hündürlüyü tətbiq et (sərhədlər daxilində)
+function applyEditorHeight(h) {
+  var wrap = document.getElementById('editorWrap');
+  if (!wrap || !isFinite(h)) return;
+  var area = wrap.parentElement; // .editor-area
+  var areaH = area ? area.getBoundingClientRect().height : window.innerHeight;
+  // toolbar + ayırıcı + statusbar + minimal nəticə sahəsi üçün yer burax
+  var maxH = Math.max(140, areaH - 175);
+  var minH = 120;
+  if (h < minH) h = minH;
+  if (h > maxH) h = maxH;
+  wrap.style.flex = '0 0 ' + Math.round(h) + 'px';
+  wrap.style.height = Math.round(h) + 'px';
+}
+
 function initResizers() {
+  // ---- Sidebar (üfüqi) ----
   var sr = document.getElementById('sidebarResizer');
-  sr.addEventListener('mousedown', function(e) {
+  sr.addEventListener('pointerdown', function(e) {
     e.preventDefault();
+    sr.setPointerCapture(e.pointerId);
     sr.classList.add('active');
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
     function mm(ev) {
       var w = Math.min(460, Math.max(170, ev.clientX));
       document.getElementById('sidebar').style.width = w + 'px';
     }
-    function mu() {
+    function mu(ev) {
       sr.classList.remove('active');
-      document.removeEventListener('mousemove', mm);
-      document.removeEventListener('mouseup', mu);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      sr.removeEventListener('pointermove', mm);
+      sr.removeEventListener('pointerup', mu);
+      sr.removeEventListener('pointercancel', mu);
     }
-    document.addEventListener('mousemove', mm);
-    document.addEventListener('mouseup', mu);
+    sr.addEventListener('pointermove', mm);
+    sr.addEventListener('pointerup', mu);
+    sr.addEventListener('pointercancel', mu);
   });
 
+  // ---- Redaktor ↔ nəticələr (şaquli) ----
   var rz = document.getElementById('resizer');
-  rz.addEventListener('mousedown', function(e) {
+  var wrap = document.getElementById('editorWrap');
+
+  // Yadda saxlanmış hündürlüyü bərpa et
+  try {
+    var savedH = parseInt(localStorage.getItem('oracle-sim-editor-h') || '0', 10);
+    if (savedH >= 120) applyEditorHeight(savedH);
+  } catch (e) {}
+
+  rz.addEventListener('pointerdown', function(e) {
     e.preventDefault();
+    rz.setPointerCapture(e.pointerId);
     rz.classList.add('active');
-    var wrap = document.getElementById('editorWrap');
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'row-resize';
     var startY = e.clientY;
     var startH = wrap.getBoundingClientRect().height;
     function mm(ev) {
-      var h = Math.min(window.innerHeight - 160, Math.max(100, startH + (ev.clientY - startY)));
-      wrap.style.flex = '0 0 ' + h + 'px';
+      applyEditorHeight(startH + (ev.clientY - startY));
     }
-    function mu() {
+    function mu(ev) {
       rz.classList.remove('active');
-      document.removeEventListener('mousemove', mm);
-      document.removeEventListener('mouseup', mu);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+      rz.removeEventListener('pointermove', mm);
+      rz.removeEventListener('pointerup', mu);
+      rz.removeEventListener('pointercancel', mu);
+      try { localStorage.setItem('oracle-sim-editor-h', String(Math.round(wrap.getBoundingClientRect().height))); } catch (err) {}
     }
-    document.addEventListener('mousemove', mm);
-    document.addEventListener('mouseup', mu);
+    rz.addEventListener('pointermove', mm);
+    rz.addEventListener('pointerup', mu);
+    rz.addEventListener('pointercancel', mu);
   });
+
+  // İkiqat klik — standart ölçüyə qaytar (redaktor avtomatik genişlənsin)
+  rz.addEventListener('dblclick', function() {
+    wrap.style.flex = '';
+    wrap.style.height = '';
+    try { localStorage.removeItem('oracle-sim-editor-h'); } catch (e) {}
+  });
+
+  // Pəncərə ölçüsü dəyişəndə saxlanmış hündürlüyü yenidən sərhədlə daxilində saxla
+  window.addEventListener('resize', function() {
+    var cur = wrap.getBoundingClientRect().height;
+    if (wrap.style.flex || wrap.style.height) applyEditorHeight(cur);
+  });
+}
+
+// ============================================================
+// WHAT'S NEW — ilk daxil olma üçün bir dəfəlik versiya dialoqu
+// ============================================================
+var WHATSNEW_VERSION = 1;
+
+function maybeShowWhatsNew() {
+  var seen = 0;
+  try { seen = parseInt(localStorage.getItem('nexora-whatsnew-seen') || '0', 10) || 0; } catch (e) {}
+  if (seen >= WHATSNEW_VERSION) return;
+  var ov = document.getElementById('whatsnewOverlay');
+  if (!ov) return;
+
+  // Sxema yükləmə overlay-i bitəyə qədər gözlə (maks 15 san), sonra göstər
+  var waited = 0;
+  (function tryShow() {
+    var slo = document.getElementById('schemaLoadOverlay');
+    if (waited < 15000 && slo && slo.style.display !== 'none') {
+      waited += 250;
+      setTimeout(tryShow, 250);
+      return;
+    }
+    showWhatsNew(ov);
+  })();
+}
+
+function showWhatsNew(ov) {
+  ov.classList.add('show');
+  function close() {
+    ov.classList.remove('show');
+    try { localStorage.setItem('nexora-whatsnew-seen', String(WHATSNEW_VERSION)); } catch (e) {}
+    document.getElementById('whatsnewStartBtn').removeEventListener('click', close);
+    ov.removeEventListener('click', onOverlay);
+    document.removeEventListener('keydown', onKey);
+  }
+  function onOverlay(e) { if (e.target === ov) close(); }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  document.getElementById('whatsnewStartBtn').addEventListener('click', close);
+  ov.addEventListener('click', onOverlay);
+  document.addEventListener('keydown', onKey);
 }
 
 // ============================================================
@@ -2743,6 +2915,7 @@ window.addEventListener('load', function() {
   refreshEditor();
   initResizers();
   initApp();
+  maybeShowWhatsNew();
 });
 
 </script>
