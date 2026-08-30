@@ -215,7 +215,7 @@
           <option value="20">20px</option>
         </select>
       </div>
-      <span style="font-size:11px;color:var(--text-muted)"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> to run</span>
+      <span style="font-size:11px;color:var(--text-muted)"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> — kursorun olduğu sorğu</span>
       <span class="exec-time" id="execTime"></span>
     </div>
     <div class="editor-wrap" id="editorWrap">
@@ -1871,10 +1871,55 @@ function formatDbError(msg) {
   return 'Xəta: ' + msg;
 }
 
-function executeQuery() {
+// Kursorun olduğu yerdəki SQL ifadəsini tapır (ifadələr ';' ilə ayrılır,
+// sətir şərhi/string/dırnaq daxilindəki ';' nəzərə alınmır).
+// Yalnız şərh və boşluqdan ibarət hissələr ifadə sayılmır.
+function getStatementAtCaret(ed) {
+  var text = ed.value;
+  var caret = ed.selectionStart;
+  var stmts = [];
+  var n = text.length;
+  var sawReal = false, realStart = 0;
+  var inLine = false, inBlock = false, inStr = false, inIdent = false;
+  for (var i = 0; i < n; i++) {
+    var ch = text.charAt(i);
+    if (inLine) { if (ch === '\n') inLine = false; continue; }
+    if (inBlock) { if (ch === '*' && text.charAt(i + 1) === '/') { inBlock = false; i++; } continue; }
+    if (inStr) { if (ch === "'") inStr = false; continue; }
+    if (inIdent) { if (ch === '"') inIdent = false; continue; }
+    if (ch === "'" || ch === '"') {
+      inStr = ch === "'"; inIdent = ch === '"';
+      if (!sawReal) realStart = i;
+      sawReal = true;
+      continue;
+    }
+    if (ch === '-' && text.charAt(i + 1) === '-') { inLine = true; i++; continue; }
+    if (ch === '/' && text.charAt(i + 1) === '*') { inBlock = true; i++; continue; }
+    if (ch === ';') {
+      if (sawReal) stmts.push({ start: realStart, end: i + 1, sql: text.substring(realStart, i) });
+      sawReal = false;
+      continue;
+    }
+    if (!/\s/.test(ch)) { if (!sawReal) realStart = i; sawReal = true; }
+  }
+  if (sawReal) stmts.push({ start: realStart, end: n, sql: text.substring(realStart, n) });
+  if (stmts.length === 0) return null;
+  if (stmts.length === 1) return stmts[0];
+  for (var k = 0; k < stmts.length; k++) {
+    if (caret >= stmts[k].start && caret <= stmts[k].end) return stmts[k];
+  }
+  // kursor ifadələr arası boşluqda/şərhdədir → kursordan sonrakı ilk ifadə;
+  // kursor sontrakı boşluqlardadırsa → sonuncu ifadə
+  for (var k2 = 0; k2 < stmts.length; k2++) {
+    if (stmts[k2].start >= caret) return stmts[k2];
+  }
+  return stmts[stmts.length - 1];
+}
+
+function executeQuery(sqlOverride) {
   hideError();
   var ed = document.getElementById('sqlEditor');
-  var raw = ed.value.trim();
+  var raw = (sqlOverride === undefined || sqlOverride === null ? ed.value : sqlOverride).trim();
   if (!raw) { showError('Sorğu boşdur — SQL yazın.'); return; }
   if (!db) { showError('Baza hələ yüklənməyib, bir az gözləyin (sql.js CDN-dən yüklənir).'); return; }
   var btn = document.getElementById('runBtn');
@@ -2396,7 +2441,19 @@ window.addEventListener('load', function() {
       insertAtCursor('  ');
     } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
-      executeQuery();
+      // Seçim varsa → seçimi icra et; yoxsa kursorun olduğu ifadəni
+      var selText = ed.value.substring(ed.selectionStart, ed.selectionEnd).trim();
+      if (selText) {
+        executeQuery(selText);
+      } else {
+        var st = getStatementAtCaret(ed);
+        if (st) {
+          ed.setSelectionRange(st.start, st.end);
+          executeQuery(st.sql);
+        } else {
+          executeQuery();
+        }
+      }
     }
   });
 
