@@ -1933,6 +1933,13 @@ function executeQuery(sqlOverride) {
     if (analyzed.fastSelect) {
       // Böyük sxemalarda yaddaşı qorumaq üçün: göstəriş LIMIT 1001, dəqiq say COUNT wrapper ilə
       var dispRes = db.exec(analyzed.stripped + ' LIMIT 1001');
+      if (!dispRes.length) {
+        // 0 sətir qaytaran sorğu (məs. WHERE heç nə tapmır) — sütun başlıqlarını LIMIT-siz al
+        try { dispRes = db.exec(analyzed.stripped); } catch (e1) { dispRes = []; }
+      }
+      if (!dispRes.length) {
+        addResultTab([], [], 0);
+      } else {
       var values = dispRes[0].values;
       var truncated = values.length > 1000;
       if (truncated) values = values.slice(0, 1000);
@@ -1943,6 +1950,7 @@ function executeQuery(sqlOverride) {
         } catch (e2) { total = null; }
       }
       addResultTab(dispRes[0].columns, values, total);
+      }
     } else {
       var results = db.exec(processed);
       if (!results.length) {
@@ -2284,6 +2292,65 @@ function highlightSQL(sql) {
   });
 }
 
+// Açar söz/də funksiya sözüdürmü? (lookup bir dəfə qurulur)
+var _kwLookup = null;
+function isSqlKeywordWord(word) {
+  if (!_kwLookup) {
+    _kwLookup = {};
+    for (var i = 0; i < SQL_KEYWORDS.length; i++) _kwLookup[SQL_KEYWORDS[i]] = true;
+    for (var j = 0; j < SQL_FUNCTIONS.length; j++) _kwLookup[SQL_FUNCTIONS[j]] = true;
+  }
+  return _kwLookup.hasOwnProperty(word);
+}
+
+// Kursor mövqeyində kontekst: 'code' | 'str' | 'ident' | 'line-comment' | 'block-comment'
+function sqlContextAt(text, pos) {
+  var inLine = false, inBlock = false, inStr = false, inIdent = false;
+  for (var i = 0; i < pos; i++) {
+    var ch = text.charAt(i);
+    if (inLine) { if (ch === '\n') inLine = false; continue; }
+    if (inBlock) { if (ch === '*' && text.charAt(i + 1) === '/') { inBlock = false; i++; } continue; }
+    if (inStr) { if (ch === "'") inStr = false; continue; }
+    if (inIdent) { if (ch === '"') inIdent = false; continue; }
+    if (ch === "'") inStr = true;
+    else if (ch === '"') inIdent = true;
+    else if (ch === '-' && text.charAt(i + 1) === '-') { inLine = true; i++; }
+    else if (ch === '/' && text.charAt(i + 1) === '*') { inBlock = true; i++; }
+  }
+  return inStr ? 'str' : inIdent ? 'ident' : inLine ? 'line-comment' : inBlock ? 'block-comment' : 'code';
+}
+
+// Açar söz yazılanda avtomatik BÖYÜK hərflərə çevirir (select␣ → SELECT␣).
+// Yalnız ayırıcı simvol (space, (, ),,,, ;, operator, Enter) daxil ediləndə işləyir;
+// string/şərh/dırnaqlı identifikator daxilində toxunmur; undo saxlanılır.
+function autoUppercaseKeyword(ed, ev) {
+  var isSep = false;
+  if (ev && ev.inputType === 'insertLineBreak') isSep = true;
+  else if (ev && ev.inputType === 'insertText' && ev.data && ev.data.length === 1 && !/[A-Za-z0-9_]/.test(ev.data)) isSep = true;
+  if (!isSep) return;
+  var pos = ed.selectionStart;
+  if (pos !== ed.selectionEnd) return;
+  var text = ed.value;
+  var wordEnd = pos - 1;
+  if (wordEnd <= 0) return;
+  var wordStart = wordEnd;
+  while (wordStart > 0 && /[A-Za-z0-9_]/.test(text.charAt(wordStart - 1))) wordStart--;
+  var word = text.substring(wordStart, wordEnd);
+  if (!word) return;
+  var up = word.toUpperCase();
+  if (up === word || up.length !== word.length || !isSqlKeywordWord(up)) return;
+  if (sqlContextAt(text, wordStart) !== 'code') return;
+  var done = false;
+  try {
+    ed.setSelectionRange(wordStart, wordEnd);
+    done = document.execCommand('insertText', false, up);
+  } catch (e) { done = false; }
+  if (!done) {
+    ed.value = text.substring(0, wordStart) + up + text.substring(wordEnd);
+  }
+  ed.setSelectionRange(pos, pos);
+}
+
 function refreshEditor() {
   var ed = document.getElementById('sqlEditor');
   var lines = ed.value.split('\n').length;
@@ -2428,7 +2495,10 @@ function initResizers() {
 // ============================================================
 window.addEventListener('load', function() {
   var ed = document.getElementById('sqlEditor');
-  ed.addEventListener('input', refreshEditor);
+  ed.addEventListener('input', function(e) {
+    autoUppercaseKeyword(ed, e);
+    refreshEditor();
+  });
   ed.addEventListener('scroll', function() {
     var hl = document.getElementById('sqlHighlight');
     hl.scrollTop = ed.scrollTop;
