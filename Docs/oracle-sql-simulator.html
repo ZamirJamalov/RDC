@@ -155,12 +155,7 @@
   .results-tab .tab-close{color:var(--text-muted);font-size:14px;line-height:1;padding:0 2px;border-radius:3px;transition:color .1s;flex-shrink:0}
   .results-tab .tab-close:hover{color:var(--red)}
   .results-tab.active .tab-close:hover{color:var(--red)}
-  .pager-bar{display:flex}
-  .pg-btn{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-size:13px;line-height:1;padding:4px 10px;transition:all .15s}
-  .pg-btn:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
-  .pg-btn:disabled{opacity:.35;cursor:default}
-  .pg-info{font-size:11px;color:var(--text-muted);white-space:nowrap;min-width:64px;text-align:center;font-family:monospace}
-  .pg-size{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:3px 4px;font-size:11px;cursor:pointer;outline:none}
+  .results-grid:focus{outline:none}
   @media(max-width:768px){
     .sidebar{display:none}
     .sidebar-resizer{display:none}
@@ -246,20 +241,9 @@
       <div class="results-info" id="resultsInfo" style="display:none">
         <span>Rows: <span class="ri-count" id="rowCount">0</span></span>
         <span>Columns: <span id="colCount">0</span></span>
-        <span id="sortInfo"></span>
-        <div class="pager-bar" id="pagerBar" style="margin-left:auto;display:none;align-items:center;gap:6px">
-          <button class="pg-btn" id="pgPrev" title="Əvvəlki səhifə">‹</button>
-          <span class="pg-info" id="pgInfo">1 / 1</span>
-          <button class="pg-btn" id="pgNext" title="Növbəti səhifə">›</button>
-          <select class="pg-size" id="pgSize" title="Səhifə ölçüsü">
-            <option value="100">100</option>
-            <option value="250">250</option>
-            <option value="500" selected>500</option>
-            <option value="1000">1000</option>
-          </select>
-        </div>
+        <span id="sortInfo" style="margin-left:auto"></span>
       </div>
-      <div class="results-grid" id="resultsGrid" style="display:none"></div>
+      <div class="results-grid" id="resultsGrid" style="display:none" tabindex="0"></div>
     </div>
   </div>
 </div>
@@ -1948,8 +1932,9 @@ function executeQuery(sqlOverride) {
     if (semErr) throw new Error(semErr);
     var analyzed = analyzeStatement(processed);
     if (analyzed.fastSelect) {
-      // Böyük sxemalarda yaddaşı qorumaq üçün: göstəriş LIMIT 1001, dəqiq say COUNT wrapper ilə
-      var dispRes = db.exec(analyzed.stripped + ' LIMIT 1001');
+      // Infinite scroll: ilkin göstəriş CHUNK_SIZE+1 (sentinel), dəqiq say lazım olsa COUNT wrapper ilə.
+      // Sorğu forması loadMoreRows ilə eynidir (wrapper) — LIMIT planı dəyişməsin deyə
+      var dispRes = db.exec('SELECT * FROM (' + analyzed.stripped + ') LIMIT ' + (CHUNK_SIZE + 1));
       if (!dispRes.length) {
         // 0 sətir qaytaran sorğu (məs. WHERE heç nə tapmır) — sütun başlıqlarını LIMIT-siz al
         try { dispRes = db.exec(analyzed.stripped); } catch (e1) { dispRes = []; }
@@ -1957,16 +1942,16 @@ function executeQuery(sqlOverride) {
       if (!dispRes.length) {
         addResultTab([], [], 0, analyzed.stripped, false);
       } else {
-      var values = dispRes[0].values;
-      var truncated = values.length > 1000;
-      if (truncated) values = values.slice(0, 1000);
-      var total = values.length;
-      if (truncated) {
-        try {
-          total = db.exec('SELECT COUNT(*) FROM (' + analyzed.stripped + ')')[0].values[0][0];
-        } catch (e2) { total = null; }
-      }
-      addResultTab(dispRes[0].columns, values, total, analyzed.stripped, false);
+        var values = dispRes[0].values;
+        var total = null;
+        if (values.length <= CHUNK_SIZE) {
+          total = values.length; // tam nəticə önə çəkildi
+        } else {
+          try {
+            total = db.exec('SELECT COUNT(*) FROM (' + analyzed.stripped + ')')[0].values[0][0];
+          } catch (e2) { total = null; }
+        }
+        addResultTab(dispRes[0].columns, values, total, analyzed.stripped, false);
       }
     } else {
       var results = db.exec(processed);
@@ -2008,85 +1993,114 @@ function hideError() {
 }
 
 // ============================================================
-// RESULT TABS + PAGINATION
+// RESULT TABS + INFINITE SCROLL
 // ============================================================
-var DEFAULT_PAGE_SIZE = 500;
+var CHUNK_SIZE = 200;       // ilkin göstərilən və hər dəfə əlavə olunan sətir sayı
+var SCROLL_THRESHOLD = 120; // sona neçə px qalmışda növbəti hissə yüklənir
 
 function addResultTab(columns, values, total, sql, truncated) {
+  var all = sql ? null : values; // client tərəfli: tam massiv yaddaşda qalır
+  var shown = values.length > CHUNK_SIZE ? values.slice(0, CHUNK_SIZE) : values;
+  var tot = (total === undefined || total === null)
+    ? (sql ? null : all.length)
+    : total;
+  var exhausted = sql
+    ? (tot !== null && shown.length >= tot)     // server: hamısı artıq yüklənib
+    : (shown.length >= all.length);             // client: allValues bitib
   resultTabs.push({
-    type: 'result', columns: columns, values: values,
-    total: (total === undefined || total === null) ? values.length : total,
-    sql: sql || null,                    // server tərəfli pagination üçün mənbə sorğu
-    truncated: !!truncated,              // yaddaşda yalnız ilk hissə var (köhnə yol)
-    allValues: sql ? null : values,      // client tərəfli pagination üçün tam yüklənmiş massiv
-    page: 0,
-    pageSize: DEFAULT_PAGE_SIZE
+    type: 'result', columns: columns, values: shown,
+    total: tot,
+    sql: sql || null,                    // server tərəfli yükləmə üçün mənbə sorğu
+    truncated: !!truncated,              // köhnə yol: mənbədə 1000-dən çox idi, yalnız ilk 1000 saxlanılıb
+    allValues: all,
+    exhausted: exhausted,
+    sortCol: null, sortDir: 'asc', sortName: null, sortOrigIdx: null
   });
   activeTabIdx = resultTabs.length - 1;
   renderTabs();
   showTab(activeTabIdx);
 }
 
-// Tab üçün səhifə sayı
-function tabPageCount(tab) {
-  var total = tab.sql ? tab.total : (tab.allValues ? tab.allValues.length : tab.values.length);
-  return Math.max(1, Math.ceil((total || 0) / tab.pageSize));
+// Server tərəfli yükləmə üçün ORDER BY hissəsi
+function buildOrderBy(tab) {
+  if (!tab.sortName) return '';
+  var colName = String(tab.sortName).replace(/"/g, '""');
+  return ' ORDER BY "' + colName + '" ' + (tab.sortDir === 'desc' ? 'DESC' : 'ASC');
 }
 
-// Verilən səhifəni yükləyir (server və ya client tərəfli)
-function loadTabPage(tab, page) {
-  var pages = tabPageCount(tab);
-  if (page < 0) page = 0;
-  if (page > pages - 1) page = pages - 1;
+// Sətirləri verilən sütun üzrə sırala (client tərəfli tablar üçün)
+function sortRowsForTab(rows, idx, dir) {
+  var d = dir === 'desc' ? -1 : 1;
+  var numeric = true;
+  for (var r = 0; r < rows.length; r++) {
+    var v = rows[r][idx];
+    if (v !== null && v !== undefined && typeof v !== 'number') { numeric = false; break; }
+  }
+  return rows.slice().sort(function(x, y) {
+    var a = x[idx], b = y[idx];
+    if (a === null || a === undefined) return 1;
+    if (b === null || b === undefined) return -1;
+    if (numeric) return (a - b) * d;
+    return String(a) < String(b) ? -d : String(a) > String(b) ? d : 0;
+  });
+}
+
+// Növbəti CHUNK_SIZE sətiri yükləyir və tab.values-ə əlavə edir
+function loadMoreRows(tab) {
+  if (!tab || tab.exhausted) return 0;
+  var start = tab.values.length;
+  var chunk;
   if (tab.sql) {
-    // Server tərəfli: mənbə sorğunu ORDER BY + LIMIT/OFFSET ilə yenidən icra et
-    var orderBy = '';
-    if (tab.sortName) {
-      var colName = String(tab.sortName).replace(/"/g, '""');
-      orderBy = ' ORDER BY "' + colName + '" ' + (tab.sortDir === 'desc' ? 'DESC' : 'ASC');
-    }
-    var q = 'SELECT * FROM (' + tab.sql + ')' + orderBy + ' LIMIT ' + tab.pageSize + ' OFFSET ' + (page * tab.pageSize);
-    var res = db.exec(q);
-    tab.values = res.length ? res[0].values : [];
+    // Server tərəfli: LIMIT CHUNK+1 sentinel — 201 gəlirsə daha çox var
+    var q = 'SELECT * FROM (' + tab.sql + ')' + buildOrderBy(tab) +
+            ' LIMIT ' + (CHUNK_SIZE + 1) + ' OFFSET ' + start;
+    var res;
+    try { res = db.exec(q); } catch (e) { tab.exhausted = true; return 0; }
+    var rows = res.length ? res[0].values : [];
+    if (rows.length <= CHUNK_SIZE) tab.exhausted = true;
+    chunk = rows.slice(0, CHUNK_SIZE);
   } else {
-    // Client tərəfli: yaddaşdakı massivi dilimlə
+    // Client tərəfli: yaddaşdakı massivin növbəti dilimi
     var all = tab.allValues || [];
-    var sortIdx = (typeof tab.sortOrigIdx === 'number') ? tab.sortOrigIdx : -1;
-    if (sortIdx >= 0) {
-      var dir = tab.sortDir === 'desc' ? -1 : 1;
-      var numeric = true;
-      for (var r = 0; r < all.length; r++) {
-        var v = all[r][sortIdx];
-        if (v !== null && v !== undefined && typeof v !== 'number') { numeric = false; break; }
-      }
-      all = all.slice().sort(function(x, y) {
-        var a = x[sortIdx], b = y[sortIdx];
-        if (a === null || a === undefined) return 1;
-        if (b === null || b === undefined) return -1;
-        if (numeric) return (a - b) * dir;
-        return String(a) < String(b) ? -dir : String(a) > String(b) ? dir : 0;
-      });
-      tab.allValues = all;
-    }
-    tab.values = all.slice(page * tab.pageSize, (page + 1) * tab.pageSize);
+    var end = Math.min(start + CHUNK_SIZE, all.length);
+    chunk = all.slice(start, end);
+    if (end >= all.length) tab.exhausted = true;
   }
-  tab.page = page;
+  if (tab.total !== null && tab.total !== undefined && start + chunk.length >= tab.total) tab.exhausted = true;
+  if (!chunk.length) { tab.exhausted = true; return 0; }
+  tab.values = tab.values.concat(chunk);
+  return chunk.length;
 }
 
-function updatePagerBar(tab) {
-  var bar = document.getElementById('pagerBar');
-  var rows = tab.sql ? tab.total : (tab.allValues ? tab.allValues.length : tab.values.length);
-  if (!rows || rows <= tab.pageSize) {
-    bar.style.display = 'none';
-    return;
-  }
-  bar.style.display = 'flex';
-  var pages = tabPageCount(tab);
-  document.getElementById('pgInfo').textContent = (tab.page + 1) + ' / ' + pages;
-  document.getElementById('pgPrev').disabled = tab.page <= 0;
-  document.getElementById('pgNext').disabled = tab.page >= pages - 1;
-  var sel = document.getElementById('pgSize');
-  if (String(tab.pageSize) !== sel.value) sel.value = String(tab.pageSize);
+// Grid sona yaxınlaşılıb?
+function nearGridBottom() {
+  var grid = document.getElementById('resultsGrid');
+  return grid.scrollTop + grid.clientHeight >= grid.scrollHeight - SCROLL_THRESHOLD;
+}
+
+// Scroll hadisəsində çağırılır — sona yaxınlaşmışsa növbəti hissəni yükləyir
+function maybeLoadMore() {
+  var tab = resultTabs[activeTabIdx];
+  if (!tab || tab.exhausted) return;
+  var grid = document.getElementById('resultsGrid');
+  if (grid.style.display === 'none' || !currentResult.length) return;
+  if (!nearGridBottom()) return;
+  var startLen = tab.values.length;
+  if (loadMoreRows(tab) === 0) return;
+  var newRows = tab.values.slice(startLen);
+  currentResult = currentResult.concat(newRows.map(function(r) { return r.slice(); }));
+  appendRows(newRows);
+  updateRowCountDisplay(tab);
+}
+
+// Yeni sətirləri cədvələ səmərəli şəkildə əlavə et (tam re-render yox)
+function appendRows(rows) {
+  var grid = document.getElementById('resultsGrid');
+  var tbody = grid.querySelector('tbody');
+  if (!tbody || typeof tbody.insertAdjacentHTML !== 'function') { renderTable(); return; }
+  var parts = [];
+  for (var i = 0; i < rows.length; i++) parts.push(buildRowHtml(rows[i]));
+  tbody.insertAdjacentHTML('beforeend', parts.join(''));
 }
 
 function renderTabs() {
@@ -2111,26 +2125,24 @@ function showTab(idx) {
   document.getElementById('resultsInfo').style.display = 'flex';
   document.getElementById('resultsGrid').style.display = 'block';
   currentColumns = tab.columns.slice();
-  // Cari səhifənin sətirləri (ilk göstərişdə values = ilk səhifədir)
-  var need = (tab.page * tab.pageSize) !== 0 || tab.values.length > tab.pageSize;
-  if (need) loadTabPage(tab, tab.page);
   currentResult = tab.values.map(function(r) { return r.slice(); });
   currentTotal = tab.total || tab.values.length;
-  sortCol = (tab.sortCol !== undefined) ? tab.sortCol : null;
+  sortCol = (tab.sortCol !== undefined && tab.sortCol !== null) ? tab.sortCol : null;
   sortDir = tab.sortDir || 'asc';
   document.getElementById('sortInfo').textContent = sortCol !== null ? 'SORT: ' + currentColumns[sortCol] + ' (' + sortDir.toUpperCase() + ')' : '';
   updateRowCountDisplay(tab);
   document.getElementById('colCount').textContent = tab.columns.length;
-  updatePagerBar(tab);
   renderTable();
 }
 
 function updateRowCountDisplay(tab) {
   var total = tab.sql ? tab.total : (tab.allValues ? tab.allValues.length : tab.values.length);
-  var from = tab.values.length ? (tab.page * tab.pageSize + 1) : 0;
-  var to = tab.page * tab.pageSize + tab.values.length;
-  var txt = from + '–' + to + ' / ' + (total || 0).toLocaleString('az-AZ');
-  if (!tab.sql && tab.truncated) txt += '+';
+  var loaded = tab.values.length;
+  var txt = (loaded ? '1–' + loaded.toLocaleString('az-AZ') : '0') + ' / ';
+  if (total !== null && total !== undefined) txt += total.toLocaleString('az-AZ');
+  else txt += loaded.toLocaleString('az-AZ') + '+'; // dəqiq say məlum deyil, daha çox var
+  // köhnə yol: mənbədə 1000-dən çox idi, yalnız 1000 saxlanılıb — bitəndə xəbər ver
+  if (!tab.sql && tab.truncated && tab.exhausted && loaded >= (tab.allValues ? tab.allValues.length : 0)) txt += '+';
   document.getElementById('rowCount').textContent = txt;
 }
 
@@ -2173,6 +2185,17 @@ function colWidth(ci) {
   return Math.min(320, Math.max(70, maxLen * 8 + 30));
 }
 
+function buildRowHtml(row) {
+  var s = '<tr>';
+  for (var c = 0; c < currentColumns.length; c++) {
+    var v = row[c];
+    if (v === null || v === undefined) s += '<td class="null-val">(null)</td>';
+    else if (typeof v === 'number') s += '<td class="number-val">' + v + '</td>';
+    else s += '<td>' + escapeHtml(v) + '</td>';
+  }
+  return s + '</tr>';
+}
+
 function renderTable() {
   var grid = document.getElementById('resultsGrid');
   var html = ['<table class="results-table"><thead><tr>'];
@@ -2184,17 +2207,8 @@ function renderTable() {
       '</div><div class="col-resize-handle" data-col="' + c + '"></div></th>');
   }
   html.push('</tr></thead><tbody>');
-  var cap = currentResult.length; // cari səhifə tam göstərilir (pagination var)
-  for (var r = 0; r < cap; r++) {
-    var row = currentResult[r];
-    html.push('<tr>');
-    for (var c2 = 0; c2 < currentColumns.length; c2++) {
-      var v = row[c2];
-      if (v === null || v === undefined) html.push('<td class="null-val">(null)</td>');
-      else if (typeof v === 'number') html.push('<td class="number-val">' + v + '</td>');
-      else html.push('<td>' + escapeHtml(v) + '</td>');
-    }
-    html.push('</tr>');
+  for (var r = 0; r < currentResult.length; r++) {
+    html.push(buildRowHtml(currentResult[r]));
   }
   html.push('</tbody></table>');
   grid.innerHTML = html.join('');
@@ -2210,11 +2224,13 @@ function sortByCol(ci) {
     tab.sortDir = sortDir;
     tab.sortName = currentColumns[ci];                      // göstərilən sütun adı (server ORDER BY üçün)
     tab.sortOrigIdx = tab.columns.indexOf(currentColumns[ci]); // orijinal sıradakı indeks (client sort üçün)
-    tab.page = 0; // sort dəyişəndə ilk səhifəyə qayıt
-    loadTabPage(tab, 0);
+    // Sort dəyişəndə sıfırla və ilk CHUNK_SIZE sətri yeni sıra ilə yüklə
+    if (!tab.sql && tab.allValues) tab.allValues = sortRowsForTab(tab.allValues, tab.sortOrigIdx, tab.sortDir);
+    tab.values = [];
+    tab.exhausted = false;
+    loadMoreRows(tab);
     currentResult = tab.values.map(function(r) { return r.slice(); });
     updateRowCountDisplay(tab);
-    updatePagerBar(tab);
   } else {
     var numeric = true;
     for (var r = 0; r < currentResult.length; r++) {
@@ -2311,10 +2327,11 @@ function attachTableEvents() {
       });
     })(ths[i]);
   }
-  var trs = grid.querySelectorAll('tbody tr');
-  for (var r = 0; r < trs.length; r++) {
-    trs[r].addEventListener('click', function() { this.classList.toggle('row-selected'); });
-  }
+  // Sətir klikini delegasiya ilə — infinite scroll-la əlavə olunan sətirlər də əhatə olunur
+  grid.addEventListener('click', function(e) {
+    var tr = e.target && e.target.closest ? e.target.closest('tbody tr') : null;
+    if (tr) tr.classList.toggle('row-selected');
+  });
 }
 
 // ============================================================
@@ -2640,41 +2657,26 @@ window.addEventListener('load', function() {
     }
   });
 
-  // Pagination idarəetməsi
-  document.getElementById('pgPrev').addEventListener('click', function() {
-    var tab = resultTabs[activeTabIdx];
-    if (!tab || tab.page <= 0) return;
-    loadTabPage(tab, tab.page - 1);
-    currentResult = tab.values.map(function(r) { return r.slice(); });
-    sortCol = (tab.sortCol !== undefined && tab.sortCol !== null) ? tab.sortCol : null;
-    sortDir = tab.sortDir || 'asc';
-    updateRowCountDisplay(tab);
-    updatePagerBar(tab);
-    renderTable();
-    document.getElementById('resultsGrid').scrollTop = 0;
-  });
-  document.getElementById('pgNext').addEventListener('click', function() {
-    var tab = resultTabs[activeTabIdx];
-    if (!tab) return;
-    loadTabPage(tab, tab.page + 1);
-    currentResult = tab.values.map(function(r) { return r.slice(); });
-    sortCol = (tab.sortCol !== undefined && tab.sortCol !== null) ? tab.sortCol : null;
-    sortDir = tab.sortDir || 'asc';
-    updateRowCountDisplay(tab);
-    updatePagerBar(tab);
-    renderTable();
-    document.getElementById('resultsGrid').scrollTop = 0;
-  });
-  document.getElementById('pgSize').addEventListener('change', function() {
-    var tab = resultTabs[activeTabIdx];
-    if (!tab) return;
-    tab.pageSize = parseInt(this.value, 10) || 500;
-    tab.page = 0;
-    loadTabPage(tab, 0);
-    currentResult = tab.values.map(function(r) { return r.slice(); });
-    updateRowCountDisplay(tab);
-    updatePagerBar(tab);
-    renderTable();
+  // Infinite scroll: grid sona yaxınlaşdıqda növbəti CHUNK_SIZE sətir yüklənir
+  // (siçan təkəri, trackpad, scrollbar sürüşdürmə və grid fokusda olanda klaviatura scroll-u
+  //  hamısı 'scroll' hadisəsi yaradır)
+  document.getElementById('resultsGrid').addEventListener('scroll', maybeLoadMore);
+
+  // End/PageDown: grid fokusda deyilsə belə nəticə sahəsinin sonuna get — scroll hadisəsi
+  // maybeLoadMore-u işə salır. Redaktor/input fokusda olanda müdaxilə etmə.
+  document.addEventListener('keydown', function(e) {
+    var t = e.target;
+    var tag = t && t.tagName ? String(t.tagName).toUpperCase() : '';
+    if (tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT') return;
+    var grid = document.getElementById('resultsGrid');
+    if (!grid || grid.style.display === 'none' || !resultTabs.length) return;
+    if (e.key === 'End' || e.key === 'PageDown') {
+      grid.scrollTop = grid.scrollHeight;
+      e.preventDefault();
+    } else if (e.key === 'Home') {
+      grid.scrollTop = 0;
+      e.preventDefault();
+    }
   });
 
   document.getElementById('resultsTabs').addEventListener('click', function(e) {
