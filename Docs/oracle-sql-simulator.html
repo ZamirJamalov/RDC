@@ -135,7 +135,15 @@
   ::-webkit-scrollbar-track{background:transparent}
   ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
   ::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}
-  .statusbar{display:flex;align-items:center;justify-content:flex-start;padding:4px 16px;background:var(--surface);border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);flex-shrink:0}
+  .statusbar{display:flex;align-items:center;justify-content:flex-start;padding:4px 16px;background:var(--surface);border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);flex-shrink:0;gap:12px}
+  #dbInfo{color:var(--accent);font-weight:600}
+  .schema-load-overlay{position:fixed;inset:0;background:rgba(1,4,9,.72);display:flex;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(2px)}
+  .slo-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:28px 32px;max-width:460px;width:90%;text-align:center;box-shadow:0 16px 48px rgba(0,0,0,.5)}
+  .slo-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:14px}
+  .slo-bar{height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;margin-bottom:10px}
+  .slo-fill{height:100%;width:0%;background:var(--accent);border-radius:4px;transition:width .2s}
+  .slo-status{font-size:12px;color:var(--accent);font-family:monospace;margin-bottom:12px;min-height:16px}
+  .slo-note{font-size:11px;color:var(--text-muted);line-height:1.5}
   .results-tabs{display:flex;align-items:center;gap:2px;padding:6px 12px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0;scrollbar-width:none;-ms-overflow-style:none}
   .results-tabs::-webkit-scrollbar{display:none}
   .results-tab{display:flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid var(--border);border-radius:6px 6px 0 0;cursor:pointer;font-size:11px;color:var(--text-muted);background:var(--surface2);white-space:nowrap;transition:all .15s;user-select:none;border-bottom:1px solid transparent;margin-bottom:-1px}
@@ -160,8 +168,11 @@
     <div class="logo">Oracle SQL Simulator</div>
   </div>
   <div class="header-right">
-    <select class="schema-select" id="schemaSelect">
+    <select class="schema-select" id="schemaSelect" onchange="onSchemaChange()" title="Sxema seçin">
       <option value="hr">HR Schema</option>
+      <option value="pharmacy">Aptek (~317k sətir)</option>
+      <option value="market">Market (~511k sətir)</option>
+      <option value="cs">Müştəri Xidmətləri (~467k sətir)</option>
     </select>
     <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle theme">
       <svg id="themeIconDark" viewBox="0 0 20 20" fill="currentColor" style="display:none"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/></svg>
@@ -237,6 +248,15 @@
 </div>
 <div class="statusbar">
   <span>Created by Nexora Talent</span>
+  <span id="dbInfo"></span>
+</div>
+<div class="schema-load-overlay" id="schemaLoadOverlay" style="display:none">
+  <div class="slo-card">
+    <div class="slo-title" id="sloTitle"></div>
+    <div class="slo-bar"><div class="slo-fill" id="sloFill"></div></div>
+    <div class="slo-status" id="sloStatus"></div>
+    <div class="slo-note">Bir dəfə yaradılır və brauzer yaddaşında (IndexedDB) saxlanılır — növbəti dəfələrdə dərhal yüklənir. Generator kodu dəyişəndə keş avtomatik yenilənir.</div>
+  </div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.11.0/sql-wasm.js"></script>
 <script>
@@ -508,6 +528,7 @@ const TABLE_META = {
 // ============================================================
 let currentResult = null;
 let currentColumns = null;
+let currentTotal = null;
 let sortCol = null;
 let sortDir = 'asc';
 let selectedRow = null;
@@ -520,35 +541,57 @@ let activeTabIdx = -1;
 var db = null;
 
 function initDB() {
+  db.exec('BEGIN TRANSACTION');
   for (var tableName in HR_DATA) {
     var rows = HR_DATA[tableName];
     if (!rows || rows.length === 0) continue;
     var cols = Object.keys(rows[0]);
-    // Determine SQLite types from first non-null values
+    var meta = TABLE_META[tableName];
+    // kompozit PK: '[a, b]' formatında
+    var compositePk = meta && meta.pk.charAt(0) === '[' ?
+      meta.pk.slice(1, -1).split(',').map(function(s) { return s.trim(); }) : null;
     var colDefs = cols.map(function(c) {
+      var isPk = meta && !compositePk && meta.pk === c;
       for (var r = 0; r < rows.length; r++) {
         if (rows[r][c] !== null && rows[r][c] !== undefined) {
-          return typeof rows[r][c] === 'number' ? '"' + c + '" INTEGER' : '"' + c + '" TEXT';
+          return '"' + c + '" ' + (typeof rows[r][c] === 'number' ? 'INTEGER' : 'TEXT') + (isPk ? ' PRIMARY KEY' : '');
         }
       }
-      return '"' + c + '" TEXT';
-    }).join(', ');
+      return '"' + c + '" TEXT' + (isPk ? ' PRIMARY KEY' : '');
+    });
+    var extra = [];
+    if (compositePk) extra.push('PRIMARY KEY ("' + compositePk.join('", "') + '")');
+    if (meta) {
+      for (var fk in meta.fks) {
+        var ref = meta.fks[fk].split('.');
+        extra.push('FOREIGN KEY ("' + fk + '") REFERENCES "' + ref[0] + '" ("' + ref[1] + '")');
+      }
+    }
     try { db.run('DROP TABLE IF EXISTS "' + tableName + '"'); } catch(e) {}
-    db.run('CREATE TABLE "' + tableName + '" (' + colDefs + ')');
+    db.run('CREATE TABLE "' + tableName + '" (' + colDefs.concat(extra).join(', ') + ')');
     // Bulk insert using parameterized query
     var placeholders = cols.map(function() { return '?'; }).join(', ');
     var quotedCols = cols.map(function(c) { return '"' + c + '"'; }).join(', ');
     var insertSql = 'INSERT INTO "' + tableName + '" (' + quotedCols + ') VALUES (' + placeholders + ')';
     var stmt = db.prepare(insertSql);
-    db.exec('BEGIN TRANSACTION');
     for (var i = 0; i < rows.length; i++) {
       var vals = cols.map(function(c) { return rows[i][c] === undefined ? null : rows[i][c]; });
       stmt.run(vals);
     }
-    db.exec('COMMIT');
     stmt.free();
   }
-
+  db.exec('COMMIT');
+  // JOIN performansı üçün FK indeksləri
+  var idx = [
+    'CREATE INDEX IF NOT EXISTS ix_hr_emp_dept ON employees(department_id)',
+    'CREATE INDEX IF NOT EXISTS ix_hr_emp_job ON employees(job_id)',
+    'CREATE INDEX IF NOT EXISTS ix_hr_emp_mgr ON employees(manager_id)',
+    'CREATE INDEX IF NOT EXISTS ix_hr_dept_loc ON departments(location_id)',
+    'CREATE INDEX IF NOT EXISTS ix_hr_jh_emp ON job_history(employee_id)',
+    'CREATE INDEX IF NOT EXISTS ix_hr_loc_cty ON locations(country_id)',
+    'CREATE INDEX IF NOT EXISTS ix_hr_cty_reg ON countries(region_id)'
+  ];
+  for (var x = 0; x < idx.length; x++) db.run(idx[x]);
 }
 
 // ============================================================
@@ -1634,8 +1677,10 @@ function initApp() {
       return 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.11.0/' + f;
     }
   }).then(function(SQL) {
+    SQL_MODULE = SQL;
     db = new SQL.Database();
-    registerOracleFunctions();
+    hrDb = db;
+    registerOracleFunctions(db);
     initDB();
     buildSidebar();
   }).catch(function(e) {
@@ -1688,11 +1733,12 @@ function oraToChar(v, fmt) {
     .replace(/HH24/g, m[4] || '00').replace(/MI/g, m[5] || '00').replace(/SS/g, m[6] || '00');
 }
 
-function registerOracleFunctions() {
+function registerOracleFunctions(targetDb) {
+  var d = targetDb || db;
   var parts = ['year', 'month', 'day'];
   for (var p = 0; p < parts.length; p++) {
     (function(part) {
-      db.createFunction('extract_' + part, function(v) {
+      d.create_function('extract_' + part, function(v) {
         if (v === null || v === undefined) return null;
         var m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
         if (!m) return null;
@@ -1701,7 +1747,7 @@ function registerOracleFunctions() {
     })(parts[p]);
   }
 
-  db.createFunction('_oracle_round', function(x, d) {
+  d.create_function('_oracle_round', function(x, d) {
     if (x === null || x === undefined) return null;
     if (d === null || d === undefined) d = 0;
     var f = Math.pow(10, Math.trunc(Number(d)));
@@ -1710,7 +1756,7 @@ function registerOracleFunctions() {
     return v < 0 ? -r : r;
   });
 
-  db.createFunction('trunc', function(x, d) {
+  d.create_function('trunc', function(x, d) {
     if (x === null || x === undefined) return null;
     if (d === null || d === undefined) d = 0;
     var f = Math.pow(10, Math.trunc(Number(d)));
@@ -1718,9 +1764,9 @@ function registerOracleFunctions() {
     return v < 0 ? -Math.floor(Math.abs(v) * f) / f : Math.floor(v * f) / f; // Oracle: sıfıra doğru
   });
 
-  db.createFunction('to_char', oraToChar);
+  d.create_function('to_char', oraToChar);
 
-  db.createFunction('instr', function(s, sub, pos, occ) {
+  d.create_function('instr', function(s, sub, pos, occ) {
     if (s === null || sub === null || s === undefined || sub === undefined) return null;
     s = String(s); sub = String(sub);
     pos = (pos === null || pos === undefined) ? 1 : Number(pos);
@@ -1737,7 +1783,7 @@ function registerOracleFunctions() {
     return idx + 1;
   });
 
-  db.createFunction('substr', function(s, start, len) {
+  d.create_function('substr', function(s, start, len) {
     if (s === null || s === undefined || start === null || start === undefined) return null;
     s = String(s);
     var st = Number(start);
@@ -1750,7 +1796,7 @@ function registerOracleFunctions() {
     return s.substring(begin, begin + L);
   });
 
-  db.createFunction('lpad', function(s, n, pad) {
+  d.create_function('lpad', function(s, n, pad) {
     if (s === null || s === undefined || n === null || n === undefined) return null;
     s = String(s);
     n = Number(n);
@@ -1762,7 +1808,7 @@ function registerOracleFunctions() {
     return out.substring(0, n - s.length) + s;
   });
 
-  db.createFunction('rpad', function(s, n, pad) {
+  d.create_function('rpad', function(s, n, pad) {
     if (s === null || s === undefined || n === null || n === undefined) return null;
     s = String(s);
     n = Number(n);
@@ -1774,15 +1820,15 @@ function registerOracleFunctions() {
     return s + out.substring(0, n - s.length);
   });
 
-  db.createFunction('nvl', function(a, b) {
+  d.create_function('nvl', function(a, b) {
     return (a === null || a === undefined) ? b : a;
   });
 
-  db.createFunction('nvl2', function(a, b, c) {
+  d.create_function('nvl2', function(a, b, c) {
     return (a === null || a === undefined) ? c : b;
   });
 
-  db.createFunction('add_months', function(s, n) {
+  d.create_function('add_months', function(s, n) {
     var dt = oraParseDateParts(s);
     if (!dt || n === null || n === undefined) return null;
     var total = (dt.mo - 1) + Number(n);
@@ -1793,7 +1839,7 @@ function registerOracleFunctions() {
     return y + '-' + oraPad2(mo) + '-' + oraPad2(d);
   });
 
-  db.createFunction('months_between', function(a, b) {
+  d.create_function('months_between', function(a, b) {
     var d1 = oraParseDateParts(a), d2 = oraParseDateParts(b);
     if (!d1 || !d2) return null;
     var m = (d1.y - d2.y) * 12 + (d1.mo - d2.mo);
@@ -1838,22 +1884,40 @@ function executeQuery() {
     var processed = preprocessOracleSQL(raw);
     var semErr = validateOracleSemantics(processed);
     if (semErr) throw new Error(semErr);
-    var results = db.exec(processed);
-    var dt = performance.now() - t0;
-    document.getElementById('execTime').textContent = dt.toFixed(1) + ' ms';
-    if (!results.length) {
-      resultTabs = []; activeTabIdx = -1; renderTabs();
-      var es = document.getElementById('emptyState');
-      es.style.display = 'flex';
-      es.querySelector('.es-title').textContent = 'Sorğu icra olundu';
-      es.querySelector('.es-desc').innerHTML = 'Nəticə cədvəli yoxdur (DML/DDL əmri uğurla icra olundu).';
-      document.getElementById('resultsInfo').style.display = 'none';
-      document.getElementById('resultsGrid').style.display = 'none';
+    var analyzed = analyzeStatement(processed);
+    if (analyzed.fastSelect) {
+      // Böyük sxemalarda yaddaşı qorumaq üçün: göstəriş LIMIT 1001, dəqiq say COUNT wrapper ilə
+      var dispRes = db.exec(analyzed.stripped + ' LIMIT 1001');
+      var values = dispRes[0].values;
+      var truncated = values.length > 1000;
+      if (truncated) values = values.slice(0, 1000);
+      var total = values.length;
+      if (truncated) {
+        try {
+          total = db.exec('SELECT COUNT(*) FROM (' + analyzed.stripped + ')')[0].values[0][0];
+        } catch (e2) { total = null; }
+      }
+      addResultTab(dispRes[0].columns, values, total);
     } else {
-      for (var i = 0; i < results.length; i++) {
-        addResultTab(results[i].columns, results[i].values);
+      var results = db.exec(processed);
+      if (!results.length) {
+        resultTabs = []; activeTabIdx = -1; renderTabs();
+        var es = document.getElementById('emptyState');
+        es.style.display = 'flex';
+        es.querySelector('.es-title').textContent = 'Sorğu icra olundu';
+        es.querySelector('.es-desc').innerHTML = 'Nəticə cədvəli yoxdur (DML/DDL əmri uğurla icra olundu).';
+        document.getElementById('resultsInfo').style.display = 'none';
+        document.getElementById('resultsGrid').style.display = 'none';
+      } else {
+        for (var i = 0; i < results.length; i++) {
+          var vals = results[i].values;
+          if (vals.length > 1000) vals = vals.slice(0, 1000);
+          addResultTab(results[i].columns, vals, vals.length < results[i].values.length ? null : vals.length);
+        }
       }
     }
+    var dt = performance.now() - t0;
+    document.getElementById('execTime').textContent = dt.toFixed(1) + ' ms';
   } catch (e) {
     document.getElementById('execTime').textContent = '';
     var msg = (e && e.message) ? e.message : String(e);
@@ -1875,8 +1939,8 @@ function hideError() {
 // ============================================================
 // RESULT TABS
 // ============================================================
-function addResultTab(columns, values) {
-  resultTabs.push({ type: 'result', columns: columns, values: values });
+function addResultTab(columns, values, total) {
+  resultTabs.push({ type: 'result', columns: columns, values: values, total: (total === undefined || total === null) ? values.length : total });
   activeTabIdx = resultTabs.length - 1;
   renderTabs();
   showTab(activeTabIdx);
@@ -1905,10 +1969,11 @@ function showTab(idx) {
   document.getElementById('resultsGrid').style.display = 'block';
   currentColumns = tab.columns.slice();
   currentResult = tab.values.map(function(r) { return r.slice(); });
+  currentTotal = tab.total || tab.values.length;
   sortCol = null;
   sortDir = 'asc';
   document.getElementById('sortInfo').textContent = '';
-  document.getElementById('rowCount').textContent = tab.values.length;
+  document.getElementById('rowCount').textContent = currentTotal.toLocaleString('az-AZ') + (tab.values.length < currentTotal ? ' (göstərilən: ' + tab.values.length.toLocaleString('az-AZ') + ')' : '');
   document.getElementById('colCount').textContent = tab.columns.length;
   renderTable();
 }
@@ -1977,7 +2042,7 @@ function renderTable() {
   }
   html.push('</tbody></table>');
   if (currentResult.length > cap) {
-    html.push('<div style="padding:8px 12px;font-size:11px;color:var(--text-muted)">İlk ' + cap + ' sətir göstərilir (cəmi ' + currentResult.length + ')</div>');
+    html.push('<div style="padding:8px 12px;font-size:11px;color:var(--text-muted)">İlk ' + cap + ' sətir göstərilir (cəmi ' + (currentTotal || currentResult.length).toLocaleString('az-AZ') + ')</div>');
   }
   grid.innerHTML = html.join('');
   attachTableEvents();
@@ -2087,27 +2152,46 @@ function attachTableEvents() {
 }
 
 // ============================================================
-// SIDEBAR
+// SIDEBAR — canlı bazadan (PRAGMA metadata) qurulur, hər sxemada işləyir
 // ============================================================
 function buildSidebar() {
   var el = document.getElementById('tablesBody');
+  var tablesRes = db.exec("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name");
+  var tables = tablesRes.length ? tablesRes[0].values : [];
+  var totalRows = 0;
   var html = '';
-  for (var t in TABLE_META) {
-    if (!HR_DATA[t]) continue;
-    var meta = TABLE_META[t];
+  for (var i = 0; i < tables.length; i++) {
+    var t = tables[i][0];
+    var info = db.exec('PRAGMA table_info("' + t + '")');
+    var fkl = db.exec('PRAGMA foreign_key_list("' + t + '")');
+    var fkMap = {};
+    if (fkl.length) {
+      var frows = fkl[0].values;
+      for (var f = 0; f < frows.length; f++) fkMap[frows[f][3]] = frows[f][2];
+    }
+    var cntRes = db.exec('SELECT COUNT(*) FROM "' + t + '"');
+    var cnt = cntRes.length ? cntRes[0].values[0][0] : 0;
+    totalRows += cnt;
     html += '<div class="table-item" data-table="' + t + '">' +
             '<span class="t-icon">▦</span><span class="t-name">' + t + '</span>' +
-            '<span class="t-count">' + HR_DATA[t].length + '</span></div>';
+            '<span class="t-count">' + cnt.toLocaleString('az-AZ') + '</span></div>';
     html += '<div class="col-list" id="cols-' + t + '" style="display:none">';
-    for (var c = 0; c < meta.columns.length; c++) {
-      var col = meta.columns[c];
-      var mark = (col === meta.pk) ? '<span class="col-pk">PK</span>' :
-                 (meta.fks[col] ? '<span class="col-fk">FK</span>' : '');
-      html += '<div class="col-item" data-colname="' + col + '">' + mark + col + '</div>';
+    if (info.length) {
+      for (var c = 0; c < info[0].values.length; c++) {
+        var name = info[0].values[c][1];
+        var isPk = Number(info[0].values[c][5]) > 0;
+        var mark = isPk ? '<span class="col-pk">PK</span>' :
+                   (fkMap[name] ? '<span class="col-fk">FK</span>' : '');
+        html += '<div class="col-item" data-colname="' + name + '">' + mark + name + '</div>';
+      }
     }
     html += '</div>';
   }
   el.innerHTML = html;
+  _sidebarStats.label = schemaLabel(document.getElementById('schemaSelect').value);
+  _sidebarStats.tables = tables.length;
+  _sidebarStats.rows = totalRows;
+  updateDbInfo();
 }
 
 function insertAtCursor(text) {
@@ -2381,6 +2465,1042 @@ window.addEventListener('load', function() {
   initResizers();
   initApp();
 });
+
+</script>
+
+<script>
+// ============================================================
+// MULTI-SCHEMA DATA GENERATION CORE (brauzer + node uyğun)
+// Deterministik seeded generator: eyni fayl → eyni data.
+// Cache açarı generator kodunun hash-i hesablanır (fnv1a) —
+// kod dəyişsə, IndexedDB keşi avtomatik köhnəlir.
+// ============================================================
+'use strict';
+
+function mulberry32(seed) {
+  var s = seed >>> 0;
+  return function() {
+    s = (s + 0x6D2B79F5) | 0;
+    var t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function fnv1a(str) {
+  var h = 0x811c9dc5;
+  for (var i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = (h + ((h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24))) >>> 0;
+  }
+  return ('0000000' + h.toString(16)).slice(-8);
+}
+
+// ---- kiçik köməkçilər ----
+function gRI(r, a, b) { return a + Math.floor(r() * (b - a + 1)); }
+function gRF(r, a, b) { return a + r() * (b - a); }
+function gPick(r, arr) { return arr[Math.floor(r() * arr.length)]; }
+function gChance(r, p) { return r() < p; }
+function gRlog(r, min, max) { return min * Math.pow(max / min, r()); }
+function gRound2(x) { return Math.round(x * 100) / 100; }
+function gPad(n, w) { var s = String(n); while (s.length < w) s = '0' + s; return s; }
+function gP2(n) { return (n < 10 ? '0' : '') + n; }
+function gFmtD(ms) {
+  var d = new Date(ms);
+  return d.getUTCFullYear() + '-' + gP2(d.getUTCMonth() + 1) + '-' + gP2(d.getUTCDate());
+}
+function gFmtTS(ms) {
+  var d = new Date(ms);
+  return gFmtD(ms) + ' ' + gP2(d.getUTCHours()) + ':' + gP2(d.getUTCMinutes()) + ':' + gP2(d.getUTCSeconds());
+}
+function gTS(y, mo, d, h, mi, s) { return Date.UTC(y, mo - 1, d, h || 0, mi || 0, s || 0); }
+function gShuffle(r, arr) {
+  var a = arr.slice();
+  for (var i = a.length - 1; i > 0; i--) {
+    var j = Math.floor(r() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+// çəkili seçim: [[dəyər, çəki],...] → dəyər
+function gWPick(r, pairs) {
+  var s = 0, i;
+  for (i = 0; i < pairs.length; i++) s += pairs[i][1];
+  var x = r() * s;
+  for (i = 0; i < pairs.length; i++) { x -= pairs[i][1]; if (x <= 0) return pairs[i][0]; }
+  return pairs[pairs.length - 1][0];
+}
+// kümülativ seçici (böyük massivlər üçün, binar axtarış)
+function makeCumPicker(weights) {
+  var cum = [], s = 0, i;
+  for (i = 0; i < weights.length; i++) { s += weights[i]; cum.push(s); }
+  return function(r) {
+    var x = r() * s;
+    var lo = 0, hi = cum.length - 1;
+    while (lo < hi) { var mid = (lo + hi) >> 1; if (cum[mid] < x) lo = mid + 1; else hi = mid; }
+    return lo;
+  };
+}
+function zipfWeights(n, expo) {
+  var w = [];
+  for (var i = 0; i < n; i++) w.push(1 / Math.pow(i + 1, expo));
+  return w;
+}
+function gTranslit(s) {
+  var map = { 'ə':'e','Ə':'E','ü':'u','Ü':'U','ö':'o','Ö':'O','ğ':'g','Ğ':'G','ş':'s','Ş':'S','ç':'c','Ç':'C','ı':'i','İ':'I' };
+  return String(s).split('').map(function(c){ return map[c] || c; }).join('');
+}
+
+// ---- Azərbaycan ad/kömək polları ----
+var AZ_MALE = ['Əli','Anar','Elvin','Elçin','Rəşad','Orxan','İlqar','Tural','Nurlan','Samir','Fərid','Mahir','Zaur','Rauf','Kamran','Ruslan','Vüqar','Elnur','Azər','Yusif','İbrahim','Murad','Teymur','Ramil','Namiq','Arif','Fəxri','Ümid','Ceyhun','Pərviz','Şərxan','Vüsal','Babək','İsmayıl','Nihat','Rövşən','Vidadi','Səxavət','Xalid','Elgün'];
+var AZ_FEMALE = ['Aysel','Nərmin','Günay','Lala','Türkan','Xəlidə','Səbinə','Aytən','Könül','Zəhra','Mehriban','Nərgiz','Ayğün','Sədaqət','Dilarə','Fidan','Nurlanə','Aytac','Ülviyyə','Sənubər','Hümay','Şəfa','Xuraman','Leyla','Aynurə','Elnarə','İradə','Sevinc','Vüsalə','Kamala'];
+var AZ_LAST = ['Əliyev','Məmmədov','Hüseynov','Quliyev','Səfərov','Abbasov','Xəlilov','Əsgərov','Cəfərov','Bağırov','Yusifov','İsmayılov','Həsənov','Əhmədov','Orucov','Rzayev','Kərimov','Məmmədli','Hacıyev','Nəzirov','İbrahimov','Sultanov','Mikayılov','Osmanov','Səlimanov','Şükürov','Talıbov','Usubov','Vərdiyev','Zeynalov'];
+var AZ_CITY_W = [['Bakı',40],['Gəncə',8],['Sumqayıt',6],['Mingəçevir',4],['Şəki',4],['Lənkəran',4],['Naxçıvan',3],['Şirvan',3],['Quba',3],['Xırdalan',3],['Şamaxı',2],['Yevlax',2],['Salyan',2],['Zaqatala',2],['Astara',2],['Qəbələ',2]];
+var AZ_STREETS = ['Nəriman Nərimanov küç.','Heydər Əliyev pr.','Azadlıq pr.','28 May küç.','Fətəli Xan Xoyski küç.','Cəfər Cabbarlı küç.','Nizami küç.','Rəsul Rza küç.','Bakıxanov küç.','Əhməd Rəcəbli küç.','Həsən Əliyev küç.','Babək pr.','Səbail küç.','Zərgərpalan küç.','Təbriz küç.','Neftçilər pr.'];
+var AZ_EMAIL_DOMAINS = ['mail.ru','inbox.ru','gmail.com','yandex.com','example.az','bk.ru'];
+
+function azGenderName(r) {
+  return gChance(r, 0.52) ? gPick(r, AZ_MALE) : gPick(r, AZ_FEMALE);
+}
+function azFullName(r) { return azGenderName(r) + ' ' + gPick(r, AZ_LAST); }
+function azPhone(r) {
+  return '+994-' + gPick(r, ['50','51','55','70','77','99']) + '-' + gPad(gRI(r, 100, 999), 3) + '-' + gPad(gRI(r, 10, 99), 2) + '-' + gPad(gRI(r, 10, 99), 2);
+}
+
+// Müvafiq tarixçə pəncərəsi: 2022-09-15 .. 2025-09-14 (1096 gün)
+var GEN_NOW = gTS(2025, 9, 15, 12, 0, 0);
+var GEN_WIN_START = gTS(2022, 9, 15, 0, 0, 0);
+var GEN_DAYS = 1096;
+var DAY_MS = 86400000;
+
+// mövsümi çəkilər (yanvar..dekabr)
+var PH_MONTH_W = [1.18,1.12,1.05,1.0,0.97,0.96,1.0,1.0,1.02,1.06,1.10,1.24]; // aptek: qış artımı
+var MK_MONTH_W = [0.92,0.95,1.00,1.02,1.05,1.02,1.10,1.05,1.00,1.02,1.05,1.22]; // market: bayramlar
+var CS_WEEK_W  = [1.0,1.12,1.12,1.10,1.08,1.02,0.72]; // bazar günü az (Sun..Sat)
+var MK_WEEK_W  = [0.85,0.95,0.95,1.0,1.05,1.25,1.15]; // cümə/şənbə artımı
+
+function makeDayPicker(r, monthW, weekW, growth) {
+  var w = [], i;
+  for (i = 0; i < GEN_DAYS; i++) {
+    var d = new Date(GEN_WIN_START + i * DAY_MS);
+    var base = monthW[d.getUTCMonth()] * weekW[d.getUTCDay()];
+    w.push(base * (growth ? (1 + 0.55 * i / GEN_DAYS) : 1));
+  }
+  return makeCumPicker(w);
+}
+// saat çəkiləri (0-23)
+var HR_SALES = [0,0,0,0,0,0,0,0,1.5,2.5,3.5,4.5,5.5,6.5,7.5,8.5,9.5,10,9.5,7,4,1.5,0.5,0];   // aptek: 9-22
+var HR_MARKET = [0,0,0,0,0,0,0,0.5,1.5,3,4.5,5.5,6.5,7,7.5,8,9,10,10.5,9,6,3,1,0];            // market: 8-22
+
+function pickTS(r, dayPicker, hourW) {
+  var dayIdx = dayPicker(r);
+  var dayStart = GEN_WIN_START + dayIdx * DAY_MS;
+  var hour = makeCumPicker(hourW)(r);
+  var minute = gRI(r, 0, 59), sec = gRI(r, 0, 59);
+  return dayStart + hour * 3600000 + minute * 60000 + sec * 1000;
+}
+
+// ============================================================
+// SCHEMA: APTEK
+// ============================================================
+var PH_INN = [
+  ['Parasetamol',0],['Parasetamol/Koffein',0],['İbuprofen',0],['Nimesulid',1],['Diklofenak',1],['Ketoprofen',1],['Aspirin',0],
+  ['Amoksisillin',1],['Azitromisin',1],['Klaritromisin',1],['Sefiksim',1],['Seftriakson',1],['Doksitsiklin',1],['Levofloksasin',1],['Siprofloksasin',1],
+  ['Metronidazol',1],['Tinidazol',1],['Albendazol',1],['Pirantel',0],['Flukonazol',1],['Klotrimazol',0],['Mikonazol',0],['Ketokonazol',1],
+  ['Metformin',1],['Glibenklamid',1],['Amlodipin',1],['Enalapril',1],['Losartan',1],['Bisoprolol',1],['Metoprolol',1],['Karvedilol',1],
+  ['Furosemid',1],['Hidroxlorotiazid',1],['Spironolakton',1],['Atorvastatin',1],['Simvastatin',1],['Omeprazol',1],['Pantoprazol',1],['Ranitidin',0],
+  ['Domperidon',1],['Ondansetron',1],['Loperamid',0],['Mebeverin',1],['Drotaverin',0],['Setrizin',0],['Loratadin',0],['Desloratadin',0],
+  ['Ambroksol',0],['Asetilsistein',0],['Bromheksin',0],['Salbutamol',1],['Budesonid',1],['Montelukast',1],['Levotiroksin',1],['Ursodeoksikolik turşu',1],
+  ['Varfarin',1],['Klopidogrel',1],['Dabigatran',1],['Sildenafil',1],['Tamsulosin',1],['Finasterid',1],['Diazepam',1],['Zolpidem',1],
+  ['Amitriptilin',1],['Sertralin',1],['Fluoksetin',1],['Kolekalciferol',0],['Askorbin turşusu',0],['Sianokobalamin',0],['Fol turşusu',0],
+  ['Dəmir sulfat',0],['Maqnezium sitrat',0],['Kalsium/D3',0],['Qinka biloba',0],['Valeriana ekstraktı',0],['Arnika məlhəmi',0],
+  ['Povidon-iod',0],['Xlorheksidin',0],['Sink oksid',0],['Hidrokortizon',1],['Betametazon',1],['Mometazon',1],['Dekspantenol',0],
+  ['Glükoza',0],['Natrium xlorid 0.9%',0]
+];
+var PH_FORMS = [
+  ['tablet','tabl.',['50 mg','100 mg','200 mg','250 mg','400 mg','500 mg','750 mg','1000 mg'],[10,20,30,50,100],1.0],
+  ['kapsul','kaps.',['100 mg','250 mg','500 mg'],[10,16,20,30],1.05],
+  ['şirə','şirə 100 ml',['100 mg/5 ml','250 mg/5 ml','500 mg/5 ml'],[1],0.9],
+  ['suspensiya','susp. 100 ml',['100 mg/5 ml','200 mg/5 ml'],[1],1.0],
+  ['damcı','damcı 10 ml',['0.1%','0.5%','1%'],[1],0.8],
+  ['məlhəm','məlh. 15 q',['1%','2%','5%'],[1],0.85],
+  ['krem','krem 30 q',['0.1%','0.5%','1%'],[1],0.9],
+  ['inektsiya','inj. 2 ml',['25 mg/ml','50 mg/ml','100 mg/ml'],[5,10],1.7],
+  ['sprey','sprey 15 ml',['0.1%','1%'],[1],1.3],
+  ['lozenq','loz.',['2.5 mg','10 mg'],[20,24],0.95]
+];
+var PH_MANUF = ['Sanofi','Berlin-Chemie','Novartis','GSK','Pfizer','Bayer','Boehringer Ingelheim','Teva','Sandoz','Actavis','Zentiva','Gedeon Richter','Krka','Servier','Astellas','Abbott','Merck','Mylan','Dr. Reddy`s','Cipla','Sun Pharma','Hikma','Amoun','Zentiva','Stada','Ratiopharm','Balkanpharma','Nobel İlaç','Bilim İlaç','Abdi İbrahim','Atabay','Zentiva','Azərfarm','Bakı Farmasevtik','Zeferan Pharma','Vita Sənaye','Xəzər Farma','Azermed','Nurlan Health','Sağlamlıq Mənbəyi','Biofarm','MedPro','Global Pharm','NexPharma'];
+var PH_MANUF_COUNTRY = [['Azərbaycan',8],['Almaniya',7],['Türkiyə',6],['Hindistan',5],['İsveçrə',3],['Fransa',3],['İtaliya',2],['Sloveniya',2],['Macarıstan',2],['İspaniya',2],['ABŞ',3],['Yaponiya',2],['İsrail',1],['Danimarka',1],['Böyük Britaniya',2],['Rusiya',2]];
+var PH_ROLES = [['aptekçi',4],['baş aptekçi',1],['kassir',5],['köməkçi',2]];
+var PH_ROLE_SALARY = { 'aptekçi':[550,950], 'baş aptekçi':[800,1300], 'kassir':[350,550], 'köməkçi':[300,450] };
+
+var PHARMACY_DEF = {
+  id: 'pharmacy', label: 'Aptek', version: 'v1',
+  desc: 'Aptek şəbəkəsi: satışlar, partiyalar, son istifadə tarixləri',
+  tables: [
+    { name:'manufacturers', cols:[['manufacturer_id','INTEGER','PK'],['manufacturer_name','TEXT'],['country','TEXT']], fks:[], est:44 },
+    { name:'suppliers', cols:[['supplier_id','INTEGER','PK'],['supplier_name','TEXT'],['contact_person','TEXT'],['phone','TEXT'],['city','TEXT']], fks:[], est:32 },
+    { name:'branches', cols:[['branch_id','INTEGER','PK'],['branch_name','TEXT'],['city','TEXT'],['address','TEXT'],['phone','TEXT'],['opened_date','TEXT'],['is_active','INTEGER']], fks:[], est:30 },
+    { name:'drugs', cols:[['drug_id','INTEGER','PK'],['drug_name','TEXT'],['inn','TEXT'],['form','TEXT'],['dosage','TEXT'],['pack_size','INTEGER'],['atc_code','TEXT'],['is_prescription','INTEGER'],['manufacturer_id','INTEGER'],['unit_price','REAL']], fks:[['manufacturer_id','manufacturers','manufacturer_id']], est:3200 },
+    { name:'staff', cols:[['staff_id','INTEGER','PK'],['fullname','TEXT'],['role','TEXT'],['branch_id','INTEGER'],['phone','TEXT'],['hire_date','TEXT'],['salary','REAL']], fks:[['branch_id','branches','branch_id']], est:150 },
+    { name:'customers', cols:[['customer_id','INTEGER','PK'],['fullname','TEXT'],['phone','TEXT'],['birth_year','INTEGER'],['gender','TEXT'],['registered_at','TEXT'],['bonus_points','INTEGER']], fks:[], est:4000 },
+    { name:'batches', cols:[['batch_id','INTEGER','PK'],['drug_id','INTEGER'],['batch_no','TEXT'],['manufacture_date','TEXT'],['expiry_date','TEXT'],['quantity','INTEGER'],['supplier_id','INTEGER'],['purchase_price','REAL']], fks:[['drug_id','drugs','drug_id'],['supplier_id','suppliers','supplier_id']], est:12800 },
+    { name:'sales', cols:[['sale_id','INTEGER','PK'],['branch_id','INTEGER'],['staff_id','INTEGER'],['customer_id','INTEGER'],['sale_ts','TEXT'],['total_amount','REAL'],['payment_type','TEXT']], fks:[['branch_id','branches','branch_id'],['staff_id','staff','staff_id'],['customer_id','customers','customer_id']], est:90000 },
+    { name:'sale_items', cols:[['sale_item_id','INTEGER','PK'],['sale_id','INTEGER'],['drug_id','INTEGER'],['quantity','INTEGER'],['unit_price','REAL'],['discount_pct','REAL']], fks:[['sale_id','sales','sale_id'],['drug_id','drugs','drug_id']], est:207000 }
+  ],
+  indexes: [
+    'CREATE INDEX ix_ph_branches_city ON branches(city)',
+    'CREATE INDEX ix_ph_drugs_manuf ON drugs(manufacturer_id)',
+    'CREATE INDEX ix_ph_drugs_inn ON drugs(inn)',
+    'CREATE INDEX ix_ph_staff_branch ON staff(branch_id)',
+    'CREATE INDEX ix_ph_batches_drug ON batches(drug_id)',
+    'CREATE INDEX ix_ph_batches_exp ON batches(expiry_date)',
+    'CREATE INDEX ix_ph_sales_branch ON sales(branch_id)',
+    'CREATE INDEX ix_ph_sales_ts ON sales(sale_ts)',
+    'CREATE INDEX ix_ph_sales_cust ON sales(customer_id)',
+    'CREATE INDEX ix_ph_items_sale ON sale_items(sale_id)',
+    'CREATE INDEX ix_ph_items_drug ON sale_items(drug_id)'
+  ],
+  gen: async function(ctx) {
+    var r = ctx.rnd, i, j;
+
+    // manufacturers
+    var manufs = gShuffle(r, PH_MANUF).slice(0, 44);
+    for (i = 0; i < manufs.length; i++)
+      ctx.emit('manufacturers', [i + 1, manufs[i], gWPick(r, PH_MANUF_COUNTRY)]);
+
+    // suppliers
+    var supNames = ['Sağlam Təchizat','MedLine Distribution','FarTəchiz','EuroPharm Import','AzMedTrade','Vita Sənaye','Pharma Logistik','Sağlamlıq Qrupu','Medİmport','AzerPharma Trading','Hayat Təchizat','NexPharma Distribusiya','Optima Farm','Grand Med','Alfa Farm','Bakı Med Sənaye','Silvia Pharm','Zəfəran Təchizat','Kaspian Health','EcoPharm','MedStar Supply','Farm Group','Delta Med','Anadolu Təchizat','Kərəm Farm','Yeni Nəsil Sağlamlıq','Rəsmi Distributor','PharmService','Salus Trading','MedBridge','Avrasiya Farm','Tibbi Təchizat MMC'];
+    for (i = 0; i < 32; i++)
+      ctx.emit('suppliers', [i + 1, '"' + supNames[i] + '" MMC', azFullName(r), azPhone(r), gWPick(r, AZ_CITY_W)]);
+
+    // branches — şəhər çəkilinə görə
+    var cityPick = makeCumPicker(AZ_CITY_W.map(function(c){ return c[1]; }));
+    var cityName = function(rr){ return AZ_CITY_W[cityPick(rr)][0]; };
+    var branchCity = [], cityCount = {};
+    var aptekNames = ['Nur','Sağlam','Yaşıl','Ümid','Vita','Səhiyyə','Xeyir','Bərpa','Ləzzət','Dərman','Fidan','Nəbat'];
+    for (i = 0; i < 30; i++) {
+      var city = cityName(r);
+      cityCount[city] = (cityCount[city] || 0) + 1;
+      branchCity.push(city);
+      var bname = 'Aptek ' + aptekNames[i % aptekNames.length] + (cityCount[city] > 1 ? ' №' + cityCount[city] : '');
+      ctx.emit('branches', [i + 1, bname, city, gPick(r, AZ_STREETS) + ', bina ' + gRI(r, 1, 120), azPhone(r), gFmtD(gTS(gRI(r, 2012, 2022), gRI(r, 1, 12), gRI(r, 1, 28))), gChance(r, 0.93) ? 1 : 0]);
+    }
+
+    // drugs
+    var N_DRUGS = 3200;
+    var innPick = makeCumPicker(zipfWeights(PH_INN.length, 0.55));
+    var seen = {};
+    var drugPrice = new Float64Array(N_DRUGS + 1);
+    var drugForm = new Array(N_DRUGS + 1);
+    for (i = 1; i <= N_DRUGS; i++) {
+      var innE = PH_INN[innPick(r)];
+      var f = gPick(r, PH_FORMS);
+      var dos = gPick(r, f[2]);
+      var pack = gPick(r, f[3]);
+      var key = innE[0] + '|' + f[0] + '|' + dos + '|' + pack;
+      if (seen[key]) { pack = gPick(r, f[3]); key = innE[0] + '|' + f[0] + '|' + dos + '|' + pack; }
+      if (seen[key]) { dos = gPick(r, f[2]); key = innE[0] + '|' + f[0] + '|' + dos + '|' + pack; }
+      var name = innE[0] + ' ' + dos + ' ' + f[1] + (pack > 1 ? ' №' + pack : '');
+      if (seen[key]) name += ' forte';
+      seen[key] = 1;
+      var price = gRound2(gRlog(r, 1.1, 140) * f[4]);
+      if (price < 0.3) price = 0.3;
+      drugPrice[i] = price; drugForm[i] = f[0];
+      var atc = gPick(r, ['A','B','C','D','G','H','J','L','M','N','R','S','V']) + gPad(gRI(r, 1, 12), 2) + gPick(r, ['A','B','C']) + gPad(gRI(r, 1, 12), 2) + gPad(gRI(r, 1, 9), 1);
+      var rx = innE[1] ? 1 : (gChance(r, 0.12) ? 1 : 0);
+      ctx.emit('drugs', [i, name, innE[0], f[0], dos, pack, atc, rx, gRI(r, 1, 44), price]);
+      if (i % 1000 === 0) await ctx.tick();
+    }
+
+    // staff (~5 filialda)
+    var branchStaff = {};
+    var sid = 0;
+    for (i = 0; i < 30; i++) {
+      var n = gRI(r, 4, 6);
+      branchStaff[i + 1] = [];
+      for (j = 0; j < n; j++) {
+        sid++;
+        var role = gWPick(r, PH_ROLES);
+        branchStaff[i + 1].push(sid);
+        var sal = gPHRoleSal(r, role);
+        ctx.emit('staff', [sid, azFullName(r), role, i + 1, azPhone(r), gFmtD(gTS(gRI(r, 2013, 2025), gRI(r, 1, 12), gRI(r, 1, 28))), sal]);
+      }
+    }
+
+    // customers
+    for (i = 1; i <= 4000; i++) {
+      var nm = azGenderName(r);
+      ctx.emit('customers', [i, nm + ' ' + gPick(r, AZ_LAST), azPhone(r), gRI(r, 1945, 2007), (AZ_MALE.indexOf(nm) >= 0 ? 'M' : 'F'), gFmtD(GEN_WIN_START + Math.floor(r() * GEN_DAYS * DAY_MS)), gRI(r, 0, 3500)]);
+      if (i % 2000 === 0) await ctx.tick();
+    }
+
+    // batches
+    var bid = 0;
+    for (i = 1; i <= N_DRUGS; i++) {
+      var nb = gRI(r, 2, 6);
+      for (j = 0; j < nb; j++) {
+        bid++;
+        var mfg = GEN_NOW - gRI(r, 15, 720) * DAY_MS;
+        var shelf = gWPick(r, [[12,.1],[18,.15],[24,.4],[36,.35]]);
+        var exp = new Date(mfg); exp.setUTCMonth(exp.getUTCMonth() + shelf);
+        var qty = gChance(r, 0.04) ? 0 : gRI(r, 20, 900);
+        ctx.emit('batches', [bid, i, 'B' + new Date(mfg).getUTCFullYear() + '-' + gPad(gRI(r, 1, 999999), 6), gFmtD(mfg), gFmtD(exp.getTime()), qty, gRI(r, 1, 32), gRound2(drugPrice[i] * gRF(r, 0.55, 0.8))]);
+      }
+      if (i % 2000 === 0) await ctx.tick();
+    }
+
+    // sales + items
+    var N_SALES = 90000;
+    var dayPick = makeDayPicker(r, PH_MONTH_W, [1,1,1,1,1,1,1], false);
+    var drugZipf = makeCumPicker(zipfWeights(N_DRUGS, 0.85));
+    var branchW = [], k;
+    for (k = 0; k < 30; k++) branchW.push(gRlog(r, 0.4, 2.5));
+    var branchPick = makeCumPicker(branchW);
+    var totals = new Float64Array(N_SALES + 1);
+    var iid = 0;
+    for (i = 1; i <= N_SALES; i++) {
+      var ts = pickTS(r, dayPick, HR_SALES);
+      var br = branchPick(r) + 1;
+      var st = gPick(r, branchStaff[br]);
+      var cust = gChance(r, 0.35) ? null : gRI(r, 1, 4000);
+      var nIt = gWPick(r, [[1,.38],[2,.27],[3,.16],[4,.09],[5,.06],[6,.04]]);
+      var t = 0;
+      for (j = 0; j < nIt; j++) {
+        iid++;
+        var dId = drugZipf(r) + 1;
+        var q = gWPick(r, [[1,.60],[2,.25],[3,.10],[4,.04],[5,.01]]);
+        var disc = gWPick(r, [[0,.82],[5,.08],[10,.07],[15,.03]]);
+        var line = q * drugPrice[dId] * (1 - disc / 100);
+        t += gRound2(line);
+        ctx.emit('sale_items', [iid, i, dId, q, drugPrice[dId], disc]);
+      }
+      totals[i] = gRound2(t);
+      ctx.emit('sales', [i, br, st, cust, gFmtTS(ts), totals[i], gWPick(r, [['nağd',.35],['kart',.55],['onlayn',.10]])]);
+      if (i % 2000 === 0) await ctx.tick();
+    }
+  }
+};
+function gPHRoleSal(r, role) {
+  var s = PH_ROLE_SALARY[role] || [400, 700];
+  return gRound2(gRI(r, s[0], s[1]));
+}
+
+// ============================================================
+// SCHEMA: MARKET
+// ============================================================
+var MK_CAT_TREE = [
+  ['Süd məhsulları', [
+    ['Süd', null], ['Yaqurt', null], ['Kefir və ayran', null], ['Pendir', [['Ağ pendir', null], ['Qədəq pendir', null], ['İdxal pendiri', null], ['Kənd pendiri', null]]],
+    ['Kərə yağı', null], ['Qaymaq', null], ['Südlü desertlər', null]
+  ]],
+  ['Çörək və un məhsulları', [
+    ['Çörək', null], ['Bulka və çörek', null], ['Lavaş və pide', null], ['Şirniyyat', null], ['Keks və peçenye', null]
+  ]],
+  ['Ət və toyuq məhsulları', [
+    ['Mal əti', null], ['Toyuq əti', null], ['Quzu əti', null], ['Kolbasa məhsulları', null], ['Hazır yeməklər', null]
+  ]],
+  ['Balıq məhsulları', [
+    ['Təzə balıq', null], ['Dondurulmuş balıq', null], ['Balıq konservləri', null], ['İkrə', null]
+  ]],
+  ['Meyvə-tərəvəz', [
+    ['Meyvə', null], ['Tərəvəz', null], ['Yaşılıq', null], ['Quru meyvə', null], ['Turşuluq', null]
+  ]],
+  ['Quru ərzaq', [
+    ['Düyü və qarğıdalı', null], ['Makaron məhsulları', null], ['Un və un məhsulları', null], ['Şəkər və duz', null], ['Çay', null], ['Qəhvə', null], ['Yağlar', null], ['Souslar', null], ['Konservlər', null]
+  ]],
+  ['Snack və şirniyyat', [
+    ['Çips və kraker', null], ['Şokolad', null], ['Konfet', null], ['Vafli', null], ['Jele və marshmallow', null], ['Popkorn', null]
+  ]],
+  ['İçkilər', [
+    ['Su', null], ['Qazlı içkilər', null], ['Meyvə suları', null], ['Enerji içkiləri', null], ['Kvass və limonat', null]
+  ]],
+  ['Ev üçün kimyə', [
+    ['Paltar üçün', null], ['Qab üçün', null], ['Ümumi təmizlik', null], ['Kağız məhsulları', null]
+  ]],
+  ['Şəxsi gigiyena', [
+    ['Saç üçün', null], ['Dəri üçün', null], ['Ağız baxımı', null], ['Sabun', null], ['Diş baxımı', null]
+  ]],
+  ['Məişət malları', [
+    ['Mətbəx', null], ['Yataq və vanna', null], ['Təmizlik alətləri', null], ['Bir dəfəlik', null]
+  ]],
+  ['Ev heyvanları üçün', [
+    ['Köpək yemi', null], ['Pişik yemi', null], ['Quş yemi', null], ['Aksesuarlar', null]
+  ]],
+  ['Uşaq məhsulları', [
+    ['Uşaq bezləri', null], ['Uşaq yarması', null], ['Uşaq püresi', null], ['Oyuncaqlar', null]
+  ]]
+];
+var MK_BRANDS_FOOD = ['Azersud','Şəki','Ulduz','Bakı','Xəzər','Ailə','Təbii','Günəş','Vitale','Eko','Palmeta','Ağsu'];
+var MK_BRANDS_NONFOOD = ['Nova','Prime','Fresh','Clean','Soft','EcoLife','Bella','Maxi','Lux','Daily'];
+var MK_STORE_NAMES = ['Bahar Market','Neft Market','Günəş Market','Ailə Market','Yeni Bazar','Qonşu Market','Xəzər Market','Bəy Market'];
+var MK_UNITS = [['ədəd',.45],['kq',.25],['l',.15],['paket',.15]];
+
+var MARKET_DEF = {
+  id: 'market', label: 'Market', version: 'v1',
+  desc: 'Market şəbəkəsi: qəbzlər, stoklar, endirimlər, loyalty',
+  tables: [
+    { name:'stores', cols:[['store_id','INTEGER','PK'],['store_name','TEXT'],['format','TEXT'],['city','TEXT'],['address','TEXT'],['opened_date','TEXT']], fks:[], est:24 },
+    { name:'categories', cols:[['category_id','INTEGER','PK'],['category_name','TEXT'],['parent_id','INTEGER']], fks:[['parent_id','categories','category_id']], est:84 },
+    { name:'suppliers', cols:[['supplier_id','INTEGER','PK'],['supplier_name','TEXT'],['contact_person','TEXT'],['phone','TEXT']], fks:[], est:45 },
+    { name:'products', cols:[['product_id','INTEGER','PK'],['barcode','TEXT'],['product_name','TEXT'],['category_id','INTEGER'],['supplier_id','INTEGER'],['unit','TEXT'],['price','REAL'],['cost','REAL'],['vat_pct','INTEGER'],['is_organic','INTEGER'],['origin_country','TEXT']], fks:[['category_id','categories','category_id'],['supplier_id','suppliers','supplier_id']], est:4800 },
+    { name:'staff', cols:[['staff_id','INTEGER','PK'],['fullname','TEXT'],['store_id','INTEGER'],['position','TEXT'],['phone','TEXT'],['hire_date','TEXT'],['salary','REAL']], fks:[['store_id','stores','store_id']], est:290 },
+    { name:'loyalty_cards', cols:[['card_id','INTEGER','PK'],['card_no','TEXT'],['holder','TEXT'],['phone','TEXT'],['registered_at','TEXT'],['points','INTEGER']], fks:[], est:18000 },
+    { name:'stock', cols:[['store_id','INTEGER'],['product_id','INTEGER'],['quantity','INTEGER'],['min_threshold','INTEGER']], pkCols:['store_id','product_id'], fks:[['store_id','stores','store_id'],['product_id','products','product_id']], est:53000 },
+    { name:'discounts', cols:[['discount_id','INTEGER','PK'],['product_id','INTEGER'],['discount_name','TEXT'],['discount_pct','INTEGER'],['start_date','TEXT'],['end_date','TEXT']], fks:[['product_id','products','product_id']], est:2400 },
+    { name:'receipts', cols:[['receipt_id','INTEGER','PK'],['store_id','INTEGER'],['staff_id','INTEGER'],['card_id','INTEGER'],['receipt_ts','TEXT'],['payment_type','TEXT'],['total_amount','REAL']], fks:[['store_id','stores','store_id'],['staff_id','staff','staff_id'],['card_id','loyalty_cards','card_id']], est:95000 },
+    { name:'receipt_items', cols:[['item_id','INTEGER','PK'],['receipt_id','INTEGER'],['product_id','INTEGER'],['quantity','REAL'],['unit_price','REAL'],['is_promo','INTEGER']], fks:[['receipt_id','receipts','receipt_id'],['product_id','products','product_id']], est:299000 }
+  ],
+  indexes: [
+    'CREATE INDEX ix_mk_stores_city ON stores(city)',
+    'CREATE INDEX ix_mk_cat_parent ON categories(parent_id)',
+    'CREATE INDEX ix_mk_products_cat ON products(category_id)',
+    'CREATE INDEX ix_mk_products_sup ON products(supplier_id)',
+    'CREATE INDEX ix_mk_staff_store ON staff(store_id)',
+    'CREATE INDEX ix_mk_stock_prod ON stock(product_id)',
+    'CREATE INDEX ix_mk_disc_prod ON discounts(product_id)',
+    'CREATE INDEX ix_mk_disc_dates ON discounts(start_date, end_date)',
+    'CREATE INDEX ix_mk_rec_store ON receipts(store_id)',
+    'CREATE INDEX ix_mk_rec_ts ON receipts(receipt_ts)',
+    'CREATE INDEX ix_mk_rec_card ON receipts(card_id)',
+    'CREATE INDEX ix_mk_items_rec ON receipt_items(receipt_id)',
+    'CREATE INDEX ix_mk_items_prod ON receipt_items(product_id)'
+  ],
+  gen: async function(ctx) {
+    var r = ctx.rnd, i, j, k;
+
+    // stores
+    var cityPick = makeCumPicker(AZ_CITY_W.map(function(c){ return c[1]; }));
+    var fmt = [['minimarket',.45],['supermarket',.40],['hipermarket',.15]];
+    var storeFmt = [], storeCity = [];
+    for (i = 1; i <= 24; i++) {
+      var f = gWPick(r, fmt);
+      var c = AZ_CITY_W[cityPick(r)][0];
+      storeFmt.push(f); storeCity.push(c);
+      ctx.emit('stores', [i, '"' + gPick(r, MK_STORE_NAMES) + '" №' + i, f, c, gPick(r, AZ_STREETS) + ', bina ' + gRI(r, 1, 90), gFmtD(gTS(gRI(r, 2010, 2024), gRI(r, 1, 12), gRI(r, 1, 28)))]);
+    }
+    var fmtCap = { 'minimarket': 1600, 'supermarket': 2600, 'hipermarket': 3600 };
+
+    // categories (ağac → düz siyahı)
+    var catRows = [];
+    function flattenCats(node, parent) {
+      var id = catRows.length + 1;
+      catRows.push([id, node[0], parent]);
+      return id;
+    }
+    for (i = 0; i < MK_CAT_TREE.length; i++) {
+      var rootId = flattenCats(MK_CAT_TREE[i], null);
+      for (j = 0; j < MK_CAT_TREE[i][1].length; j++) {
+        var sub = MK_CAT_TREE[i][1][j];
+        if (sub[1] === null) { flattenCats(sub, rootId); }
+        else {
+          var subId = flattenCats(sub, rootId);
+          for (k = 0; k < sub[1].length; k++) flattenCats(sub[1][k], subId);
+        }
+      }
+    }
+    for (i = 0; i < catRows.length; i++) ctx.emit('categories', catRows[i]);
+
+    // leaf kateqoriyalar (root adı ilə)
+    var leaves = [], rootNameOf = {};
+    function collectLeaves() {
+      var byParent = {};
+      for (i = 0; i < catRows.length; i++) {
+        var p = catRows[i][2];
+        if (p !== null) { if (!byParent[p]) byParent[p] = []; byParent[p].push(catRows[i][0]); }
+      }
+      var rootIds = [];
+      for (i = 0; i < catRows.length; i++) if (catRows[i][2] === null) rootIds.push(catRows[i][0]);
+      for (i = 0; i < rootIds.length; i++) rootNameOf[rootIds[i]] = catRows[rootIds[i] - 1][1];
+      function isLeaf(id) { return !byParent[id]; }
+      function walk(id) {
+        if (isLeaf(id)) { leaves.push([id, rootNameOf[rootOf(id)]]); return; }
+        var ch = byParent[id];
+        for (var x = 0; x < ch.length; x++) walk(ch[x]);
+      }
+      function rootOf(id) { var cur = id; while (catRows[cur - 1][2] !== null) cur = catRows[cur - 1][2]; return cur; }
+      for (i = 0; i < rootIds.length; i++) walk(rootIds[i]);
+    }
+    collectLeaves();
+
+    // suppliers
+    var supBase = ['Azərfood','Bakı Un','Caspi Distribution','Meyvə Bazar','Nəriman Logistika','Aqro Təchizat','Xəzər Gida','Anadolu Trade','Grand Food','Silvia Import','Optima Retail','Delta Group','Vita Products','Sun Market','Baku Fruits','Məhsul MMC','Ferma Group','Daily Fresh','EcoFood','Maxi Import'];
+    for (i = 1; i <= 45; i++) {
+      var nm2 = i <= supBase.length ? supBase[i - 1] : supBase[(i * 7) % supBase.length] + ' ' + gRI(r, 2, 9);
+      ctx.emit('suppliers', [i, '"' + nm2 + '" MMC', azFullName(r), azPhone(r)]);
+    }
+
+    // products — root-a görə ad generatorları
+    var N_PROD = 4800;
+    var prodPrice = new Float64Array(N_PROD + 1);
+    var prodCost = new Float64Array(N_PROD + 1);
+    var prodUnit = new Array(N_PROD + 1);
+    var leafPick = makeCumPicker(leaves.map(function(){ return 1; }));
+    var rootVariants = {
+      'Süd məhsulları': [['Pastorizə süd','Yağlı süd','Laktozasız süd','Ayran','Kefir','Şirinləşdirilmiş süd','Süd kokteyli'],['200 q','400 q','500 ml','900 q','1 L','2 L']],
+      'Çörək və un məhsulları': [['Ağ çörək','Çovdar çörəyi','Od çörəyi','Bulka','Çörek','Lavaş','Pide','Keks','Peçenye'],['450 q','700 q','1 kq','250 q','300 q']],
+      'Ət və toyuq məhsulları': [['Mal əti','Toyuq əti','Quzu əti','Dana əti','Fars','Kolbasa','Sudluk','Kabab hazır'],['500 q','1 kq','2 kq','300 q']],
+      'Balıq məhsulları': [['Bıraq','Kütüm','Xanı','Nerka','Sələk','Tuna','Skumbriya','İkrə'],['400 q','500 q','1 kq','120 q']],
+      'Meyvə-tərəvəz': [['Alma','Armud','Banan','Portağal','Kartof','Soğan','Pomidor','Xiyar','Badımcan','Kələm','Yerkökü','Bibər','Gavalı','Şaftalı','Üzüm','Nar','Xurma','İncir'],['1 kq','2 kq','3 kq','500 q']],
+      'Quru ərzaq': [['Düyü','Qarabaşaq','Makaron','Spagetti','Un','Şəkər','Duz','Çay','Qəhvə','Üzüm yağı','Kətibə yağı','Mayonez','Ketchup','Tunç konserv','Noxud konserv'],['400 q','500 q','900 q','1 kq','250 q','1.5 kq']],
+      'Snack və şirniyyat': [['Çips','Kraker','Şokolad','Konfet','Vafli','Jele','Popkorn','Qoz-fındıq'],['45 q','80 q','100 q','250 q','500 q']],
+      'İçkilər': [['Təbii su','Qazlı su','Meyvə suyu','Portağal suyu','Alma suyu','Enerji içkisi','Kvass','Limonat'],['0.5 L','1 L','1.5 L','2 L','330 ml']],
+      'Ev üçün kimyə': [['Yuyucu toz','Qab yuyan gel','Ütçü maye','Ağardıcı','Şüşə təmizləyici','Yumşaldıcı'],['500 ml','1 kq','2 kq','3 L','5 L']],
+      'Şəxsi gigiyena': [['Şampun','Duş geli','Sabun','Diş pastası','Diş fırçası','Dezodorant','Krem','Pambıq'],['100 q','250 ml','400 ml','500 ml','2 ədəd']],
+      'Məişət malları': [['Sellofan paket','Zibil paketi','Çöpət','Bulaşık süngəri','Qab dəsmalı','Kibrit','Şam'],['5 ədəd','10 ədəd','20 ədəd','50 ədəd']],
+      'Ev heyvanları üçün': [['Köpək yemi quru','Pişik yemi quru','Quş yemi','Balıq yemi','Vitamin əlavəsi'],['400 q','1 kq','3 kq','10 kq']],
+      'Uşaq məhsulları': [['Uşaq bezləri','Uşaq yarması','Uşaq püresi','Uşaq suyu','Uşaq oyuncağı'],['250 q','500 q','3 ədəd','1 ədəd']]
+    };
+    var seenP = {};
+    for (i = 1; i <= N_PROD; i++) {
+      var leaf = leaves[leafPick(r)];
+      var rv = rootVariants[leaf[1]] || rootVariants['Quru ərzaq'];
+      var type = gPick(r, rv[0]);
+      var size = gPick(r, rv[1]);
+      var brandPool = ['Meyvə-tərəvəz','Ət və toyuq məhsulları','Balıq məhsulları'].indexOf(leaf[1]) >= 0 ? null : (['Ev üçün kimyə','Şəxsi gigiyena','Məişət malları'].indexOf(leaf[1]) >= 0 ? MK_BRANDS_NONFOOD : MK_BRANDS_FOOD);
+      var pname = (brandPool ? gPick(r, brandPool) + ' ' : '') + type + ' ' + size;
+      var key2 = pname;
+      if (seenP[key2]) { pname = pname.replace(/(\d+)( ədəd| kq| L| q| ml| g)?$/, function(m, d, u) { return (Number(d) + 1) + (u || ''); }); }
+      if (seenP[pname]) pname += ' Premium';
+      seenP[pname] = 1;
+      var food = !brandPool || brandPool === MK_BRANDS_FOOD;
+      var base;
+      if (leaf[1] === 'Meyvə-tərəvəz') base = gRlog(r, 0.8, 14);
+      else if (leaf[1] === 'Ət və toyuq məhsulları' || leaf[1] === 'Balıq məhsulları') base = gRlog(r, 4, 55);
+      else if (food) base = gRlog(r, 0.5, 12);
+      else base = gRlog(r, 1.5, 45);
+      var price = gRound2(base);
+      var vat = food ? gWPick(r, [[0,.75],[18,.25]]) : 18;
+      var organic = (leaf[1] === 'Meyvə-tərəvəz' || leaf[1] === 'Süd məhsulları') && gChance(r, 0.15) ? 1 : 0;
+      var origin = gWPick(r, [['Azərbaycan',.62],['Türkiyə',.12],['İran',.08],['Rusiya',.06],['İtaliya',.03],['İspaniya',.03],['Misir',.02],['Hindistan',.02],['Çili',.02]]);
+      var unit = gWPick(r, MK_UNITS);
+      if (leaf[1] === 'Meyvə-tərəvəz') unit = 'kq';
+      prodPrice[i] = price;
+      prodCost[i] = gRound2(price * gRF(r, 0.62, 0.85));
+      prodUnit[i] = unit;
+      ctx.emit('products', [i, '48' + gPad(i, 11), pname, leaf[0], gRI(r, 1, 45), unit, price, prodCost[i], vat, organic, origin]);
+      if (i % 1500 === 0) await ctx.tick();
+    }
+
+    // staff
+    var storeStaff = {};
+    var stid = 0;
+    for (i = 1; i <= 24; i++) {
+      storeStaff[i] = [];
+      var nn = storeFmt[i - 1] === 'minimarket' ? gRI(r, 7, 10) : gRI(r, 11, 16);
+      for (j = 0; j < nn; j++) {
+        stid++;
+        storeStaff[i].push(stid);
+        var pos = gWPick(r, [['kassir',.60],['satış meneceri',.10],['anbarçı',.15],['təmizlikçi',.15]]);
+        var sal2 = pos === 'satış meneceri' ? gRI(r, 800, 1400) : pos === 'kassir' ? gRI(r, 350, 600) : gRI(r, 300, 500);
+        ctx.emit('staff', [stid, azFullName(r), i, pos, azPhone(r), gFmtD(gTS(gRI(r, 2015, 2025), gRI(r, 1, 12), gRI(r, 1, 28))), sal2]);
+      }
+    }
+
+    // loyalty cards
+    for (i = 1; i <= 18000; i++) {
+      ctx.emit('loyalty_cards', [i, 'LC' + gPad(i, 8), azFullName(r), azPhone(r), gFmtD(GEN_WIN_START + Math.floor(r() * GEN_DAYS * DAY_MS)), gRI(r, 0, 15000)]);
+      if (i % 4000 === 0) await ctx.tick();
+    }
+
+    // stock — mağaza formatına görə populyar product alt çoxluğu
+    var prodZipf = makeCumPicker(zipfWeights(N_PROD, 0.9));
+    for (i = 1; i <= 24; i++) {
+      var cap2 = fmtCap[storeFmt[i - 1]];
+      var seenStock = {};
+      var emitted = 0;
+      while (emitted < cap2) {
+        var pid = prodZipf(r) + 1;
+        if (seenStock[pid]) continue;
+        seenStock[pid] = 1;
+        emitted++;
+        ctx.emit('stock', [i, pid, gChance(r, 0.05) ? 0 : gRI(r, 5, 500), gRI(r, 5, 30)]);
+      }
+      await ctx.tick();
+    }
+
+    // discounts
+    var discNames = ['Yay endirimi','Qara Cümə','Bayram endirimi','Stok təmizlənməsi','Yeni mövsüm','1+1 kampaniyası','Loyalty xüsusi','Payız endirimi','Yeni il endirimi','Açılış endirimi'];
+    for (i = 1; i <= 2400; i++) {
+      var dprod = prodZipf(r) + 1;
+      var mode = gWPick(r, [['aktiv',.45],['keçmiş',.30],['gələcək',.25]]);
+      var st2, en2;
+      if (mode === 'aktiv') { st2 = GEN_NOW - gRI(r, 2, 30) * DAY_MS; en2 = GEN_NOW + gRI(r, 2, 45) * DAY_MS; }
+      else if (mode === 'keçmiş') { en2 = GEN_NOW - gRI(r, 1, 60) * DAY_MS; st2 = en2 - gRI(r, 3, 30) * DAY_MS; }
+      else { st2 = GEN_NOW + gRI(r, 3, 60) * DAY_MS; en2 = st2 + gRI(r, 3, 21) * DAY_MS; }
+      ctx.emit('discounts', [i, dprod, gPick(r, discNames), gPick(r, [5, 10, 15, 20, 25, 30]), gFmtD(st2), gFmtD(en2)]);
+      if (i % 1000 === 0) await ctx.tick();
+    }
+
+    // receipts + items
+    var N_REC = 95000;
+    var dayPickM = makeDayPicker(r, MK_MONTH_W, MK_WEEK_W, true);
+    var storeW2 = [];
+    for (k = 0; k < 24; k++) storeW2.push(gRlog(r, 0.4, 3));
+    var storePick = makeCumPicker(storeW2);
+    var totalsM = new Float64Array(N_REC + 1);
+    var iidM = 0;
+    for (i = 1; i <= N_REC; i++) {
+      var ts2 = pickTS(r, dayPickM, HR_MARKET);
+      var s2 = storePick(r) + 1;
+      var cashier = gPick(r, storeStaff[s2]);
+      var card = gChance(r, 0.45) ? gRI(r, 1, 18000) : null;
+      var nIt2 = gWPick(r, [[1,.15],[2,.22],[3,.20],[4,.14],[5,.10],[6,.08],[7,.06],[8,.05]]);
+      var t2 = 0;
+      for (j = 0; j < nIt2; j++) {
+        iidM++;
+        var p2 = prodZipf(r) + 1;
+        var u2 = prodUnit[p2];
+        var q2 = u2 === 'ədəd' || u2 === 'paket' ? gRI(r, 1, 5) : Math.round(gRF(r, 2, 30)) / 10;
+        var promo = gChance(r, 0.12) ? 1 : 0;
+        t2 += gRound2(q2 * prodPrice[p2]);
+        ctx.emit('receipt_items', [iidM, i, p2, q2, prodPrice[p2], promo]);
+      }
+      totalsM[i] = gRound2(t2);
+      ctx.emit('receipts', [i, s2, cashier, card, gFmtTS(ts2), gWPick(r, [['nağd',.30],['kart',.62],['onlayn ödəniş',.08]]), totalsM[i]]);
+      if (i % 2000 === 0) await ctx.tick();
+    }
+  }
+};
+
+// ============================================================
+// SCHEMA: MÜŞTƏRİ XİDMƏTLƏRİ
+// ============================================================
+var CS_TEAMS = ['Mobil xidmətlər dəstəyi','İnternet dəstəyi','Billing şöbəsi','Texniki dəstək','Şikayətlər şöbəsi','Satış şöbəsi','VIP müştəri xidməti','Daxili IT dəstəyi'];
+var CS_CATS = [
+  ['İnternet bağlantı problemi',2,8],['Wi-Fi parametrləri',2,8],['Tarif dəyişikliyi',1,24],['Balans və ödənişlər',3,4],
+  ['SİM kart aktivləşdirmə',1,24],['Nömrə daşıma (MNP)',4,72],['Cihaz tənzimlənməsi',2,24],['Zəng keyfiyyəti',2,12],
+  ['Şikayət — xidmət keyfiyyəti',5,48],['Abunəlik bərpası',2,12],['Texniki nasazlıq',4,48],['Sənəd tələbi',3,24],
+  ['Sifariş statusu',1,12],['Geri ödəniş tələbi',5,72],['Digər',1,24]
+];
+var CS_STATUS = [['yeni',.02],['işlənmədə',.18],['müştəri cavabı gözləyir',.10],['həll olunub',.52],['bağlanıb',.18]];
+var CS_CHANNEL = [['zəng',.55],['e-poçt',.25],['çat',.15],['sosial şəbəkə',.05]];
+var CS_CUST_MSG = [
+  'Salam. İnternet işləmir, xahiş edirəm yoxlayasınız.',
+  'Salam, internet işləmir, kömək edin zəhmət olmasa.',
+  'Wi-Fi qoşulmur, parol düzgündür amma bağlanır.',
+  'ev interneti yandır, görə bilmirəm',
+  'Balansım azalıb, aydınlaşdırın zəhmət olmasa.',
+  'tarif dəyişikliyi necə edilir?',
+  'Tarifimi dəyişmək istəyirəm, necə edim?',
+  'Sim kartım aktiv deyil, nə etməliyəm?',
+  'Zəng keyfiyyəti çox pisdir, danışa bilmirəm.',
+  'Keçən ay ödənişim iki dəfə keçib, geri qaytarın.',
+  'Nömrəmi digər operatora keçirmək istəyirəm.',
+  'Modem işləmir, işıq qırmızı yanır.',
+  'Sifariş etdiyim router hələ gəlməyib.',
+  'Xidmət keyfiyyəti aşağıdır, şikayətim var.',
+  'İnternet sürəti gecələr çox aşağı düşür.',
+  'internet sürəti çox zəifdir, baxın',
+  'Abunəliyim qeyri-aktiv göstərir, bərpa edin.',
+  'Əvvəlki danışıqda vəd olunan endirim tətib olunmayıb.',
+  'wi-fi şəbəkəsi görünmür telefonumda',
+  'köçürmə etdim amma balans artmadı'
+];
+var CS_AGENT_MSG = [
+  'Salam! Sorğunuzu qəbul etdik, yoxlayırıq.',
+  'Məlumatları üçün təşəkkürlər, probleminizi lokalizə etdik.',
+  'Texniki komandaya yönləndirildi, 24 saat içində nəticə veriləcək.',
+  'Sorğunuz həll olundu, təsdiqləsəniz zəhmət olmasa.',
+  'Yenidən baş verərsə, bu biletlə məlumat verin.',
+  'Balansınız yoxlanıldı, düzgün əks olunub.',
+  'Tarif dəyişikliyi tamamlandı, yeni tarif aktivdir.',
+  'Əlaqə məlumatlarınızı yenilədik.',
+  'Eskalasiya verildi: SLA pozuldu, üzr diləyirik.'
+];
+var CS_SYS_MSG = ['Tiket yaradıldı.','Status dəyişdirildi.','CSAT sorğusu göndərildi.','Eskalasiya: SLA pozuldu.','Tiket avtomatik bağlandı.'];
+
+var CS_DEF = {
+  id: 'cs', label: 'Müştəri Xidmətləri', version: 'v1',
+  desc: 'Xidmət mərkəzi: tiketlər, mesajlar, CSAT, SLA',
+  tables: [
+    { name:'teams', cols:[['team_id','INTEGER','PK'],['team_name','TEXT'],['email','TEXT']], fks:[], est:8 },
+    { name:'agents', cols:[['agent_id','INTEGER','PK'],['fullname','TEXT'],['team_id','INTEGER'],['level','TEXT'],['hire_date','TEXT'],['is_active','INTEGER'],['salary','REAL']], fks:[['team_id','teams','team_id']], est:120 },
+    { name:'customers', cols:[['customer_id','INTEGER','PK'],['fullname','TEXT'],['msisdn','TEXT'],['email','TEXT'],['segment','TEXT'],['city','TEXT'],['registered_at','TEXT']], fks:[], est:26000 },
+    { name:'ticket_categories', cols:[['category_id','INTEGER','PK'],['category_name','TEXT'],['team_id','INTEGER'],['default_sla_hours','INTEGER']], fks:[['team_id','teams','team_id']], est:15 },
+    { name:'tickets', cols:[['ticket_id','INTEGER','PK'],['ticket_no','TEXT'],['customer_id','INTEGER'],['category_id','INTEGER'],['channel','TEXT'],['priority','INTEGER'],['status','TEXT'],['created_at','TEXT'],['first_response_at','TEXT'],['resolved_at','TEXT'],['closed_at','TEXT'],['agent_id','INTEGER'],['csat_score','INTEGER'],['reopen_count','INTEGER']], fks:[['customer_id','customers','customer_id'],['category_id','ticket_categories','category_id'],['agent_id','agents','agent_id']], est:110000 },
+    { name:'ticket_messages', cols:[['message_id','INTEGER','PK'],['ticket_id','INTEGER'],['sender_type','TEXT'],['sent_at','TEXT'],['message_text','TEXT'],['is_internal','INTEGER']], fks:[['ticket_id','tickets','ticket_id']], est:324000 }
+  ],
+  indexes: [
+    'CREATE INDEX ix_cs_agents_team ON agents(team_id)',
+    'CREATE INDEX ix_cs_cust_segment ON customers(segment)',
+    'CREATE INDEX ix_cs_tix_cust ON tickets(customer_id)',
+    'CREATE INDEX ix_cs_tix_agent ON tickets(agent_id)',
+    'CREATE INDEX ix_cs_tix_cat ON tickets(category_id)',
+    'CREATE INDEX ix_cs_tix_status ON tickets(status)',
+    'CREATE INDEX ix_cs_tix_created ON tickets(created_at)',
+    'CREATE INDEX ix_cs_tix_resolved ON tickets(resolved_at)',
+    'CREATE INDEX ix_cs_msg_ticket ON ticket_messages(ticket_id)'
+  ],
+  gen: async function(ctx) {
+    var r = ctx.rnd, i, j;
+
+    for (i = 1; i <= 8; i++)
+      ctx.emit('teams', [i, CS_TEAMS[i - 1], 'support' + i + '@example.az']);
+
+    var agentTeam = new Array(121);
+    var levels = [['junior',.40],['middle',.35],['senior',.18],['lead',.07]];
+    var levelSal = { junior:[450,750], middle:[750,1300], senior:[1300,1900], lead:[1900,2600] };
+    var activeAgents = [];
+    for (i = 1; i <= 120; i++) {
+      var team = gRI(r, 1, 8);
+      var lvl = gWPick(r, levels);
+      var act = gChance(r, 0.9) ? 1 : 0;
+      agentTeam[i] = team;
+      if (act) activeAgents.push(i);
+      var ls = levelSal[lvl];
+      ctx.emit('agents', [i, azFullName(r), team, lvl, gFmtD(gTS(gRI(r, 2018, 2025), gRI(r, 1, 12), gRI(r, 1, 28))), act, gRI(r, ls[0], ls[1])]);
+    }
+
+    // customers — unikal msisdn indekslə
+    var cityPickC = makeCumPicker(AZ_CITY_W.map(function(c){ return c[1]; }));
+    var segs = [['standart',.62],['gümüş',.22],['qızıl',.11],['platin',.05]];
+    for (i = 1; i <= 26000; i++) {
+      var fn = azGenderName(r), ln = gPick(r, AZ_LAST);
+      var full = fn + ' ' + ln;
+      var msisdn = '0' + gPick(r, ['50','55','70','77','99']) + gPad(i, 7).slice(-7);
+      var email = gChance(r, 0.7) ? (gTranslit(fn).toLowerCase() + '.' + gTranslit(ln).toLowerCase() + gRI(r, 1, 99) + '@' + gPick(r, AZ_EMAIL_DOMAINS)) : null;
+      ctx.emit('customers', [i, full, msisdn, email, gWPick(r, segs), AZ_CITY_W[cityPickC(r)][0], gFmtD(gTS(gRI(r, 2015, 2025), gRI(r, 1, 12), gRI(r, 1, 28)))]);
+      if (i % 5000 === 0) await ctx.tick();
+    }
+
+    var catTeam = [2, 2, 6, 3, 1, 5, 4, 2, 5, 2, 4, 3, 6, 5, 8];
+    var catPick = makeCumPicker([10, 6, 8, 12, 7, 4, 6, 8, 5, 4, 5, 3, 5, 3, 8]);
+    for (i = 1; i <= 15; i++)
+      ctx.emit('ticket_categories', [i, CS_CATS[i - 1][0], catTeam[i - 1], CS_CATS[i - 1][2]]);
+
+    // tickets
+    var N_TIX = 110000;
+    var dayPickC = makeDayPicker(r, [1,1,1,1,1,1,1,1,1,1,1,1], CS_WEEK_W, true);
+    var teamAgents = {};
+    for (i = 0; i < activeAgents.length; i++) {
+      var t3 = agentTeam[activeAgents[i]];
+      if (!teamAgents[t3]) teamAgents[t3] = [];
+      teamAgents[t3].push(activeAgents[i]);
+    }
+    var teamIds = Object.keys(teamAgents);
+    var msgCount = 0;
+    var totalsByDay = {};
+    for (i = 1; i <= N_TIX; i++) {
+      var cat = catPick(r) + 1;
+      var team2 = catTeam[cat - 1];
+      var ags = teamAgents[team2] || activeAgents;
+      var agent = gPick(r, ags);
+      var ch = gWPick(r, CS_CHANNEL);
+      var pr = gWPick(r, [[1,.04],[2,.16],[3,.45],[4,.35]]);
+      var st3 = gWPick(r, CS_STATUS);
+      var created = pickTS(r, dayPickC, [1,1,1,1,1,1,1,1,2,4,6,8,9,9,8,8,9,10,10,9,7,4,2,1]);
+      var respMin = ch === 'zəng' ? gRlog(r, 0.5, 40) : ch === 'çat' ? gRlog(r, 1, 60) : ch === 'e-poçt' ? gRlog(r, 5, 600) : gRlog(r, 10, 900);
+      var respAt = created + Math.min(respMin, 600) * 60000;
+      if (respAt > GEN_NOW) respAt = Math.min(created + 3600000, GEN_NOW);
+      var prioF = pr === 1 ? 0.5 : pr === 2 ? 0.8 : pr === 3 ? 1 : 1.4;
+      var durH = Math.min(gRlog(r, 0.5, 130) * prioF, 4000);
+      var resolvedAt = null, closedAt = null, csat = null, agentF = agent, respF = null;
+      if (st3 === 'yeni') { agentF = null; }
+      else {
+        respF = respAt;
+        if (st3 === 'həll olunub' || st3 === 'bağlanıb') {
+          resolvedAt = created + respMin * 60000 + durH * 3600000;
+          if (resolvedAt > GEN_NOW) resolvedAt = GEN_NOW - gRI(r, 1, 72) * 3600000;
+          if (resolvedAt < respF) resolvedAt = respF;
+          if (st3 === 'bağlanıb') closedAt = resolvedAt + gRlog(r, 0.5, 240) * 3600000;
+          if (closedAt && closedAt > GEN_NOW) closedAt = GEN_NOW;
+          if (gChance(r, 0.82)) csat = gWPick(r, [[1,.02],[2,.05],[3,.13],[4,.30],[5,.50]]);
+        }
+      }
+      var reopen = (st3 === 'müştəri cavabı gözləyir' || st3 === 'həll olunub') && gChance(r, 0.07) ? gRI(r, 1, 2) : 0;
+      var yr = new Date(created).getUTCFullYear();
+      ctx.emit('tickets', [i, 'T-' + yr + '-' + gPad(i, 6), gRI(r, 1, 26000), cat, ch, pr, st3, gFmtTS(created), respF ? gFmtTS(respF) : null, resolvedAt ? gFmtTS(resolvedAt) : null, closedAt ? gFmtTS(closedAt) : null, agentF, csat, reopen]);
+
+      // mesajlar
+      var endMs = resolvedAt || closedAt || Math.min(created + respMin * 60000 + durH * 3600000, GEN_NOW);
+      if (endMs < created) endMs = created;
+      var nMsg = st3 === 'yeni' ? 1 : gWPick(r, [[2,.40],[3,.32],[4,.16],[5,.08],[6,.03],[7,.01]]);
+      var span = endMs - created;
+      var prevT = created;
+      for (j = 0; j < nMsg; j++) {
+        msgCount++;
+        var sender = j === 0 ? 'müştəri' : gWPick(r, [['müştəri',.5],['agent',.38],['sistem',.12]]);
+        var frac = (j + 1) / nMsg;
+        var mt = j === 0 ? created : created + Math.floor(span * Math.min(0.98, frac * gRF(r, 0.7, 1.1)));
+        if (mt < prevT) mt = prevT;
+        if (mt > endMs) mt = endMs;
+        prevT = mt;
+        var txt = sender === 'müştəri' ? gPick(r, CS_CUST_MSG) : sender === 'agent' ? gPick(r, CS_AGENT_MSG) : gPick(r, CS_SYS_MSG);
+        var internal = sender === 'agent' && gChance(r, 0.12) ? 1 : 0;
+        ctx.emit('ticket_messages', [msgCount, i, sender, gFmtTS(mt), txt, internal]);
+      }
+      if (i % 2500 === 0) await ctx.tick();
+    }
+  }
+};
+
+// ============================================================
+// SXHR SİYAHISI + KÖMƏKÇİLƏR
+// ============================================================
+var SCHEMA_DEFS = { pharmacy: PHARMACY_DEF, market: MARKET_DEF, cs: CS_DEF };
+
+function schemaCacheKey(def) {
+  var src = def.id + '|' + def.version + '|' + def.gen.toString() + JSON.stringify(def.tables) + JSON.stringify(def.indexes);
+  return def.id + '-' + fnv1a(src);
+}
+
+var _schemaCacheKeyMemo = null;
+function getSchemaCacheKey(id) {
+  if (!_schemaCacheKeyMemo) _schemaCacheKeyMemo = {};
+  if (!_schemaCacheKeyMemo[id]) _schemaCacheKeyMemo[id] = schemaCacheKey(SCHEMA_DEFS[id]);
+  return _schemaCacheKeyMemo[id];
+}
+
+function genYieldUI() { return new Promise(function(res) { setTimeout(res, 0); }); }
+
+// buildGeneratedDb(SQL, def, progressCb) → Promise<{database, counts, ms}>
+async function buildGeneratedDb(SQL, def, progressCb) {
+  var t0 = Date.now();
+  var database = new SQL.Database();
+  if (typeof registerOracleFunctions === 'function') {
+    try { registerOracleFunctions(database); } catch (e) {}
+  }
+  var t, i;
+  for (t = 0; t < def.tables.length; t++) {
+    var tb = def.tables[t];
+    var colDefs = tb.cols.map(function(c) {
+      return c[2] === 'PK' ? '"' + c[0] + '" ' + c[1] + ' PRIMARY KEY' : '"' + c[0] + '" ' + c[1];
+    });
+    var fkDefs = (tb.fks || []).map(function(f) {
+      return 'FOREIGN KEY ("' + f[0] + '") REFERENCES "' + f[1] + '" ("' + f[2] + '")';
+    });
+    var pkDef = tb.pkCols ? ['PRIMARY KEY ("' + tb.pkCols.join('", "') + '")'] : [];
+    database.run('DROP TABLE IF EXISTS "' + tb.name + '"');
+    database.run('CREATE TABLE "' + tb.name + '" (' + colDefs.concat(fkDefs).concat(pkDef).join(', ') + ')');
+  }
+  var stmts = {}, counts = {}, estTotal = 0, doneTotal = 0;
+  for (t = 0; t < def.tables.length; t++) {
+    var tb2 = def.tables[t];
+    var ph = tb2.cols.map(function() { return '?'; }).join(', ');
+    stmts[tb2.name] = database.prepare('INSERT INTO "' + tb2.name + '" VALUES (' + ph + ')');
+    counts[tb2.name] = 0;
+    estTotal += tb2.est;
+  }
+  var lastPct = -1;
+  database.exec('BEGIN TRANSACTION');
+  var ctx = {
+    rnd: mulberry32(def.seedNum || (def.seedNum = 0xC0FFEE + def.id.length)),
+    emit: function(tableName, row) {
+      stmts[tableName].run(row);
+      counts[tableName]++;
+      doneTotal++;
+    },
+    tick: async function() {
+      var pct = Math.min(99, Math.floor(doneTotal / estTotal * 100));
+      if (pct !== lastPct && progressCb) {
+        lastPct = pct;
+        progressCb({ pct: pct, done: doneTotal, total: estTotal });
+      }
+      await genYieldUI();
+    }
+  };
+  await def.gen(ctx);
+  database.exec('COMMIT');
+  for (t in stmts) stmts[t].free();
+  for (i = 0; i < def.indexes.length; i++) database.run(def.indexes[i]);
+  if (progressCb) progressCb({ pct: 100, done: doneTotal, total: estTotal });
+  return { database: database, counts: counts, ms: Date.now() - t0 };
+}
+
+// node test dəstəyi
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    mulberry32: mulberry32, fnv1a: fnv1a, SCHEMA_DEFS: SCHEMA_DEFS,
+    buildGeneratedDb: buildGeneratedDb, schemaCacheKey: schemaCacheKey,
+    GEN_NOW: GEN_NOW, gFmtTS: gFmtTS, gTS: gTS, gFmtD: gFmtD
+  };
+}
+
+// ============================================================
+// SCHEMA LOADER GLUE — IndexedDB keşi + UI inteqrasiyası
+// ============================================================
+var SQL_MODULE = null;
+var hrDb = null;
+var genDbSlot = null;   // {id, database, bytes}
+var schemaBusy = false;
+var _sidebarStats = { label: '', tables: 0, rows: 0, bytes: null, cached: false };
+
+// ---- IndexedDB (müvəffəqiyyətsiz olursa — hər dəfə yenidən qurulur) ----
+var _idb = null, _idbOk = true;
+function idbEnsure() {
+  if (_idb || !_idbOk) return Promise.resolve(_idb);
+  return new Promise(function(res) {
+    try {
+      var rq = indexedDB.open('oracleSimSchemas', 1);
+      rq.onupgradeneeded = function() { rq.result.createObjectStore('kv'); };
+      rq.onsuccess = function() { _idb = rq.result; res(_idb); };
+      rq.onerror = function() { _idbOk = false; res(null); };
+      rq.onblocked = function() { _idbOk = false; res(null); };
+    } catch (e) { _idbOk = false; res(null); }
+  });
+}
+function idbGet(key) {
+  return idbEnsure().then(function(d) {
+    if (!d) return null;
+    return new Promise(function(res) {
+      try {
+        var rq = d.transaction('kv', 'readonly').objectStore('kv').get(key);
+        rq.onsuccess = function() { res(rq.result || null); };
+        rq.onerror = function() { res(null); };
+      } catch (e) { res(null); }
+    });
+  });
+}
+function idbPut(key, val) {
+  return idbEnsure().then(function(d) {
+    if (!d) return;
+    return new Promise(function(res) {
+      try {
+        var tx = d.transaction('kv', 'readwrite');
+        tx.objectStore('kv').put(val, key);
+        tx.oncomplete = function() { res(); };
+        tx.onerror = function() { res(); };
+      } catch (e) { res(); }
+    });
+  });
+}
+
+// ---- Overlay ----
+function schemaLabel(id) { return id === 'hr' ? 'HR' : (SCHEMA_DEFS[id] ? SCHEMA_DEFS[id].label : id); }
+function sloShow(id) {
+  var ov = document.getElementById('schemaLoadOverlay');
+  if (!ov) return;
+  document.getElementById('sloTitle').textContent = schemaLabel(id) + ' sxeması yüklənir…';
+  document.getElementById('sloStatus').textContent = 'yoxlanılır…';
+  document.getElementById('sloFill').style.width = '0%';
+  ov.style.display = 'flex';
+}
+function sloProgress(p) {
+  var st = document.getElementById('sloStatus');
+  if (!st) return;
+  st.textContent = p.done.toLocaleString('az-AZ') + ' / ' + p.total.toLocaleString('az-AZ') + ' sətir';
+  document.getElementById('sloFill').style.width = p.pct + '%';
+}
+function sloHide() { var ov = document.getElementById('schemaLoadOverlay'); if (ov) ov.style.display = 'none'; }
+
+// ---- Sxema aktivləşdirmə ----
+async function activateSchema(id) {
+  if (id === 'hr') {
+    if (genDbSlot && _idbOk) { try { genDbSlot.database.close(); } catch (e) {} }
+    genDbSlot = null;
+    db = hrDb;
+    buildSidebar();
+    return;
+  }
+  var def = SCHEMA_DEFS[id];
+  if (!def) throw new Error('Sxema tapılmadı: ' + id);
+  if (genDbSlot && genDbSlot.id === id) {
+    db = genDbSlot.database;
+    buildSidebar();
+    return;
+  }
+  var key = 'db:' + getSchemaCacheKey(id);
+  var bytes = await idbGet(key);
+  var newDb, bytesLen, cached;
+  if (bytes && bytes instanceof Uint8Array && bytes.length > 0) {
+    newDb = new SQL_MODULE.Database(bytes);
+    registerOracleFunctions(newDb);
+    bytesLen = bytes.length;
+    cached = true;
+  } else {
+    var built = await buildGeneratedDb(SQL_MODULE, def, sloProgress);
+    bytesLen = built.database.export().length; // ölçü üçün (keş yazması aşağıda)
+    newDb = built.database;
+    cached = false;
+    await idbPut(key, built.database.export());
+  }
+  if (db && db !== hrDb) { try { db.close(); } catch (e) {} }
+  genDbSlot = { id: id, database: newDb, bytes: bytesLen };
+  _sidebarStats.bytes = bytesLen;
+  _sidebarStats.cached = cached;
+  db = newDb;
+  buildSidebar();
+}
+
+async function onSchemaChange() {
+  if (schemaBusy) return;
+  var sel = document.getElementById('schemaSelect');
+  var id = sel.value;
+  if (!SQL_MODULE) { sel.value = 'hr'; return; }
+  if (id === (genDbSlot ? genDbSlot.id : (db === hrDb ? 'hr' : ''))) { if (id === 'hr' && db === hrDb) return; }
+  schemaBusy = true;
+  sel.disabled = true;
+  sloShow(id);
+  try {
+    await activateSchema(id);
+    resultTabs = []; activeTabIdx = -1; renderTabs();
+    hideError();
+  } catch (e) {
+    showError('Sxema yüklənmədi: ' + (e && e.message ? e.message : e));
+    sel.value = 'hr';
+    try { await activateSchema('hr'); } catch (e2) {}
+  } finally {
+    schemaBusy = false;
+    sel.disabled = false;
+    sloHide();
+  }
+}
+
+// ---- Statusbar ----
+function fmtMB(b) { return (b / 1048576).toFixed(1) + ' MB'; }
+function updateDbInfo() {
+  var el = document.getElementById('dbInfo');
+  if (!el || !_sidebarStats.label) return;
+  var s = _sidebarStats.label + ' · ' + _sidebarStats.tables + ' cədvəl · ' +
+          _sidebarStats.rows.toLocaleString('az-AZ') + ' sətir';
+  if (_sidebarStats.bytes) s += ' · ' + fmtMB(_sidebarStats.bytes) + (_sidebarStats.cached ? ' (keşdən)' : ' (yaradıldı)');
+  el.textContent = s;
+}
+
+// ---- Böyük nəticələr üçün sorğu analizi (fast path) ----
+// Tək SELECT + yüksək səviyyəli LIMIT yoxdursa → LIMIT 1001 + COUNT wrapper
+function analyzeStatement(sql) {
+  var i = 0, n = sql.length, depth = 0, semis = 0, limitTop = false, dmlTop = false;
+  var fw = sql.match(/^\s*([A-Za-z_]+)/);
+  var firstWord = fw ? fw[1].toUpperCase() : '';
+  while (i < n) {
+    var ch = sql.charAt(i);
+    if (ch === "'") {
+      i++;
+      while (i < n) {
+        if (sql.charAt(i) === "'") { if (sql.charAt(i + 1) === "'") { i += 2; continue; } break; }
+        i++;
+      }
+      i++; continue;
+    }
+    if (ch === '"') { i++; while (i < n && sql.charAt(i) !== '"') i++; i++; continue; }
+    if (ch === '-' && sql.charAt(i + 1) === '-') { while (i < n && sql.charAt(i) !== '\n') i++; continue; }
+    if (ch === '/' && sql.charAt(i + 1) === '*') { i += 2; while (i < n && !(sql.charAt(i) === '*' && sql.charAt(i + 1) === '/')) i++; i += 2; continue; }
+    if (ch === '(') { depth++; i++; continue; }
+    if (ch === ')') { depth--; i++; continue; }
+    if (ch === ';') { if (depth === 0) semis++; i++; continue; }
+    if (/[A-Za-z_]/.test(ch)) {
+      var j = i;
+      while (j < n && /[A-Za-z0-9_]/.test(sql.charAt(j))) j++;
+      if (depth === 0) {
+        var w = sql.substring(i, j).toUpperCase();
+        if (w === 'LIMIT' || w === 'OFFSET' || w === 'FETCH') limitTop = true;
+        if (w === 'INSERT' || w === 'UPDATE' || w === 'DELETE' || w === 'CREATE' ||
+            w === 'DROP' || w === 'ALTER' || w === 'REPLACE' || w === 'TRUNCATE') dmlTop = true;
+      }
+      i = j; continue;
+    }
+    i++;
+  }
+  return {
+    stripped: sql.replace(/;\s*$/, ''),
+    single: semis === 0,
+    isSelect: (firstWord === 'SELECT' || firstWord === 'WITH') && !dmlTop,
+    hasLimit: limitTop,
+    fastSelect: (firstWord === 'SELECT' || firstWord === 'WITH') && !dmlTop && semis === 0 && !limitTop
+  };
+}
 
 </script>
 </body>
