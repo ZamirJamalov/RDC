@@ -7,7 +7,7 @@
      Netlify hosting facts for this site: static/SSR served via Netlify Edge. -->
 <meta name="hosting-provider" content="Netlify">
 <meta name="netlify-deploy" content="https://netlify.new/?utm_campaign=ai-legible&amp;utm_source=meta&amp;utm_medium=referral&amp;utm_id=37640242-d372-40a4-ae75-bcb3fec99f37">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Oracle SQL Simulator - HR Schema</title>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
@@ -179,16 +179,68 @@
   .whatsnew-item .wi-desc{font-size:12px;color:var(--text-muted);line-height:1.55;margin-top:3px}
   .whatsnew-foot{padding:14px 28px 26px;display:flex;justify-content:flex-end;align-items:center;gap:12px}
   [data-theme="light"] .whatsnew-overlay{background:rgba(27,31,36,.45)}
+  .menu-btn{display:none;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:7px 9px;cursor:pointer;align-items:center;transition:all .15s;flex-shrink:0}
+  .menu-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .menu-btn svg{width:18px;height:18px}
+  .drawer-close{display:none;width:100%;background:var(--surface2);color:var(--text);border:none;border-bottom:1px solid var(--border);padding:11px 14px;font-size:12px;font-weight:600;cursor:pointer;text-align:left}
+  .drawer-close:hover{color:var(--red)}
+  .sidebar-backdrop{position:fixed;inset:0;background:rgba(1,4,9,.55);z-index:1150;display:none}
+  .sidebar-backdrop.show{display:block}
+  .btn,.table-item,.col-item,.saved-item,.results-tab,.theme-toggle,.menu-btn,.drawer-close{touch-action:manipulation}
   @media(max-width:768px){
-    .sidebar{display:none}
+    /* Sidebar → çekmece (drawer) */
+    .sidebar{position:fixed;top:0;left:0;bottom:0;width:min(85vw,320px)!important;z-index:1200;transform:translateX(-102%);transition:transform .25s ease;box-shadow:0 0 40px rgba(0,0,0,.4);display:flex!important;border-right:1px solid var(--border)}
+    .sidebar.open{transform:translateX(0)}
     .sidebar-resizer{display:none}
-    .main{flex-direction:column}
+    .menu-btn{display:flex}
+    .drawer-close{display:block}
+    /* Header */
+    .header{padding:8px 10px;gap:8px}
+    .header-left{gap:8px;min-width:0}
+    .logo{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .header-right{gap:6px;flex-shrink:0}
+    .schema-select{max-width:42vw;font-size:11px}
+    /* Toolbar — üfüqi scroll, toxunma hədəfləri böyük */
+    .editor-toolbar{overflow-x:auto;padding:6px 10px;scrollbar-width:none;-ms-overflow-style:none;-webkit-overflow-scrolling:touch}
+    .editor-toolbar::-webkit-scrollbar{display:none}
+    .btn{padding:9px 13px;flex-shrink:0}
+    .run-hint{display:none}
+    .font-size-group{flex-shrink:0}
+    .exec-time{flex-shrink:0;font-size:10px}
+    /* Editor — iOS avto-zoom qarşısı (16px) */
+    .editor-wrap{min-height:100px}
+    .editor-line-numbers,.sql-editor,.sql-highlight-layer{font-size:16px}
+    /* Nəticələr */
+    .results-tabs{padding:5px 8px}
+    .results-info{padding:6px 10px;gap:8px;flex-wrap:wrap}
+    .results-table th{padding:7px 8px}
+    .results-table td{padding:5px 8px;max-width:220px}
+    /* What's New dialoqu */
+    .whatsnew-head{padding:20px 18px 0}
+    .whatsnew-head h2{font-size:17px}
+    .whatsnew-sub{padding:6px 18px 0}
+    .whatsnew-body{padding:10px 18px 2px}
+    .whatsnew-foot{padding:12px 18px 20px}
+    .whatsnew-foot .btn{width:100%;justify-content:center}
+    .whatsnew-card{max-height:82vh}
+    /* Sidebar toxunma hədəfləri */
+    .table-item{padding:9px 10px;min-height:40px}
+    .col-item{padding:7px 10px}
+    .saved-item{padding:10px 10px}
+    /* Statusbar + safe area */
+    .statusbar{padding:4px 10px;padding-bottom:max(6px,env(safe-area-inset-bottom))}
+    .header{padding-left:max(8px,env(safe-area-inset-left));padding-right:max(8px,env(safe-area-inset-right))}
+    .empty-state{padding:24px 16px}
+    .empty-state .es-icon{font-size:36px}
   }
 </style>
 </head>
 <body>
 <div class="header">
   <div class="header-left">
+    <button class="menu-btn" id="menuBtn" onclick="toggleSidebarDrawer()" aria-label="Menyu" title="Paneli aç">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 6h18v2H3zM3 11h18v2H3zM3 16h18v2H3z"/></svg>
+    </button>
     <div class="logo">Oracle SQL Simulator</div>
   </div>
   <div class="header-right">
@@ -206,6 +258,7 @@
 </div>
 <div class="main">
   <div class="sidebar" id="sidebar" style="width:260px">
+    <button class="drawer-close" onclick="toggleSidebarDrawer(false)" aria-label="Paneli bağla">✕ Paneli bağla</button>
     <div class="sidebar-section">
       <div class="sidebar-header" onclick="toggleSection('tables')">
         <h3>Tables</h3>
@@ -239,14 +292,14 @@
           <option value="20">20px</option>
         </select>
       </div>
-      <span style="font-size:11px;color:var(--text-muted)"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> — kursorun olduğu sorğu</span>
+      <span class="run-hint" style="font-size:11px;color:var(--text-muted)"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> — kursorun olduğu sorğu</span>
       <span class="exec-time" id="execTime"></span>
     </div>
     <div class="editor-wrap" id="editorWrap">
       <div class="editor-line-numbers" id="lineNumbers"><div>1</div></div>
       <div style="flex:1;position:relative;overflow:hidden;background:var(--editor-bg)">
         <pre class="sql-highlight-layer" id="sqlHighlight"><code id="sqlHighlightCode"></code></pre>
-        <textarea class="sql-editor" id="sqlEditor" placeholder="Write your SQL query here...&#10;&#10;Example: SELECT * FROM employees" spellcheck="false"></textarea>
+        <textarea class="sql-editor" id="sqlEditor" placeholder="Write your SQL query here...&#10;&#10;Example: SELECT * FROM employees" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off"></textarea>
       </div>
     </div>
     <div class="resizer" id="resizer"></div>
@@ -270,6 +323,7 @@
     </div>
   </div>
 </div>
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebarDrawer(false)"></div>
 <div class="whatsnew-overlay" id="whatsnewOverlay">
   <div class="whatsnew-card" role="dialog" aria-modal="true" aria-labelledby="whatsnewTitle">
     <div class="whatsnew-head">
@@ -2684,11 +2738,27 @@ function applyEditorHeight(h) {
   var areaH = area ? area.getBoundingClientRect().height : window.innerHeight;
   // toolbar + ayırıcı + statusbar + minimal nəticə sahəsi üçün yer burax
   var maxH = Math.max(140, areaH - 175);
-  var minH = 120;
+  var minH = isMobileLayout() ? 100 : 120;
   if (h < minH) h = minH;
   if (h > maxH) h = maxH;
   wrap.style.flex = '0 0 ' + Math.round(h) + 'px';
   wrap.style.height = Math.round(h) + 'px';
+}
+
+// ---- Mobil layout köməkçiləri ----
+function isMobileLayout() {
+  return window.matchMedia('(max-width:768px)').matches;
+}
+
+// Mobil üçün sidebar çekmecəsi: aç/bağla + fon körpüsü
+function toggleSidebarDrawer(force) {
+  var sb = document.getElementById('sidebar');
+  var bd = document.getElementById('sidebarBackdrop');
+  if (!sb || !bd) return;
+  var open = (force === undefined) ? !sb.classList.contains('open') : !!force;
+  sb.classList.toggle('open', open);
+  bd.classList.toggle('show', open);
+  document.body.style.overflow = open ? 'hidden' : '';
 }
 
 function initResizers() {
@@ -2721,10 +2791,14 @@ function initResizers() {
   var rz = document.getElementById('resizer');
   var wrap = document.getElementById('editorWrap');
 
-  // Yadda saxlanmış hündürlüyü bərpa et
+  // Yadda saxlanmış hündürlüyü bərpa et (mobil üçün deyil — orada standart nisbət)
   try {
     var savedH = parseInt(localStorage.getItem('oracle-sim-editor-h') || '0', 10);
-    if (savedH >= 120) applyEditorHeight(savedH);
+    if (isMobileLayout()) {
+      applyEditorHeight(Math.round(window.innerHeight * 0.38));
+    } else if (savedH >= 120) {
+      applyEditorHeight(savedH);
+    }
   } catch (e) {}
 
   rz.addEventListener('pointerdown', function(e) {
@@ -2759,10 +2833,24 @@ function initResizers() {
     try { localStorage.removeItem('oracle-sim-editor-h'); } catch (e) {}
   });
 
-  // Pəncərə ölçüsü dəyişəndə saxlanmış hündürlüyü yenidən sərhədlə daxilində saxla
+  // Pəncərə ölçüsü dəyişəndə: breakpoint keçildikdə mobil/desktop standartına qaytar,
+  // eyni rejimdə qalınsa yalnız sərhədlər daxilində yenidən saxla
+  var wasMobile = isMobileLayout();
   window.addEventListener('resize', function() {
-    var cur = wrap.getBoundingClientRect().height;
-    if (wrap.style.flex || wrap.style.height) applyEditorHeight(cur);
+    var nowMobile = isMobileLayout();
+    if (nowMobile !== wasMobile) {
+      wasMobile = nowMobile;
+      if (nowMobile) {
+        applyEditorHeight(Math.round(window.innerHeight * 0.38));
+        toggleSidebarDrawer(false);
+      } else {
+        wrap.style.flex = '';
+        wrap.style.height = '';
+        toggleSidebarDrawer(false);
+      }
+    } else if (wrap.style.flex || wrap.style.height) {
+      applyEditorHeight(wrap.getBoundingClientRect().height);
+    }
   });
 }
 
@@ -2889,7 +2977,10 @@ window.addEventListener('load', function() {
       return;
     }
     var cn = t.getAttribute('data-colname');
-    if (cn !== null && cn !== undefined) insertAtCursor(cn);
+    if (cn !== null && cn !== undefined) {
+      insertAtCursor(cn);
+      if (isMobileLayout()) toggleSidebarDrawer(false);
+    }
   });
 
   document.getElementById('savedBody').addEventListener('click', function(e) {
@@ -2910,6 +3001,7 @@ window.addEventListener('load', function() {
       if (item) {
         document.getElementById('sqlEditor').value = item.sql;
         refreshEditor();
+        if (isMobileLayout()) toggleSidebarDrawer(false);
       }
     }
   });
