@@ -1,0 +1,2387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!-- This site is hosted on Netlify. Anyone can build and deploy a site
+     like this one for free: https://netlify.new/?utm_campaign=ai-legible&utm_source=comment&utm_medium=referral&utm_id=37640242-d372-40a4-ae75-bcb3fec99f37
+     Netlify hosting facts for this site: static/SSR served via Netlify Edge. -->
+<meta name="hosting-provider" content="Netlify">
+<meta name="netlify-deploy" content="https://netlify.new/?utm_campaign=ai-legible&amp;utm_source=meta&amp;utm_medium=referral&amp;utm_id=37640242-d372-40a4-ae75-bcb3fec99f37">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oracle SQL Simulator - HR Schema</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#0d1117;--surface:#161b22;--surface2:#1c2333;--border:#30363d;
+    --text:#c9d1d9;--text-muted:#8b949e;--accent:#58a6ff;
+    --green:#3fb950;--red:#f85149;--yellow:#d29922;--purple:#bc8cff;
+    --editor-bg:#0d1117;--grid-header:#1c2333;--grid-row1:#161b22;--grid-row2:#0d1117;
+    --editor-color:#e6edf3;--hover-row:rgba(56,139,253,.06);
+    --selection-bg:rgba(56,139,253,.3);--accent-hover:#79c0ff;
+    --sql-keyword:#569cd6;--sql-function:#dcdcaa;--sql-string:#ce9178;
+    --sql-number:#b5cea8;--sql-comment:#6a9955;
+    --row-selected:rgba(56,139,253,.15)
+  }
+  [data-theme="light"]{
+    --bg:#f6f8fa;--surface:#ffffff;--surface2:#f0f2f5;--border:#d0d7de;
+    --text:#1f2328;--text-muted:#656d76;--accent:#0969da;
+    --green:#1a7f37;--red:#d1242f;--yellow:#9a6700;--purple:#8250df;
+    --editor-bg:#ffffff;--grid-header:#f0f2f5;--grid-row1:#ffffff;--grid-row2:#f6f8fa;
+    --editor-color:#1f2328;--hover-row:rgba(9,105,218,.04);
+    --selection-bg:rgba(9,105,218,.15);--accent-hover:#0550ae;
+    --sql-keyword:#0000ff;--sql-function:#795e26;--sql-string:#a31515;
+    --sql-number:#098658;--sql-comment:#008000;
+    --row-selected:rgba(9,105,218,.12)
+  }
+  body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden}
+  .header{display:flex;align-items:center;justify-content:space-between;padding:10px 20px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+  .header-left{display:flex;align-items:center;gap:12px}
+  .logo{font-size:18px;font-weight:700;color:var(--accent)}
+  .logo span{color:var(--text-muted);font-weight:400;font-size:13px;margin-left:6px}
+  .header-right{display:flex;align-items:center;gap:10px}
+  .schema-select{background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:6px 10px;border-radius:6px;font-size:12px;cursor:pointer}
+  .theme-toggle{background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:6px 10px;border-radius:6px;cursor:pointer;font-size:14px;line-height:1;display:flex;align-items:center;gap:5px;transition:all .15s}
+  .theme-toggle:hover{border-color:var(--accent);color:var(--accent)}
+  .theme-toggle svg{width:16px;height:16px;flex-shrink:0}
+  .main{display:flex;flex:1;overflow:hidden}
+  .sidebar{background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+  .sidebar-resizer{width:4px;cursor:col-resize;background:var(--border);flex-shrink:0;transition:background .15s;position:relative;z-index:5}
+  .sidebar-resizer:hover,.sidebar-resizer.active{background:var(--accent)}
+  .sidebar-section{border-bottom:1px solid var(--border)}
+  .sidebar-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;cursor:pointer;user-select:none}
+  .sidebar-header h3{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);font-weight:600}
+  .sidebar-header .arrow{color:var(--text-muted);font-size:10px;transition:transform .2s}
+  .sidebar-header .arrow.open{transform:rotate(180deg)}
+  .sidebar-body{padding:4px 8px 8px;overflow-y:auto}
+  .table-item{display:flex;align-items:center;gap:8px;padding:5px 10px;border-radius:4px;cursor:pointer;font-size:12px;color:var(--text);transition:background .15s}
+  .table-item:hover{background:var(--surface2)}
+  .table-item .t-icon{color:var(--yellow);font-size:11px;flex-shrink:0}
+  .table-item .t-name{font-weight:600;color:var(--accent)}
+  .table-item .t-count{color:var(--text-muted);margin-left:auto;font-size:10px}
+  .col-list{padding:2px 0 4px 28px}
+  .col-item{padding:3px 10px;font-size:11px;color:var(--text-muted);border-radius:3px;cursor:pointer}
+  .col-item:hover{color:var(--text);background:var(--surface2)}
+  .col-item .col-pk{color:var(--yellow);margin-right:4px}
+  .col-item .col-fk{color:var(--green);margin-right:4px}
+  .saved-list{padding:4px 8px 8px;overflow-y:auto}
+  .saved-item{display:flex;align-items:center;gap:6px;padding:6px 10px;margin-bottom:3px;border-radius:4px;cursor:pointer;font-size:11px;color:var(--text);transition:background .15s;border:1px solid transparent;line-height:1.4}
+  .saved-item:hover{background:var(--surface2);border-color:var(--border)}
+  .saved-item .sq-name{color:var(--accent);font-weight:600;font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .saved-item .sq-delete{color:var(--text-muted);font-size:13px;cursor:pointer;flex-shrink:0;padding:0 2px;border:none;background:none;line-height:1}
+  .saved-item .sq-delete:hover{color:var(--red)}
+  .saved-item .sq-sql{color:var(--text-muted);font-family:'Cascadia Code','Fira Code',monospace;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%}
+  .saved-empty{padding:12px 10px;font-size:11px;color:var(--text-muted);text-align:center}
+  .editor-area{flex:1;display:flex;flex-direction:column;overflow:hidden}
+  .editor-toolbar{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0}
+  .btn{display:flex;align-items:center;gap:6px;padding:7px 16px;border:none;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s}
+  .btn-run{background:#238636;color:#fff}
+  .btn-run:hover{background:#2ea043}
+  .btn-run.running{opacity:.7;pointer-events:none}
+  .btn-clear{background:var(--surface2);color:var(--text-muted);border:1px solid var(--border)}
+  .btn-clear:hover{color:var(--text);border-color:var(--text-muted)}
+  .btn-format{background:var(--surface2);color:var(--text-muted);border:1px solid var(--border)}
+  .btn-format:hover{color:var(--text);border-color:var(--text-muted)}
+  .btn-save{background:var(--surface2);color:var(--text-muted);border:1px solid var(--border)}
+  .btn-save:hover{color:var(--accent);border-color:var(--accent)}
+  .exec-time{margin-left:auto;font-size:11px;color:var(--text-muted);font-family:monospace}
+  .font-size-group{display:flex;align-items:center;gap:4px;margin-left:4px}
+  .font-size-label{font-size:11px;color:var(--text-muted);white-space:nowrap}
+  .font-size-select{background:var(--surface2);color:var(--text);border:1px solid var(--border);padding:4px 6px;border-radius:4px;font-size:11px;cursor:pointer;outline:none}
+  .font-size-select:focus{border-color:var(--accent)}
+  .editor-wrap{flex:1;display:flex;position:relative;overflow:hidden;min-height:180px}
+  .editor-line-numbers{width:44px;background:var(--surface);padding:12px 0;text-align:right;font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:13px;line-height:1.6;color:var(--text-muted);overflow:hidden;user-select:none;flex-shrink:0;border-right:1px solid var(--border);scrollbar-width:none;-ms-overflow-style:none}
+  .editor-line-numbers::-webkit-scrollbar{display:none}
+  .editor-line-numbers div{padding-right:10px}
+  .sql-editor{position:absolute;top:0;left:0;width:100%;height:100%;background:transparent !important;color:transparent !important;border:none;outline:none;resize:none;padding:12px 16px;font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:13px;line-height:1.6;tab-size:2;overflow-y:scroll;overflow-x:scroll;white-space:pre;overflow-wrap:normal;z-index:2;caret-color:var(--editor-color);scrollbar-width:none;-ms-overflow-style:none}
+  .sql-editor::-webkit-scrollbar{display:none}
+  .sql-editor::selection{background:var(--selection-bg)}
+  .sql-editor::placeholder{color:var(--text-muted)}
+  .sql-highlight-layer{position:absolute;top:0;left:0;width:100%;height:100%;padding:12px 16px;font-family:'Cascadia Code','Fira Code','Consolas',monospace;font-size:13px;line-height:1.6;tab-size:2;overflow:hidden;white-space:pre;overflow-wrap:normal;pointer-events:none;z-index:1;color:var(--editor-color);background:transparent;border:none;margin:0}
+  .sql-highlight-layer code{display:block;font-family:inherit;font-size:inherit;line-height:inherit;tab-size:inherit;white-space:pre;overflow-wrap:normal}
+  .resizer{height:5px;background:var(--border);cursor:row-resize;flex-shrink:0;transition:background .15s}
+  .resizer:hover,.resizer.active{background:var(--accent)}
+  .error-bar{display:none;padding:8px 16px;background:rgba(248,81,73,.1);border-bottom:1px solid var(--red);color:var(--red);font-size:12px;font-family:monospace;flex-shrink:0;align-items:center;gap:8px}
+  .error-bar.show{display:flex}
+  .results-area{flex:1;overflow:auto;display:flex;flex-direction:column}
+  .results-info{display:flex;align-items:center;gap:12px;padding:8px 16px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;font-size:11px;color:var(--text-muted)}
+  .results-info .ri-count{color:var(--green);font-weight:600}
+  .results-grid{flex:1;overflow:auto;padding:0}
+  .results-table{border-collapse:collapse;font-size:12px;font-family:'Cascadia Code','Fira Code','Consolas',monospace;table-layout:fixed}
+  .results-table thead{position:sticky;top:0;z-index:10}
+  .results-table th{background:var(--grid-header);color:var(--accent);padding:8px 12px;text-align:left;font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.3px;border-bottom:2px solid var(--border);white-space:nowrap;position:relative;user-select:none;overflow:hidden}
+  .results-table th:hover{color:var(--accent-hover)}
+  .results-table th .th-content{display:flex;align-items:center;gap:4px;cursor:grab;min-width:0}
+  .results-table th .th-content:active{cursor:grabbing}
+  .results-table th .sort-icon{margin-left:auto;font-size:9px;opacity:.5;flex-shrink:0}
+  .results-table th.sorted .sort-icon{opacity:1;color:var(--accent)}
+  .results-table th .col-resize-handle{position:absolute;top:0;right:0;bottom:0;width:6px;cursor:col-resize;z-index:2}
+  .results-table th .col-resize-handle:hover,.results-table th .col-resize-handle.active{background:var(--accent);opacity:.5}
+  .results-table td{padding:6px 12px;border-bottom:1px solid var(--border);white-space:nowrap;max-width:300px;overflow:hidden;text-overflow:ellipsis}
+  .results-table tr:nth-child(odd) td{background:var(--grid-row1)}
+  .results-table tr:nth-child(even) td{background:var(--grid-row2)}
+  .results-table tr:hover td{background:var(--hover-row)}
+  .results-table tr.row-selected td{background:var(--row-selected) !important}
+  .results-table td.null-val{color:var(--text-muted);font-style:italic}
+  .results-table td.number-val{color:var(--green);text-align:right}
+  .results-table th.drag-over-left{box-shadow:inset 3px 0 0 var(--accent)}
+  .results-table th.drag-over-right{box-shadow:inset -3px 0 0 var(--accent)}
+  .results-table th.dragging{opacity:.4}
+  .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-muted);gap:12px;padding:40px}
+  .empty-state .es-icon{font-size:48px;opacity:.3}
+  .empty-state .es-title{font-size:16px;font-weight:600;color:var(--text)}
+  .empty-state .es-desc{font-size:13px;text-align:center;max-width:400px;line-height:1.6}
+  kbd{background:var(--surface2);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:10px;font-family:monospace;color:var(--text-muted)}
+  ::-webkit-scrollbar{width:8px;height:8px}
+  ::-webkit-scrollbar-track{background:transparent}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}
+  .statusbar{display:flex;align-items:center;justify-content:flex-start;padding:4px 16px;background:var(--surface);border-top:1px solid var(--border);font-size:11px;color:var(--text-muted);flex-shrink:0}
+  .results-tabs{display:flex;align-items:center;gap:2px;padding:6px 12px;background:var(--surface);border-bottom:1px solid var(--border);overflow-x:auto;flex-shrink:0;scrollbar-width:none;-ms-overflow-style:none}
+  .results-tabs::-webkit-scrollbar{display:none}
+  .results-tab{display:flex;align-items:center;gap:6px;padding:5px 12px;border:1px solid var(--border);border-radius:6px 6px 0 0;cursor:pointer;font-size:11px;color:var(--text-muted);background:var(--surface2);white-space:nowrap;transition:all .15s;user-select:none;border-bottom:1px solid transparent;margin-bottom:-1px}
+  .results-tab:hover{color:var(--text);border-color:var(--text-muted)}
+  .results-tab.active{color:var(--accent);border-color:var(--accent);background:var(--surface);border-bottom-color:var(--surface);font-weight:600}
+  .results-tab.error{border-color:var(--red)}
+  .results-tab.error .tab-label{color:var(--red)}
+  .results-tab .tab-label{max-width:200px;overflow:hidden;text-overflow:ellipsis}
+  .results-tab .tab-close{color:var(--text-muted);font-size:14px;line-height:1;padding:0 2px;border-radius:3px;transition:color .1s;flex-shrink:0}
+  .results-tab .tab-close:hover{color:var(--red)}
+  .results-tab.active .tab-close:hover{color:var(--red)}
+  @media(max-width:768px){
+    .sidebar{display:none}
+    .sidebar-resizer{display:none}
+    .main{flex-direction:column}
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="header-left">
+    <div class="logo">Oracle SQL Simulator</div>
+  </div>
+  <div class="header-right">
+    <select class="schema-select" id="schemaSelect">
+      <option value="hr">HR Schema</option>
+    </select>
+    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle theme">
+      <svg id="themeIconDark" viewBox="0 0 20 20" fill="currentColor" style="display:none"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/></svg>
+      <svg id="themeIconLight" viewBox="0 0 20 20" fill="currentColor"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
+    </button>
+  </div>
+</div>
+<div class="main">
+  <div class="sidebar" id="sidebar" style="width:260px">
+    <div class="sidebar-section">
+      <div class="sidebar-header" onclick="toggleSection('tables')">
+        <h3>Tables</h3>
+        <span class="arrow open" id="tablesArrow">&#9660;</span>
+      </div>
+      <div class="sidebar-body" id="tablesBody"></div>
+    </div>
+    <div class="sidebar-section" style="flex:1;display:flex;flex-direction:column;overflow:hidden">
+      <div class="sidebar-header" onclick="toggleSection('saved')">
+        <h3>Query History</h3>
+        <span class="arrow open" id="savedArrow">&#9660;</span>
+      </div>
+      <div class="saved-list" id="savedBody" style="flex:1;overflow-y:auto"></div>
+    </div>
+  </div>
+  <div class="sidebar-resizer" id="sidebarResizer"></div>
+  <div class="editor-area">
+    <div class="editor-toolbar">
+      <button class="btn btn-run" id="runBtn" onclick="executeQuery()">&#9654; Run</button>
+      <button class="btn btn-clear" onclick="clearEditor()">&#10005; Clear</button>
+      <button class="btn btn-format" onclick="formatQuery()">&#8677; Format</button>
+      <button class="btn btn-save" onclick="saveQuery()">&#128190; Save</button>
+      <div class="font-size-group">
+        <span class="font-size-label">Font:</span>
+        <select class="font-size-select" id="fontSizeSelect" onchange="changeEditorFontSize(this.value)">
+          <option value="12">12px</option>
+          <option value="13" selected>13px</option>
+          <option value="14">14px</option>
+          <option value="16">16px</option>
+          <option value="18">18px</option>
+          <option value="20">20px</option>
+        </select>
+      </div>
+      <span style="font-size:11px;color:var(--text-muted)"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> to run</span>
+      <span class="exec-time" id="execTime"></span>
+    </div>
+    <div class="editor-wrap" id="editorWrap">
+      <div class="editor-line-numbers" id="lineNumbers"><div>1</div></div>
+      <div style="flex:1;position:relative;overflow:hidden;background:var(--editor-bg)">
+        <pre class="sql-highlight-layer" id="sqlHighlight"><code id="sqlHighlightCode"></code></pre>
+        <textarea class="sql-editor" id="sqlEditor" placeholder="Write your SQL query here...&#10;&#10;Example: SELECT * FROM employees" spellcheck="false"></textarea>
+      </div>
+    </div>
+    <div class="resizer" id="resizer"></div>
+    <div class="error-bar" id="errorBar">
+      <span>&#9888;</span>
+      <span id="errorText"></span>
+    </div>
+    <div class="results-area" id="resultsArea">
+      <div class="results-tabs" id="resultsTabs" style="display:none"></div>
+      <div class="empty-state" id="emptyState">
+        <div class="es-icon">&#128450;</div>
+        <div class="es-title">No Results Yet</div>
+        <div class="es-desc">Write a SQL query above and click <b>Run</b> or press <kbd>Ctrl</kbd>+<kbd>Enter</kbd>.</div>
+      </div>
+      <div class="results-info" id="resultsInfo" style="display:none">
+        <span>Rows: <span class="ri-count" id="rowCount">0</span></span>
+        <span>Columns: <span id="colCount">0</span></span>
+        <span id="sortInfo" style="margin-left:auto"></span>
+      </div>
+      <div class="results-grid" id="resultsGrid" style="display:none"></div>
+    </div>
+  </div>
+</div>
+<div class="statusbar">
+  <span>Created by Nexora Talent</span>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.11.0/sql-wasm.js"></script>
+<script>
+
+const HR_DATA = {
+  regions: [
+    {region_id:1,region_name:'Europe'},
+    {region_id:2,region_name:'Americas'},
+    {region_id:3,region_name:'Asia'},
+    {region_id:4,region_name:'Middle East and Africa'}
+  ],
+  countries: [
+    {country_id:'IT',country_name:'Italy',region_id:1},
+    {country_id:'JP',country_name:'Japan',region_id:3},
+    {country_id:'US',country_name:'United States of America',region_id:2},
+    {country_id:'CA',country_name:'Canada',region_id:2},
+    {country_id:'DE',country_name:'Germany',region_id:1},
+    {country_id:'UK',country_name:'United Kingdom',region_id:1},
+    {country_id:'FR',country_name:'France',region_id:1},
+    {country_id:'CN',country_name:'China',region_id:3},
+    {country_id:'AU',country_name:'Australia',region_id:3},
+    {country_id:'BR',country_name:'Brazil',region_id:2},
+    {country_id:'IN',country_name:'India',region_id:3},
+    {country_id:'MX',country_name:'Mexico',region_id:2},
+    {country_id:'ZA',country_name:'South Africa',region_id:4},
+    {country_id:'NG',country_name:'Nigeria',region_id:4},
+    {country_id:'AR',country_name:'Argentina',region_id:2},
+    {country_id:'SA',country_name:'Saudi Arabia',region_id:4},
+    {country_id:'EG',country_name:'Egypt',region_id:4},
+    {country_id:'NL',country_name:'Netherlands',region_id:1},
+    {country_id:'SG',country_name:'Singapore',region_id:3},
+    {country_id:'KR',country_name:'South Korea',region_id:3},
+    {country_id:'SE',country_name:'Sweden',region_id:1},
+    {country_id:'CH',country_name:'Switzerland',region_id:1},
+    {country_id:'ES',country_name:'Spain',region_id:1},
+    {country_id:'PL',country_name:'Poland',region_id:1},
+    {country_id:'TR',country_name:'Turkey',region_id:4}
+  ],
+  locations: [
+    {location_id:1000,street_address:'1297 Via Cola di Rie',postal_code:'00984',city:'Roma',state_province:'',country_id:'IT'},
+    {location_id:1100,street_address:'93091 Calle della Testa',postal_code:'10934',city:'Venice',state_province:'',country_id:'IT'},
+    {location_id:1200,street_address:'2017 Shinjuku-ku',postal_code:'1689',city:'Tokyo',state_province:'Tokyo Prefecture',country_id:'JP'},
+    {location_id:1300,street_address:'9450 Kamiya-cho',postal_code:'6823',city:'Hiroshima',state_province:'',country_id:'JP'},
+    {location_id:1400,street_address:'2014 Jabberwocky Rd',postal_code:'26192',city:'Southlake',state_province:'Texas',country_id:'US'},
+    {location_id:1500,street_address:'2011 Interiors Blvd',postal_code:'99236',city:'South San Francisco',state_province:'California',country_id:'US'},
+    {location_id:1600,street_address:'2007 Zagora St',postal_code:'50090',city:'South Brunswick',state_province:'New Jersey',country_id:'US'},
+    {location_id:1700,street_address:'2004 Charade Rd',postal_code:'98199',city:'Seattle',state_province:'Washington',country_id:'US'},
+    {location_id:1800,street_address:'147 Spadina Ave',postal_code:'M5V 2L7',city:'Toronto',state_province:'Ontario',country_id:'CA'},
+    {location_id:1900,street_address:'1909 Avenida Republica',postal_code:'17011',city:'Mexico City',state_province:'Distrito Federal',country_id:'MX'},
+    {location_id:2000,street_address:'5400 Hamburg Way',postal_code:'10021',city:'Munich',state_province:'Bavaria',country_id:'DE'},
+    {location_id:2100,street_address:'Magdalen Centre, The Oxford Science Park',postal_code:'OX9 9ZB',city:'Oxford',state_province:'Oxford',country_id:'UK'},
+    {location_id:2200,street_address:'1st Floor, Optician House',postal_code:'NW1 8JR',city:'London',state_province:'England',country_id:'UK'},
+    {location_id:2300,street_address:'1366 Baring Blvd',postal_code:'93210',city:'Fresno',state_province:'California',country_id:'US'},
+    {location_id:2400,street_address:'8204 Arthur St',postal_code:'91032',city:'Los Angeles',state_province:'California',country_id:'US'},
+    {location_id:2500,street_address:'Schillerstrasse 10',postal_code:'40210',city:'Dusseldorf',state_province:'Nordrhein-Westfalen',country_id:'DE'},
+    {location_id:2600,street_address:'9702 Via Bologna',postal_code:'21020',city:'Milan',state_province:'',country_id:'IT'},
+    {location_id:2700,street_address:'Schwanthalerstr. 7031',postal_code:'80325',city:'Munich',state_province:'Bavaria',country_id:'DE'},
+    {location_id:2800,street_address:'Rua Frei Caneca 1365 ',postal_code:'01307-002',city:'Sao Paulo',state_province:'Sao Paulo',country_id:'BR'},
+    {location_id:2900,street_address:'20 Rue des Corps-Saints',postal_code:'17034',city:'Geneva',state_province:'Geneve',country_id:'CH'},
+    {location_id:3000,street_address:'Murtenstrasse 921',postal_code:'3008',city:'Bern',state_province:'BE',country_id:'CH'},
+    {location_id:3100,street_address:'7521 Marquette Ave',postal_code:'71210',city:'Paris',state_province:'Ile de France',country_id:'FR'},
+    {location_id:3200,street_address:'6854 Las Palmas Dr',postal_code:'85755',city:'Tucson',state_province:'Arizona',country_id:'US'}
+  ],
+  departments: [
+    {department_id:10,department_name:'Administration',manager_id:200,location_id:1700},
+    {department_id:20,department_name:'Marketing',manager_id:201,location_id:1800},
+    {department_id:30,department_name:'Purchasing',manager_id:114,location_id:1700},
+    {department_id:40,department_name:'Human Resources',manager_id:203,location_id:2400},
+    {department_id:50,department_name:'Shipping',manager_id:121,location_id:1500},
+    {department_id:60,department_name:'IT',manager_id:103,location_id:1400},
+    {department_id:70,department_name:'Public Relations',manager_id:204,location_id:2700},
+    {department_id:80,department_name:'Sales',manager_id:145,location_id:2500},
+    {department_id:90,department_name:'Executive',manager_id:100,location_id:1700},
+    {department_id:100,department_name:'Finance',manager_id:108,location_id:1700},
+    {department_id:110,department_name:'Accounting',manager_id:205,location_id:1700},
+    {department_id:120,department_name:'Treasury',manager_id:null,location_id:1700},
+    {department_id:130,department_name:'Corporate Tax',manager_id:null,location_id:1700},
+    {department_id:140,department_name:'Control And Credit',manager_id:null,location_id:1700},
+    {department_id:150,department_name:'Shareholder Services',manager_id:null,location_id:1700},
+    {department_id:160,department_name:'Benefits',manager_id:null,location_id:1700},
+    {department_id:170,department_name:'Manufacturing',manager_id:null,location_id:1800},
+    {department_id:180,department_name:'Construction',manager_id:null,location_id:1700},
+    {department_id:190,department_name:'Contracting',manager_id:null,location_id:1700},
+    {department_id:200,department_name:'Operations',manager_id:null,location_id:1800},
+    {department_id:210,department_name:'IT Support',manager_id:null,location_id:1700},
+    {department_id:220,department_name:'NOC',manager_id:null,location_id:1700},
+    {department_id:230,department_name:'IT Helpdesk',manager_id:null,location_id:1700},
+    {department_id:240,department_name:'Government Sales',manager_id:null,location_id:1700},
+    {department_id:250,department_name:'Retail Sales',manager_id:null,location_id:1700},
+    {department_id:260,department_name:'Recruiting',manager_id:null,location_id:1700},
+    {department_id:270,department_name:'Payroll',manager_id:null,location_id:1700}
+  ],
+  jobs: [
+    {job_id:'AD_PRES',job_title:'President',min_salary:20080,max_salary:40000},
+    {job_id:'AD_VP',job_title:'Administration Vice President',min_salary:15000,max_salary:30000},
+    {job_id:'AD_ASST',job_title:'Administration Assistant',min_salary:3000,max_salary:6000},
+    {job_id:'FI_MGR',job_title:'Finance Manager',min_salary:8200,max_salary:16000},
+    {job_id:'FI_ACCOUNT',job_title:'Accountant',min_salary:4200,max_salary:9000},
+    {job_id:'AC_MGR',job_title:'Accounting Manager',min_salary:8200,max_salary:16000},
+    {job_id:'AC_ACCOUNT',job_title:'Public Accountant',min_salary:4200,max_salary:9000},
+    {job_id:'SA_MAN',job_title:'Sales Manager',min_salary:10000,max_salary:20080},
+    {job_id:'SA_REP',job_title:'Sales Representative',min_salary:6000,max_salary:12008},
+    {job_id:'PU_MAN',job_title:'Purchasing Manager',min_salary:8000,max_salary:15000},
+    {job_id:'PU_CLERK',job_title:'Purchasing Clerk',min_salary:2500,max_salary:5500},
+    {job_id:'ST_MAN',job_title:'Stock Manager',min_salary:5500,max_salary:8500},
+    {job_id:'ST_CLERK',job_title:'Stock Clerk',min_salary:2008,max_salary:5000},
+    {job_id:'SH_CLERK',job_title:'Shipping Clerk',min_salary:2500,max_salary:5500},
+    {job_id:'IT_PROG',job_title:'Programmer',min_salary:4000,max_salary:10000},
+    {job_id:'MK_MAN',job_title:'Marketing Manager',min_salary:9000,max_salary:15000},
+    {job_id:'MK_REP',job_title:'Marketing Representative',min_salary:4000,max_salary:9000},
+    {job_id:'HR_REP',job_title:'Human Resources Representative',min_salary:4000,max_salary:9000},
+    {job_id:'PR_REP',job_title:'Public Relations Representative',min_salary:4500,max_salary:10500}
+  ],
+  employees: [
+    {employee_id:100,first_name:'Steven',last_name:'King',email:'SKING',phone_number:'515.123.4567',hire_date:'2003-06-17',job_id:'AD_PRES',salary:24000,commission_pct:null,manager_id:null,department_id:90},
+    {employee_id:101,first_name:'Neena',last_name:'Kochhar',email:'NKOCHHAR',phone_number:'515.123.4568',hire_date:'2005-09-21',job_id:'AD_VP',salary:17000,commission_pct:null,manager_id:100,department_id:90},
+    {employee_id:102,first_name:'Lex',last_name:'De Haan',email:'LDEHAAN',phone_number:'515.123.4569',hire_date:'2001-01-13',job_id:'AD_VP',salary:17000,commission_pct:null,manager_id:100,department_id:90},
+    {employee_id:103,first_name:'Alexander',last_name:'Hunold',email:'AHUNOLD',phone_number:'590.423.4567',hire_date:'2006-01-03',job_id:'IT_PROG',salary:9000,commission_pct:null,manager_id:102,department_id:60},
+    {employee_id:104,first_name:'Bruce',last_name:'Ernst',email:'BERNST',phone_number:'590.423.4568',hire_date:'2007-05-21',job_id:'IT_PROG',salary:6000,commission_pct:null,manager_id:103,department_id:60},
+    {employee_id:105,first_name:'David',last_name:'Austin',email:'DAUSTIN',phone_number:'590.423.4569',hire_date:'2005-06-25',job_id:'IT_PROG',salary:4800,commission_pct:null,manager_id:103,department_id:60},
+    {employee_id:106,first_name:'Valli',last_name:'Pataballa',email:'VPATABAL',phone_number:'590.423.4560',hire_date:'2006-02-05',job_id:'IT_PROG',salary:4800,commission_pct:null,manager_id:103,department_id:60},
+    {employee_id:107,first_name:'Diana',last_name:'Lorentz',email:'DLORENTZ',phone_number:'590.423.5567',hire_date:'2007-02-07',job_id:'IT_PROG',salary:4200,commission_pct:null,manager_id:103,department_id:60},
+    {employee_id:108,first_name:'Nancy',last_name:'Greenberg',email:'NGREENBE',phone_number:'515.124.4569',hire_date:'2002-08-17',job_id:'FI_MGR',salary:12008,commission_pct:null,manager_id:101,department_id:100},
+    {employee_id:109,first_name:'Daniel',last_name:'Faviet',email:'DFAVIET',phone_number:'515.124.4169',hire_date:'2002-08-16',job_id:'FI_ACCOUNT',salary:9000,commission_pct:null,manager_id:108,department_id:100},
+    {employee_id:110,first_name:'John',last_name:'Chen',email:'JCHEN',phone_number:'515.124.4269',hire_date:'2005-09-28',job_id:'FI_ACCOUNT',salary:8200,commission_pct:null,manager_id:108,department_id:100},
+    {employee_id:111,first_name:'Ismael',last_name:'Sciarra',email:'ISCIARRA',phone_number:'515.124.4369',hire_date:'2005-09-30',job_id:'FI_ACCOUNT',salary:7700,commission_pct:null,manager_id:108,department_id:100},
+    {employee_id:112,first_name:'Jose Manuel',last_name:'Urman',email:'JMURMAN',phone_number:'515.124.4469',hire_date:'2006-03-07',job_id:'FI_ACCOUNT',salary:7800,commission_pct:null,manager_id:108,department_id:100},
+    {employee_id:113,first_name:'Luis',last_name:'Popp',email:'LPOPP',phone_number:'515.124.4567',hire_date:'2007-12-07',job_id:'FI_ACCOUNT',salary:6900,commission_pct:null,manager_id:108,department_id:100},
+    {employee_id:114,first_name:'Den',last_name:'Raphaely',email:'DRAPHEAL',phone_number:'515.127.4561',hire_date:'2002-12-07',job_id:'PU_MAN',salary:11000,commission_pct:null,manager_id:100,department_id:30},
+    {employee_id:115,first_name:'Alexander',last_name:'Khoo',email:'AKHOO',phone_number:'515.127.4562',hire_date:'2003-05-18',job_id:'PU_CLERK',salary:3100,commission_pct:null,manager_id:114,department_id:30},
+    {employee_id:116,first_name:'Shelli',last_name:'Baida',email:'SBAIDA',phone_number:'515.127.4563',hire_date:'2005-12-24',job_id:'PU_CLERK',salary:2900,commission_pct:null,manager_id:114,department_id:30},
+    {employee_id:117,first_name:'Sigal',last_name:'Tobias',email:'STOBIAS',phone_number:'515.127.4564',hire_date:'2005-07-24',job_id:'PU_CLERK',salary:2800,commission_pct:null,manager_id:114,department_id:30},
+    {employee_id:118,first_name:'Guy',last_name:'Himuro',email:'GHIMURO',phone_number:'515.127.4565',hire_date:'2006-11-15',job_id:'PU_CLERK',salary:2600,commission_pct:null,manager_id:114,department_id:30},
+    {employee_id:119,first_name:'Karen',last_name:'Colmenares',email:'KCOLMENA',phone_number:'515.127.4566',hire_date:'2007-08-10',job_id:'PU_CLERK',salary:2500,commission_pct:null,manager_id:114,department_id:30},
+    {employee_id:120,first_name:'Matthew',last_name:'Weiss',email:'MWEISS',phone_number:'650.123.1234',hire_date:'2004-07-16',job_id:'ST_MAN',salary:8000,commission_pct:null,manager_id:100,department_id:50},
+    {employee_id:121,first_name:'Adam',last_name:'Fripp',email:'AFRIPP',phone_number:'650.123.2234',hire_date:'2005-04-10',job_id:'ST_MAN',salary:8200,commission_pct:null,manager_id:100,department_id:50},
+    {employee_id:122,first_name:'Payam',last_name:'Kaufling',email:'PKAUFLIN',phone_number:'650.123.3234',hire_date:'2003-05-01',job_id:'ST_MAN',salary:7900,commission_pct:null,manager_id:100,department_id:50},
+    {employee_id:123,first_name:'Shanta',last_name:'Vollman',email:'SVOLLMAN',phone_number:'650.123.4234',hire_date:'2005-10-10',job_id:'ST_MAN',salary:6500,commission_pct:null,manager_id:100,department_id:50},
+    {employee_id:124,first_name:'Kevin',last_name:'Mourgos',email:'KMOURGOS',phone_number:'650.123.5234',hire_date:'2007-11-16',job_id:'ST_MAN',salary:5800,commission_pct:null,manager_id:100,department_id:50},
+    {employee_id:125,first_name:'Julia',last_name:'Nayer',email:'JNAYER',phone_number:'650.124.1214',hire_date:'2005-07-16',job_id:'ST_CLERK',salary:3200,commission_pct:null,manager_id:120,department_id:50},
+    {employee_id:126,first_name:'Irene',last_name:'Mikkilineni',email:'IMIKKILI',phone_number:'650.124.1224',hire_date:'2006-09-28',job_id:'ST_CLERK',salary:2700,commission_pct:null,manager_id:120,department_id:50},
+    {employee_id:127,first_name:'James',last_name:'Landry',email:'JLANDRY',phone_number:'650.124.1334',hire_date:'2007-01-14',job_id:'ST_CLERK',salary:2400,commission_pct:null,manager_id:120,department_id:50},
+    {employee_id:128,first_name:'Steven',last_name:'Markle',email:'SMARKLE',phone_number:'650.124.1434',hire_date:'2008-03-08',job_id:'ST_CLERK',salary:2200,commission_pct:null,manager_id:120,department_id:50},
+    {employee_id:129,first_name:'Laura',last_name:'Bissot',email:'LBISSOT',phone_number:'650.124.5234',hire_date:'2005-08-20',job_id:'ST_CLERK',salary:3300,commission_pct:null,manager_id:121,department_id:50},
+    {employee_id:130,first_name:'Mozhe',last_name:'Atkinson',email:'MATKINSON',phone_number:'650.124.6234',hire_date:'2005-10-30',job_id:'ST_CLERK',salary:2800,commission_pct:null,manager_id:121,department_id:50},
+    {employee_id:131,first_name:'James',last_name:'Marlow',email:'JAMRLOW',phone_number:'650.124.7234',hire_date:'2005-02-16',job_id:'ST_CLERK',salary:2500,commission_pct:null,manager_id:121,department_id:50},
+    {employee_id:132,first_name:'TJ',last_name:'Olson',email:'TJOLSON',phone_number:'650.124.8234',hire_date:'2007-04-10',job_id:'ST_CLERK',salary:2100,commission_pct:null,manager_id:121,department_id:50},
+    {employee_id:133,first_name:'Jason',last_name:'Mallin',email:'JMALLIN',phone_number:'650.127.1934',hire_date:'2004-06-14',job_id:'ST_CLERK',salary:3300,commission_pct:null,manager_id:122,department_id:50},
+    {employee_id:134,first_name:'Michael',last_name:'Rogers',email:'MROGERS',phone_number:'650.127.1834',hire_date:'2006-08-26',job_id:'ST_CLERK',salary:2900,commission_pct:null,manager_id:122,department_id:50},
+    {employee_id:135,first_name:'Ki',last_name:'Gee',email:'KGEE',phone_number:'650.127.1734',hire_date:'2007-12-12',job_id:'ST_CLERK',salary:2400,commission_pct:null,manager_id:122,department_id:50},
+    {employee_id:136,first_name:'Hazel',last_name:'Philtanker',email:'HPHILTAN',phone_number:'650.127.1634',hire_date:'2008-02-06',job_id:'ST_CLERK',salary:2200,commission_pct:null,manager_id:122,department_id:50},
+    {employee_id:137,first_name:'Renske',last_name:'Ladwig',email:'RLADWIG',phone_number:'650.121.1234',hire_date:'2003-07-14',job_id:'ST_CLERK',salary:3600,commission_pct:null,manager_id:123,department_id:50},
+    {employee_id:138,first_name:'Stephen',last_name:'Stiles',email:'SSTILES',phone_number:'650.121.2034',hire_date:'2005-10-26',job_id:'ST_CLERK',salary:3200,commission_pct:null,manager_id:123,department_id:50},
+    {employee_id:139,first_name:'John',last_name:'Seo',email:'JSEO',phone_number:'650.121.2019',hire_date:'2006-02-12',job_id:'ST_CLERK',salary:2700,commission_pct:null,manager_id:123,department_id:50},
+    {employee_id:140,first_name:'Joshua',last_name:'Patel',email:'JPATEL',phone_number:'650.121.1834',hire_date:'2006-04-06',job_id:'ST_CLERK',salary:2500,commission_pct:null,manager_id:123,department_id:50},
+    {employee_id:141,first_name:'Trenna',last_name:'Rajs',email:'TRAJS',phone_number:'650.121.8009',hire_date:'2003-10-17',job_id:'ST_CLERK',salary:3500,commission_pct:null,manager_id:124,department_id:50},
+    {employee_id:142,first_name:'Curtis',last_name:'Davies',email:'CDAVIES',phone_number:'650.121.2994',hire_date:'2005-01-29',job_id:'ST_CLERK',salary:3100,commission_pct:null,manager_id:124,department_id:50},
+    {employee_id:143,first_name:'Randall',last_name:'Matos',email:'RMATOS',phone_number:'650.121.2874',hire_date:'2006-03-15',job_id:'ST_CLERK',salary:2600,commission_pct:null,manager_id:124,department_id:50},
+    {employee_id:144,first_name:'Peter',last_name:'Vargas',email:'PVARGAS',phone_number:'650.121.2004',hire_date:'2006-07-09',job_id:'ST_CLERK',salary:2500,commission_pct:null,manager_id:124,department_id:50},
+    {employee_id:145,first_name:'John',last_name:'Russell',email:'JRUSSEL',phone_number:'011.44.1344.429268',hire_date:'2004-10-01',job_id:'SA_MAN',salary:14000,commission_pct:0.4,manager_id:100,department_id:80},
+    {employee_id:146,first_name:'Karen',last_name:'Partners',email:'KPARTNER',phone_number:'011.44.1344.467268',hire_date:'2005-01-05',job_id:'SA_MAN',salary:13500,commission_pct:0.3,manager_id:145,department_id:80},
+    {employee_id:147,first_name:'Alberto',last_name:'Errazuriz',email:'AERRAZUR',phone_number:'011.44.1344.429278',hire_date:'2005-03-10',job_id:'SA_MAN',salary:12000,commission_pct:0.3,manager_id:145,department_id:80},
+    {employee_id:148,first_name:'Gerald',last_name:'Cambrault',email:'GCAMBRAU',phone_number:'011.44.1344.619268',hire_date:'2007-10-15',job_id:'SA_MAN',salary:11000,commission_pct:0.3,manager_id:145,department_id:80},
+    {employee_id:149,first_name:'Eleni',last_name:'Zlotkey',email:'EZLOTKEY',phone_number:'011.44.1344.429018',hire_date:'2008-01-29',job_id:'SA_MAN',salary:10500,commission_pct:0.2,manager_id:145,department_id:80},
+    {employee_id:150,first_name:'Peter',last_name:'Tucker',email:'PTUCKER',phone_number:'011.44.1344.129268',hire_date:'2005-01-30',job_id:'SA_REP',salary:10000,commission_pct:0.3,manager_id:145,department_id:80},
+    {employee_id:151,first_name:'David',last_name:'Bernstein',email:'DBERNSTE',phone_number:'011.44.1344.345268',hire_date:'2005-03-24',job_id:'SA_REP',salary:9500,commission_pct:0.25,manager_id:146,department_id:80},
+    {employee_id:152,first_name:'Peter',last_name:'Hall',email:'PHALL',phone_number:'011.44.1344.478968',hire_date:'2005-08-20',job_id:'SA_REP',salary:9000,commission_pct:0.25,manager_id:146,department_id:80},
+    {employee_id:153,first_name:'Christopher',last_name:'Olsen',email:'COLSEN',phone_number:'011.44.1344.498718',hire_date:'2006-03-30',job_id:'SA_REP',salary:8000,commission_pct:0.2,manager_id:146,department_id:80},
+    {employee_id:154,first_name:'Nanette',last_name:'Cambrault',email:'NCAMBRAU',phone_number:'011.44.1344.987668',hire_date:'2006-12-07',job_id:'SA_REP',salary:7500,commission_pct:0.2,manager_id:146,department_id:80},
+    {employee_id:155,first_name:'Oliver',last_name:'Tuvault',email:'OTUVAULT',phone_number:'011.44.1344.486508',hire_date:'2007-11-23',job_id:'SA_REP',salary:7000,commission_pct:0.15,manager_id:146,department_id:80},
+    {employee_id:156,first_name:'Janette',last_name:'King',email:'JKING',phone_number:'011.44.1345.429268',hire_date:'2004-01-30',job_id:'SA_REP',salary:10000,commission_pct:0.35,manager_id:146,department_id:80},
+    {employee_id:157,first_name:'Patrick',last_name:'Sully',email:'PSULLY',phone_number:'011.44.1345.929268',hire_date:'2004-03-04',job_id:'SA_REP',salary:9500,commission_pct:0.35,manager_id:146,department_id:80},
+    {employee_id:158,first_name:'Allan',last_name:'McEwen',email:'AMCEWEN',phone_number:'011.44.1345.829268',hire_date:'2004-08-01',job_id:'SA_REP',salary:9000,commission_pct:0.35,manager_id:146,department_id:80},
+    {employee_id:159,first_name:'Lindsey',last_name:'Smith',email:'LSMITH',phone_number:'011.44.1345.729268',hire_date:'2005-03-10',job_id:'SA_REP',salary:8000,commission_pct:0.3,manager_id:146,department_id:80},
+    {employee_id:160,first_name:'Louise',last_name:'Doran',email:'LDORAN',phone_number:'011.44.1345.629268',hire_date:'2005-12-15',job_id:'SA_REP',salary:7500,commission_pct:0.3,manager_id:146,department_id:80},
+    {employee_id:161,first_name:'Sarath',last_name:'Sewall',email:'SSEWALL',phone_number:'011.44.1345.529268',hire_date:'2006-11-03',job_id:'SA_REP',salary:7000,commission_pct:0.25,manager_id:146,department_id:80},
+    {employee_id:162,first_name:'Clara',last_name:'Vishney',email:'CVISHNEY',phone_number:'011.44.1346.129268',hire_date:'2005-11-11',job_id:'SA_REP',salary:10500,commission_pct:0.25,manager_id:147,department_id:80},
+    {employee_id:163,first_name:'Danielle',last_name:'Greene',email:'DGREENE',phone_number:'011.44.1346.229268',hire_date:'2007-03-19',job_id:'SA_REP',salary:9500,commission_pct:0.15,manager_id:147,department_id:80},
+    {employee_id:164,first_name:'Mattea',last_name:'Marvins',email:'MMARVINS',phone_number:'011.44.1346.329268',hire_date:'2008-01-24',job_id:'SA_REP',salary:7200,commission_pct:0.1,manager_id:147,department_id:80},
+    {employee_id:165,first_name:'David',last_name:'Lee',email:'DLEE',phone_number:'011.44.1346.529268',hire_date:'2008-02-23',job_id:'SA_REP',salary:6800,commission_pct:0.1,manager_id:147,department_id:80},
+    {employee_id:166,first_name:'Sundar',last_name:'Ande',email:'SANDE',phone_number:'011.44.1346.629268',hire_date:'2008-03-24',job_id:'SA_REP',salary:6400,commission_pct:0.1,manager_id:147,department_id:80},
+    {employee_id:167,first_name:'Amit',last_name:'Banda',email:'ABANDA',phone_number:'011.44.1346.729268',hire_date:'2008-04-21',job_id:'SA_REP',salary:6200,commission_pct:0.1,manager_id:147,department_id:80},
+    {employee_id:168,first_name:'Lisa',last_name:'Ozer',email:'LOZER',phone_number:'011.44.1343.929268',hire_date:'2005-03-11',job_id:'SA_REP',salary:11500,commission_pct:0.25,manager_id:148,department_id:80},
+    {employee_id:169,first_name:'Harrison',last_name:'Bloom',email:'HBLOOM',phone_number:'011.44.1343.829268',hire_date:'2006-03-23',job_id:'SA_REP',salary:10000,commission_pct:0.2,manager_id:148,department_id:80},
+    {employee_id:170,first_name:'Tayler',last_name:'Fox',email:'TFOX',phone_number:'011.44.1343.729268',hire_date:'2006-01-24',job_id:'SA_REP',salary:9600,commission_pct:0.2,manager_id:148,department_id:80},
+    {employee_id:171,first_name:'William',last_name:'Smith',email:'WSMITH',phone_number:'011.44.1343.629268',hire_date:'2007-02-23',job_id:'SA_REP',salary:7400,commission_pct:0.15,manager_id:148,department_id:80},
+    {employee_id:172,first_name:'Elizabeth',last_name:'Bates',email:'EBATES',phone_number:'011.44.1343.529268',hire_date:'2007-03-24',job_id:'SA_REP',salary:7300,commission_pct:0.15,manager_id:148,department_id:80},
+    {employee_id:173,first_name:'Sundita',last_name:'Kumar',email:'SKUMAR',phone_number:'011.44.1343.329268',hire_date:'2008-04-21',job_id:'SA_REP',salary:6100,commission_pct:0.1,manager_id:148,department_id:80},
+    {employee_id:174,first_name:'Ellen',last_name:'Abel',email:'EABEL',phone_number:'011.44.1644.429267',hire_date:'2004-05-11',job_id:'SA_REP',salary:11000,commission_pct:0.3,manager_id:149,department_id:80},
+    {employee_id:175,first_name:'Alyssa',last_name:'Hutton',email:'AHUTTON',phone_number:'011.44.1644.429017',hire_date:'2005-03-19',job_id:'SA_REP',salary:8800,commission_pct:0.25,manager_id:149,department_id:80},
+    {employee_id:176,first_name:'Jonathon',last_name:'Taylor',email:'JTAYLOR',phone_number:'011.44.1644.929268',hire_date:'2006-03-24',job_id:'SA_REP',salary:8600,commission_pct:0.2,manager_id:149,department_id:80},
+    {employee_id:177,first_name:'Jack',last_name:'Livingston',email:'JLIVINGS',phone_number:'011.44.1644.829268',hire_date:'2006-04-23',job_id:'SA_REP',salary:8400,commission_pct:0.2,manager_id:149,department_id:80},
+    {employee_id:178,first_name:'Kimberely',last_name:'Grant',email:'KGRANT',phone_number:'011.44.1643.429267',hire_date:'2007-05-24',job_id:'SA_REP',salary:7000,commission_pct:0.15,manager_id:149,department_id:null},
+    {employee_id:179,first_name:'Charles',last_name:'Johnson',email:'CJOHNSON',phone_number:'011.44.1644.292658',hire_date:'2008-01-02',job_id:'SA_REP',salary:6200,commission_pct:0.1,manager_id:149,department_id:80},
+    {employee_id:180,first_name:'Winston',last_name:'Taylor',email:'WTAYLOR',phone_number:'650.507.9876',hire_date:'2006-01-24',job_id:'SH_CLERK',salary:3200,commission_pct:null,manager_id:120,department_id:50},
+    {employee_id:181,first_name:'Jean',last_name:'Fleaur',email:'JFLEAUR',phone_number:'650.507.9877',hire_date:'2006-02-23',job_id:'SH_CLERK',salary:3100,commission_pct:null,manager_id:120,department_id:50},
+    {employee_id:182,first_name:'Martha',last_name:'Sullivan',email:'MSULLIVA',phone_number:'650.507.9878',hire_date:'2007-06-21',job_id:'SH_CLERK',salary:2500,commission_pct:null,manager_id:120,department_id:50},
+    {employee_id:183,first_name:'Girard',last_name:'Geoni',email:'GGEONI',phone_number:'650.507.9879',hire_date:'2008-02-03',job_id:'SH_CLERK',salary:2800,commission_pct:null,manager_id:120,department_id:50},
+    {employee_id:184,first_name:'Nandita',last_name:'Sarchand',email:'NSARCHAN',phone_number:'650.509.1876',hire_date:'2004-01-27',job_id:'SH_CLERK',salary:4200,commission_pct:null,manager_id:121,department_id:50},
+    {employee_id:185,first_name:'Alexis',last_name:'Bull',email:'ABULL',phone_number:'650.509.2876',hire_date:'2005-02-20',job_id:'SH_CLERK',salary:4100,commission_pct:null,manager_id:121,department_id:50},
+    {employee_id:186,first_name:'Julia',last_name:'Dellinger',email:'JDELLING',phone_number:'650.509.3876',hire_date:'2006-06-24',job_id:'SH_CLERK',salary:3400,commission_pct:null,manager_id:121,department_id:50},
+    {employee_id:187,first_name:'Anthony',last_name:'Cabrio',email:'ACABRIO',phone_number:'650.509.4876',hire_date:'2007-02-07',job_id:'SH_CLERK',salary:3000,commission_pct:null,manager_id:121,department_id:50},
+    {employee_id:188,first_name:'Kelly',last_name:'Chung',email:'KCHUNG',phone_number:'650.505.1876',hire_date:'2005-06-14',job_id:'SH_CLERK',salary:3800,commission_pct:null,manager_id:122,department_id:50},
+    {employee_id:189,first_name:'Jennifer',last_name:'Dilly',email:'JDILLY',phone_number:'650.505.2876',hire_date:'2005-08-13',job_id:'SH_CLERK',salary:3600,commission_pct:null,manager_id:122,department_id:50},
+    {employee_id:190,first_name:'Timothy',last_name:'Gates',email:'TGATES',phone_number:'650.505.3876',hire_date:'2006-07-11',job_id:'SH_CLERK',salary:2900,commission_pct:null,manager_id:122,department_id:50},
+    {employee_id:191,first_name:'Randall',last_name:'Perkins',email:'RPERKINS',phone_number:'650.505.4876',hire_date:'2007-12-19',job_id:'SH_CLERK',salary:2500,commission_pct:null,manager_id:122,department_id:50},
+    {employee_id:192,first_name:'Sarah',last_name:'Bell',email:'SBELL',phone_number:'650.501.1876',hire_date:'2004-02-04',job_id:'SH_CLERK',salary:4000,commission_pct:null,manager_id:123,department_id:50},
+    {employee_id:193,first_name:'Britney',last_name:'Everett',email:'BEVERETT',phone_number:'650.501.2876',hire_date:'2005-03-03',job_id:'SH_CLERK',salary:3900,commission_pct:null,manager_id:123,department_id:50},
+    {employee_id:194,first_name:'Samuel',last_name:'McCain',email:'SMCCAIN',phone_number:'650.501.3876',hire_date:'2006-07-01',job_id:'SH_CLERK',salary:3200,commission_pct:null,manager_id:123,department_id:50},
+    {employee_id:195,first_name:'Vance',last_name:'Jones',email:'VJONES',phone_number:'650.501.4876',hire_date:'2007-03-17',job_id:'SH_CLERK',salary:2800,commission_pct:null,manager_id:123,department_id:50},
+    {employee_id:196,first_name:'Alana',last_name:'Walsh',email:'AWALSH',phone_number:'650.507.9811',hire_date:'2006-04-24',job_id:'SH_CLERK',salary:3100,commission_pct:null,manager_id:124,department_id:50},
+    {employee_id:197,first_name:'Kevin',last_name:'Feeney',email:'KFEENEY',phone_number:'650.507.9822',hire_date:'2006-05-23',job_id:'SH_CLERK',salary:3000,commission_pct:null,manager_id:124,department_id:50},
+    {employee_id:198,first_name:'Donald',last_name:'OConnell',email:'DOCONNEL',phone_number:'650.507.9833',hire_date:'2007-06-21',job_id:'SH_CLERK',salary:2600,commission_pct:null,manager_id:124,department_id:50},
+    {employee_id:199,first_name:'Douglas',last_name:'Grant',email:'DGRANT',phone_number:'650.507.9844',hire_date:'2008-01-13',job_id:'SH_CLERK',salary:2600,commission_pct:null,manager_id:124,department_id:50},
+    {employee_id:200,first_name:'Jennifer',last_name:'Whalen',email:'JWHALEN',phone_number:'515.123.4444',hire_date:'2003-09-17',job_id:'AD_ASST',salary:4400,commission_pct:null,manager_id:101,department_id:10},
+    {employee_id:201,first_name:'Michael',last_name:'Hartstein',email:'MHARTSTE',phone_number:'515.123.5555',hire_date:'2004-02-17',job_id:'MK_MAN',salary:13000,commission_pct:null,manager_id:100,department_id:20},
+    {employee_id:202,first_name:'Pat',last_name:'Fay',email:'PFAY',phone_number:'603.123.6666',hire_date:'2005-08-17',job_id:'MK_REP',salary:6000,commission_pct:null,manager_id:201,department_id:20},
+    {employee_id:203,first_name:'Susan',last_name:'Mavris',email:'SMAVRIS',phone_number:'515.123.7777',hire_date:'2002-06-07',job_id:'HR_REP',salary:6500,commission_pct:null,manager_id:101,department_id:40},
+    {employee_id:204,first_name:'Hermann',last_name:'Baer',email:'HBAER',phone_number:'515.123.8888',hire_date:'2002-06-07',job_id:'PR_REP',salary:10000,commission_pct:null,manager_id:101,department_id:70},
+    {employee_id:205,first_name:'Shelley',last_name:'Higgins',email:'SHIGGINS',phone_number:'515.123.8080',hire_date:'2002-06-07',job_id:'AC_MGR',salary:12008,commission_pct:null,manager_id:101,department_id:110},
+    {employee_id:206,first_name:'William',last_name:'Gietz',email:'WGIETZ',phone_number:'515.123.8181',hire_date:'2002-06-07',job_id:'AC_ACCOUNT',salary:8300,commission_pct:null,manager_id:205,department_id:110}
+  ],
+  job_history: [
+    {employee_id:101,start_date:'1997-09-21',end_date:'2001-10-27',job_id:'AC_ACCOUNT',department_id:110},
+    {employee_id:101,start_date:'2001-10-28',end_date:'2005-03-15',job_id:'AC_MGR',department_id:110},
+    {employee_id:102,start_date:'2001-01-13',end_date:'2006-07-24',job_id:'IT_PROG',department_id:60},
+    {employee_id:114,start_date:'2006-03-24',end_date:'2007-12-31',job_id:'ST_CLERK',department_id:50},
+    {employee_id:122,start_date:'2007-01-01',end_date:'2007-12-31',job_id:'ST_CLERK',department_id:50},
+    {employee_id:176,start_date:'2006-03-24',end_date:'2006-12-31',job_id:'SA_REP',department_id:80},
+    {employee_id:200,start_date:'1995-09-17',end_date:'2001-06-17',job_id:'AD_ASST',department_id:90},
+    {employee_id:200,start_date:'2001-07-01',end_date:'2002-12-31',job_id:'AC_ACCOUNT',department_id:110},
+    {employee_id:201,start_date:'2004-02-17',end_date:'2007-12-19',job_id:'MK_REP',department_id:20}
+  ]
+};
+
+const TABLE_META = {
+  employees: {
+    pk:'employee_id', fks:{department_id:'departments.department_id', manager_id:'employees.employee_id', job_id:'jobs.job_id'},
+    columns:['employee_id','first_name','last_name','email','phone_number','hire_date','job_id','salary','commission_pct','manager_id','department_id']
+  },
+  departments: {
+    pk:'department_id', fks:{manager_id:'employees.employee_id', location_id:'locations.location_id'},
+    columns:['department_id','department_name','manager_id','location_id']
+  },
+  jobs: {
+    pk:'job_id', fks:{},
+    columns:['job_id','job_title','min_salary','max_salary']
+  },
+  locations: {
+    pk:'location_id', fks:{country_id:'countries.country_id'},
+    columns:['location_id','street_address','postal_code','city','state_province','country_id']
+  },
+  countries: {
+    pk:'country_id', fks:{region_id:'regions.region_id'},
+    columns:['country_id','country_name','region_id']
+  },
+  regions: {
+    pk:'region_id', fks:{},
+    columns:['region_id','region_name']
+  },
+  job_history: {
+    pk:'[employee_id, start_date]', fks:{employee_id:'employees.employee_id', job_id:'jobs.job_id', department_id:'departments.department_id'},
+    columns:['employee_id','start_date','end_date','job_id','department_id']
+  }
+};
+
+// ============================================================
+// STATE
+// ============================================================
+let currentResult = null;
+let currentColumns = null;
+let sortCol = null;
+let sortDir = 'asc';
+let selectedRow = null;
+let resultTabs = [];
+let activeTabIdx = -1;
+
+// ============================================================
+// INIT - Load data into sql.js (SQLite)
+// ============================================================
+var db = null;
+
+function initDB() {
+  for (var tableName in HR_DATA) {
+    var rows = HR_DATA[tableName];
+    if (!rows || rows.length === 0) continue;
+    var cols = Object.keys(rows[0]);
+    // Determine SQLite types from first non-null values
+    var colDefs = cols.map(function(c) {
+      for (var r = 0; r < rows.length; r++) {
+        if (rows[r][c] !== null && rows[r][c] !== undefined) {
+          return typeof rows[r][c] === 'number' ? '"' + c + '" INTEGER' : '"' + c + '" TEXT';
+        }
+      }
+      return '"' + c + '" TEXT';
+    }).join(', ');
+    try { db.run('DROP TABLE IF EXISTS "' + tableName + '"'); } catch(e) {}
+    db.run('CREATE TABLE "' + tableName + '" (' + colDefs + ')');
+    // Bulk insert using parameterized query
+    var placeholders = cols.map(function() { return '?'; }).join(', ');
+    var quotedCols = cols.map(function(c) { return '"' + c + '"'; }).join(', ');
+    var insertSql = 'INSERT INTO "' + tableName + '" (' + quotedCols + ') VALUES (' + placeholders + ')';
+    var stmt = db.prepare(insertSql);
+    db.exec('BEGIN TRANSACTION');
+    for (var i = 0; i < rows.length; i++) {
+      var vals = cols.map(function(c) { return rows[i][c] === undefined ? null : rows[i][c]; });
+      stmt.run(vals);
+    }
+    db.exec('COMMIT');
+    stmt.free();
+  }
+
+}
+
+// ============================================================
+// ORACLE SQL PREPROCESSOR - Convert Oracle syntax to SQLite
+// ============================================================
+function preprocessOracleSQL(sql) {
+  // Strip single-line SQL comments (-- ...) before parsing
+  sql = sql.replace(/--[^\n]*/g, '');
+
+  // Strip Oracle schema prefix: hr.employees → employees (SQLite has no schemas)
+  sql = sql.replace(/\bhr\.\w+/gi, function(m) { return m.substring(3); });
+  sql = sql.replace(/\bscott\.\w+/gi, function(m) { return m.substring(6); });
+  sql = sql.replace(/\bsys\.\w+/gi, function(m) { return m.substring(4); });
+
+  // EXTRACT(YEAR FROM expr) → extract_year(expr)
+  sql = sql.replace(/EXTRACT\s*\(\s*(YEAR|MONTH|DAY|HOUR|MINUTE|SECOND|QUARTER|WEEK|DOW|DOY)\s+FROM\s+/gi,
+    function(match, part) {
+      return 'extract_' + part.toLowerCase() + '(';
+    }
+  );
+
+  // DATE 'YYYY-MM-DD' literal → 'YYYY-MM-DD'
+  sql = sql.replace(/DATE\s*'(\d{4}-\d{2}-\d{2})'/gi, "'$1'");
+
+  // TIMESTAMP 'YYYY-MM-DD HH:MI:SS' literal → 'YYYY-MM-DD HH:MI:SS'
+  sql = sql.replace(/TIMESTAMP\s*'([^']+)'/gi, "'$1'");
+
+  // FROM DUAL → remove (SQLite allows SELECT without FROM)
+  // Single regex handles all contexts: end of line, before ; ) , UNION, ORDER BY, etc.
+  sql = sql.replace(/\s+FROM\s+DUAL\b/gi, '');
+
+  // MINUS → EXCEPT (Oracle MINUS = SQLite EXCEPT, only before SELECT to avoid alias conflicts)
+  sql = sql.replace(/\bMINUS\b(?=\s+SELECT\b)/gi, 'EXCEPT');
+
+  // ROUND(X, Y) → _oracle_round(X, Y) to override SQLite built-in round()
+  sql = sql.replace(/\bROUND\s*\(/gi, '_oracle_round(');
+
+  // Ensure optional arguments are present (sql.js requires exact arg count via func.length)
+  sql = ensureMinArgs(sql, '_oracle_round', 2, '0');     // round(salary) → round(salary, 0)
+  sql = ensureMinArgs(sql, 'trunc', 2, '0');              // trunc(salary) → trunc(salary, 0)
+  sql = ensureMinArgs(sql, 'to_char', 2, "''");           // to_char(salary) → to_char(salary, '')
+  sql = ensureMinArgs(sql, 'instr', 4, '1');              // instr(s,p) → instr(s,p,1,1)
+  sql = ensureMinArgs(sql, 'substr', 3, 'NULL');           // substr(s,start) → substr(s,start,NULL)
+  sql = ensureMinArgs(sql, 'lpad', 3, "' '");             // lpad(s,n) → lpad(s,n,' ')
+  sql = ensureMinArgs(sql, 'rpad', 3, "' '");             // rpad(s,n) → rpad(s,n,' ')
+
+  // (+) old Oracle outer join syntax: WHERE a.id = b.id(+) → handled as LEFT JOIN hint
+  // Not auto-converted, but users can use standard LEFT JOIN instead
+
+  // LISTAGG(expr, delimiter) WITHIN GROUP (ORDER BY ...) → group_concat(expr, delimiter)
+  sql = sql.replace(/LISTAGG\s*\(/gi, 'group_concat(');
+  sql = sql.replace(/\s+WITHIN\s+GROUP\s*\(\s*ORDER\s+BY[^)]*\)/gi, '');
+
+  // REGEXP_LIKE(str, pattern) → (str LIKE pattern) approximation
+  // SQLite doesn't have built-in regex, but sql.js may support REGEXP
+
+  // ============================================================
+  // PIVOT → SUM(CASE WHEN ...) GROUP BY conversion
+  // ============================================================
+  // Pattern: ... ) PIVOT ( agg(expr) FOR col IN ('v1' AS a1, 'v2' AS a2, ...) )
+  var pivotRe = /\)\s*PIVOT\s*\(\s*/gi;
+  if (pivotRe.test(sql)) {
+    sql = convertPivot(sql);
+  }
+
+  // ============================================================
+  // UNPIVOT → UNION ALL conversion
+  // ============================================================
+  var unpivotRe = /\)\s*UNPIVOT\s*\(\s*/gi;
+  if (unpivotRe.test(sql)) {
+    sql = convertUnpivot(sql);
+  }
+
+  // ============================================================
+  // ALL / ANY / SOME operator conversion: Oracle → SQLite compatible
+  // ============================================================
+  sql = convertAllAnyOperators(sql);
+
+  return sql;
+}
+
+// ============================================================
+// ALL / ANY / SOME operator conversion: Oracle → SQLite compatible
+// ============================================================
+// Converts Oracle's > ALL(subquery), > ANY(subquery), etc. to SQLite-compatible syntax.
+// ALL/ANY with aggregate wrapping: > ALL(sub) → > (SELECT MAX(_all_v) FROM (sub))
+// Simple equivalences: = ANY(sub) → IN(sub), != ALL(sub) → NOT IN(sub)
+// Iterative processing handles nested ALL/ANY if present.
+function convertAllAnyOperators(sql) {
+  var prev = '';
+  var safety = 0;
+  while (sql !== prev && safety < 10) {
+    prev = sql;
+    sql = convertAllAnyPass(sql);
+    safety++;
+  }
+  return sql;
+}
+
+function convertAllAnyPass(sql) {
+  var re = /(>=|<=|<>|!=|=|>|<)\s*(ALL|ANY|SOME)\s*\(/gi;
+  var match;
+  var replacements = [];
+
+  while ((match = re.exec(sql)) !== null) {
+    var op = match[1].toUpperCase();
+    var qualifier = match[2].toUpperCase();
+    var parenStart = match.index + match[0].length - 1;
+    var closeParen = findMatchingCloseParen(sql, parenStart);
+    if (closeParen < 0) continue;
+
+    var subquery = sql.substring(parenStart + 1, closeParen).trim();
+    var replacement;
+
+    if ((qualifier === 'ANY' || qualifier === 'SOME') && op === '=') {
+      // = ANY(sub) / = SOME(sub) → IN (sub)
+      replacement = ' IN (' + subquery + ')';
+    } else if (qualifier === 'ALL' && (op === '!=' || op === '<>')) {
+      // != ALL(sub) / <> ALL(sub) → NOT IN (sub)
+      replacement = ' NOT IN (' + subquery + ')';
+    } else {
+      // General case: wrap subquery with aggregate (MAX or MIN)
+      var defaultAlias = (qualifier === 'ALL' ? '_all_v' : '_any_v');
+      var aggFunc;
+      if (qualifier === 'ALL') {
+        aggFunc = (op === '>' || op === '>=') ? 'MAX' : 'MIN';
+      } else {
+        aggFunc = (op === '>' || op === '>=') ? 'MIN' : 'MAX';
+      }
+      var aliasResult = aliasFirstSelectExpr(subquery, defaultAlias);
+      if (aliasResult === null) {
+        // SELECT * or unparseable — cannot convert, leave unchanged
+        continue;
+      }
+      replacement = ' ' + op + ' (SELECT ' + aggFunc + '(' + aliasResult.alias + ') FROM (' + aliasResult.sql + '))';
+    }
+
+    replacements.push({ from: match.index, to: closeParen + 1, text: replacement });
+  }
+
+  if (replacements.length === 0) return sql;
+
+  // Apply replacements in reverse order, adjusting earlier indices
+  for (var i = replacements.length - 1; i >= 0; i--) {
+    var r = replacements[i];
+    var delta = r.text.length - (r.to - r.from);
+    sql = sql.substring(0, r.from) + r.text + sql.substring(r.to);
+    for (var j = i - 1; j >= 0; j--) {
+      if (replacements[j].to > r.from) {
+        replacements[j].to += delta;
+      }
+    }
+  }
+
+  return sql;
+}
+
+// Helper: add alias to the first expression in a subquery's SELECT list.
+// Returns { sql: modifiedSubquery, alias: actualAliasName } or null if SELECT *.
+// e.g., "SELECT avg(salary) FROM ..." → { sql: "SELECT avg(salary) AS _v FROM ...", alias: "_v" }
+// e.g., "SELECT avg(salary) AS avg_sal FROM ..." → { sql: "...(unchanged)...", alias: "avg_sal" }
+// e.g., "SELECT * FROM ..." → null (cannot alias)
+function aliasFirstSelectExpr(subquery, defaultAlias) {
+  var selectIdx = subquery.search(/\bSELECT\s+/i);
+  if (selectIdx < 0) return null;
+
+  var wsMatch = subquery.substring(selectIdx).match(/\bSELECT\s+/i);
+  var pos = selectIdx + wsMatch[0].length;
+
+  // Skip DISTINCT / ALL after SELECT
+  if (/^DISTINCT\b/i.test(subquery.substring(pos))) {
+    pos += 'DISTINCT'.length;
+    while (pos < subquery.length && /\s/.test(subquery.charAt(pos))) pos++;
+  }
+  if (/^ALL\b/i.test(subquery.substring(pos))) {
+    pos += 'ALL'.length;
+    while (pos < subquery.length && /\s/.test(subquery.charAt(pos))) pos++;
+  }
+
+  // Find end of first expression (comma at depth 0 or SQL keyword at depth 0)
+  var depth = 0;
+  var exprEnd = pos;
+  var inStr = false;
+  var strCh = '';
+
+  for (var i = pos; i < subquery.length; i++) {
+    var ch = subquery.charAt(i);
+    if (!inStr && (ch === "'")) { inStr = true; strCh = ch; }
+    else if (inStr && ch === strCh) { inStr = false; }
+    if (inStr) continue;
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    else if (depth === 0 && ch === ',') { exprEnd = i; break; }
+    else if (depth === 0 && /\s/.test(ch)) {
+      var rest = subquery.substring(i).trim();
+      if (/^(FROM|WHERE|GROUP|HAVING|ORDER|UNION|LIMIT|INTO|SET)\b/i.test(rest)) {
+        exprEnd = i; break;
+      }
+    }
+  }
+
+  if (exprEnd === pos) exprEnd = subquery.length;
+  var expr = subquery.substring(pos, exprEnd);
+  var trimmedExpr = expr.replace(/\s+$/, '');
+
+  // Cannot alias a bare *
+  if (trimmedExpr.trim() === '*') return null;
+
+  // Check if expression already has an alias: extract it
+  var existingAlias = null;
+  var asMatch = trimmedExpr.match(/\bAS\s+(\w+)\s*$/i);
+  if (asMatch) {
+    existingAlias = asMatch[1];
+  } else {
+    // Check for implicit alias (identifier without AS at end)
+    var implicitMatch = trimmedExpr.match(/^(\S+)\s+(\w+)\s*$/);
+    if (implicitMatch && !/^(FROM|WHERE|GROUP|HAVING|ORDER|UNION|LIMIT|INTO|SET)$/i.test(implicitMatch[2])) {
+      // Check if the last word could be an alias
+      var firstPart = implicitMatch[1];
+      // Only treat as alias if first part is an expression (not ending in operator)
+      if (!/[><!=<>]$/.test(firstPart) && !/\w\s*$/.test(firstPart.substring(0, firstPart.length - 1).trim()) === false) {
+        // Ambiguous — don't try to detect implicit aliases
+      }
+    }
+  }
+
+  // If existing alias found, return unchanged subquery with that alias
+  if (existingAlias) {
+    return { sql: subquery, alias: existingAlias };
+  }
+
+  // No alias — add our default alias
+  var modifiedSql = subquery.substring(0, pos) + trimmedExpr + ' AS ' + defaultAlias + subquery.substring(exprEnd);
+  return { sql: modifiedSql, alias: defaultAlias };
+}
+
+// Split string by commas, respecting parenthesis nesting
+function splitTopLevelCommas(str) {
+  var parts = [];
+  var depth = 0;
+  var current = '';
+  for (var i = 0; i < str.length; i++) {
+    var ch = str.charAt(i);
+    if (ch === '(') depth++;
+    else if (ch === ')') depth--;
+    else if (ch === ',' && depth === 0) {
+      parts.push(current);
+      current = '';
+      continue;
+    }
+    current += ch;
+  }
+  if (current.trim()) parts.push(current);
+  return parts;
+}
+
+// ============================================================
+// PIVOT converter: Oracle PIVOT → SUM(CASE WHEN...) GROUP BY
+// Uses inline replacement to preserve CTE structure
+// ============================================================
+function convertPivot(sql) {
+  // Find PIVOT keyword at any level
+  var pivotIdx = sql.search(/\bPIVOT\s*\(/i);
+  if (pivotIdx < 0) return sql;
+
+  // Find PIVOT body opening paren and matching close paren
+  var pivotOpenParen = sql.indexOf('(', pivotIdx);
+  var pivotCloseParen = findMatchingCloseParen(sql, pivotOpenParen);
+  if (pivotCloseParen < 0) return sql;
+  var pivotBody = sql.substring(pivotOpenParen + 1, pivotCloseParen).trim();
+
+  // Find source subquery: ) right before PIVOT keyword
+  var pos = pivotIdx - 1;
+  while (pos >= 0 && /\s/.test(sql.charAt(pos))) pos--;
+  if (pos < 0 || sql.charAt(pos) !== ')') return sql;
+  var srcClosePos = pos;
+
+  // Find matching open paren for the source
+  var srcOpenPos = findMatchingOpenParen(sql, srcClosePos);
+  if (srcOpenPos < 0) return sql;
+  var sourceQuery = sql.substring(srcOpenPos, srcClosePos + 1);
+
+  // Find SELECT keyword before source (the outer SELECT feeding into PIVOT)
+  var selectStart = findLastTopLevelSelect(sql, srcOpenPos);
+  if (selectStart < 0) selectStart = srcOpenPos;
+
+  // Detect CTE context: is there content before our SELECT?
+  var beforeSelect = sql.substring(0, selectStart).trim();
+  var isCTE = beforeSelect.length > 0;
+
+  // Parse PIVOT body
+  var forMatch = pivotBody.match(/\bFOR\s+(\w+)\s+IN\s*\(([\s\S]*)\)\s*$/i);
+  if (!forMatch) return sql;
+  var pivotCol = forMatch[1];
+  var inList = forMatch[2].trim();
+
+  // Parse IN list
+  var inItems = [];
+  var itemRe = /(?:'([^']*)'|([\w.]+))\s*(?:AS\s+(\w+))?\s*,?/gi;
+  var m;
+  while ((m = itemRe.exec(inList)) !== null) {
+    var v = m[1] !== undefined ? m[1] : m[2];
+    var a = m[3];
+    if (!v) continue;
+    inItems.push({ value: v, alias: a || v, quoted: m[1] !== undefined });
+  }
+  if (inItems.length === 0) return sql;
+
+  // Parse multiple aggregates: SUM(x) AS a, COUNT(y) AS b, ...
+  var aggPart = pivotBody.substring(0, pivotBody.indexOf('FOR')).trim();
+  var aggregates = [];
+  var aggRe = /(\w+)\s*\(([^()]*)\)\s*(?:AS\s+(\w+))?\s*,?/gi;
+  var am;
+  while ((am = aggRe.exec(aggPart)) !== null) {
+    aggregates.push({
+      func: am[1].toUpperCase(),
+      expr: am[2].trim(),
+      alias: am[3] || (am[1].toUpperCase() + '_' + am[2].trim().replace(/[^a-zA-Z0-9_]/g, '_')),
+      isStar: am[2].trim() === '*'
+    });
+  }
+  if (aggregates.length === 0) return sql;
+
+  // Determine GROUP BY columns from source query
+  var aggExprs = [];
+  for (var ai = 0; ai < aggregates.length; ai++) {
+    if (!aggregates[ai].isStar) aggExprs.push(aggregates[ai].expr.toLowerCase());
+  }
+  var groupCols = [];
+  var selMatch = sourceQuery.match(/SELECT\s+([\s\S]*?)\s+FROM\s/i);
+  if (selMatch) {
+    var cols = splitTopLevelCommas(selMatch[1]);
+    for (var ci = 0; ci < cols.length; ci++) {
+      var c = cols[ci].trim();
+      if (!c) continue;
+      var colName = c.replace(/.*\./g, '').trim();
+      var am2 = colName.match(/(?:AS\s+)?(\w+)\s*$/i);
+      if (am2) colName = am2[1];
+      var bare = c.trim().replace(/.*\s+(\w+)\s*$/i, '$1');
+      var skip = (colName.toLowerCase() === pivotCol.toLowerCase() || bare.toLowerCase() === pivotCol.toLowerCase());
+      if (!skip && aggExprs.indexOf(colName.toLowerCase()) >= 0) skip = true;
+      if (!skip && aggExprs.indexOf(bare.toLowerCase()) >= 0) skip = true;
+      if (c.trim() === '*') skip = true;
+      if (!skip) groupCols.push(colName);
+    }
+  }
+  if (groupCols.length === 0) {
+    var tblMatch = sourceQuery.match(/FROM\s+(\w+)/i);
+    if (tblMatch) groupCols.push(pivotCol);
+  }
+
+  // Build CASE WHEN lines for each aggregate × IN value
+  var caseLines = [];
+  for (var ii = 0; ii < inItems.length; ii++) {
+    var valStr = inItems[ii].quoted ? "'" + inItems[ii].value + "'" : inItems[ii].value;
+    for (var ai2 = 0; ai2 < aggregates.length; ai2++) {
+      var thenExpr = aggregates[ai2].isStar ? '1' : aggregates[ai2].expr;
+      var colName = inItems[ii].alias + '_' + aggregates[ai2].alias.toUpperCase();
+      caseLines.push('    ' + aggregates[ai2].func + '(CASE WHEN ' + pivotCol + ' = ' + valStr + ' THEN ' + thenExpr + ' END) AS ' + colName);
+    }
+  }
+  var groupByStr = groupCols.length > 0 ? groupCols.join(', ') : pivotCol;
+
+  // Build the converted query
+  var converted = 'SELECT ' + groupByStr + ',\n' + caseLines.join(',\n') + '\nFROM ' + sourceQuery + '\nGROUP BY ' + groupByStr;
+
+  // Inline replacement: replace from SELECT start to PIVOT close paren
+  var afterPivot = sql.substring(pivotCloseParen + 1);
+
+  if (isCTE) {
+    // CTE context: just splice the converted query in place
+    return sql.substring(0, selectStart) + converted + afterPivot;
+  } else {
+    // Standalone query: handle trailing clauses (WHERE, ORDER BY, etc.)
+    var trailing = afterPivot.trim();
+    if (trailing) {
+      if (trailing.charAt(trailing.length - 1) === ';') trailing = trailing.substring(0, trailing.length - 1).trim();
+      var clauseMatch = trailing.match(/^(WHERE|ORDER\s+BY|GROUP\s+BY|HAVING|LIMIT)\s+([\s\S]*)$/i);
+      if (clauseMatch) {
+        converted = 'SELECT * FROM (' + converted + ')' + '\n' + clauseMatch[1] + ' ' + clauseMatch[2];
+      }
+      return sql.substring(0, selectStart) + converted + afterPivot;
+    }
+    return sql.substring(0, selectStart) + converted + afterPivot;
+  }
+}
+
+// Helper: find matching close paren for open paren at pos
+function findMatchingCloseParen(sql, openPos) {
+  var depth = 0;
+  for (var i = openPos; i < sql.length; i++) {
+    if (sql.charAt(i) === '(') depth++;
+    if (sql.charAt(i) === ')') { depth--; if (depth === 0) return i; }
+  }
+  return -1;
+}
+
+// Helper: ensure a function call has at least minArgs arguments by appending defaultArg.
+// Handles nested parentheses correctly (e.g., round(round(x,1), 2) is not broken).
+// Usage: sql = ensureMinArgs(sql, '_oracle_round', 2, '0');
+function ensureMinArgs(sql, funcName, minArgs, defaultArg) {
+  var result = '';
+  var searchFrom = 0;
+  var upper = sql.toUpperCase();
+  var nameUpper = funcName.toUpperCase();
+
+  while (true) {
+    var idx = upper.indexOf(nameUpper, searchFrom);
+    if (idx < 0) break;
+
+    // Word boundary: char before must not be alphanumeric or underscore
+    if (idx > 0 && /\w/.test(sql.charAt(idx - 1))) {
+      searchFrom = idx + 1;
+      continue;
+    }
+
+    // Must be followed by '('
+    var afterName = idx + nameUpper.length;
+    var j = afterName;
+    while (j < sql.length && sql.charAt(j) === ' ') j++;
+    if (j >= sql.length || sql.charAt(j) !== '(') {
+      searchFrom = idx + 1;
+      continue;
+    }
+
+    var openParen = j;
+    var closeParen = findMatchingCloseParen(sql, openParen);
+    if (closeParen < 0) break;
+
+    // Extract inner content between parens
+    var inner = sql.substring(openParen + 1, closeParen);
+
+    // Count top-level commas (depth 0, ignore commas inside strings and nested parens)
+    var depth = 0;
+    var inStr = false;
+    var strCh = '';
+    var commaCount = 0;
+    for (var k = 0; k < inner.length; k++) {
+      var ch = inner.charAt(k);
+      if (!inStr && (ch === "'" || ch === '"')) { inStr = true; strCh = ch; continue; }
+      if (inStr && ch === strCh) { inStr = false; continue; }
+      if (inStr) continue;
+      if (ch === '(') depth++;
+      else if (ch === ')') depth--;
+      else if (ch === ',' && depth === 0) commaCount++;
+    }
+
+    // If fewer args than minArgs, append defaultArg(s)
+    var missing = minArgs - 1 - commaCount; // commaCount + 1 = actual arg count
+    if (missing > 0) {
+      var suffix = '';
+      for (var m = 0; m < missing; m++) {
+        suffix += (m === 0 && inner.trim().length > 0 ? ', ' : ', ') + defaultArg;
+      }
+      result += sql.substring(searchFrom, closeParen) + suffix;
+      searchFrom = closeParen;
+    } else {
+      result += sql.substring(searchFrom, closeParen + 1);
+      searchFrom = closeParen + 1;
+    }
+  }
+  result += sql.substring(searchFrom);
+  return result;
+}
+
+// Helper: find matching open paren for close paren at pos
+function findMatchingOpenParen(sql, closePos) {
+  var depth = 0;
+  for (var i = closePos; i >= 0; i--) {
+    if (sql.charAt(i) === ')') depth++;
+    if (sql.charAt(i) === '(') { depth--; if (depth === 0) return i; }
+  }
+  return -1;
+}
+
+// Helper: find the last SELECT keyword at the same paren depth as a given position
+function findLastTopLevelSelect(sql, limit) {
+  // First calculate the paren depth at limit position
+  var depthAtLimit = 0;
+  for (var i = 0; i < limit; i++) {
+    if (sql.charAt(i) === '(') depthAtLimit++;
+    if (sql.charAt(i) === ')') depthAtLimit--;
+  }
+  // Now search backward from limit for SELECT at depthAtLimit
+  var depth = 0;
+  var lastPos = -1;
+  for (var i = 0; i < limit; i++) {
+    if (sql.charAt(i) === '(') depth++;
+    if (sql.charAt(i) === ')') depth--;
+    if (depth === depthAtLimit && sql.substring(i, i + 6).toUpperCase() === 'SELECT' &&
+        (i === 0 || /[\s(,]/.test(sql.charAt(i - 1)))) {
+      lastPos = i;
+    }
+  }
+  return lastPos;
+}
+
+// ============================================================
+// UNPIVOT converter: Oracle UNPIVOT → UNION ALL
+// ============================================================
+function convertUnpivot(sql) {
+  // Pattern: ... ) UNPIVOT ( val_col FOR piv_col IN (col1 AS 'a1', col2 AS 'a2', ...) )
+  var unpivotIdx = sql.search(/\)\s*UNPIVOT\s*\(/i);
+  if (unpivotIdx < 0) return sql;
+
+  // Extract source (before ") UNPIVOT")
+  var sourceEnd = sql.lastIndexOf(')', unpivotIdx);
+  var parenCount = 0;
+  var sourceStart = sourceEnd;
+  for (var k = sourceEnd; k >= 0; k--) {
+    if (sql.charAt(k) === ')') parenCount++;
+    if (sql.charAt(k) === '(') parenCount--;
+    if (parenCount === 0) { sourceStart = k; break; }
+  }
+  var sourcePart = sql.substring(0, sourceStart).trim();
+  var sourceQuery = sql.substring(sourceStart, sourceEnd + 1);
+
+  // Extract outer SELECT column list (e.g., "SELECT employee_id, payment_category FROM")
+  var outerSelectCols = '*';
+  var outerSelMatch = sourcePart.match(/^SELECT\s+([\s\S]*?)\s+FROM\s*$/i);
+  if (outerSelMatch) {
+    var oc = outerSelMatch[1].trim();
+    if (oc && oc !== '*') outerSelectCols = oc;
+  }
+
+  // Extract UNPIVOT body
+  var unpivotContentStart = sql.indexOf('(', sql.indexOf('UNPIVOT', unpivotIdx)) + 1;
+  parenCount = 0;
+  var unpivotContentEnd = unpivotContentStart;
+  for (var k = unpivotContentStart; k < sql.length; k++) {
+    if (sql.charAt(k) === '(') parenCount++;
+    if (sql.charAt(k) === ')') parenCount--;
+    if (parenCount < 0) { unpivotContentEnd = k; break; }
+  }
+  var unpivotBody = sql.substring(unpivotContentStart, unpivotContentEnd).trim();
+
+  // Parse: value_col FOR pivot_col IN (col1 AS 'alias1', col2 AS 'alias2')
+  var forMatch = unpivotBody.match(/\bFOR\s+(\w+)\s+IN\s*\(([\s\S]*)\)\s*$/i);
+  if (!forMatch) return sql;
+
+  var firstPart = unpivotBody.substring(0, unpivotBody.indexOf('FOR')).trim();
+  // value_col may have optional INCLUDE/EXCLUDE NULLS
+  var valCol = firstPart.replace(/\s*(INCLUDE|EXCLUDE)\s+NULLS\s*/gi, '').trim();
+  var pivCol = forMatch[1];
+  var inList = forMatch[2].trim();
+
+  // Parse IN list: col1 AS 'a1', col2 AS 'a2', ...  (or without AS)
+  var inItems = [];
+  var itemRe = /(\w+)\s*(?:AS\s+'([^']*)')?\s*,?/gi;
+  var m;
+  while ((m = itemRe.exec(inList)) !== null) {
+    inItems.push({ column: m[1], alias: m[2] || m[1] });
+  }
+  if (inItems.length === 0) return sql;
+
+  // Build UNION ALL — each item selects its own column value
+  // Detect non-unpivoted columns from source SELECT to carry forward
+  var sourceSelMatch = sourceQuery.match(/SELECT\s+([\s\S]*?)\s+FROM\s/i);
+  var unpivotColNames = [];
+  for (var ii = 0; ii < inItems.length; ii++) unpivotColNames.push(inItems[ii].column.toLowerCase());
+  var carryCols = '';
+  if (sourceSelMatch) {
+    var srcCols = splitTopLevelCommas(sourceSelMatch[1]);
+    var carryParts = [];
+    for (var ci = 0; ci < srcCols.length; ci++) {
+      var cc = srcCols[ci].trim();
+      if (!cc) continue;
+      // Extract alias if present: "expr AS alias" or "expr alias"
+      var colName = cc.replace(/.*\./g, '').trim();
+      var aliasMatch = colName.match(/(?:AS\s+)?(\w+)\s*$/i);
+      if (aliasMatch) colName = aliasMatch[1];
+      // Also try the last word before potential alias
+      var bareName = cc.trim().replace(/.*\s+(\w+)\s*$/i, '$1');
+      if (unpivotColNames.indexOf(colName.toLowerCase()) < 0 && unpivotColNames.indexOf(bareName.toLowerCase()) < 0) {
+        carryParts.push(cc.trim());
+      }
+    }
+    carryCols = carryParts.join(', ') + ', ';
+  }
+  var unions = [];
+  for (var ii = 0; ii < inItems.length; ii++) {
+    unions.push('SELECT ' + carryCols + inItems[ii].column + ' AS ' + valCol + ', ' + "'" + inItems[ii].alias + "' AS " + pivCol + ' FROM ' + sourceQuery + ' WHERE ' + inItems[ii].column + ' IS NOT NULL');
+  }
+  var result = unions.join('\nUNION ALL\n');
+
+  // Handle trailing clauses (WHERE, ORDER BY, etc.) after UNPIVOT
+  // Wrap UNION ALL in a subquery and apply outer clause
+  var trailing = sql.substring(unpivotContentEnd + 1).trim();
+  if (trailing) {
+    // Remove trailing semicolon
+    if (trailing.charAt(trailing.length - 1) === ';') trailing = trailing.substring(0, trailing.length - 1).trim();
+    // Detect clause type (WHERE, ORDER BY, GROUP BY, HAVING, LIMIT)
+    var clauseMatch = trailing.match(/^(WHERE|ORDER\s+BY|GROUP\s+BY|HAVING|LIMIT)\s+([\s\S]*)$/i);
+    if (clauseMatch) {
+      result = 'SELECT ' + outerSelectCols + ' FROM (' + result + ')' + '\n' + clauseMatch[1] + ' ' + clauseMatch[2];
+    } else {
+      result += ' ' + trailing;
+    }
+  }
+
+  // If no trailing clause but outer SELECT had specific columns (not *), still wrap
+  if (!trailing && outerSelectCols !== '*') {
+    result = 'SELECT ' + outerSelectCols + ' FROM (' + result + ')';
+  }
+
+  return result;
+}
+
+// ============================================================
+// ORACLE SEMANTIC VALIDATOR (tokenizer-based)
+// Oracle davranışını təqlid edir:
+//   ORA-00934 (WHERE-də aqreqat), ORA-00937 (aqreqat + qeyri-aqreqat
+//   GROUP BY olmadan), ORA-00979 (GROUP BY-a daxil olmayan ifadə).
+// Prinsiplər:
+//   - subquery-lər ayrıca yoxlanılır (rekursiv effekti)
+//   - window funksiyaları (OVER) exempt edilir
+//   - SELECT list-də qeyri-aqreqat ifadə GROUP BY ifadəsi ilə
+//     TAM uyğun gəlməlidir (UPPER(col) + GROUP BY col → xəta, Oracle kimi)
+//   - aqreqat daxil olan ifadələrdə kənar sütunlar GROUP BY-da
+//     sadə sütun kimi olmalıdır (SUM(salary)+department_id → legal)
+//   - ORDER BY / HAVING sütun-referens səviyyəsində yoxlanılır
+//   - hər hansı parse problemi → fail-open (xəta qaytarılmır)
+// ============================================================
+
+var ORA_AGG_FUNCS = {
+  COUNT:1, SUM:1, AVG:1, MIN:1, MAX:1,
+  STDDEV:1, STDDEV_POP:1, STDDEV_SAMP:1,
+  VARIANCE:1, VAR_POP:1, VAR_SAMP:1,
+  MEDIAN:1, LISTAGG:1, GROUP_CONCAT:1
+};
+
+var ORA_RESERVED = {
+  SELECT:1, FROM:1, WHERE:1, GROUP:1, BY:1, HAVING:1, ORDER:1,
+  UNION:1, ALL:1, DISTINCT:1, UNIQUE:1, AS:1, AND:1, OR:1, NOT:1,
+  IN:1, EXISTS:1, BETWEEN:1, LIKE:1, IS:1, NULL:1, CASE:1, WHEN:1,
+  THEN:1, ELSE:1, END:1, ASC:1, DESC:1, NULLS:1, FIRST:1, LAST:1,
+  JOIN:1, INNER:1, LEFT:1, RIGHT:1, FULL:1, OUTER:1, CROSS:1, ON:1,
+  USING:1, NATURAL:1, INTERSECT:1, EXCEPT:1, MINUS:1, OVER:1,
+  PARTITION:1, ROWS:1, RANGE:1, CURRENT:1, ROW:1, WITH:1, ESCAPE:1,
+  CAST:1, CONNECT:1, START:1, PRIOR:1, LEVEL:1, ROWNUM:1, SYSDATE:1,
+  ANY:1, SOME:1, TO:1, FETCH:1, OFFSET:1, LIMIT:1, WINDOW:1,
+  NO:1, WAIT:1, FOR:1, OF:1, ONLY:1, NEXTVAL:1, CURRVAL:1
+};
+
+function oraTokenize(sql) {
+  var toks = [];
+  var i = 0, n = sql.length;
+  while (i < n) {
+    var c = sql.charAt(i);
+    if (c === ' ' || c === '\t' || c === '\n' || c === '\r') { i++; continue; }
+    if (c === '-' && sql.charAt(i + 1) === '-') {
+      while (i < n && sql.charAt(i) !== '\n') i++;
+      continue;
+    }
+    if (c === '/' && sql.charAt(i + 1) === '*') {
+      var ce = sql.indexOf('*/', i + 2);
+      i = ce < 0 ? n : ce + 2;
+      continue;
+    }
+    if (c === "'") {
+      var j = i + 1;
+      while (j < n) {
+        if (sql.charAt(j) === "'") {
+          if (sql.charAt(j + 1) === "'") { j += 2; continue; }
+          break;
+        }
+        j++;
+      }
+      toks.push({ t: 'str', v: sql.substring(i, Math.min(j + 1, n)) });
+      i = j + 1;
+      continue;
+    }
+    if (c === '"') {
+      var qe = sql.indexOf('"', i + 1);
+      if (qe < 0) qe = n - 1;
+      toks.push({ t: 'id', v: sql.substring(i, qe + 1), up: sql.substring(i + 1, qe).toUpperCase() });
+      i = qe + 1;
+      continue;
+    }
+    var isDigit = c >= '0' && c <= '9';
+    if (isDigit || (c === '.' && sql.charAt(i + 1) >= '0' && sql.charAt(i + 1) <= '9')) {
+      var j2 = i;
+      while (j2 < n && ((sql.charAt(j2) >= '0' && sql.charAt(j2) <= '9') || sql.charAt(j2) === '.')) j2++;
+      if (j2 < n && (sql.charAt(j2) === 'e' || sql.charAt(j2) === 'E')) {
+        var j3 = j2 + 1;
+        if (j3 < n && (sql.charAt(j3) === '+' || sql.charAt(j3) === '-')) j3++;
+        if (j3 < n && sql.charAt(j3) >= '0' && sql.charAt(j3) <= '9') {
+          while (j3 < n && sql.charAt(j3) >= '0' && sql.charAt(j3) <= '9') j3++;
+          j2 = j3;
+        }
+      }
+      toks.push({ t: 'num', v: sql.substring(i, j2) });
+      i = j2;
+      continue;
+    }
+    if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c === '_') {
+      var j4 = i;
+      while (j4 < n) {
+        var cc = sql.charAt(j4);
+        if ((cc >= 'A' && cc <= 'Z') || (cc >= 'a' && cc <= 'z') || (cc >= '0' && cc <= '9') || cc === '_' || cc === '$' || cc === '#') j4++;
+        else break;
+      }
+      var w = sql.substring(i, j4);
+      toks.push({ t: 'id', v: w, up: w.toUpperCase() });
+      i = j4;
+      continue;
+    }
+    if (c === '(' || c === ')') { toks.push({ t: 'par', v: c }); i++; continue; }
+    if (c === ',' || c === ';') { toks.push({ t: 'sep', v: c }); i++; continue; }
+    if (c === '.') { toks.push({ t: 'dot', v: '.' }); i++; continue; }
+    var two = sql.substring(i, i + 2);
+    if (two === '>=' || two === '<=' || two === '<>' || two === '!=' || two === '||' || two === ':=' || two === '::') {
+      toks.push({ t: 'op', v: two });
+      i += 2;
+      continue;
+    }
+    toks.push({ t: 'op', v: c });
+    i++;
+  }
+  return toks;
+}
+
+function oraMatchParen(toks, openIdx) {
+  var depth = 0;
+  for (var j = openIdx; j < toks.length; j++) {
+    if (toks[j].t === 'par') {
+      depth += (toks[j].v === '(') ? 1 : -1;
+      if (depth === 0) return j;
+    }
+  }
+  return -1;
+}
+
+function oraSubqRanges(toks) {
+  var ranges = [];
+  var i = 0;
+  while (i < toks.length) {
+    if (toks[i].t === 'par' && toks[i].v === '(' &&
+        toks[i + 1] && toks[i + 1].t === 'id' && toks[i + 1].up === 'SELECT') {
+      var closeIdx = oraMatchParen(toks, i);
+      if (closeIdx > i) ranges.push([i, closeIdx]);
+    }
+    i++;
+  }
+  return ranges;
+}
+
+function oraInRange(ranges, i) {
+  for (var r = 0; r < ranges.length; r++) {
+    if (i >= ranges[r][0] && i <= ranges[r][1]) return true;
+  }
+  return false;
+}
+
+// Aggregate call ranges within [a,b]; subquery-daxili və OVER-lu çağırışlar istisna
+function oraAggRanges(toks, a, b, subqs) {
+  var res = [];
+  for (var i = a; i <= b && i < toks.length; i++) {
+    var t = toks[i];
+    if (!t || t.t !== 'id' || !ORA_AGG_FUNCS[t.up]) continue;
+    if (!(toks[i + 1] && toks[i + 1].t === 'par' && toks[i + 1].v === '(')) continue;
+    if (subqs && oraInRange(subqs, i)) continue;
+    var closeIdx = oraMatchParen(toks, i + 1);
+    if (closeIdx < 0 || closeIdx > b) continue;
+    if (toks[closeIdx + 1] && toks[closeIdx + 1].t === 'id' && toks[closeIdx + 1].up === 'OVER') continue;
+    res.push([i, closeIdx]);
+  }
+  return res;
+}
+
+function oraHasOver(toks, a, b) {
+  for (var i = a; i <= b && i < toks.length; i++) {
+    if (toks[i].t === 'id' && toks[i].up === 'OVER') return true;
+  }
+  return false;
+}
+
+// Column references within [a,b], excl ranges (aqreqat + subquery) daxil edilmir
+function oraRefs(toks, a, b, excl) {
+  var refs = [];
+  for (var i = a; i <= b && i < toks.length; i++) {
+    var t = toks[i];
+    if (!t || t.t !== 'id') continue;
+    if (oraInRange(excl, i)) continue;
+    if (ORA_RESERVED[t.up]) continue;
+    if (toks[i + 1] && toks[i + 1].t === 'par' && toks[i + 1].v === '(') continue; // funksiya adı
+    if (toks[i + 1] && toks[i + 1].t === 'dot') continue; // qualifier (a.b → b götürülür)
+    refs.push({ name: t.up, idx: i });
+  }
+  return refs;
+}
+
+// Canonical normallaşdırma: identlər böyük, qualifier-lər atılır (e.f → F)
+function oraNorm(toks, a, b) {
+  var parts = [];
+  for (var i = a; i <= b && i < toks.length; i++) {
+    var t = toks[i];
+    if (t.t === 'dot') { if (parts.length) parts.pop(); continue; }
+    if (t.t === 'id') parts.push(t.up);
+    else parts.push(t.v);
+  }
+  return parts.join(' ');
+}
+
+// Alias-sız ifadənin sonunu qaytarır (inclusive): [AS x] / [x] sonra
+function oraStripAliasEnd(toks, a, b) {
+  if (b <= a) return b;
+  if (toks[b - 1] && toks[b - 1].t === 'id' && toks[b - 1].up === 'AS' && toks[b].t === 'id') return b - 2;
+  var last = toks[b];
+  if (last && last.t === 'id') {
+    var prev = toks[b - 1];
+    if (!prev) return b;
+    if (prev.t === 'par' && prev.v === ')') return b - 1;
+    if (prev.t === 'str' || prev.t === 'num') return b - 1;
+    if (prev.t === 'id' && !(toks[b - 2] && toks[b - 2].t === 'dot')) return b - 1;
+  }
+  return b;
+}
+
+// Top-level vergüllə bölünmüş hissələr: [[a,b], ...]
+function oraSplitCommaItems(toks, a, b) {
+  var items = [];
+  var depth = 0, start = a;
+  for (var i = a; i <= b && i < toks.length; i++) {
+    var t = toks[i];
+    if (t.t === 'par') depth += (t.v === '(' ? 1 : -1);
+    else if (t.t === 'sep' && t.v === ',' && depth === 0) {
+      if (i - 1 >= start) items.push([start, i - 1]);
+      start = i + 1;
+    }
+  }
+  if (b >= start) items.push([start, b]);
+  return items;
+}
+
+// SELECT ... FROM/WHERE/GROUP BY/HAVING/ORDER BY hissələrini ayırır
+function oraParseSelect(toks, selIdx) {
+  var n = toks.length;
+  var i = selIdx + 1;
+  while (i < n && toks[i].t === 'id' && (toks[i].up === 'DISTINCT' || toks[i].up === 'ALL' || toks[i].up === 'UNIQUE')) i++;
+  var clauses = { list: null, where: null, groupBy: null, having: null, orderBy: null, from: null, window: null };
+  var names = { FROM: 'from', WHERE: 'where', GROUP: 'groupBy', HAVING: 'having', ORDER: 'orderBy', WINDOW: 'window' };
+  var cur = 'list', start = i, depth = 0, end = n - 1, done = false;
+  while (i < n && !done) {
+    var t = toks[i];
+    if (t.t === 'par') {
+      if (t.v === '(') depth++;
+      else {
+        depth--;
+        if (depth < 0) { clauses[cur] = [start, i - 1]; end = i; done = true; break; }
+      }
+    } else if (t.t === 'sep' && t.v === ';') {
+      clauses[cur] = [start, i - 1]; end = i; done = true; break;
+    } else if (depth === 0 && t.t === 'id') {
+      var u = t.up;
+      var hasBy = toks[i + 1] && toks[i + 1].t === 'id' && toks[i + 1].up === 'BY';
+      if ((u === 'GROUP' || u === 'ORDER') && hasBy) {
+        clauses[cur] = [start, i - 1]; cur = names[u]; start = i + 2; i = start; continue;
+      }
+      if (u === 'FROM' || u === 'WHERE' || u === 'HAVING' || u === 'WINDOW') {
+        clauses[cur] = [start, i - 1]; cur = names[u]; start = i + 1; i = start; continue;
+      }
+      if (u === 'UNION' || u === 'INTERSECT' || u === 'EXCEPT' || u === 'MINUS' || u === 'LIMIT' || u === 'OFFSET' || u === 'FETCH') {
+        clauses[cur] = [start, i - 1]; end = i; done = true; break;
+      }
+    }
+    i++;
+  }
+  if (!done && i >= n) { clauses[cur] = [start, n - 1]; end = n - 1; }
+  return { clauses: clauses, end: end };
+}
+
+function oraHasWildcard(toks, a, b) {
+  if (a === b && toks[a].t === 'op' && toks[a].v === '*') return true;
+  if (b - a === 2 && toks[a].t === 'id' && toks[a + 1].t === 'dot' && toks[b].t === 'op' && toks[b].v === '*') return true;
+  return false;
+}
+
+function oraCollectAliases(toks, items) {
+  var set = {};
+  for (var i = 0; i < items.length; i++) {
+    var a = items[i][0], b = items[i][1];
+    var e2 = oraStripAliasEnd(toks, a, b);
+    if (e2 < b && toks[b] && toks[b].t === 'id') set[toks[b].up] = 1;
+  }
+  return set;
+}
+
+function oraValidateBlock(toks, blk, subqs) {
+  var c = blk.clauses;
+  var list = c.list;
+  if (!list || list[0] > list[1]) return null;
+
+  // ORA-00934: WHERE-də aqreqat funksiya
+  var w = c.where;
+  if (w && w[0] <= w[1]) {
+    var wAggs = oraAggRanges(toks, w[0], w[1], subqs);
+    if (wAggs.length) {
+      return 'ORA-00934: group function is not allowed here — WHERE hissəsində ' +
+             toks[wAggs[0][0]].up + '() aqreqatı istifadə oluna bilməz';
+    }
+  }
+
+  var g = (c.groupBy && c.groupBy[0] <= c.groupBy[1]) ? c.groupBy : null;
+  var groupNorms = null, groupBare = null;
+  if (g) {
+    groupNorms = [];
+    groupBare = {};
+    var gItems = oraSplitCommaItems(toks, g[0], g[1]);
+    for (var gi = 0; gi < gItems.length; gi++) {
+      var ga = gItems[gi][0], gb = gItems[gi][1];
+      groupNorms.push(oraNorm(toks, ga, gb));
+      var isBare = (ga === gb && toks[ga].t === 'id') ||
+                   (gb - ga === 2 && toks[ga].t === 'id' && toks[ga + 1].t === 'dot' && toks[gb].t === 'id');
+      if (isBare) groupBare[toks[gb].up] = 1;
+    }
+  }
+
+  var items = oraSplitCommaItems(toks, list[0], list[1]);
+  if (!items.length) return null;
+
+  var hasAgg = false;
+  for (var ii = 0; ii < items.length; ii++) {
+    if (oraAggRanges(toks, items[ii][0], items[ii][1], subqs).length) { hasAgg = true; break; }
+  }
+  var h = (c.having && c.having[0] <= c.having[1]) ? c.having : null;
+  if (!hasAgg && h && oraAggRanges(toks, h[0], h[1], subqs).length) hasAgg = true;
+
+  // SELECT * / e.* + GROUP BY → ORA-00979
+  if (g) {
+    for (var si = 0; si < items.length; si++) {
+      if (oraHasWildcard(toks, items[si][0], items[si][1])) {
+        return 'ORA-00979: not a GROUP BY expression — GROUP BY ilə SELECT * istifadə oluna bilməz';
+      }
+    }
+  }
+
+  // SELECT list yoxlaması
+  for (var li = 0; li < items.length; li++) {
+    var a = items[li][0], b = items[li][1];
+    var e2 = oraStripAliasEnd(toks, a, b);
+    if (e2 < a) continue; // yalnız alias / sabit
+    if (oraHasOver(toks, a, e2)) continue; // window funksiyaları exempt
+    var aggR = oraAggRanges(toks, a, e2, subqs);
+    var refs = oraRefs(toks, a, e2, aggR.concat(subqs));
+    if (g) {
+      if (!aggR.length) {
+        if (!refs.length) continue; // sabit / yalnız subquery
+        var norm = oraNorm(toks, a, e2);
+        if (groupNorms.indexOf(norm) < 0) {
+          return 'ORA-00979: not a GROUP BY expression — "' + refs[0].name +
+                 '" sütunu SELECT-də GROUP BY-a daxil edilməyib';
+        }
+      } else {
+        for (var ri = 0; ri < refs.length; ri++) {
+          if (!groupBare[refs[ri].name]) {
+            return 'ORA-00979: not a GROUP BY expression — "' + refs[ri].name +
+                   '" sütunu GROUP BY-a daxil edilməyib';
+          }
+        }
+      }
+    } else if (hasAgg) {
+      if (refs.length) {
+        return 'ORA-00937: not a single-group group function — "' + refs[0].name +
+               '" sütunu aqreqatlarla birlikdə yalnız GROUP BY-dan sonra istifadə oluna bilər';
+      }
+    }
+  }
+
+  // HAVING yoxlaması
+  if (h) {
+    var hAggs = oraAggRanges(toks, h[0], h[1], subqs);
+    var hrefs = oraRefs(toks, h[0], h[1], hAggs.concat(subqs));
+    for (var hi = 0; hi < hrefs.length; hi++) {
+      if (g ? !groupBare[hrefs[hi].name] : true) {
+        return 'ORA-00979: not a GROUP BY expression — HAVING-də "' + hrefs[hi].name +
+               '" sütunu GROUP BY-a daxil edilməyib';
+      }
+    }
+  }
+
+  // ORDER BY yoxlaması (yalnız GROUP BY mövcud olanda)
+  var ob = (c.orderBy && c.orderBy[0] <= c.orderBy[1]) ? c.orderBy : null;
+  if (ob && g) {
+    var aliasSet = oraCollectAliases(toks, items);
+    var oItems = oraSplitCommaItems(toks, ob[0], ob[1]);
+    for (var oi = 0; oi < oItems.length; oi++) {
+      var oa = oItems[oi][0], ob2 = oItems[oi][1];
+      while (ob2 > oa) {
+        var lt = toks[ob2];
+        if (lt.t === 'id' && (lt.up === 'ASC' || lt.up === 'DESC' || lt.up === 'NULLS' || lt.up === 'FIRST' || lt.up === 'LAST')) {
+          ob2--;
+          continue;
+        }
+        break;
+      }
+      if (ob2 < oa) continue;
+      if (oa === ob2 && (toks[oa].t === 'num' || (toks[oa].t === 'id' && aliasSet[toks[oa].up]))) continue;
+      if (oraHasOver(toks, oa, ob2)) continue;
+      var oAggs = oraAggRanges(toks, oa, ob2, subqs);
+      var orefs = oraRefs(toks, oa, ob2, oAggs.concat(subqs));
+      for (var r2 = 0; r2 < orefs.length; r2++) {
+        if (!groupBare[orefs[r2].name]) {
+          return 'ORA-00979: not a GROUP BY expression — ORDER BY-də "' + orefs[r2].name +
+                 '" sütunu GROUP BY-a daxil edilməyib';
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function oraSplitStatements(sql) {
+  var parts = [], cur = '', depth = 0, inStr = false;
+  for (var i = 0; i < sql.length; i++) {
+    var ch = sql.charAt(i);
+    if (inStr) {
+      cur += ch;
+      if (ch === "'") {
+        if (sql.charAt(i + 1) === "'") { cur += sql.charAt(i + 1); i++; }
+        else inStr = false;
+      }
+      continue;
+    }
+    if (ch === "'") { inStr = true; cur += ch; continue; }
+    if (ch === '-' && sql.charAt(i + 1) === '-') {
+      while (i < sql.length && sql.charAt(i) !== '\n') { cur += sql.charAt(i); i++; }
+      continue;
+    }
+    if (ch === '(') depth++;
+    if (ch === ')') depth--;
+    if (ch === ';' && depth === 0) { parts.push(cur); cur = ''; continue; }
+    cur += ch;
+  }
+  if (cur.trim()) parts.push(cur);
+  return parts;
+}
+
+// Əsas giriş nöqtəsi: ORA-00934/00937/00979 yoxlamaları.
+// Xəta string-i və ya null (problem yoxdur) qaytarır. Fail-open.
+function validateOracleSemantics(sql) {
+  try {
+    if (!sql || !/\bSELECT\b/i.test(sql)) return null;
+    var stmts = oraSplitStatements(sql);
+    for (var s = 0; s < stmts.length; s++) {
+      var body = stmts[s];
+      if (!/\bSELECT\b/i.test(body)) continue;
+      var toks = oraTokenize(body);
+      if (!toks.length) continue;
+      var subqs = oraSubqRanges(toks);
+      for (var i = 0; i < toks.length; i++) {
+        if (toks[i].t === 'id' && toks[i].up === 'SELECT' &&
+            !(toks[i - 1] && toks[i - 1].t === 'dot')) {
+          var blk = oraParseSelect(toks, i);
+          // Yalnız bu blokdan SONRA başlayan subquery-lər exclude olunur —
+          // blokun öz paren-i onun daxilindəki aqreqatları gizlətməməlidir
+          var blockSubqs = [];
+          for (var q = 0; q < subqs.length; q++) {
+            if (subqs[q][0] > i) blockSubqs.push(subqs[q]);
+          }
+          var err = oraValidateBlock(toks, blk, blockSubqs);
+          if (err) return err;
+        }
+      }
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// ============================================================
+// SQL.JS INIT + ORACLE UDF-LƏR
+// ============================================================
+function initApp() {
+  if (typeof initSqlJs === 'undefined') {
+    showError('sql.js kitabxanası yüklənmədi — internet bağlantısını yoxlayın (CDN).');
+    return;
+  }
+  initSqlJs({
+    locateFile: function(f) {
+      return 'https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.11.0/' + f;
+    }
+  }).then(function(SQL) {
+    db = new SQL.Database();
+    registerOracleFunctions();
+    initDB();
+    buildSidebar();
+  }).catch(function(e) {
+    showError('Baza başladıla bilmədi: ' + (e && e.message ? e.message : e));
+  });
+}
+
+function oraParseDateParts(v) {
+  var m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? { y: +m[1], mo: +m[2], d: +m[3] } : null;
+}
+
+function oraPad2(x) { return (x < 10 ? '0' : '') + x; }
+
+var ORA_MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+var ORA_DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+
+function oraToChar(v, fmt) {
+  if (v === null || v === undefined) return null;
+  if (fmt === null || fmt === undefined) return String(v);
+  var f = String(fmt);
+  if (typeof v === 'number') {
+    var fm = /^FM/i.test(f);
+    f = f.replace(/^FM/i, '');
+    var neg = v < 0;
+    var decMatch = f.match(/\.([09]+)/);
+    var dec = decMatch ? decMatch[1].length : 0;
+    var s = Math.abs(v).toFixed(dec);
+    if (/,/.test(f)) {
+      var ip = s.split('.');
+      ip[0] = ip[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+      s = ip.join('.');
+    }
+    if (/\$/.test(f)) s = '$' + s;
+    if (neg) s = /MI/.test(f) ? s + '-' : '-' + s;
+    else if (/MI/.test(f) && !fm) s = s + ' ';
+    return s;
+  }
+  var m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if (!m) return String(v);
+  var dt = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  var mon = ORA_MONTHS[+m[2] - 1];
+  var day = ORA_DAYS[dt.getUTCDay()];
+  return f.replace(/YYYY/g, m[1]).replace(/YY/g, m[1].substring(2))
+    .replace(/MONTH/g, mon.toUpperCase()).replace(/Month/g, mon)
+    .replace(/MON/g, mon.substring(0, 3).toUpperCase()).replace(/Mon/g, mon.substring(0, 3))
+    .replace(/DAY/g, day.toUpperCase()).replace(/Day/g, day)
+    .replace(/DY/g, day.substring(0, 3).toUpperCase()).replace(/Dy/g, day.substring(0, 3))
+    .replace(/DD/g, m[3]).replace(/MM/g, m[2])
+    .replace(/HH24/g, m[4] || '00').replace(/MI/g, m[5] || '00').replace(/SS/g, m[6] || '00');
+}
+
+function registerOracleFunctions() {
+  var parts = ['year', 'month', 'day'];
+  for (var p = 0; p < parts.length; p++) {
+    (function(part) {
+      db.createFunction('extract_' + part, function(v) {
+        if (v === null || v === undefined) return null;
+        var m = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (!m) return null;
+        return part === 'year' ? Number(m[1]) : part === 'month' ? Number(m[2]) : Number(m[3]);
+      });
+    })(parts[p]);
+  }
+
+  db.createFunction('_oracle_round', function(x, d) {
+    if (x === null || x === undefined) return null;
+    if (d === null || d === undefined) d = 0;
+    var f = Math.pow(10, Math.trunc(Number(d)));
+    var v = Number(x);
+    var r = Math.round(Math.abs(v) * f) / f; // Oracle: yarım sıfırdan uzağa
+    return v < 0 ? -r : r;
+  });
+
+  db.createFunction('trunc', function(x, d) {
+    if (x === null || x === undefined) return null;
+    if (d === null || d === undefined) d = 0;
+    var f = Math.pow(10, Math.trunc(Number(d)));
+    var v = Number(x);
+    return v < 0 ? -Math.floor(Math.abs(v) * f) / f : Math.floor(v * f) / f; // Oracle: sıfıra doğru
+  });
+
+  db.createFunction('to_char', oraToChar);
+
+  db.createFunction('instr', function(s, sub, pos, occ) {
+    if (s === null || sub === null || s === undefined || sub === undefined) return null;
+    s = String(s); sub = String(sub);
+    pos = (pos === null || pos === undefined) ? 1 : Number(pos);
+    occ = (occ === null || occ === undefined) ? 1 : Math.trunc(Number(occ));
+    if (occ < 1) return 0;
+    var from = pos < 0 ? s.length + pos : pos - 1;
+    if (from < 0) from = 0;
+    var idx = -1;
+    for (var o = 0; o < occ; o++) {
+      idx = s.indexOf(sub, from);
+      if (idx < 0) return 0;
+      from = idx + 1;
+    }
+    return idx + 1;
+  });
+
+  db.createFunction('substr', function(s, start, len) {
+    if (s === null || s === undefined || start === null || start === undefined) return null;
+    s = String(s);
+    var st = Number(start);
+    var L = (len === null || len === undefined) ? null : Number(len);
+    if (L !== null && L <= 0) return '';
+    var begin;
+    if (st < 0) begin = Math.max(0, s.length + st);
+    else begin = st === 0 ? 0 : st - 1; // Oracle: 0 → 1 kimi
+    if (L === null) return s.substring(begin);
+    return s.substring(begin, begin + L);
+  });
+
+  db.createFunction('lpad', function(s, n, pad) {
+    if (s === null || s === undefined || n === null || n === undefined) return null;
+    s = String(s);
+    n = Number(n);
+    if (s.length >= n) return s.substring(0, n);
+    pad = (pad === null || pad === undefined) ? ' ' : String(pad);
+    if (!pad) return s;
+    var out = '';
+    while (out.length < n - s.length) out += pad;
+    return out.substring(0, n - s.length) + s;
+  });
+
+  db.createFunction('rpad', function(s, n, pad) {
+    if (s === null || s === undefined || n === null || n === undefined) return null;
+    s = String(s);
+    n = Number(n);
+    if (s.length >= n) return s.substring(0, n);
+    pad = (pad === null || pad === undefined) ? ' ' : String(pad);
+    if (!pad) return s;
+    var out = '';
+    while (out.length < n - s.length) out += pad;
+    return s + out.substring(0, n - s.length);
+  });
+
+  db.createFunction('nvl', function(a, b) {
+    return (a === null || a === undefined) ? b : a;
+  });
+
+  db.createFunction('nvl2', function(a, b, c) {
+    return (a === null || a === undefined) ? c : b;
+  });
+
+  db.createFunction('add_months', function(s, n) {
+    var dt = oraParseDateParts(s);
+    if (!dt || n === null || n === undefined) return null;
+    var total = (dt.mo - 1) + Number(n);
+    var y = dt.y + Math.floor(total / 12);
+    var mo = ((total % 12) + 12) % 12 + 1;
+    var last = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+    var d = Math.min(dt.d, last);
+    return y + '-' + oraPad2(mo) + '-' + oraPad2(d);
+  });
+
+  db.createFunction('months_between', function(a, b) {
+    var d1 = oraParseDateParts(a), d2 = oraParseDateParts(b);
+    if (!d1 || !d2) return null;
+    var m = (d1.y - d2.y) * 12 + (d1.mo - d2.mo);
+    if (d1.d === d2.d) return m;
+    return m + (d1.d - d2.d) / 31; // sadələşdirilmiş approksimasiya
+  });
+}
+
+// ============================================================
+// QUERY EXECUTION
+// ============================================================
+function formatDbError(msg) {
+  msg = String(msg);
+  var m;
+  if ((m = msg.match(/no such column:\s*(.+)/i))) {
+    return 'ORA-00904: "' + String(m[1]).replace(/"/g, '').toUpperCase() + '": invalid identifier';
+  }
+  if ((m = msg.match(/no such table:\s*(.+)/i))) {
+    return 'ORA-00942: table or view does not exist (' + m[1] + ')';
+  }
+  if (/syntax error/i.test(msg)) {
+    var near = msg.match(/near\s+"([^"]*)"/i);
+    return 'ORA-00936: ifadə natamam / sintaksis xətası' + (near ? ' (yaxın "' + near[1] + '")' : '') + ' — ' + msg;
+  }
+  if (/wrong number of arguments/i.test(msg)) return 'ORA-00938: funksiya üçün arqument sayı düzgün deyil';
+  if (/UNIQUE constraint failed/i.test(msg)) return 'ORA-00001: unique məhdudiyyəti pozuldu';
+  if (/NOT NULL constraint failed/i.test(msg)) return 'ORA-01400: NULL daxil etmək olmaz';
+  if (/FOREIGN KEY constraint failed/i.test(msg)) return 'ORA-02291: referential integrity pozuldu';
+  return 'Xəta: ' + msg;
+}
+
+function executeQuery() {
+  hideError();
+  var ed = document.getElementById('sqlEditor');
+  var raw = ed.value.trim();
+  if (!raw) { showError('Sorğu boşdur — SQL yazın.'); return; }
+  if (!db) { showError('Baza hələ yüklənməyib, bir az gözləyin (sql.js CDN-dən yüklənir).'); return; }
+  var btn = document.getElementById('runBtn');
+  btn.classList.add('running');
+  var t0 = performance.now();
+  try {
+    var processed = preprocessOracleSQL(raw);
+    var semErr = validateOracleSemantics(processed);
+    if (semErr) throw new Error(semErr);
+    var results = db.exec(processed);
+    var dt = performance.now() - t0;
+    document.getElementById('execTime').textContent = dt.toFixed(1) + ' ms';
+    if (!results.length) {
+      resultTabs = []; activeTabIdx = -1; renderTabs();
+      var es = document.getElementById('emptyState');
+      es.style.display = 'flex';
+      es.querySelector('.es-title').textContent = 'Sorğu icra olundu';
+      es.querySelector('.es-desc').innerHTML = 'Nəticə cədvəli yoxdur (DML/DDL əmri uğurla icra olundu).';
+      document.getElementById('resultsInfo').style.display = 'none';
+      document.getElementById('resultsGrid').style.display = 'none';
+    } else {
+      for (var i = 0; i < results.length; i++) {
+        addResultTab(results[i].columns, results[i].values);
+      }
+    }
+  } catch (e) {
+    document.getElementById('execTime').textContent = '';
+    var msg = (e && e.message) ? e.message : String(e);
+    showError(/^ORA-/.test(msg) ? msg : formatDbError(msg));
+  } finally {
+    btn.classList.remove('running');
+  }
+}
+
+function showError(msg) {
+  document.getElementById('errorText').textContent = msg;
+  document.getElementById('errorBar').classList.add('show');
+}
+
+function hideError() {
+  document.getElementById('errorBar').classList.remove('show');
+}
+
+// ============================================================
+// RESULT TABS
+// ============================================================
+function addResultTab(columns, values) {
+  resultTabs.push({ type: 'result', columns: columns, values: values });
+  activeTabIdx = resultTabs.length - 1;
+  renderTabs();
+  showTab(activeTabIdx);
+}
+
+function renderTabs() {
+  var el = document.getElementById('resultsTabs');
+  if (!resultTabs.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'flex';
+  var html = '';
+  for (var i = 0; i < resultTabs.length; i++) {
+    html += '<div class="results-tab' + (i === activeTabIdx ? ' active' : '') + '" data-idx="' + i + '">' +
+            '<span class="tab-label">Result ' + (i + 1) + '</span>' +
+            '<span class="tab-close" data-close="' + i + '">×</span></div>';
+  }
+  el.innerHTML = html;
+}
+
+function showTab(idx) {
+  if (idx < 0 || idx >= resultTabs.length) return;
+  activeTabIdx = idx;
+  renderTabs();
+  var tab = resultTabs[idx];
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('resultsInfo').style.display = 'flex';
+  document.getElementById('resultsGrid').style.display = 'block';
+  currentColumns = tab.columns.slice();
+  currentResult = tab.values.map(function(r) { return r.slice(); });
+  sortCol = null;
+  sortDir = 'asc';
+  document.getElementById('sortInfo').textContent = '';
+  document.getElementById('rowCount').textContent = tab.values.length;
+  document.getElementById('colCount').textContent = tab.columns.length;
+  renderTable();
+}
+
+function closeTab(idx) {
+  resultTabs.splice(idx, 1);
+  if (activeTabIdx >= resultTabs.length) activeTabIdx = resultTabs.length - 1;
+  if (!resultTabs.length) {
+    activeTabIdx = -1;
+    renderTabs();
+    document.getElementById('resultsTabs').style.display = 'none';
+    document.getElementById('resultsInfo').style.display = 'none';
+    document.getElementById('resultsGrid').style.display = 'none';
+    var es = document.getElementById('emptyState');
+    es.style.display = 'flex';
+    es.querySelector('.es-title').textContent = 'No Results Yet';
+    es.querySelector('.es-desc').innerHTML = 'Write a SQL query above and click <b>Run</b> or press <kbd>Ctrl</kbd>+<kbd>Enter</kbd>.';
+    return;
+  }
+  renderTabs();
+  showTab(activeTabIdx);
+}
+
+// ============================================================
+// RESULTS GRID
+// ============================================================
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function colWidth(ci) {
+  var maxLen = String(currentColumns[ci]).length;
+  var lim = Math.min(currentResult.length, 60);
+  for (var r = 0; r < lim; r++) {
+    var v = currentResult[r][ci];
+    if (v !== null && v !== undefined) {
+      var l = String(v).length;
+      if (l > maxLen) maxLen = l;
+    }
+  }
+  return Math.min(320, Math.max(70, maxLen * 8 + 30));
+}
+
+function renderTable() {
+  var grid = document.getElementById('resultsGrid');
+  var html = ['<table class="results-table"><thead><tr>'];
+  for (var c = 0; c < currentColumns.length; c++) {
+    html.push('<th data-col="' + c + '"' + (sortCol === c ? ' class="sorted"' : '') + ' style="width:' + colWidth(c) + 'px">' +
+      '<div class="th-content" draggable="true" data-col="' + c + '">' +
+      '<span class="th-label">' + escapeHtml(currentColumns[c]) + '</span>' +
+      '<span class="sort-icon">' + (sortCol === c ? (sortDir === 'asc' ? '▲' : '▼') : '•') + '</span>' +
+      '</div><div class="col-resize-handle" data-col="' + c + '"></div></th>');
+  }
+  html.push('</tr></thead><tbody>');
+  var cap = Math.min(currentResult.length, 500);
+  for (var r = 0; r < cap; r++) {
+    var row = currentResult[r];
+    html.push('<tr>');
+    for (var c2 = 0; c2 < currentColumns.length; c2++) {
+      var v = row[c2];
+      if (v === null || v === undefined) html.push('<td class="null-val">(null)</td>');
+      else if (typeof v === 'number') html.push('<td class="number-val">' + v + '</td>');
+      else html.push('<td>' + escapeHtml(v) + '</td>');
+    }
+    html.push('</tr>');
+  }
+  html.push('</tbody></table>');
+  if (currentResult.length > cap) {
+    html.push('<div style="padding:8px 12px;font-size:11px;color:var(--text-muted)">İlk ' + cap + ' sətir göstərilir (cəmi ' + currentResult.length + ')</div>');
+  }
+  grid.innerHTML = html.join('');
+  attachTableEvents();
+}
+
+function sortByCol(ci) {
+  if (sortCol === ci) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+  else { sortCol = ci; sortDir = 'asc'; }
+  var numeric = true;
+  for (var r = 0; r < currentResult.length; r++) {
+    var v = currentResult[r][ci];
+    if (v !== null && v !== undefined && typeof v !== 'number') { numeric = false; break; }
+  }
+  currentResult.sort(function(x, y) {
+    var a = x[ci], b = y[ci];
+    if (a === null || a === undefined) return 1;
+    if (b === null || b === undefined) return -1;
+    if (numeric) return a - b;
+    return String(a) < String(b) ? -1 : String(a) > String(b) ? 1 : 0;
+  });
+  if (sortDir === 'desc') currentResult.reverse();
+  renderTable();
+  document.getElementById('sortInfo').textContent = 'SORT: ' + currentColumns[ci] + ' (' + sortDir.toUpperCase() + ')';
+}
+
+function moveColumn(from, to) {
+  if (from === to || from < 0 || to < 0 || from >= currentColumns.length || to >= currentColumns.length) return;
+  var col = currentColumns.splice(from, 1)[0];
+  currentColumns.splice(to, 0, col);
+  for (var r = 0; r < currentResult.length; r++) {
+    var v = currentResult[r].splice(from, 1)[0];
+    currentResult[r].splice(to, 0, v);
+  }
+  sortCol = null;
+  document.getElementById('sortInfo').textContent = '';
+  renderTable();
+}
+
+function attachTableEvents() {
+  var grid = document.getElementById('resultsGrid');
+  var ths = grid.querySelectorAll('th');
+  var dragFrom = -1;
+  for (var i = 0; i < ths.length; i++) {
+    (function(th) {
+      var ci = parseInt(th.getAttribute('data-col'), 10);
+      th.addEventListener('click', function(e) {
+        if (e.target && e.target.classList && e.target.classList.contains('col-resize-handle')) return;
+        if (th.getAttribute('data-resized') === '1') { th.removeAttribute('data-resized'); return; }
+        sortByCol(ci);
+      });
+      var handle = th.querySelector('.col-resize-handle');
+      handle.addEventListener('mousedown', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        var startX = e.clientX;
+        var startW = th.getBoundingClientRect().width;
+        function mm(ev) {
+          var w = Math.max(40, startW + (ev.clientX - startX));
+          th.style.width = w + 'px';
+          th.setAttribute('data-resized', '1');
+        }
+        function mu() {
+          document.removeEventListener('mousemove', mm);
+          document.removeEventListener('mouseup', mu);
+        }
+        document.addEventListener('mousemove', mm);
+        document.addEventListener('mouseup', mu);
+      });
+      var content = th.querySelector('.th-content');
+      content.addEventListener('dragstart', function(e) {
+        dragFrom = ci;
+        if (e.dataTransfer && e.dataTransfer.setData) e.dataTransfer.setData('text/plain', String(ci));
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
+        th.classList.add('dragging');
+      });
+      content.addEventListener('dragend', function() { th.classList.remove('dragging'); });
+      th.addEventListener('dragover', function(e) {
+        if (dragFrom < 0) return;
+        e.preventDefault();
+        var rect = th.getBoundingClientRect();
+        var left = e.clientX < rect.left + rect.width / 2;
+        th.classList.toggle('drag-over-left', left);
+        th.classList.toggle('drag-over-right', !left);
+      });
+      th.addEventListener('dragleave', function() {
+        th.classList.remove('drag-over-left');
+        th.classList.remove('drag-over-right');
+      });
+      th.addEventListener('drop', function(e) {
+        e.preventDefault();
+        var rect = th.getBoundingClientRect();
+        var before = e.clientX < rect.left + rect.width / 2;
+        th.classList.remove('drag-over-left');
+        th.classList.remove('drag-over-right');
+        if (dragFrom < 0 || dragFrom === ci) { dragFrom = -1; return; }
+        var target = before ? ci : ci + 1;
+        if (target > dragFrom) target--;
+        moveColumn(dragFrom, target);
+        dragFrom = -1;
+      });
+    })(ths[i]);
+  }
+  var trs = grid.querySelectorAll('tbody tr');
+  for (var r = 0; r < trs.length; r++) {
+    trs[r].addEventListener('click', function() { this.classList.toggle('row-selected'); });
+  }
+}
+
+// ============================================================
+// SIDEBAR
+// ============================================================
+function buildSidebar() {
+  var el = document.getElementById('tablesBody');
+  var html = '';
+  for (var t in TABLE_META) {
+    if (!HR_DATA[t]) continue;
+    var meta = TABLE_META[t];
+    html += '<div class="table-item" data-table="' + t + '">' +
+            '<span class="t-icon">▦</span><span class="t-name">' + t + '</span>' +
+            '<span class="t-count">' + HR_DATA[t].length + '</span></div>';
+    html += '<div class="col-list" id="cols-' + t + '" style="display:none">';
+    for (var c = 0; c < meta.columns.length; c++) {
+      var col = meta.columns[c];
+      var mark = (col === meta.pk) ? '<span class="col-pk">PK</span>' :
+                 (meta.fks[col] ? '<span class="col-fk">FK</span>' : '');
+      html += '<div class="col-item" data-colname="' + col + '">' + mark + col + '</div>';
+    }
+    html += '</div>';
+  }
+  el.innerHTML = html;
+}
+
+function insertAtCursor(text) {
+  var ed = document.getElementById('sqlEditor');
+  var s = ed.selectionStart, epos = ed.selectionEnd;
+  ed.value = ed.value.substring(0, s) + text + ed.value.substring(epos);
+  ed.selectionStart = ed.selectionEnd = s + text.length;
+  ed.focus();
+  refreshEditor();
+}
+
+function toggleSection(name) {
+  var body = document.getElementById(name === 'tables' ? 'tablesBody' : 'savedBody');
+  var arrow = document.getElementById(name === 'tables' ? 'tablesArrow' : 'savedArrow');
+  var open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  if (open) arrow.classList.remove('open');
+  else arrow.classList.add('open');
+}
+
+// ============================================================
+// EDITOR (highlight, line numbers, keys)
+// ============================================================
+var SQL_KEYWORDS = ['SELECT','FROM','WHERE','AND','OR','NOT','NULL','IS','IN','LIKE','BETWEEN','EXISTS','AS','DISTINCT','UNIQUE','ALL','UNION','INTERSECT','EXCEPT','MINUS','GROUP','BY','HAVING','ORDER','ASC','DESC','JOIN','INNER','LEFT','RIGHT','FULL','OUTER','CROSS','NATURAL','ON','USING','CASE','WHEN','THEN','ELSE','END','INSERT','INTO','VALUES','UPDATE','SET','DELETE','CREATE','DROP','ALTER','TABLE','VIEW','TRUNCATE','COMMIT','ROLLBACK','WITH','RECURSIVE','OVER','PARTITION','ROWS','RANGE','CURRENT','ROW','FETCH','OFFSET','LIMIT','ONLY','ANY','SOME','DUAL','PIVOT','UNPIVOT','START','CONNECT','PRIOR','LEVEL','ROWNUM','NULLS','FIRST','LAST','ESCAPE','TO'];
+var SQL_FUNCTIONS = ['COUNT','SUM','AVG','MIN','MAX','UPPER','LOWER','INITCAP','LENGTH','SUBSTR','INSTR','ROUND','TRUNC','MOD','ABS','POWER','SQRT','TO_CHAR','TO_DATE','TO_NUMBER','NVL','NVL2','DECODE','COALESCE','NULLIF','LPAD','RPAD','REPLACE','TRANSLATE','TRIM','LTRIM','RTRIM','CONCAT','ADD_MONTHS','MONTHS_BETWEEN','LAST_DAY','NEXT_DAY','EXTRACT','SYSDATE','CURRENT_DATE','ROW_NUMBER','RANK','DENSE_RANK','LAG','LEAD','FIRST_VALUE','LAST_VALUE','LISTAGG','STDDEV','VARIANCE','MEDIAN','GREATEST','LEAST'];
+
+var HL_RE = new RegExp(
+  "('(?:[^']|'')*')" +
+  "|(\\/\\*[\\s\\S]*?\\*\\/|--[^\\n]*)" +
+  "|\\b(\\d+(?:\\.\\d+)?)\\b" +
+  "|\\b(" + SQL_KEYWORDS.join('|') + ")\\b" +
+  "|\\b(" + SQL_FUNCTIONS.join('|') + ")\\b",
+  'g'
+);
+
+function highlightSQL(sql) {
+  var escaped = sql.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return escaped.replace(HL_RE, function(m, s, c, num, kw, fn) {
+    if (s) return '<span style="color:var(--sql-string)">' + s + '</span>';
+    if (c) return '<span style="color:var(--sql-comment)">' + c + '</span>';
+    if (num) return '<span style="color:var(--sql-number)">' + num + '</span>';
+    if (kw) return '<span style="color:var(--sql-keyword)">' + kw + '</span>';
+    if (fn) return '<span style="color:var(--sql-function)">' + fn + '</span>';
+    return m;
+  });
+}
+
+function refreshEditor() {
+  var ed = document.getElementById('sqlEditor');
+  var lines = ed.value.split('\n').length;
+  var html = '';
+  for (var i = 1; i <= lines; i++) html += '<div>' + i + '</div>';
+  var ln = document.getElementById('lineNumbers');
+  ln.innerHTML = html;
+  ln.scrollTop = ed.scrollTop;
+  document.getElementById('sqlHighlightCode').innerHTML = highlightSQL(ed.value);
+  var hl = document.getElementById('sqlHighlight');
+  hl.scrollTop = ed.scrollTop;
+  hl.scrollLeft = ed.scrollLeft;
+}
+
+function formatQuery() {
+  var ed = document.getElementById('sqlEditor');
+  var sql = ed.value.trim();
+  if (!sql) return;
+  sql = sql.replace(/\s+/g, ' ');
+  var kwRe = new RegExp('\\b(' + SQL_KEYWORDS.join('|') + '|' + SQL_FUNCTIONS.join('|') + ')\\b', 'gi');
+  sql = sql.replace(kwRe, function(m) { return m.toUpperCase(); });
+  sql = sql.replace(/\s+(FROM|WHERE|GROUP BY|HAVING|ORDER BY|UNION|INTERSECT|EXCEPT|MINUS|CONNECT BY|START WITH)\b/g,
+    function(m, k) { return '\n' + k.toUpperCase(); });
+  sql = sql.replace(/\s+(INNER JOIN|LEFT JOIN|LEFT OUTER JOIN|RIGHT JOIN|RIGHT OUTER JOIN|FULL JOIN|FULL OUTER JOIN|CROSS JOIN|JOIN)\b/g,
+    function(m, k) { return '\n' + k.toUpperCase(); });
+  sql = sql.replace(/,\s+/g, ',\n       ');
+  ed.value = sql.trim();
+  refreshEditor();
+}
+
+function clearEditor() {
+  var ed = document.getElementById('sqlEditor');
+  ed.value = '';
+  refreshEditor();
+  ed.focus();
+  hideError();
+}
+
+function changeEditorFontSize(v) {
+  document.getElementById('sqlEditor').style.fontSize = v + 'px';
+  document.getElementById('sqlHighlight').style.fontSize = v + 'px';
+  document.getElementById('lineNumbers').style.fontSize = v + 'px';
+  try { localStorage.setItem('oracle-sim-font', v); } catch (e) {}
+}
+
+// ============================================================
+// SAVED QUERIES
+// ============================================================
+function loadSaved() {
+  try { return JSON.parse(localStorage.getItem('oracle-sim-saved') || '[]'); }
+  catch (e) { return []; }
+}
+
+function saveQuery() {
+  var ed = document.getElementById('sqlEditor');
+  var sql = ed.value.trim();
+  if (!sql) { showError('Saxlamaq üçün sorğu yazın.'); return; }
+  var name = window.prompt('Sorğunun adı:', sql.substring(0, 40).replace(/\s+/g, ' '));
+  if (name === null) return;
+  if (!name.trim()) name = 'Sorğu ' + new Date().toLocaleTimeString();
+  var list = loadSaved();
+  list.unshift({ name: name.trim(), sql: sql });
+  try { localStorage.setItem('oracle-sim-saved', JSON.stringify(list)); } catch (e) {}
+  renderSaved();
+}
+
+function renderSaved() {
+  var el = document.getElementById('savedBody');
+  var list = loadSaved();
+  if (!list.length) {
+    el.innerHTML = '<div class="saved-empty">Saxlanmış sorğu yoxdur</div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < list.length; i++) {
+    html += '<div class="saved-item">' +
+            '<div style="flex:1;min-width:0" data-load="' + i + '">' +
+            '<div class="sq-name">' + escapeHtml(list[i].name) + '</div>' +
+            '<div class="sq-sql">' + escapeHtml(list[i].sql) + '</div></div>' +
+            '<button class="sq-delete" data-del="' + i + '">×</button></div>';
+  }
+  el.innerHTML = html;
+}
+
+// ============================================================
+// THEME + RESIZERS
+// ============================================================
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('themeIconDark').style.display = theme === 'dark' ? 'block' : 'none';
+  document.getElementById('themeIconLight').style.display = theme === 'light' ? 'block' : 'none';
+}
+
+function toggleTheme() {
+  var cur = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+  var next = cur === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  try { localStorage.setItem('oracle-sim-theme', next); } catch (e) {}
+}
+
+function initResizers() {
+  var sr = document.getElementById('sidebarResizer');
+  sr.addEventListener('mousedown', function(e) {
+    e.preventDefault();
+    sr.classList.add('active');
+    function mm(ev) {
+      var w = Math.min(460, Math.max(170, ev.clientX));
+      document.getElementById('sidebar').style.width = w + 'px';
+    }
+    function mu() {
+      sr.classList.remove('active');
+      document.removeEventListener('mousemove', mm);
+      document.removeEventListener('mouseup', mu);
+    }
+    document.addEventListener('mousemove', mm);
+    document.addEventListener('mouseup', mu);
+  });
+
+  var rz = document.getElementById('resizer');
+  rz.addEventListener('mousedown', function(e) {
+    e.preventDefault();
+    rz.classList.add('active');
+    var wrap = document.getElementById('editorWrap');
+    var startY = e.clientY;
+    var startH = wrap.getBoundingClientRect().height;
+    function mm(ev) {
+      var h = Math.min(window.innerHeight - 160, Math.max(100, startH + (ev.clientY - startY)));
+      wrap.style.flex = '0 0 ' + h + 'px';
+    }
+    function mu() {
+      rz.classList.remove('active');
+      document.removeEventListener('mousemove', mm);
+      document.removeEventListener('mouseup', mu);
+    }
+    document.addEventListener('mousemove', mm);
+    document.addEventListener('mouseup', mu);
+  });
+}
+
+// ============================================================
+// BOOTSTRAP
+// ============================================================
+window.addEventListener('load', function() {
+  var ed = document.getElementById('sqlEditor');
+  ed.addEventListener('input', refreshEditor);
+  ed.addEventListener('scroll', function() {
+    var hl = document.getElementById('sqlHighlight');
+    hl.scrollTop = ed.scrollTop;
+    hl.scrollLeft = ed.scrollLeft;
+    document.getElementById('lineNumbers').scrollTop = ed.scrollTop;
+  });
+  ed.addEventListener('keydown', function(e) {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      insertAtCursor('  ');
+    } else if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      executeQuery();
+    }
+  });
+
+  document.getElementById('resultsTabs').addEventListener('click', function(e) {
+    var t = e.target;
+    while (t && t !== this && !t.getAttribute('data-close') && !t.getAttribute('data-idx')) t = t.parentElement;
+    if (!t || t === this) return;
+    if (t.getAttribute('data-close') !== null && t.getAttribute('data-close') !== undefined && t.classList.contains('tab-close')) {
+      closeTab(parseInt(t.getAttribute('data-close'), 10));
+      return;
+    }
+    var idx = t.getAttribute('data-idx');
+    if (idx !== null && idx !== undefined) showTab(parseInt(idx, 10));
+  });
+
+  document.getElementById('tablesBody').addEventListener('click', function(e) {
+    var t = e.target;
+    while (t && t !== this && !t.getAttribute('data-table') && !t.getAttribute('data-colname')) t = t.parentElement;
+    if (!t || t === this) return;
+    var tb = t.getAttribute('data-table');
+    if (tb !== null && tb !== undefined) {
+      var cl = document.getElementById('cols-' + tb);
+      if (cl) cl.style.display = cl.style.display === 'none' ? 'block' : 'none';
+      return;
+    }
+    var cn = t.getAttribute('data-colname');
+    if (cn !== null && cn !== undefined) insertAtCursor(cn);
+  });
+
+  document.getElementById('savedBody').addEventListener('click', function(e) {
+    var t = e.target;
+    while (t && t !== this && !t.getAttribute('data-load') && !t.getAttribute('data-del')) t = t.parentElement;
+    if (!t || t === this) return;
+    var del = t.getAttribute('data-del');
+    if (del !== null && del !== undefined) {
+      var list = loadSaved();
+      list.splice(parseInt(del, 10), 1);
+      try { localStorage.setItem('oracle-sim-saved', JSON.stringify(list)); } catch (err) {}
+      renderSaved();
+      return;
+    }
+    var load = t.getAttribute('data-load');
+    if (load !== null && load !== undefined) {
+      var item = loadSaved()[parseInt(load, 10)];
+      if (item) {
+        document.getElementById('sqlEditor').value = item.sql;
+        refreshEditor();
+      }
+    }
+  });
+
+  var theme = 'dark';
+  try { theme = localStorage.getItem('oracle-sim-theme') || 'dark'; } catch (e) {}
+  applyTheme(theme);
+
+  try {
+    var f = localStorage.getItem('oracle-sim-font');
+    if (f) {
+      document.getElementById('fontSizeSelect').value = f;
+      changeEditorFontSize(f);
+    }
+  } catch (e) {}
+
+  renderSaved();
+  refreshEditor();
+  initResizers();
+  initApp();
+});
+
+</script>
+</body>
+</html>
