@@ -2894,6 +2894,13 @@ function pickEligible(r, items, dayNum, fallback) {
   if (!el.length) return fallback;
   return el[Math.floor(r() * el.length)];
 }
+// Qiymət tarixçəsində günə uyğun qiymət: hist = [[dayIdx, price], ...] artan sıralı
+// (hist[0] həmişə pəncərədən əvvəldir → sonuç həmişə müəyyəndir)
+function priceAt(hist, day) {
+  var lo = 0, hi = hist.length - 1, best = 0;
+  while (lo <= hi) { var mid = (lo + hi) >> 1; if (hist[mid][0] <= day) { best = mid; lo = mid + 1; } else hi = mid - 1; }
+  return hist[best][1];
+}
 
 // ============================================================
 // SCHEMA: APTEK
@@ -2930,13 +2937,14 @@ var PH_ROLES = [['aptekçi',4],['baş aptekçi',1],['kassir',5],['köməkçi',2]
 var PH_ROLE_SALARY = { 'aptekçi':[550,950], 'baş aptekçi':[800,1300], 'kassir':[350,550], 'köməkçi':[300,450] };
 
 var PHARMACY_DEF = {
-  id: 'pharmacy', label: 'Aptek', version: 'v2',
+  id: 'pharmacy', label: 'Aptek', version: 'v3',
   desc: 'Aptek şəbəkəsi: satışlar, partiyalar, son istifadə tarixləri',
   tables: [
     { name:'manufacturers', cols:[['manufacturer_id','INTEGER','PK'],['manufacturer_name','TEXT'],['country','TEXT']], fks:[], est:44 },
     { name:'suppliers', cols:[['supplier_id','INTEGER','PK'],['supplier_name','TEXT'],['contact_person','TEXT'],['phone','TEXT'],['city','TEXT']], fks:[], est:32 },
     { name:'branches', cols:[['branch_id','INTEGER','PK'],['branch_name','TEXT'],['city','TEXT'],['address','TEXT'],['phone','TEXT'],['opened_date','TEXT'],['is_active','INTEGER']], fks:[], est:30 },
     { name:'drugs', cols:[['drug_id','INTEGER','PK'],['drug_name','TEXT'],['inn','TEXT'],['form','TEXT'],['dosage','TEXT'],['pack_size','INTEGER'],['atc_code','TEXT'],['is_prescription','INTEGER'],['manufacturer_id','INTEGER'],['unit_price','REAL']], fks:[['manufacturer_id','manufacturers','manufacturer_id']], est:3200 },
+    { name:'drug_prices', cols:[['drug_id','INTEGER'],['price','REAL'],['valid_from','TEXT'],['valid_to','TEXT']], pkCols:['drug_id','valid_from'], fks:[['drug_id','drugs','drug_id']], est:9600, note: 'Qiymət tarixçəsi — valid_to NULL = cari qiymət' },
     { name:'staff', cols:[['staff_id','INTEGER','PK'],['fullname','TEXT'],['role','TEXT'],['branch_id','INTEGER'],['phone','TEXT'],['hire_date','TEXT'],['salary','REAL']], fks:[['branch_id','branches','branch_id']], est:150 },
     { name:'customers', cols:[['customer_id','INTEGER','PK'],['fullname','TEXT'],['phone','TEXT'],['birth_year','INTEGER'],['gender','TEXT'],['registered_at','TEXT'],['bonus_points','INTEGER']], fks:[], est:4000 },
     { name:'batches', cols:[['batch_id','INTEGER','PK'],['drug_id','INTEGER'],['batch_no','TEXT'],['manufacture_date','TEXT'],['expiry_date','TEXT'],['quantity','INTEGER'],['supplier_id','INTEGER'],['purchase_price','REAL']], fks:[['drug_id','drugs','drug_id'],['supplier_id','suppliers','supplier_id']], est:12800 },
@@ -2947,6 +2955,8 @@ var PHARMACY_DEF = {
     'CREATE INDEX ix_ph_branches_city ON branches(city)',
     'CREATE INDEX ix_ph_drugs_manuf ON drugs(manufacturer_id)',
     'CREATE INDEX ix_ph_drugs_inn ON drugs(inn)',
+    'CREATE INDEX ix_ph_prices_drug ON drug_prices(drug_id)',
+    'CREATE INDEX ix_ph_prices_from ON drug_prices(valid_from)',
     'CREATE INDEX ix_ph_staff_branch ON staff(branch_id)',
     'CREATE INDEX ix_ph_batches_drug ON batches(drug_id)',
     'CREATE INDEX ix_ph_batches_exp ON batches(expiry_date)',
@@ -2985,12 +2995,13 @@ var PHARMACY_DEF = {
       ctx.emit('branches', [i + 1, bname, city, gPick(r, AZ_STREETS) + ', bina ' + gRI(r, 1, 120), azPhone(r), gFmtD(gTS(gRI(r, 2012, 2022), gRI(r, 1, 12), gRI(r, 1, 28))), act]);
     }
 
-    // drugs
+    // drugs — realizm v3: qiymət tarixçəsi (ilk qiymət pəncərədən əvvəl, dəyişimlər pəncərə içində)
     var N_DRUGS = 3200;
     var innPick = makeCumPicker(zipfWeights(PH_INN.length, 0.55));
     var seen = {};
-    var drugPrice = new Float64Array(N_DRUGS + 1);
+    var drugPrice = new Float64Array(N_DRUGS + 1);   // cari (son) qiymət
     var drugForm = new Array(N_DRUGS + 1);
+    var drugPriceHist = new Array(N_DRUGS + 1);       // [[dayIdx, price], ...] artan sıralı
     for (i = 1; i <= N_DRUGS; i++) {
       var innE = PH_INN[innPick(r)];
       var f = gPick(r, PH_FORMS);
@@ -3004,10 +3015,30 @@ var PHARMACY_DEF = {
       seen[key] = 1;
       var price = gRound2(gRlog(r, 1.1, 140) * f[4]);
       if (price < 0.3) price = 0.3;
+      var hist = [[dayIdxOf(GEN_WIN_START - gRI(r, 30, 900) * DAY_MS), price]];
+      var winDay0 = dayIdxOf(GEN_WIN_START);          // pəncərə başlanğıcının absolut gün indeksi
+      var nCh = gRI(r, 0, 4);                        // 0-4 qiymət dəyişimi (pəncərə içində)
+      if (nCh > 0) {
+        var chDays = [];
+        for (var c = 0; c < nCh; c++) chDays.push(winDay0 + gRI(r, 1, GEN_DAYS - 1));
+        chDays.sort(function(a, b){ return a - b; });
+        var p = price;
+        for (c = 0; c < chDays.length; c++) {
+          if (c > 0 && chDays[c] <= chDays[c - 1]) continue;   // təkrar günü atla
+          p = Math.max(0.3, gRound2(p * gRF(r, 0.94, 1.10)));
+          hist.push([chDays[c], p]);
+        }
+        price = p;                                   // cari qiymət = son dəyişim
+      }
       drugPrice[i] = price; drugForm[i] = f[0];
+      drugPriceHist[i] = hist;
       var atc = gPick(r, ['A','B','C','D','G','H','J','L','M','N','R','S','V']) + gPad(gRI(r, 1, 12), 2) + gPick(r, ['A','B','C']) + gPad(gRI(r, 1, 12), 2) + gPad(gRI(r, 1, 9), 1);
       var rx = innE[1] ? 1 : (gChance(r, 0.12) ? 1 : 0);
       ctx.emit('drugs', [i, name, innE[0], f[0], dos, pack, atc, rx, gRI(r, 1, 44), price]);
+      for (var h = 0; h < hist.length; h++) {
+        var vt = h + 1 < hist.length ? (hist[h + 1][0] - 1) * DAY_MS : null;   // NULL = cari qiymət
+        ctx.emit('drug_prices', [i, hist[h][1], gFmtD(hist[h][0] * DAY_MS), vt === null ? null : gFmtD(vt)]);
+      }
       if (i % 1000 === 0) await ctx.tick();
     }
 
@@ -3051,13 +3082,15 @@ var PHARMACY_DEF = {
         var shelf = gWPick(r, [[12,.1],[18,.15],[24,.4],[36,.35]]);
         var exp = new Date(mfg); exp.setUTCMonth(exp.getUTCMonth() + shelf);
         var qty = gChance(r, 0.04) ? 0 : gRI(r, 20, 900);
-        ctx.emit('batches', [bid, i, 'B' + new Date(mfg).getUTCFullYear() + '-' + gPad(gRI(r, 1, 999999), 6), gFmtD(mfg), gFmtD(exp.getTime()), qty, gRI(r, 1, 32), gRound2(drugPrice[i] * gRF(r, 0.55, 0.8))]);
+        // alış qiyməti istehsal tarixinə etibarlı satış qiymətindən törəyir (realizm v3)
+        ctx.emit('batches', [bid, i, 'B' + new Date(mfg).getUTCFullYear() + '-' + gPad(gRI(r, 1, 999999), 6), gFmtD(mfg), gFmtD(exp.getTime()), qty, gRI(r, 1, 32), gRound2(priceAt(drugPriceHist[i], dayIdxOf(mfg)) * gRF(r, 0.55, 0.8))]);
       }
       if (i % 2000 === 0) await ctx.tick();
     }
 
     // sales + items — realizm v2: satış yalnız aktiv filialda, işçi qəbuldan sonra,
     // müştəri qeydiyyatdan sonra; bonus real xərclərdən hesablanır
+    // realizm v3: unit_price satış gününə etibarlı qiymətdir (qiymət tarixçəsindən)
     var N_SALES = 90000;
     var dayPick = makeDayPicker(r, PH_MONTH_W, [1,1,1,1,1,1,1], false);
     var drugZipf = makeCumPicker(zipfWeights(N_DRUGS, 0.85));
@@ -3085,9 +3118,10 @@ var PHARMACY_DEF = {
         var dId = drugZipf(r) + 1;
         var q = gWPick(r, [[1,.60],[2,.25],[3,.10],[4,.04],[5,.01]]);
         var disc = gWPick(r, [[0,.82],[5,.08],[10,.07],[15,.03]]);
-        var line = q * drugPrice[dId] * (1 - disc / 100);
+        var baseP = priceAt(drugPriceHist[dId], dnum);      // satış günü qiyməti
+        var line = q * baseP * (1 - disc / 100);
         t += gRound2(line);
-        ctx.emit('sale_items', [iid, i, dId, q, drugPrice[dId], disc]);
+        ctx.emit('sale_items', [iid, i, dId, q, baseP, disc]);
       }
       totals[i] = gRound2(t);
       ctx.emit('sales', [i, br, st, cust, gFmtTS(ts), totals[i], gWPick(r, [['nağd',.35],['kart',.55],['onlayn',.10]])]);
@@ -3156,13 +3190,14 @@ var MK_STORE_NAMES = ['Bahar Market','Neft Market','Günəş Market','Ailə Mark
 var MK_UNITS = [['ədəd',.45],['kq',.25],['l',.15],['paket',.15]];
 
 var MARKET_DEF = {
-  id: 'market', label: 'Market', version: 'v2',
+  id: 'market', label: 'Market', version: 'v3',
   desc: 'Market şəbəkəsi: qəbzlər, stoklar, endirimlər, loyalty',
   tables: [
     { name:'stores', cols:[['store_id','INTEGER','PK'],['store_name','TEXT'],['format','TEXT'],['city','TEXT'],['address','TEXT'],['opened_date','TEXT']], fks:[], est:24 },
     { name:'categories', cols:[['category_id','INTEGER','PK'],['category_name','TEXT'],['parent_id','INTEGER']], fks:[['parent_id','categories','category_id']], est:84 },
     { name:'suppliers', cols:[['supplier_id','INTEGER','PK'],['supplier_name','TEXT'],['contact_person','TEXT'],['phone','TEXT']], fks:[], est:45 },
     { name:'products', cols:[['product_id','INTEGER','PK'],['barcode','TEXT'],['product_name','TEXT'],['category_id','INTEGER'],['supplier_id','INTEGER'],['unit','TEXT'],['price','REAL'],['cost','REAL'],['vat_pct','INTEGER'],['is_organic','INTEGER'],['origin_country','TEXT']], fks:[['category_id','categories','category_id'],['supplier_id','suppliers','supplier_id']], est:4800 },
+    { name:'product_prices', cols:[['product_id','INTEGER'],['price','REAL'],['valid_from','TEXT'],['valid_to','TEXT']], pkCols:['product_id','valid_from'], fks:[['product_id','products','product_id']], est:14400, note: 'Qiymət tarixçəsi — valid_to NULL = cari qiymət' },
     { name:'staff', cols:[['staff_id','INTEGER','PK'],['fullname','TEXT'],['store_id','INTEGER'],['position','TEXT'],['phone','TEXT'],['hire_date','TEXT'],['salary','REAL']], fks:[['store_id','stores','store_id']], est:290 },
     { name:'loyalty_cards', cols:[['card_id','INTEGER','PK'],['card_no','TEXT'],['holder','TEXT'],['phone','TEXT'],['registered_at','TEXT'],['points','INTEGER']], fks:[], est:18000 },
     { name:'stock', cols:[['store_id','INTEGER'],['product_id','INTEGER'],['quantity','INTEGER'],['min_threshold','INTEGER']], pkCols:['store_id','product_id'], fks:[['store_id','stores','store_id'],['product_id','products','product_id']], est:53000 },
@@ -3175,6 +3210,8 @@ var MARKET_DEF = {
     'CREATE INDEX ix_mk_cat_parent ON categories(parent_id)',
     'CREATE INDEX ix_mk_products_cat ON products(category_id)',
     'CREATE INDEX ix_mk_products_sup ON products(supplier_id)',
+    'CREATE INDEX ix_mk_prices_prod ON product_prices(product_id)',
+    'CREATE INDEX ix_mk_prices_from ON product_prices(valid_from)',
     'CREATE INDEX ix_mk_staff_store ON staff(store_id)',
     'CREATE INDEX ix_mk_stock_prod ON stock(product_id)',
     'CREATE INDEX ix_mk_disc_prod ON discounts(product_id)',
@@ -3251,11 +3288,12 @@ var MARKET_DEF = {
       ctx.emit('suppliers', [i, '"' + nm2 + '" MMC', azFullName(r), azPhone(r)]);
     }
 
-    // products — root-a görə ad generatorları
+    // products — root-a görə ad generatorları; realizm v3: qiymət tarixçəsi
     var N_PROD = 4800;
-    var prodPrice = new Float64Array(N_PROD + 1);
+    var prodPrice = new Float64Array(N_PROD + 1);    // cari (son) qiymət
     var prodCost = new Float64Array(N_PROD + 1);
     var prodUnit = new Array(N_PROD + 1);
+    var prodPriceHist = new Array(N_PROD + 1);       // [[dayIdx, price], ...] artan sıralı
     var leafPick = makeCumPicker(leaves.map(function(){ return 1; }));
     var rootVariants = {
       'Süd məhsulları': [['Pastorizə süd','Yağlı süd','Laktozasız süd','Ayran','Kefir','Şirinləşdirilmiş süd','Süd kokteyli'],['200 q','400 q','500 ml','900 q','1 L','2 L']],
@@ -3296,10 +3334,30 @@ var MARKET_DEF = {
       var origin = gWPick(r, [['Azərbaycan',.62],['Türkiyə',.12],['İran',.08],['Rusiya',.06],['İtaliya',.03],['İspaniya',.03],['Misir',.02],['Hindistan',.02],['Çili',.02]]);
       var unit = gWPick(r, MK_UNITS);
       if (leaf[1] === 'Meyvə-tərəvəz') unit = 'kq';
+      var histP = [[dayIdxOf(GEN_WIN_START - gRI(r, 30, 900) * DAY_MS), price]];
+      var winDay0P = dayIdxOf(GEN_WIN_START);
+      var nChP = gRI(r, 0, 4);                      // 0-4 qiymət dəyişimi (pəncərə içində)
+      if (nChP > 0) {
+        var chDaysP = [];
+        for (var c2 = 0; c2 < nChP; c2++) chDaysP.push(winDay0P + gRI(r, 1, GEN_DAYS - 1));
+        chDaysP.sort(function(a, b){ return a - b; });
+        var pP = price;
+        for (c2 = 0; c2 < chDaysP.length; c2++) {
+          if (c2 > 0 && chDaysP[c2] <= chDaysP[c2 - 1]) continue;
+          pP = Math.max(0.1, gRound2(pP * gRF(r, 0.93, 1.12)));
+          histP.push([chDaysP[c2], pP]);
+        }
+        price = pP;                                 // cari qiymət = son dəyişim
+      }
       prodPrice[i] = price;
       prodCost[i] = gRound2(price * gRF(r, 0.62, 0.85));
       prodUnit[i] = unit;
+      prodPriceHist[i] = histP;
       ctx.emit('products', [i, '48' + gPad(i, 11), pname, leaf[0], gRI(r, 1, 45), unit, price, prodCost[i], vat, organic, origin]);
+      for (var h2 = 0; h2 < histP.length; h2++) {
+        var vtP = h2 + 1 < histP.length ? (histP[h2 + 1][0] - 1) * DAY_MS : null;
+        ctx.emit('product_prices', [i, histP[h2][1], gFmtD(histP[h2][0] * DAY_MS), vtP === null ? null : gFmtD(vtP)]);
+      }
       if (i % 1500 === 0) await ctx.tick();
     }
 
@@ -3386,10 +3444,10 @@ var MARKET_DEF = {
         var p2 = prodZipf(r) + 1;
         var u2 = prodUnit[p2];
         var q2 = u2 === 'ədəd' || u2 === 'paket' ? gRI(r, 1, 5) : Math.round(gRF(r, 2, 30)) / 10;
-        var promo = 0, unitP = prodPrice[p2];
+        var promo = 0, unitP = priceAt(prodPriceHist[p2], dnumM);   // qəbz gününə etibarlı qiymət (realizm v3)
         var dvs = discByProd[p2];
         if (dvs) for (var dv = 0; dv < dvs.length; dv++) {
-          if (ts2 >= dvs[dv][0] && ts2 <= dvs[dv][1]) { promo = 1; unitP = gRound2(prodPrice[p2] * (1 - dvs[dv][2] / 100)); break; }
+          if (ts2 >= dvs[dv][0] && ts2 <= dvs[dv][1]) { promo = 1; unitP = gRound2(unitP * (1 - dvs[dv][2] / 100)); break; }
         }
         t2 += gRound2(q2 * unitP);
         ctx.emit('receipt_items', [iidM, i, p2, q2, unitP, promo]);
