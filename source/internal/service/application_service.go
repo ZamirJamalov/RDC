@@ -560,7 +560,16 @@ func (s *ApplicationService) GetApplicationByPublicID(ctx context.Context, publi
 	if publicID == "" {
 		return nil, fmt.Errorf("invalid public id")
 	}
-	return s.repo.GetApplicationByPublicID(ctx, publicID)
+	app, err := s.repo.GetApplicationByPublicID(ctx, publicID)
+	if err != nil {
+		return nil, err
+	}
+	// PR #348: dashboard-da faizi komissiyadan ayrı göstərmək üçün illik faiz
+	// dərəcəsini də qaytarırıq (AZMK create ilə eyni helper, eyni dəyər).
+	if app.CreditLevel != "" {
+		app.AnnualInterestRate = s.annualInterestRateForApp(ctx, app)
+	}
+	return app, nil
 }
 
 // GetStatus retrieves the full status response including checks and decision for an application.

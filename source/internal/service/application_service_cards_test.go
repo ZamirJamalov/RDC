@@ -18,10 +18,11 @@ var errSomeAzmkFailure = errors.New("azmk: simulated outage")
 // fakeAzmkOnlineProvider is a test-only implementation of azmk.Provider
 // (OnlineLending) with configurable card list and call counters.
 type fakeAzmkOnlineProvider struct {
-	cards        []azmk.CardInfo
-	cardsErr     error
-	getCards     int
-	registerCard int
+	cards           []azmk.CardInfo
+	cardsErr        error
+	registerCardErr error
+	getCards        int
+	registerCard    int
 }
 
 func (f *fakeAzmkOnlineProvider) KYC(context.Context, *azmk.KYCRequest) (string, error) {
@@ -35,6 +36,9 @@ func (f *fakeAzmkOnlineProvider) RegisterPartner(context.Context, *azmk.PartnerR
 }
 func (f *fakeAzmkOnlineProvider) RegisterCard(context.Context, *azmk.CardRequest) (string, error) {
 	f.registerCard++
+	if f.registerCardErr != nil {
+		return "", f.registerCardErr
+	}
 	return "FAKE-NEW-CARD-1", nil
 }
 func (f *fakeAzmkOnlineProvider) CreateApplication(context.Context, *azmk.ApplicationCreateRequest) (string, error) {
@@ -134,8 +138,9 @@ func TestGetCustomerCards_AzmkError_FailSoft(t *testing.T) {
 	}
 }
 
-// TestCustomerConfirm_SelectedSavedCard — köhnə kart seçilib:
-// RegisterCard çağırılmır, card_id seçilmiş kart olur, card_number maskalanır.
+// TestCustomerConfirm_SelectedSavedCard — köhnə kart seçilib (PR #347):
+// RegisterCard çağırılır (maskalı kodla), uğurlu cavabda onun card_id-si
+// yazılır, card_number maskalanır.
 func TestCustomerConfirm_SelectedSavedCard(t *testing.T) {
 	ctx := context.Background()
 	store := newCardsTestStore()
@@ -155,8 +160,11 @@ func TestCustomerConfirm_SelectedSavedCard(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if app.CardID != "CARD-1" {
-		t.Errorf("CardID = %q, want %q", app.CardID, "CARD-1")
+	if provider.registerCard != 1 {
+		t.Errorf("RegisterCard must be called once for a saved card (PR #347), called %d times", provider.registerCard)
+	}
+	if app.CardID != "FAKE-NEW-CARD-1" {
+		t.Errorf("CardID = %q, want %q", app.CardID, "FAKE-NEW-CARD-1")
 	}
 	if app.CardNumber != "************5559" {
 		t.Errorf("CardNumber = %q, want masked %q", app.CardNumber, "************5559")
@@ -164,8 +172,41 @@ func TestCustomerConfirm_SelectedSavedCard(t *testing.T) {
 	if app.Status != model.StatusPendingExpert {
 		t.Errorf("Status = %q, want pending_expert", app.Status)
 	}
-	if provider.registerCard != 0 {
-		t.Errorf("RegisterCard must NOT be called for a saved card, called %d times", provider.registerCard)
+}
+
+// TestCustomerConfirm_SelectedSavedCard_ReregisterFails — PR #347 fallback:
+// köhnə kartın yenidən qeydiyyatı xəta verərsə axın break olmur, seçilmiş
+// kartın mövcud card_id-si yazılır (kart onsuzda AZMK-da qeydiyyatdadır).
+func TestCustomerConfirm_SelectedSavedCard_ReregisterFails(t *testing.T) {
+	ctx := context.Background()
+	store := newCardsTestStore()
+	provider := &fakeAzmkOnlineProvider{
+		cards: []azmk.CardInfo{
+			{ID: "CARD-1", Type: "CARD", Code: "****-****-****-5559", Expiring: "2030-01-01"},
+		},
+		registerCardErr: errSomeAzmkFailure,
+	}
+	svc := newCardsTestService(store, provider)
+
+	req := &CustomerConfirmRequest{
+		Amount:                 200,
+		SelectedCardID:         "CARD-1",
+		ActualAddress:          "Bakı, Nizami r., Murtuza Muxtarov 12",
+		CardOwnershipConfirmed: true,
+	}
+
+	app, err := svc.CustomerConfirmApplication(ctx, 1, req)
+	if err != nil {
+		t.Fatalf("re-register failure must fall back, got error: %v", err)
+	}
+	if provider.registerCard != 1 {
+		t.Errorf("RegisterCard must be called once, called %d times", provider.registerCard)
+	}
+	if app.CardID != "CARD-1" {
+		t.Errorf("CardID = %q, want fallback %q", app.CardID, "CARD-1")
+	}
+	if app.Status != model.StatusPendingExpert {
+		t.Errorf("Status = %q, want pending_expert", app.Status)
 	}
 }
 

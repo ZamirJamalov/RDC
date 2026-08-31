@@ -373,11 +373,11 @@
                             <div class="alpul-grad-text font-extrabold text-lg leading-tight" x-text="(app?.term_months ?? '-') + ' ay'"></div>
                         </div>
                         <div class="sub-card text-center">
-                            <div class="sub-card-title mb-1">Faiz</div>
+                            <div class="sub-card-title mb-1">Komissiya</div>
                             <div class="alpul-grad-text font-extrabold text-lg leading-tight" x-text="(app?.approved_rate !== undefined && app?.approved_rate !== null) ? app.approved_rate + '%' : '-'"></div>
                         </div>
                     </div>
-                    <div x-show="app?.total_amount > 0" class="panel-divider border-t pt-3 grid grid-cols-2 gap-3 text-sm">
+                    <div x-show="app?.total_amount > 0" class="panel-divider border-t pt-3 grid grid-cols-3 gap-3 text-sm">
                         <div>
                             <div class="label-soft text-[11px] uppercase tracking-wide">Ümumi (komissiya ilə)</div>
                             <div class="value-strong font-semibold" x-text="(app?.total_amount ?? '-') + ' AZN'"></div>
@@ -385,6 +385,11 @@
                         <div>
                             <div class="label-soft text-[11px] uppercase tracking-wide">Karta köçürülən</div>
                             <div class="value-strong font-semibold" x-text="(app?.amount ?? '-') + ' AZN'"></div>
+                        </div>
+                        <!-- PR #348: illik faiz dərəcəsi ayrıca göstərilir (komissiyadan fərqli) -->
+                        <div>
+                            <div class="label-soft text-[11px] uppercase tracking-wide">İllik faiz</div>
+                            <div class="value-strong font-semibold" x-text="app?.annual_interest_rate ? app.annual_interest_rate + '%' : '-'"></div>
                         </div>
                     </div>
                 </section>
