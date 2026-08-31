@@ -70,7 +70,7 @@ func newCardsTestStore() *mockApplicationStore {
 
 func newCardsTestService(store *mockApplicationStore, provider *fakeAzmkOnlineProvider) *ApplicationService {
 	svc := newConfirmService(store, newConfirmLWProvider(), nil)
-	svc.SetAzmkProvider(provider, "HO", "2030-01-01", "I10", 0)
+	svc.SetAzmkProvider(provider, "HO", "2030-01-01", "I10")
 	return svc
 }
 

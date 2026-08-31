@@ -501,7 +501,7 @@ func (s *ApplicationService) azmkCreateApplication(ctx context.Context, app *mod
 			Term:            app.TermMonths,
 			BranchCode:      s.azmkBranch,
 			InterestRate:    annualInterestRate / 100.0, // PR #311: AZMK kəsr gözləyir (48 → 0.48)
-			DisbursementFee: s.azmkDisbursementFee,
+			DisbursementFee: app.ApprovedRate / 100.0,   // PR #349: credit_levels.commission → kəsr (11 → 0.11)
 			LetterNumber:    "",
 			Address:         app.ActualAddress, // PR #348: RDC-dəki faktiki ünvan AZMK-ya göndərilir
 		},

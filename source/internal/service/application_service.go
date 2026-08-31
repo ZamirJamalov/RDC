@@ -23,11 +23,12 @@ type ApplicationService struct {
 	smsProvider  otp.Provider         // PR #95: for approval SMS (may be nil if otpService is nil)
 
 	// PR #117: AZMK Online Lending Service
-	azmkProvider        azmk.Provider // set via SetAzmkProvider (nil = skip KYC/Partner)
-	azmkBranch          string        // AZMK_BRANCH_CODE (məs. "HO")
-	azmkCardExpiring    string        // AZMK_CARD_EXPIRING (məs. "2030-01-01")
-	azmkProductID       string        // AZMK_PRODUCT_ID (məs. "L07", config-dən dəyişilə bilər)
-	azmkDisbursementFee float64       // AZMK_DISBURSEMENT_FEE (həmişə 0)
+	azmkProvider     azmk.Provider // set via SetAzmkProvider (nil = skip KYC/Partner)
+	azmkBranch       string        // AZMK_BRANCH_CODE (məs. "HO")
+	azmkCardExpiring string        // AZMK_CARD_EXPIRING (məs. "2030-01-01")
+	azmkProductID    string        // AZMK_PRODUCT_ID (məs. "L07", config-dən dəyişilə bilər)
+	// PR #349: azmkDisbursementFee silindi — disbursementFee artıq env-dən deyil,
+	// credit_levels.commission-dan göndərilir (app.ApprovedRate / 100, AZMK kəsr formatında).
 
 	// PR #152: AZMK CustomerDataService (yaş yoxlaması üçün)
 	customerDataProvider azmk.CustomerDataProvider // set via SetCustomerDataProvider (nil = skip age check)
@@ -99,12 +100,14 @@ func (s *ApplicationService) SetDiscountService(svc *DiscountCodeService) {
 //  4. Save kyc_id + partner_id to the application
 //
 // When nil (e.g. in tests), KYC/Partner steps are skipped.
-func (s *ApplicationService) SetAzmkProvider(provider azmk.Provider, branchCode, cardExpiring, productID string, disbursementFee float64) {
+//
+// PR #349: disbursementFee parametri silindi — dəyər artıq env-dən deyil,
+// hər müraciətin öz credit_levels.commission-dan (app.ApprovedRate/100) gəlir.
+func (s *ApplicationService) SetAzmkProvider(provider azmk.Provider, branchCode, cardExpiring, productID string) {
 	s.azmkProvider = provider
 	s.azmkBranch = branchCode
 	s.azmkCardExpiring = cardExpiring
 	s.azmkProductID = productID
-	s.azmkDisbursementFee = disbursementFee
 }
 
 // SetCustomerDataProvider injects the AZMK CustomerDataService provider (PR #152).
