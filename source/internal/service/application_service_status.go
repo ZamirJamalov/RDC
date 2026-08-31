@@ -487,6 +487,7 @@ func (s *ApplicationService) annualInterestRateForApp(ctx context.Context, app *
 //   - branchCode: config-dən (AZMK_BRANCH_CODE)
 //   - interestRate: annual_interest_rate (credit_levels-dən) — AZMK KƏSR formatında göndərilir: 48 → 0.48, 30 → 0.30 (PR #311)
 //   - disbursementFee: config-dən (AZMK_DISBURSEMENT_FEE, həmişə 0)
+//   - address: app.ActualAddress — RDC-dəki faktiki ünvan (PR #348)
 func (s *ApplicationService) azmkCreateApplication(ctx context.Context, app *model.LoanApplication, totalAmount float64) error {
 	// annual_interest_rate-i credit_levels-dən al (helper — disburse da eynini istifadə edir)
 	annualInterestRate := s.annualInterestRateForApp(ctx, app)
@@ -502,6 +503,7 @@ func (s *ApplicationService) azmkCreateApplication(ctx context.Context, app *mod
 			InterestRate:    annualInterestRate / 100.0, // PR #311: AZMK kəsr gözləyir (48 → 0.48)
 			DisbursementFee: s.azmkDisbursementFee,
 			LetterNumber:    "",
+			Address:         app.ActualAddress, // PR #348: RDC-dəki faktiki ünvan AZMK-ya göndərilir
 		},
 	}
 
