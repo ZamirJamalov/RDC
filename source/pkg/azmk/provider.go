@@ -130,7 +130,7 @@ type LoanData struct {
         Term           int     `json:"term"`           // months
         BranchCode     string  `json:"branchCode"`     // config-dən (məs. "HO")
         InterestRate   float64 `json:"interestRate"`   // KƏSR formatında göndərilir: 0.48 (= 48%), 0.30 (= 30%) — PR #311
-        DisbursementFee float64 `json:"disbursementFee"` // 0 (həmişə)
+        DisbursementFee float64 `json:"disbursementFee"` // credit_levels.commission / 100 (PR #349)
         LetterNumber   string  `json:"letterNumber"`   // boş
         // Disburse üçün:
         ApplicationID string `json:"applicationId,omitempty"` // Application create-dən qaytarılan ID

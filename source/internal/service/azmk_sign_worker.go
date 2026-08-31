@@ -196,7 +196,7 @@ func (s *ApplicationService) pollOneSignature(ctx context.Context, id, timeoutS 
 			Term:            app.TermMonths,
 			BranchCode:      s.azmkBranch,
 			InterestRate:    s.annualInterestRateForApp(ctx, app) / 100.0, // PR #311: AZMK kəsr gözləyir (48 → 0.48)
-			DisbursementFee: s.azmkDisbursementFee,
+			DisbursementFee: app.ApprovedRate / 100.0,                     // PR #349: credit_levels.commission → kəsr (11 → 0.11)
 			LetterNumber:    "",
 			ApplicationID:   app.LwApplicationID, // AZMK təsdiqi: disburse applicationId istifadə edir
 			CardID:          app.CardID,

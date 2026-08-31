@@ -486,7 +486,8 @@ func (s *ApplicationService) annualInterestRateForApp(ctx context.Context, app *
 //   - term: app.TermMonths
 //   - branchCode: config-dən (AZMK_BRANCH_CODE)
 //   - interestRate: annual_interest_rate (credit_levels-dən) — AZMK KƏSR formatında göndərilir: 48 → 0.48, 30 → 0.30 (PR #311)
-//   - disbursementFee: config-dən (AZMK_DISBURSEMENT_FEE, həmişə 0)
+//   - disbursementFee: credit_levels.commission → kəsr (PR #349): app.ApprovedRate / 100
+//     (confirm anında yazılır; total_amount da eyni commission-dan hesablanır)
 func (s *ApplicationService) azmkCreateApplication(ctx context.Context, app *model.LoanApplication, totalAmount float64) error {
 	// annual_interest_rate-i credit_levels-dən al (helper — disburse da eynini istifadə edir)
 	annualInterestRate := s.annualInterestRateForApp(ctx, app)
@@ -500,7 +501,7 @@ func (s *ApplicationService) azmkCreateApplication(ctx context.Context, app *mod
 			Term:            app.TermMonths,
 			BranchCode:      s.azmkBranch,
 			InterestRate:    annualInterestRate / 100.0, // PR #311: AZMK kəsr gözləyir (48 → 0.48)
-			DisbursementFee: s.azmkDisbursementFee,
+			DisbursementFee: app.ApprovedRate / 100.0,   // PR #349: credit_levels.commission → kəsr (11 → 0.11)
 			LetterNumber:    "",
 		},
 	}

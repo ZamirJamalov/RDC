@@ -80,13 +80,14 @@ type Config struct {
 	MinOfficialIncomeAZN float64 // minimum official income required for approval
 
 	// PR #116: AZMK Online Lending Service
-	AzmkBaseURL         string  // https://web.azmk.az:7077/LW_CREDIT_HOUSE/services/OnlineLendingService
-	AzmkBranchCode      string  // HO (default, dəyişilə bilər)
-	AzmkProductID       string  // L07 (default, config-dən dəyişilə bilər)
-	AzmkCardExpiring    string  // 2030-01-01 (həmişə statik)
-	AzmkDisbursementFee float64 // 0 (həmişə 0, gələcəkdə dəyişə bilər)
-	AzmkUseMock         bool    // mock mode (test üçün)
-	AzmkTimeoutS        int     // HTTP timeout
+	AzmkBaseURL      string // https://web.azmk.az:7077/LW_CREDIT_HOUSE/services/OnlineLendingService
+	AzmkBranchCode   string // HO (default, dəyişilə bilər)
+	AzmkProductID    string // L07 (default, config-dən dəyişilə bilər)
+	AzmkCardExpiring string // 2030-01-01 (həmişə statik)
+	// PR #349: AzmkDisbursementFee silindi — disbursementFee artıq env-dən deyil,
+	// credit_levels.commission-dan göndərilir (app.ApprovedRate / 100).
+	AzmkUseMock  bool // mock mode (test üçün)
+	AzmkTimeoutS int  // HTTP timeout
 
 	// PR #312: AZMK imza gözləmə worker-ı
 	AzmkSignPollIntervalS int // AZMK_SIGN_POLL_INTERVAL_S — status sorğusu intervalı (san, default 300 = 5 dəq)
@@ -180,17 +181,17 @@ func Load() *Config {
 		MinOfficialIncomeAZN:   getEnvFloat("MIN_OFFICIAL_INCOME_AZN", 300.0),
 
 		// PR #116: AZMK Online Lending Service
-		AzmkBaseURL:         getEnv("AZMK_BASE_URL", "https://web.azmk.az:7077/LW_CREDIT_HOUSE/services/OnlineLendingService"),
-		AzmkBranchCode:      getEnv("AZMK_BRANCH_CODE", "HO"),
-		AzmkProductID:       getEnv("AZMK_PRODUCT_ID", "L07"),
-		AzmkCardExpiring:    getEnv("AZMK_CARD_EXPIRING", "2030-01-01"),
-		AzmkDisbursementFee: getEnvFloat("AZMK_DISBURSEMENT_FEE", 0.0),
-		AzmkUseMock:         getEnvBool("AZMK_USE_MOCK", true),
+		AzmkBaseURL:      getEnv("AZMK_BASE_URL", "https://web.azmk.az:7077/LW_CREDIT_HOUSE/services/OnlineLendingService"),
+		AzmkBranchCode:   getEnv("AZMK_BRANCH_CODE", "HO"),
+		AzmkProductID:    getEnv("AZMK_PRODUCT_ID", "L07"),
+		AzmkCardExpiring: getEnv("AZMK_CARD_EXPIRING", "2030-01-01"),
+		// PR #349: AZMK_DISBURSEMENT_FEE oxunmur — dəyər credit_levels.commission-dan gəlir.
+		AzmkUseMock:           getEnvBool("AZMK_USE_MOCK", true),
 		AzmkSignPollIntervalS: getEnvInt("AZMK_SIGN_POLL_INTERVAL_S", 300),
 		AzmkSignTimeoutS:      getEnvInt("AZMK_SIGN_TIMEOUT_S", 10800),
-		AzmkTimeoutS:        getEnvInt("AZMK_TIMEOUT_S", 30),
-		AzmkUsername:        getEnv("AZMK_USERNAME", ""),
-		AzmkPassword:        getEnv("AZMK_PASSWORD", ""),
+		AzmkTimeoutS:          getEnvInt("AZMK_TIMEOUT_S", 30),
+		AzmkUsername:          getEnv("AZMK_USERNAME", ""),
+		AzmkPassword:          getEnv("AZMK_PASSWORD", ""),
 
 		// PR #152: AZMK CustomerDataService
 		AzmkCustomerDataURL:     getEnv("AZMK_CUSTOMER_DATA_URL", "https://web.azmk.az:7077/LW_AKP/services/CustomerDataService"),
