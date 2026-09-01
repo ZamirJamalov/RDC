@@ -282,7 +282,9 @@ func (s *ApplicationService) markDiscountCodeUsed(ctx context.Context, code stri
 // "kreditiniz təsdiq edildi" bildirişi. Referal SMS-indən (PR #319) əvvəl
 // çağırılır — əsas əməliyyat bildirişi prioritetlidir. Non-fatal: SMS xətası
 // disburse nəticəsini pozmur, yalnız log lanır.
-// Mətn: "...kartınıza köçürüldü. Müştəri kodunuz: HO0030210." — kod =
+// Mətn (PR #351): kredit məbləği (total_amount, komissiya daxil) İLƏ karta
+// köçürülən məbləğ (amount) AYRI göstərilir — bunlar fərqlidir, müştəridə
+// çaşqınlıq yaranmasın deyə. Sonra: "Müştəri kodunuz: HO0030210." — kod =
 // azmk_loan_id (AZMK status cavabından, worker disburse-dan əvvəl yazır);
 // boş olsa (loanId hələ gəlməyibsə) hissə ötürülür.
 func (s *ApplicationService) sendDisburseApprovalSMS(ctx context.Context, app *model.LoanApplication) {
@@ -297,8 +299,8 @@ func (s *ApplicationService) sendDisburseApprovalSMS(ctx context.Context, app *m
 		return
 	}
 
-	smsMsg := fmt.Sprintf("Hörmətli müştərimiz! Sizin %.2f AZN məbləğində kreditiniz təsdiq edildi və kartınıza köçürüldü.",
-		app.TotalAmount)
+	smsMsg := fmt.Sprintf("Hörmətli müştərimiz! Sizin %.2f AZN məbləğində kreditiniz təsdiq edildi, kartınıza %.2f AZN köçürüldü.",
+		app.TotalAmount, app.Amount)
 	if app.AzmkLoanID != "" {
 		smsMsg += fmt.Sprintf(" Müştəri kodunuz: %s.", app.AzmkLoanID)
 	}
@@ -312,7 +314,8 @@ func (s *ApplicationService) sendDisburseApprovalSMS(ctx context.Context, app *m
 	slog.Info("disburse: approval SMS sent",
 		"application_id", app.ID,
 		"phone", app.CustomerPhone,
-		"amount", app.TotalAmount)
+		"amount", app.TotalAmount,
+		"transfer_amount", app.Amount)
 }
 
 // referralOnDisburseSuccess — PR #319 (pre_referal_code_plan.md, R1+R4):
