@@ -43,8 +43,8 @@ type CustomerConfirmRequest struct {
 	TermMonths int `json:"term_months,omitempty"`
 	// PR #313: müştərinin AZMK-da əvvəldən qeydiyyatda olan kartı seçilibsə
 	// onun AZMK card ID-si. Dolu olanda card_number ignore edilir (yeni kart
-	// daxil edilmir). PR #352: RegisterCard yenə də çağırılır (maskalı kodla);
-	// xəta olsa confirm BLOQLANIR — müraciət RDC dashboard-a getmir.
+	// daxil edilmir) və RegisterCard çağırılmır — kartın card_id-si birbaşa
+	// yazılır və create/disburse-da göndərilir (PR #355).
 	SelectedCardID string `json:"selected_card_id,omitempty"`
 }
 
@@ -287,27 +287,28 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
 	// Expert role: MyGov verify, kontaktlar, timer, approve/reject.
 	app.Status = model.StatusPendingExpert
 
-	// PR #118/#313/#347/#352: AZMK Card registration
-	// PR #352: RegisterCard HƏR kart üçün çağırılır (köhnə kartda AZMK-dan
-	// gələn maskalı kodla, PR #347). XƏTA BAŞ VERƏRSƏ PROSES DAVAM ETMİR:
-	// confirm hard-fail olur, müraciət pending_customer qalır və RDC
-	// dashboard-a DÜŞMÜR (PR #347-ün silent fallback-i ləğv olunub — bu
-	// blok UpdateApplicationDetails-dən ƏVVƏL işlədiyi üçün status DB-yə
-	// yazılmır, dashboard-a heç nə getmir).
-	// Nəzərə alın: köhnə kartın tam PAN-i bizdə yoxdur, maskalı kodla yenidən
-	// qeydiyyat AZMK tərəfindən 400 "Invalid code" ilə rədd edilir — bu halda
-	// müştəriyə kartın tam nömrəsini yenidən daxil etməsi tövsiyə olunur.
-	if s.azmkProvider != nil && app.PartnerID != "" {
-		code := req.CardNumber
-		reregistered := false
-		if selectedCard != nil {
-			code = selectedCard.Code
-			reregistered = true
-		}
+	// PR #118/#313/#355: AZMK Card registration
+	// PR #355: köhnə kart seçilibsə RegisterCard ÇAĞIRILMIR — kart onsuzda
+	// AZMK-da qeydiyyatdadır və onun card_id-si birbaşa istifadə olunur:
+	// application/create (PR #353) və disburse cardId-ni app.CardID-dən göndərir.
+	// (PR #347/#352-dəki maskalı-kodla yenidən qeydiyyat ləğv olunub — AZMK
+	// maskalı kodu 400 "Invalid code" ilə rədd edir, çağırış mənasız idi.)
+	// Yeni kart daxil edilibsə RegisterCard çağırılır; xəta baş verərsə proses
+	// DAVAM ETMİR — confirm hard-fail olur (PR #352), müraciət pending_customer
+	// qalır və RDC dashboard-a DÜŞMÜR.
+	if selectedCard != nil {
+		app.CardID = selectedCard.ID
+		slog.Info("PR #355: saved card selected — RegisterCard skipped, card_id used directly",
+			"application_id", appID,
+			"customer_pin", app.CustomerPIN,
+			"partner_id", app.PartnerID,
+			"card_id", selectedCard.ID,
+			"card_code", selectedCard.Code)
+	} else if s.azmkProvider != nil && app.PartnerID != "" {
 		cardReq := &azmk.CardRequest{
 			CardData: azmk.CardData{
 				PartnerID: app.PartnerID,
-				Code:      code,
+				Code:      req.CardNumber,
 				Expiring:  s.azmkCardExpiring,
 			},
 		}
@@ -317,11 +318,7 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
 				"application_id", appID,
 				"customer_pin", app.CustomerPIN,
 				"partner_id", app.PartnerID,
-				"reregistered", reregistered,
 				"error", err)
-			if reregistered {
-				return nil, fmt.Errorf("seçilmiş kart yenidən qeydiyyatdan keçirilə bilmədi — zəhmət olmasa kartın tam nömrəsini yenidən daxil edin: %w", err)
-			}
 			return nil, fmt.Errorf("Kart qeydiyyatı uğursuz: %w", err)
 		}
 		app.CardID = cardID
@@ -329,11 +326,7 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
 			"application_id", appID,
 			"customer_pin", app.CustomerPIN,
 			"partner_id", app.PartnerID,
-			"card_id", cardID,
-			"reregistered", reregistered)
-	} else if selectedCard != nil {
-		// Provider yoxdursa (mock/dev): card_id birbaşa yazılır.
-		app.CardID = selectedCard.ID
+			"card_id", cardID)
 	}
 
 	// 5. Save

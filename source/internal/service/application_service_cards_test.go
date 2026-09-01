@@ -140,9 +140,9 @@ func TestGetCustomerCards_AzmkError_FailSoft(t *testing.T) {
 	}
 }
 
-// TestCustomerConfirm_SelectedSavedCard — köhnə kart seçilib (PR #352):
-// RegisterCard çağırılır (maskalı kodla), uğurlu cavabda onun card_id-si
-// yazılır, card_number maskalanır (AZMK mock-u xəta vermir).
+// TestCustomerConfirm_SelectedSavedCard — köhnə kart seçilib (PR #355):
+// RegisterCard çağırılmır, seçilmiş kartın card_id-si birbaşa yazılır
+// (create/disburse onu göndərir, PR #353), card_number maskalanır.
 func TestCustomerConfirm_SelectedSavedCard(t *testing.T) {
 	ctx := context.Background()
 	store := newCardsTestStore()
@@ -162,11 +162,11 @@ func TestCustomerConfirm_SelectedSavedCard(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if provider.registerCard != 1 {
-		t.Errorf("RegisterCard must be called once for a saved card (PR #352), called %d times", provider.registerCard)
+	if provider.registerCard != 0 {
+		t.Errorf("RegisterCard must NOT be called for a saved card (PR #355), called %d times", provider.registerCard)
 	}
-	if app.CardID != "FAKE-NEW-CARD-1" {
-		t.Errorf("CardID = %q, want %q", app.CardID, "FAKE-NEW-CARD-1")
+	if app.CardID != "CARD-1" {
+		t.Errorf("CardID = %q, want %q (seçilmiş kartın ID-si birbaşa)", app.CardID, "CARD-1")
 	}
 	if app.CardNumber != "************5559" {
 		t.Errorf("CardNumber = %q, want masked %q", app.CardNumber, "************5559")
@@ -174,38 +174,9 @@ func TestCustomerConfirm_SelectedSavedCard(t *testing.T) {
 	if app.Status != model.StatusPendingExpert {
 		t.Errorf("Status = %q, want pending_expert", app.Status)
 	}
-}
-
-// TestCustomerConfirm_SelectedSavedCard_ReregisterFails_Blocks — PR #352:
-// köhnə kartin yenidən qeydiyyatı xəta verərsə confirm BLOQLANIR — müraciət
-// pending_customer qalır, RDC dashboard-a DÜŞMÜR (fallback yoxdur).
-func TestCustomerConfirm_SelectedSavedCard_ReregisterFails_Blocks(t *testing.T) {
-	ctx := context.Background()
-	store := newCardsTestStore()
-	provider := &fakeAzmkOnlineProvider{
-		cards: []azmk.CardInfo{
-			{ID: "CARD-1", Type: "CARD", Code: "****-****-****-5559", Expiring: "2030-01-01"},
-		},
-		registerCardErr: errSomeAzmkFailure,
-	}
-	svc := newCardsTestService(store, provider)
-
-	req := &CustomerConfirmRequest{
-		Amount:                 200,
-		SelectedCardID:         "CARD-1",
-		ActualAddress:          "Bakı, Nizami r., Murtuza Muxtarov 12",
-		CardOwnershipConfirmed: true,
-	}
-
-	if _, err := svc.CustomerConfirmApplication(ctx, 1, req); err == nil {
-		t.Fatal("expected error (process must NOT continue to dashboard on re-register failure), got nil")
-	}
-	if provider.registerCard != 1 {
-		t.Errorf("RegisterCard must be called once, called %d times", provider.registerCard)
-	}
-	// Müraciət dashboard-a getməməlidir: status pending_customer qalır.
-	if got := store.appByID[1].Status; got != model.StatusPendingCustomer {
-		t.Errorf("stored status = %q, want pending_customer (must NOT reach dashboard)", got)
+	// DB-yə də seçilmiş card_id yazılmalıdır (create PR #353 bunu göndərir).
+	if got := store.appByID[1].CardID; got != "CARD-1" {
+		t.Errorf("stored CardID = %q, want %q", got, "CARD-1")
 	}
 }
 
