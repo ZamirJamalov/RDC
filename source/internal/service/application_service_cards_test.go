@@ -20,12 +20,14 @@ var errSomeAzmkFailure = errors.New("azmk: simulated outage")
 // fakeAzmkOnlineProvider is a test-only implementation of azmk.Provider
 // (OnlineLending) with configurable card list and call counters.
 type fakeAzmkOnlineProvider struct {
-	cards           []azmk.CardInfo
-	cardsErr        error
-	registerCardErr error // PR #350: yeni kart xətasını simulyasiya etmək üçün
-	getCards        int
-	registerCard    int
-	createAppReq    *azmk.ApplicationCreateRequest // PR #353: son create request-i (assert üçün)
+	cards              []azmk.CardInfo
+	cardsErr           error
+	registerCardErr    error // PR #350: yeni kart xətasını simulyasiya etmək üçün
+	registerPartnerErr error // PR #357: partner re-register xətasını simulyasiya etmək üçün
+	getCards           int
+	registerCard       int
+	createAppReq       *azmk.ApplicationCreateRequest // PR #353: son create request-i (assert üçün)
+	partnerReq         *azmk.PartnerRequest           // PR #357: son partner re-register request-i
 }
 
 func (f *fakeAzmkOnlineProvider) KYC(context.Context, *azmk.KYCRequest) (string, error) {
@@ -34,7 +36,11 @@ func (f *fakeAzmkOnlineProvider) KYC(context.Context, *azmk.KYCRequest) (string,
 func (f *fakeAzmkOnlineProvider) VerifyKYC(context.Context, string) (bool, error) {
 	return true, nil
 }
-func (f *fakeAzmkOnlineProvider) RegisterPartner(context.Context, *azmk.PartnerRequest) (string, error) {
+func (f *fakeAzmkOnlineProvider) RegisterPartner(_ context.Context, req *azmk.PartnerRequest) (string, error) {
+	f.partnerReq = req
+	if f.registerPartnerErr != nil {
+		return "", f.registerPartnerErr
+	}
 	return "FAKE-PARTNER-1", nil
 }
 func (f *fakeAzmkOnlineProvider) RegisterCard(context.Context, *azmk.CardRequest) (string, error) {
@@ -301,6 +307,72 @@ func TestAzmkCreateApplication_SendsCardId(t *testing.T) {
 	}
 	if got := provider.createAppReq.LoanData.DisbursementFee; got != 0.11 {
 		t.Errorf("disbursementFee = %v, want 0.11 (ApprovedRate/100)", got)
+	}
+}
+
+// TestAzmkCreateApplication_PartnerReRegisterHomeAddress — PR #357:
+// create-dən ƏVVƏL partner re-register edilməli və PartnerData.homeAddress
+// dashboarddakı faktiki ünvanı daşımalıdır (init-də "-" gedirdi).
+func TestAzmkCreateApplication_PartnerReRegisterHomeAddress(t *testing.T) {
+	ctx := context.Background()
+	store := newCardsTestStore()
+	provider := &fakeAzmkOnlineProvider{}
+	svc := newCardsTestService(store, provider)
+
+	app := store.appByID[1]
+	app.CardID = "2093427826F74596A244DEF468068900"
+	app.ApprovedRate = 11
+	app.ActualAddress = "Bakı, Yasamal r., Əhməd Rəcəbli 15"
+	app.CustomerPhone = "+994552077228"
+	app.CustomerSerial = "AA3261226"
+	app.KycID = "KYC-8828"
+
+	if err := svc.azmkCreateApplication(ctx, app, 22.47); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if provider.partnerReq == nil {
+		t.Fatal("RegisterPartner was not called before create")
+	}
+	pd := provider.partnerReq.PartnerData
+	if pd.HomeAddress != app.ActualAddress {
+		t.Errorf("homeAddress = %q, want %q", pd.HomeAddress, app.ActualAddress)
+	}
+	if pd.KycID != "KYC-8828" {
+		t.Errorf("kycId = %q, want KYC-8828", pd.KycID)
+	}
+	if pd.Mobile != "552077228" {
+		t.Errorf("mobile = %q, want 552077228 (+994 prefix trimmed)", pd.Mobile)
+	}
+	if pd.Pin != app.CustomerPIN {
+		t.Errorf("pin = %q, want %q", pd.Pin, app.CustomerPIN)
+	}
+	if pd.Passport != app.CustomerSerial {
+		t.Errorf("passport = %q, want %q", pd.Passport, app.CustomerSerial)
+	}
+	// create re-register-dən SONRA çağrılmalıdır
+	if provider.createAppReq == nil {
+		t.Fatal("CreateApplication was not called")
+	}
+}
+
+// TestAzmkCreateApplication_PartnerReRegisterFails — PR #357: partner
+// re-register xətası create-dən ƏVVƏL axını dayandırmalıdır (PR #283 rollback
+// üçün error qayıdır, AZMK-da yarımçıq application yaranmır).
+func TestAzmkCreateApplication_PartnerReRegisterFails(t *testing.T) {
+	ctx := context.Background()
+	store := newCardsTestStore()
+	provider := &fakeAzmkOnlineProvider{registerPartnerErr: errSomeAzmkFailure}
+	svc := newCardsTestService(store, provider)
+
+	app := store.appByID[1]
+	app.CardID = "2093427826F74596A244DEF468068900"
+	app.ActualAddress = "Bakı, Yasamal r."
+
+	if err := svc.azmkCreateApplication(ctx, app, 22.47); err == nil {
+		t.Fatal("expected error when partner re-register fails")
+	}
+	if provider.createAppReq != nil {
+		t.Fatal("CreateApplication must NOT be called when partner re-register fails")
 	}
 }
 

@@ -479,8 +479,14 @@ func (s *ApplicationService) annualInterestRateForApp(ctx context.Context, app *
 //   - signed=true → avtomatik disburse → status=disbursed
 //   - AZMK_SIGN_TIMEOUT_S (default 3 saat) bitərsə → rejected
 //
-// Xəta halında (create və ya DB yazı uğursuz) error qaytarır — çağıran
-// tərəf (UpdateStatus) approval-u rejected-ə rollback edir.
+// Xəta halında (partner re-register, create və ya DB yazı uğursuz) error qaytarır —
+// çağıran tərəf (UpdateStatus) approval-u rejected-ə rollback edir.
+//
+// PR #357: create-dən ƏVVƏL partner re-register (PUT /partner) edilir —
+// homeAddress = app.ActualAddress. Init mərhələsində partner "-" ünvanla
+// qeydiyyata düşür (müştəri hələ ünvan daxil etməyib); AZMK ünvanı partner
+// qeydiyyatından oxuyur, create request-dəki homeAddress nəticəni dəyişmir.
+// Eyni PIN üçün PUT /partner eyni partner_id qaytarır (idempotent).
 //
 // LoanData sahələri:
 //   - clientId: partner_id (KYC/Partner registration-dan)
@@ -497,6 +503,43 @@ func (s *ApplicationService) annualInterestRateForApp(ctx context.Context, app *
 func (s *ApplicationService) azmkCreateApplication(ctx context.Context, app *model.LoanApplication, totalAmount float64) error {
 	// annual_interest_rate-i credit_levels-dən al (helper — disburse da eynini istifadə edir)
 	annualInterestRate := s.annualInterestRateForApp(ctx, app)
+
+	// 0. PR #357: Partner re-register — homeAddress faktiki ünvanla yenilənir.
+	// Init-dəki qeydiyyatdan fərqli olaraq burada real ünvan göndərilir.
+	phone := strings.TrimPrefix(app.CustomerPhone, "+994")
+	pd := azmk.PartnerData{
+		AsanFinanceEmployeeInfo: false,
+		AsanFinancePersonalInfo: false,
+		FirstName:               "-",
+		LastName:                "-",
+		Mkr:                     false,
+		Mobile:                  phone,
+		Pin:                     app.CustomerPIN,
+		BranchCode:              s.azmkBranch,
+		Passport:                app.CustomerSerial,
+		HomeAddress:             app.ActualAddress, // PR #357: "-" yerinə faktiki ünvan
+		KycID:                   app.KycID,
+	}
+	partnerID, err := s.azmkProvider.RegisterPartner(ctx, &azmk.PartnerRequest{PartnerData: pd})
+	if err != nil {
+		slog.Error("PR #357: partner re-registration failed",
+			"application_id", app.ID,
+			"customer_pin", app.CustomerPIN,
+			"error", err)
+		return fmt.Errorf("AZMK partner re-registration failed: %w", err)
+	}
+	slog.Info("PR #357: partner re-registered with homeAddress",
+		"application_id", app.ID,
+		"partner_id", partnerID,
+		"home_address", app.ActualAddress)
+	if partnerID != "" && partnerID != app.PartnerID {
+		// Gözlənti: eyni partner_id qayıdır; fərqli olsa yalnız log (create üçün
+		// app.PartnerID istifadə olunmağa davam edir).
+		slog.Warn("PR #357: partner id changed on re-register",
+			"application_id", app.ID,
+			"old_partner_id", app.PartnerID,
+			"new_partner_id", partnerID)
+	}
 
 	// 1. AZMK Application create
 	appReq := &azmk.ApplicationCreateRequest{
