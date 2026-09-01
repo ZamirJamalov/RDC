@@ -22,10 +22,9 @@ import (
 //     DB drop-recreate olsa belə AZMK-da qeydiyyatda olan kartlar itmir).
 //   - Kartlar varsa müştəriyə SEÇİM göstərilir: köhnə kartlardan biri YA
 //     yeni kart; kart yoxdursa (404/boş) klassik yeni-kart daxiletmə qalır.
-//   - Köhnə kart seçilərsə confirm-də selected_card_id göndərilir. PR #352:
-//     RegisterCard yenə də çağırılır (maskalı kodla); xəta olsa confirm
-//     BLOQLANIR — müraciət dashboard-a düşmür, müştəri kartın tam
-//     nömrəsini yenidən daxil etməlidir (maskalı kod AZMK-dən 400 alır).
+//   - Köhnə kart seçilərsə confirm-də selected_card_id göndərilir. PR #355:
+//     RegisterCard çağırılmır — kartın card_id-si birbaşa yazılır və
+//     application/create (PR #353) + disburse onu göndərir.
 //
 // Bütün xətalar fail-soft-dur: siyahı boş qaytarılır, müştəri yeni kart
 // daxil edir (klassik axın qalır).
