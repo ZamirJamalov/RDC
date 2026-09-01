@@ -135,7 +135,7 @@ type LoanData struct {
         // PR #348: müştərinin faktiki ünvanı (RDC "Faktiki ünvan" sahəsi) —
         // yalnız application/create-də göndərilir, disburse-da yox (omitempty).
         Address        string  `json:"address,omitempty"`
-        // Disburse üçün:
+        // Disburse üçün (cardId həmçinin create-də göndərilir — PR #353):
         ApplicationID string `json:"applicationId,omitempty"` // Application create-dən qaytarılan ID
         CardID        string `json:"cardId,omitempty"`        // Card registration-dan qaytarılan ID
 }

@@ -23,6 +23,7 @@ type fakeAzmkOnlineProvider struct {
 	registerCardErr error // PR #350: yeni kart xətasını simulyasiya etmək üçün
 	getCards        int
 	registerCard    int
+	createAppReq    *azmk.ApplicationCreateRequest // PR #353: son create request-i (assert üçün)
 }
 
 func (f *fakeAzmkOnlineProvider) KYC(context.Context, *azmk.KYCRequest) (string, error) {
@@ -41,7 +42,8 @@ func (f *fakeAzmkOnlineProvider) RegisterCard(context.Context, *azmk.CardRequest
 	}
 	return "FAKE-NEW-CARD-1", nil
 }
-func (f *fakeAzmkOnlineProvider) CreateApplication(context.Context, *azmk.ApplicationCreateRequest) (string, error) {
+func (f *fakeAzmkOnlineProvider) CreateApplication(_ context.Context, req *azmk.ApplicationCreateRequest) (string, error) {
+	f.createAppReq = req
 	return "FAKE-APP-1", nil
 }
 func (f *fakeAzmkOnlineProvider) GetApplicationStatus(context.Context, string) (*azmk.ApplicationStatus, error) {
@@ -250,6 +252,38 @@ func TestMaskCardCode(t *testing.T) {
 	}
 	if len(got) != 16 {
 		t.Errorf("len = %d, want 16 (card_number VARCHAR(16) limiti)", len(got))
+	}
+}
+
+// TestAzmkCreateApplication_SendsCardId — PR #353: application/create
+// request-i cardId daşımalıdır (seçilmiş köhnə YA yeni register olunmuş kartın
+// ID-si — hər halda app.CardID). Address (PR #348) və disbursementFee (PR #349)
+// də yoxlanır.
+func TestAzmkCreateApplication_SendsCardId(t *testing.T) {
+	ctx := context.Background()
+	store := newCardsTestStore()
+	provider := &fakeAzmkOnlineProvider{}
+	svc := newCardsTestService(store, provider)
+
+	app := store.appByID[1]
+	app.CardID = "2093427826F74596A244DEF468068900"
+	app.ApprovedRate = 11
+	app.ActualAddress = "Bakı, Nizami r., Murtuza Muxtarov 12"
+
+	if err := svc.azmkCreateApplication(ctx, app, 12.36); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if provider.createAppReq == nil {
+		t.Fatal("CreateApplication was not called")
+	}
+	if got := provider.createAppReq.LoanData.CardID; got != "2093427826F74596A244DEF468068900" {
+		t.Errorf("cardId = %q, want %q", got, "2093427826F74596A244DEF468068900")
+	}
+	if got := provider.createAppReq.LoanData.Address; got != app.ActualAddress {
+		t.Errorf("address = %q, want %q", got, app.ActualAddress)
+	}
+	if got := provider.createAppReq.LoanData.DisbursementFee; got != 0.11 {
+		t.Errorf("disbursementFee = %v, want 0.11 (ApprovedRate/100)", got)
 	}
 }
 
