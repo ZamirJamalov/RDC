@@ -516,9 +516,9 @@
                                 <span class="text-base text-gray-400">AZN</span>
                             </div>
                         </div>
-                        <input type="range" :min="rangeMin" :max="rangeMax" step="10" x-model.number="form.amount"
+                        <input type="range" min="0" :max="amountTicks.length - 1" step="1" x-model.number="amountIdx"
                                @input="onAmountSlider()"
-                               :style="`--range-fill: ${((form.amount - rangeMin) / (rangeMax - rangeMin)) * 100}%`">
+                               :style="`--range-fill: ${amountTicks.length > 1 ? (amountIdx / (amountTicks.length - 1)) * 100 : 0}%`">
                         <div class="flex justify-between text-xs text-gray-500 mt-2">
                             <span><span x-text="rangeMin"></span> AZN</span>
                             <span><span x-text="rangeMax"></span> AZN</span>
@@ -958,12 +958,37 @@ function applyApp() {
             return Math.max(...this.offer.ranges.map(r => r.max_amount));
         },
 
-        // PR #329: slider grid-i (rangeMin + 10n) rangeMax-a tam çatmır (məs. min=1,
-        // max=300 → son nöqtə 291) — sonu max-a snap edirik ki, istifadəçi cubuğu
-        // sona çatdıranda tam maksimum məbləğ görsənsin və seçilə bilsin.
+        // PR #354: slider-in seçilə biləcək dəyərləri (ticks). Əvvəl min+10n gridi
+        // idi (1, 11, 21, ...) — indi: minimum (1) + 10-un qatları (10, 20, 30, ...)
+        // və sonuncu tick həmişə tam rangeMax-dır (PR #329-un snap ehtiyacı aradan qalxdı).
+        get amountTicks() {
+            const ticks = [this.rangeMin];
+            const first10 = Math.max(10, Math.ceil((this.rangeMin + 1) / 10) * 10);
+            for (let v = first10; v < this.rangeMax; v += 10) ticks.push(v);
+            if (ticks[ticks.length - 1] !== this.rangeMax) ticks.push(this.rangeMax);
+            return ticks;
+        },
+        // PR #354: slider-in xam index dəyəri (amountTicks[Sidx])
+        amountIdx: 0,
+        // PR #354: form.amount programatik dəyişəndə (restore, verifyOtp) index-i
+        // ən yaxın tick-ə sinxronlaşdırır və amount-u tam tick dəyərinə çəkir.
+        syncAmountIndex() {
+            const ticks = this.amountTicks;
+            if (!ticks.length) { this.amountIdx = 0; return; }
+            let best = 0;
+            for (let i = 1; i < ticks.length; i++) {
+                if (Math.abs(ticks[i] - this.form.amount) <= Math.abs(ticks[best] - this.form.amount)) best = i;
+            }
+            this.amountIdx = best;
+            this.form.amount = ticks[best];
+        },
+
+        // PR #354: slider indexlə işləyir — amount cari tick-dən götürülür.
+        // (Köhnə PR #329 snap-inə ehtiyac yoxdur: son tick onsuz da rangeMax-dır.)
         onAmountSlider() {
-            if (this.form.amount < this.rangeMax && this.form.amount > this.rangeMax - 10) {
-                this.form.amount = this.rangeMax;
+            const ticks = this.amountTicks;
+            if (ticks.length) {
+                this.form.amount = ticks[Math.min(this.amountIdx, ticks.length - 1)];
             }
             this.updateSelectedRange();
         },
@@ -1155,6 +1180,8 @@ function applyApp() {
                 const savedAmount = localStorage.getItem('alpul_apply_amount');
                 if (savedAmount) {
                     this.form.amount = parseFloat(savedAmount);
+                    // PR #354: slider indexini bərpa olunan amount-a uyğunlaşdır
+                    this.syncAmountIndex();
                     // PR #232: amount restore olanda selectedRange-i yenilə
                     if (this.offer) {
                         this.updateSelectedRange();
@@ -1227,6 +1254,7 @@ function applyApp() {
             this.offer = null;
             this.selectedRange = null;
             this.form.amount = 0;
+            this.amountIdx = 0; // PR #354
             this.form.term = 0;
             this.form.cardNumber = '';
             this.form.cardConfirmed = false;
@@ -1538,6 +1566,7 @@ function applyApp() {
                 if (this.offer.ranges && this.offer.ranges.length > 0) {
                     // PR #101: slider max-da başlasın (əvvəl min-də başlayırdı)
                     this.form.amount = this.rangeMax;
+                    this.syncAmountIndex(); // PR #354: index-i son tick-ə sinxronlaşdır
                     // PR #232: updateSelectedRange çağır ki ən kiçik term seçilsin
                     // və selectedRange amount-a və term-ə uyğun olsun
                     this.form.term = 0; // reset — ən kiçik term seçilsin
