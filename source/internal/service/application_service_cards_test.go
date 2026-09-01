@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -288,6 +290,14 @@ func TestAzmkCreateApplication_SendsCardId(t *testing.T) {
 	}
 	if got := provider.createAppReq.LoanData.Address; got != app.ActualAddress {
 		t.Errorf("address = %q, want %q", got, app.ActualAddress)
+	}
+	// PR #356: JSON teqi homeAddress olmalıdır (əvvəl address idi)
+	b, mErr := json.Marshal(provider.createAppReq)
+	if mErr != nil {
+		t.Fatalf("marshal: %v", mErr)
+	}
+	if !strings.Contains(string(b), `"homeAddress"`) {
+		t.Errorf("create request JSON must contain homeAddress tag, got: %s", b)
 	}
 	if got := provider.createAppReq.LoanData.DisbursementFee; got != 0.11 {
 		t.Errorf("disbursementFee = %v, want 0.11 (ApprovedRate/100)", got)
