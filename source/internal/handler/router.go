@@ -46,6 +46,8 @@ func NewRouter(
 	apiLimiter *middleware.RateLimiter, // PR #149: generic API rate limit
 	otpLimiter *middleware.RateLimiter, // PR #149: OTP rate limit
 	discountLimiter *middleware.RateLimiter, // PR #149: discount code rate limit
+	expertWorkStartHour int, // PR #360: ekspert iş saatı başlanğıcı (Bakı vaxtı, default 9)
+	expertWorkEndHour int, // PR #360: ekspert iş saatı sonu (Bakı vaxtı, default 20)
 ) http.Handler {
 	mux := http.NewServeMux()
 
@@ -143,6 +145,15 @@ func NewRouter(
 
 	// --- PR #96: Discount code validation (public endpoint, used by apply.html) ---
 	// PR #149: Rate-limited to prevent brute-force abuse
+	// PR #360: Ekspert iş saatları — public endpoint (apply success mesajı üçün).
+	// Satatik konfiqdurasiya qaytarır; saatın hesablanması frontend-də (Asia/Baku TZ).
+	mux.Handle("GET /api/expert-work-hours", middleware.RateLimit(apiLimiter)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		writeJSON(w, http.StatusOK, map[string]int{
+			"start_hour": expertWorkStartHour,
+			"end_hour":   expertWorkEndHour,
+		})
+	})))
+
 	mux.Handle("GET /api/discount-codes/validate", middleware.RateLimit(discountLimiter)(http.HandlerFunc(discountCodeHandler.Validate)))
 
 	// --- PR #98: Feature flag management (admin endpoints) — now protected ---

@@ -759,9 +759,7 @@
                         <span class="font-semibold text-emerald-400">Ekspert gözləməsində</span>
                     </div>
                 </div>
-                <p class="text-sm text-gray-500 mt-8">
-                    Ekspertimiz sizinlə əlaqə saxlayacaq.
-                </p>
+                <p class="text-sm text-gray-500 mt-8" x-text="outsideExpertWorkHours() ? 'Ekspertimiz iş saatlarında (' + expertWorkHoursLabel() + ') sizinlə əlaqə saxlayacaq.' : 'Ekspertimiz sizinlə əlaqə saxlayacaq.'"></p>
                 <a href="/landing" class="inline-block mt-6 text-teal-400 hover:text-teal-300 text-sm transition">
                     ← Ana səhifəyə qayıt
                 </a>
@@ -862,6 +860,10 @@ function applyApp() {
 
         // PR #83: Theme state
         theme: localStorage.getItem('alpul_theme') || 'light', // PR #329: ilk giriş üçün light default (əvvəl dark idi)
+
+        // PR #360: Ekspert iş saatları (backend-dən /api/expert-work-hours ilə;
+        // null = hələ yüklənməyib → 9-20 default istifadə olunur)
+        expertWorkHours: null,
 
         // Application state
         applicationId: null,
@@ -1098,6 +1100,8 @@ function applyApp() {
         init() {
             // PR #83: Apply saved theme
             this.applyTheme();
+            // PR #360: ekspert iş saatlarını yüklə (success mesajı üçün)
+            this.loadExpertWorkHours();
             // PR #74: If navigated from landing page (?from=landing), clear
             // localStorage so the form starts fresh from step 0.
             const params = new URLSearchParams(window.location.search);
@@ -1122,6 +1126,36 @@ function applyApp() {
                     this.loadSavedCards();
                 }
             }
+        },
+
+        // PR #360: Ekspert iş saatlarını backend-dən yüklə (EXPERT_WORK_*_HOUR env-ləri).
+        // Fail-soft: alınmasa default 9-20 istifadə olunur.
+        async loadExpertWorkHours() {
+            try {
+                const resp = await fetch('/api/expert-work-hours');
+                if (!resp.ok) return;
+                const data = await resp.json();
+                this.expertWorkHours = { start: data.start_hour, end: data.end_hour };
+            } catch (e) { /* fail-soft: default 9-20 */ }
+        },
+        // PR #360: Bakı vaxtı iş saatlarından kənardır? (default 20:00-09:00 arası = kənar)
+        outsideExpertWorkHours() {
+            const h = this.expertWorkHours || { start: 9, end: 20 };
+            let hour;
+            try {
+                hour = parseInt(new Intl.DateTimeFormat('en-GB', {
+                    timeZone: 'Asia/Baku', hour: 'numeric', hour12: false
+                }).format(new Date()), 10);
+            } catch (e) {
+                hour = new Date().getHours(); // köhnə brauzer fallback: lokal saat
+            }
+            return hour < h.start || hour >= h.end;
+        },
+        // PR #360: iş saatları etiketi (məs. "09:00-20:00")
+        expertWorkHoursLabel() {
+            const h = this.expertWorkHours || { start: 9, end: 20 };
+            const p = (n) => String(n).padStart(2, '0');
+            return p(h.start) + ':00-' + p(h.end) + ':00';
         },
 
         // PR #70: Save current state to localStorage

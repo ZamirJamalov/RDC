@@ -44,3 +44,28 @@ func TestDropRecreateExplicitFalse(t *testing.T) {
 		t.Fatal("MIGRATIONS_DROP_RECREATE=false verildikdə false olmalıdır")
 	}
 }
+
+// PR #360: ekspert iş saatları env-dən oxunur; default 9-20.
+func TestExpertWorkHoursDefault(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("EXPERT_WORK_START_HOUR", "")
+	t.Setenv("EXPERT_WORK_END_HOUR", "")
+
+	cfg := Load()
+	if cfg.ExpertWorkStartHour != 9 || cfg.ExpertWorkEndHour != 20 {
+		t.Fatalf("default iş saatları 9-20 olmalıdır, got %d-%d",
+			cfg.ExpertWorkStartHour, cfg.ExpertWorkEndHour)
+	}
+}
+
+func TestExpertWorkHoursFromEnv(t *testing.T) {
+	setRequiredEnv(t)
+	t.Setenv("EXPERT_WORK_START_HOUR", "10")
+	t.Setenv("EXPERT_WORK_END_HOUR", "19")
+
+	cfg := Load()
+	if cfg.ExpertWorkStartHour != 10 || cfg.ExpertWorkEndHour != 19 {
+		t.Fatalf("env-dən 10-19 oxunmalıdır, got %d-%d",
+			cfg.ExpertWorkStartHour, cfg.ExpertWorkEndHour)
+	}
+}

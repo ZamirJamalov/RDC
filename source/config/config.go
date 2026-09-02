@@ -130,6 +130,12 @@ type Config struct {
 	OTPMaxAttempts     int    // max wrong OTP attempts before blocking application (default: 3)
 	DiscountRatePerMin int    // discount code validation rate limit per IP per minute (default: 5)
 
+	// PR #360: Ekspert iş saatları (apply success ekranının mesajı üçün)
+	// Bakı vaxtı 20:00-09:00 arası olanda müştəriyə "iş saatlarında"
+	// mesajı göstərilir.
+	ExpertWorkStartHour int // EXPERT_WORK_START_HOUR — default 9
+	ExpertWorkEndHour   int // EXPERT_WORK_END_HOUR — default 20
+
 	// PR #188: Video record service (Kvadrat Lab demo)
 	// Customer video identity verification before credit confirm.
 	VideoRecordBaseURL       string // base URL, e.g. https://videodemo.kvadrat-lab.com
@@ -222,6 +228,10 @@ func Load() *Config {
 		OTPRateLimitPerMin: getEnvInt("OTP_RATE_LIMIT_PER_MIN", 1),
 		OTPMaxAttempts:     getEnvInt("OTP_MAX_ATTEMPTS", 3),
 		DiscountRatePerMin: getEnvInt("DISCOUNT_RATE_PER_MIN", 5),
+
+		// PR #360: Ekspert iş saatları (apply success mesajı)
+		ExpertWorkStartHour: getEnvInt("EXPERT_WORK_START_HOUR", 9),
+		ExpertWorkEndHour:   getEnvInt("EXPERT_WORK_END_HOUR", 20),
 
 		// PR #188: Video record service (parametric)
 		VideoRecordBaseURL:       getEnv("VIDEO_RECORD_BASE_URL", "https://videodemo.kvadrat-lab.com"),

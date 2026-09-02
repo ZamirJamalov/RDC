@@ -73,6 +73,8 @@ func main() {
 		"rate_limit_per_minute", cfg.RateLimitPerMinute,
 		"otp_rate_limit_per_min", cfg.OTPRateLimitPerMin,
 		"discount_rate_per_min", cfg.DiscountRatePerMin,
+		"expert_work_start_hour", cfg.ExpertWorkStartHour,
+		"expert_work_end_hour", cfg.ExpertWorkEndHour,
 		"allowed_origin", cfg.AllowedOrigin,
 		"auth_session_ttl_hours", cfg.AuthSessionTTLHours,
 	)
@@ -267,7 +269,7 @@ func main() {
 	)
 
 	// --- Route registration + middleware chain ---
-	router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler, lwLoanStatusHandler, discountCodeHandler, featureFlagHandler, authHandler, userHandler, authService, cfg.AllowedOrigin, apiLimiter, otpLimiter, discountLimiter)
+	router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler, lwLoanStatusHandler, discountCodeHandler, featureFlagHandler, authHandler, userHandler, authService, cfg.AllowedOrigin, apiLimiter, otpLimiter, discountLimiter, cfg.ExpertWorkStartHour, cfg.ExpertWorkEndHour)
 
 	// UI: serve embedded static files from web/ directory.
 	// fs.Sub strips the "web/" prefix so /detail.html maps to web/detail.html.
