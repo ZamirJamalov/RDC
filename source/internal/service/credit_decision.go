@@ -234,7 +234,7 @@ func (e *CreditEngine) computeDecision(analytics *loanAnalytics, creditLevel str
 //
 //	commissionPercent  = (15/85) × 100 = 17.65%
 //	commissionAmount = 300 × 17.65% = 52.94
-//	total = 300 + 52.94 = 352.94 AZN
+//	total = 300 + 52.94 = 352.94 → ceil → 353 AZN (PR #364: qəpik yuxarı yuvarlaqlaşdırılır)
 func calculateTotalAmount(principal, commission float64) float64 {
         if commission <= 0 || commission >= 100 {
                 return principal
@@ -243,7 +243,7 @@ func calculateTotalAmount(principal, commission float64) float64 {
         commissionPercent := (commission / (100 - commission)) * 100
         commissionAmount := principal * commissionPercent / 100
         total := principal + commissionAmount
-        return math.Round(total*100) / 100
+        return math.Ceil(total) // PR #364: qəpik varsa yuxarı yuvarlaq — 100.10 göndərilir 101
 }
 
 // PR #95: discount-aware variants.
