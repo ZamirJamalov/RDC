@@ -271,9 +271,9 @@ func TestMaskCardCode(t *testing.T) {
 }
 
 // TestAzmkCreateApplication_SendsCardId — PR #353: application/create
-// request-i cardId daşımalıdır (seçilmiş köhnə YA yeni register olunmuş kartın
-// ID-si — hər halda app.CardID). Address (PR #348) və disbursementFee (PR #349)
-// də yoxlanır.
+// request-i cardId daşımalıdır (seçilmiş köhnə YA yeni register olunmuş kartun
+// ID-si — hər halda app.CardID). homeAddress-in OLMAMASI (PR #358) və
+// disbursementFee (PR #349) də yoxlanılır.
 func TestAzmkCreateApplication_SendsCardId(t *testing.T) {
 	ctx := context.Background()
 	store := newCardsTestStore()
@@ -294,16 +294,14 @@ func TestAzmkCreateApplication_SendsCardId(t *testing.T) {
 	if got := provider.createAppReq.LoanData.CardID; got != "2093427826F74596A244DEF468068900" {
 		t.Errorf("cardId = %q, want %q", got, "2093427826F74596A244DEF468068900")
 	}
-	if got := provider.createAppReq.LoanData.Address; got != app.ActualAddress {
-		t.Errorf("address = %q, want %q", got, app.ActualAddress)
-	}
-	// PR #356: JSON teqi homeAddress olmalıdır (əvvəl address idi)
+	// PR #358: create request-də homeAddress tagi GÖNDƏRİLMƏMƏLİDİR
+	// (ünvan PR #357 partner re-register-da gedir)
 	b, mErr := json.Marshal(provider.createAppReq)
 	if mErr != nil {
 		t.Fatalf("marshal: %v", mErr)
 	}
-	if !strings.Contains(string(b), `"homeAddress"`) {
-		t.Errorf("create request JSON must contain homeAddress tag, got: %s", b)
+	if strings.Contains(string(b), "homeAddress") {
+		t.Errorf("create request JSON must NOT contain homeAddress tag (PR #358), got: %s", b)
 	}
 	if got := provider.createAppReq.LoanData.DisbursementFee; got != 0.11 {
 		t.Errorf("disbursementFee = %v, want 0.11 (ApprovedRate/100)", got)

@@ -132,9 +132,6 @@ type LoanData struct {
         InterestRate   float64 `json:"interestRate"`   // KƏSR formatında göndərilir: 0.48 (= 48%), 0.30 (= 30%) — PR #311
         DisbursementFee float64 `json:"disbursementFee"` // credit_levels.commission / 100 (PR #349)
         LetterNumber   string  `json:"letterNumber"`   // boş
-        // PR #348/#356: RDC dashboarddakı faktiki ünvan (homeAddress teqi) —
-        // yalnız application/create-də göndərilir, disburse-da yox (omitempty).
-        Address        string  `json:"homeAddress,omitempty"`
         // Disburse üçün (cardId həmçinin create-də göndərilir — PR #353):
         ApplicationID string `json:"applicationId,omitempty"` // Application create-dən qaytarılan ID
         CardID        string `json:"cardId,omitempty"`        // Card registration-dan qaytarılan ID

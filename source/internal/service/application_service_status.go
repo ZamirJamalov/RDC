@@ -485,7 +485,8 @@ func (s *ApplicationService) annualInterestRateForApp(ctx context.Context, app *
 // PR #357: create-dən ƏVVƏL partner re-register (PUT /partner) edilir —
 // homeAddress = app.ActualAddress. Init mərhələsində partner "-" ünvanla
 // qeydiyyata düşür (müştəri hələ ünvan daxil etməyib); AZMK ünvanı partner
-// qeydiyyatından oxuyur, create request-dəki homeAddress nəticəni dəyişmir.
+// qeydiyyatından oxuyur. PR #358: create request-də homeAddress artıq
+// GÖNDƏRİLMİR (nəticəni dəyişmirdi) — ünvan yalnız partner re-register-da gedir.
 // Eyni PIN üçün PUT /partner eyni partner_id qaytarır (idempotent).
 //
 // LoanData sahələri:
@@ -496,8 +497,8 @@ func (s *ApplicationService) annualInterestRateForApp(ctx context.Context, app *
 //   - branchCode: config-dən (AZMK_BRANCH_CODE)
 //   - interestRate: annual_interest_rate (credit_levels-dən) — AZMK KƏSR formatında göndərilir: 48 → 0.48, 30 → 0.30 (PR #311)
 //   - disbursementFee: credit_levels.commission → kəsr (PR #349): app.ApprovedRate / 100
-//   - homeAddress: app.ActualAddress — RDC dashboarddakı faktiki ünvan (PR #348;
-//     PR #356: teq adı homeAddress edildi)
+//   - homeAddress: GÖNDƏRİLMİR (PR #358) — ünvan PR #357 partner re-register-da
+//     gedir (AZMK ünvanı partner qeydiyyatından oxuyur)
 //   - cardId: app.CardID — seçilmiş köhnə kartın YA yeni register olunmuş kartın
 //     ID-si (confirm mərhələsində yazılır, PR #353)
 func (s *ApplicationService) azmkCreateApplication(ctx context.Context, app *model.LoanApplication, totalAmount float64) error {
@@ -552,8 +553,7 @@ func (s *ApplicationService) azmkCreateApplication(ctx context.Context, app *mod
 			InterestRate:    annualInterestRate / 100.0, // PR #311: AZMK kəsr gözləyir (48 → 0.48)
 			DisbursementFee: app.ApprovedRate / 100.0,   // PR #349: credit_levels.commission → kəsr (11 → 0.11)
 			LetterNumber:    "",
-			Address:         app.ActualAddress, // PR #356: homeAddress teqi — dashboarddakı faktiki ünvan
-			CardID:          app.CardID,        // PR #353: seçilmiş/yeni register olunmuş kartın ID-si
+			CardID:          app.CardID, // PR #353: seçilmiş/yeni register olunmuş kartun ID-si
 		},
 	}
 
