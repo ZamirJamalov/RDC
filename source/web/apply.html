@@ -1034,10 +1034,20 @@ function applyApp() {
             this.form.term = term;
             this.updateSelectedRange();
         },
+        // PR #361: Anuitet aylıq ödənişi (number) — AZMK qaydası:
+        //   A = K × i / (1 − (1+i)^−n),  i = illik faiz / 100 / 12
+        // AZMK real kreditlə eynilə təsdiqlənib: 12.36 AZN / 3 ay / 48% → 4.46/ay.
+        // Nümunə: müştəri 500 seçir (11% komissiya) → K=561.80 → A=202.44 → ümumi 607.33.
+        annuityPayment() {
+            const n = this.selectedRange.term_months;
+            const i = (this.selectedRange.annual_interest_rate || 0) / 100 / 12;
+            const credit = parseFloat(this.creditAmount);
+            if (i <= 0) return credit / n;
+            return credit * i / (1 - Math.pow(1 + i, -n));
+        },
         get monthlyPayment() {
             if (!this.selectedRange || !this.form.amount) return '—';
-            const monthly = parseFloat(this.totalRepayment) / this.selectedRange.term_months;
-            return monthly.toFixed(2);
+            return (Math.round(this.annuityPayment() * 100) / 100).toFixed(2);
         },
 
         // PR #79: Translate level names to Azerbaijani
@@ -1069,20 +1079,19 @@ function applyApp() {
             return (Math.round((this.form.amount + commission) * 100) / 100).toFixed(2);
         },
 
-        // Faiz məbləği = principal × annual_rate × (term / 12)
+        // PR #361: Faiz məbləği = ümumi qaytarılacaq (anuitet cəmi) − kredit məbləği
         get interestAmount() {
             if (!this.selectedRange || !this.form.amount) return '0.00';
-            const annualRate = this.selectedRange.annual_interest_rate || 0;
-            const interest = this.form.amount * (annualRate / 100) * (this.selectedRange.term_months / 12);
+            const interest = this.annuityPayment() * this.selectedRange.term_months
+                - parseFloat(this.creditAmount);
             return (Math.round(interest * 100) / 100).toFixed(2);
         },
 
-        // Ümumi qaytarılacaq = kredit məbləği + faiz məbləği
+        // PR #361: Ümumi qaytarılacaq = anuitet aylıq ödəniş × müddət
         get totalRepayment() {
             if (!this.selectedRange || !this.form.amount) return '0.00';
-            const credit = parseFloat(this.creditAmount);
-            const interest = parseFloat(this.interestAmount);
-            return (Math.round((credit + interest) * 100) / 100).toFixed(2);
+            const total = this.annuityPayment() * this.selectedRange.term_months;
+            return (Math.round(total * 100) / 100).toFixed(2);
         },
 
         // PR #83: Theme management
