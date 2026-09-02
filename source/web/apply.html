@@ -1037,6 +1037,7 @@ function applyApp() {
         // PR #361: Anuitet aylıq ödənişi (number) — AZMK qaydası:
         //   A = K × i / (1 − (1+i)^−n),  i = illik faiz / 100 / 12
         // AZMK real kreditlə eynilə təsdiqlənib: 12.36 AZN / 3 ay / 48% → 4.46/ay.
+        // Nümunə: müştəri 500 seçir (11% komissiya) → K=561.80 → A=202.44 → ümumi 607.33.
         annuityPayment() {
             const n = this.selectedRange.term_months;
             const i = (this.selectedRange.annual_interest_rate || 0) / 100 / 12;
