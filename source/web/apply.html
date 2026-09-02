@@ -1080,19 +1080,20 @@ function applyApp() {
             return (Math.ceil(this.form.amount + commission)).toFixed(2);
         },
 
-        // PR #361: Faiz məbləği = ümumi qaytarılacaq (anuitet cəmi) − kredit məbləği
+        // PR #365: Faiz məbləği = ceil-lənmiş ümumi qaytaracaq − ceil-lənmiş kredit
+        // (hər ikisi tam manat olduğundan faiz də tam/və ya xətta düzgün olur)
         get interestAmount() {
             if (!this.selectedRange || !this.form.amount) return '0.00';
-            const interest = this.annuityPayment() * this.selectedRange.term_months
-                - parseFloat(this.creditAmount);
+            const interest = parseFloat(this.totalRepayment) - parseFloat(this.creditAmount);
             return (Math.round(interest * 100) / 100).toFixed(2);
         },
 
-        // PR #361: Ümumi qaytarılacaq = anuitet aylıq ödəniş × müddət
+        // PR #365: Ümumi qaytarılacaq = anuitet cəmi (A × müddət), qəpik varsa
+        // ceil ilə yuxarı yuvarlaqlaşdırılır (PR #364 qaydası): 607.33 → 608
         get totalRepayment() {
             if (!this.selectedRange || !this.form.amount) return '0.00';
             const total = this.annuityPayment() * this.selectedRange.term_months;
-            return (Math.round(total * 100) / 100).toFixed(2);
+            return Math.ceil(total).toFixed(2);
         },
 
         // PR #83: Theme management
