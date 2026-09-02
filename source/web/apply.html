@@ -1063,20 +1063,21 @@ function applyApp() {
 
         // PR #78 / PR #246: Backend-driven credit summary computed from selectedRange
         // commissionPercent = (rate / (100 - rate)) × 100  (məs: 15% → 17.65%)
-        // commissionAmount = principal × commissionPercent / 100 (məs: 300 × 17.65% = 52.94)
+        // commissionAmount = creditAmount − principal (PR #364: ceiled kreditdən törəyir)
         get commissionAmount() {
+            if (!this.selectedRange || !this.form.amount) return '0.00';
+            const commission = parseFloat(this.creditAmount) - this.form.amount;
+            return (Math.round(commission * 100) / 100).toFixed(2);
+        },
+
+        // Kredit məbləği = seçilmiş + komissiya; PR #364: qəpik varsa yuxarı
+        // yuvarlaqlaşdırılır (ceil) — məs. 561.80 → 562 (backend calculateTotalAmount ilə eyni).
+        get creditAmount() {
             if (!this.selectedRange || !this.form.amount) return '0.00';
             const rate = this.selectedRange.commission;
             const commissionPercent = (rate / (100 - rate)) * 100;
             const commission = this.form.amount * commissionPercent / 100;
-            return (Math.round(commission * 100) / 100).toFixed(2);
-        },
-
-        // Kredit məbləği = seçilmiş + komissiya
-        get creditAmount() {
-            if (!this.selectedRange || !this.form.amount) return '0.00';
-            const commission = parseFloat(this.commissionAmount);
-            return (Math.round((this.form.amount + commission) * 100) / 100).toFixed(2);
+            return (Math.ceil(this.form.amount + commission)).toFixed(2);
         },
 
         // PR #361: Faiz məbləği = ümumi qaytarılacaq (anuitet cəmi) − kredit məbləği
