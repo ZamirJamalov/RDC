@@ -176,3 +176,38 @@ func TestGenerateForApplicationWithValue(t *testing.T) {
 
 // compile-time check: recordingSMSProvider otp.Provider interfeysini realizə edir.
 var _ otp.Provider = (*recordingSMSProvider)(nil)
+
+// TestSendRejectionSMS — PR #362: reject zamanı müştəriyə imtina SMS-i gedir.
+func TestSendRejectionSMS(t *testing.T) {
+	ctx := context.Background()
+	sms := &recordingSMSProvider{}
+	svc := newReferralTestService(newMockDiscountCodeStore(), newMockCustomerStore(), sms, 5)
+
+	app := referralTestApp()
+	svc.sendRejectionSMS(ctx, app)
+
+	if len(sms.sends) != 1 {
+		t.Fatalf("expected 1 rejection SMS, got %d", len(sms.sends))
+	}
+	if sms.sends[0].Phone != app.CustomerPhone {
+		t.Errorf("phone = %q, want %q", sms.sends[0].Phone, app.CustomerPhone)
+	}
+	if !strings.Contains(sms.sends[0].Message, "təsdiq olunmadı") {
+		t.Errorf("message must contain rejection text, got: %s", sms.sends[0].Message)
+	}
+}
+
+// TestSendRejectionSMS_NoPhone — PR #362: telefon boşdursa SMS getmir (non-fatal).
+func TestSendRejectionSMS_NoPhone(t *testing.T) {
+	ctx := context.Background()
+	sms := &recordingSMSProvider{}
+	svc := newReferralTestService(newMockDiscountCodeStore(), newMockCustomerStore(), sms, 5)
+
+	app := referralTestApp()
+	app.CustomerPhone = ""
+	svc.sendRejectionSMS(ctx, app)
+
+	if len(sms.sends) != 0 {
+		t.Errorf("expected no SMS when phone is empty, got %d", len(sms.sends))
+	}
+}

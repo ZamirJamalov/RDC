@@ -116,6 +116,8 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
 	// plan/fakt hesabatlarında görünsün və validity_days bloku işləsin.
 	if req.Status == model.StatusRejected {
 		s.logManualRejection(ctx, id, rejectionReason)
+		// PR #362: ekspert reject — müştəriyə imtina SMS-i (non-fatal)
+		s.sendRejectionSMS(ctx, app)
 	}
 
 	// PR #95: persist discount_amount on the application (if applicable).
@@ -169,6 +171,8 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
 						"application_id", id,
 						"error", err)
 				}
+				// PR #362: AZMK create rollback reject-i — müştəriyə imtina SMS-i (non-fatal)
+				s.sendRejectionSMS(ctx, app)
 				return nil, fmt.Errorf("AZMK approve flow uğursuz: %w", err)
 			}
 		}
@@ -316,6 +320,36 @@ func (s *ApplicationService) sendDisburseApprovalSMS(ctx context.Context, app *m
 		"phone", app.CustomerPhone,
 		"amount", app.TotalAmount,
 		"transfer_amount", app.Amount)
+}
+
+// sendRejectionSMS — PR #362: müraciət rejected olanda müştəriyə imtina SMS-i.
+// Bütün reject nöqtələrində çağrılır: early cutoff, KYC fail, AKB stop factor,
+// ekspert reject, AZMK create rollback (PR #283), imza timeout (sign worker).
+// Non-fatal: SMS xətası reject qərarını dəyişmir, yalnız log lanır.
+// Reject səbəbi (daxili cutoff kodu) SMS-ə yazılmır — müştəriyə ümumi mətn gedir.
+func (s *ApplicationService) sendRejectionSMS(ctx context.Context, app *model.LoanApplication) {
+	if s.smsProvider == nil {
+		slog.Warn("PR #362: smsProvider nil — rejection SMS göndərilə bilmədi",
+			"application_id", app.ID)
+		return
+	}
+	if app.CustomerPhone == "" {
+		slog.Warn("PR #362: customer_phone empty — rejection SMS göndərilə bilmədi",
+			"application_id", app.ID)
+		return
+	}
+
+	msg := "Hörmətli müştərimiz! Təəssüf ki, müraciətiniz bu dəfə təsdiq olunmadı. Hörmətlə, ALPUL.AZ"
+	if err := s.smsProvider.Send(ctx, app.CustomerPhone, msg); err != nil {
+		slog.Error("PR #362: failed to send rejection SMS (non-fatal)",
+			"application_id", app.ID,
+			"phone", app.CustomerPhone,
+			"error", err)
+		return
+	}
+	slog.Info("PR #362: rejection SMS sent",
+		"application_id", app.ID,
+		"phone", app.CustomerPhone)
 }
 
 // referralOnDisburseSuccess — PR #319 (pre_referal_code_plan.md, R1+R4):
