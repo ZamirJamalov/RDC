@@ -164,6 +164,8 @@ func (s *ApplicationService) pollOneSignature(ctx context.Context, id, timeoutS 
 				"application_id", id,
 				"lw_application_id", app.LwApplicationID,
 				"timeout_s", timeoutS)
+			// PR #362: imza timeout reject-i — müştəriyə imtina SMS-i (non-fatal)
+			s.sendRejectionSMS(ctx, app)
 		}
 		return
 	}

@@ -237,6 +237,8 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
 				"application_id", app.ID,
 				"customer_pin", app.CustomerPIN,
 				"reason", app.RejectionReason)
+			// PR #362: KYC reject — müştəriyə imtina SMS-i (non-fatal)
+			s.sendRejectionSMS(ctx, app)
 			return app, nil
 		}
 	} else if s.azmkProvider != nil && !s.kycVerifyEnabled {
@@ -267,6 +269,8 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
 			"application_id", app.ID,
 			"customer_pin", app.CustomerPIN,
 			"rejection_reason", rejectionReason)
+		// PR #362: early cutoff reject — müştəriyə imtina SMS-i (non-fatal)
+		s.sendRejectionSMS(ctx, app)
 		return app, nil
 	}
 

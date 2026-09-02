@@ -197,6 +197,8 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
 				if err := s.repo.UpdateApplicationDetails(ctx, appID, app); err != nil {
 					return nil, fmt.Errorf("failed to save rejection: %w", err)
 				}
+				// PR #362: AKB stop factor reject — müştəriyə imtina SMS-i (non-fatal)
+				s.sendRejectionSMS(ctx, app)
 				return app, nil
 			}
 			resolvedAkb = mkrScore.Score.Point
