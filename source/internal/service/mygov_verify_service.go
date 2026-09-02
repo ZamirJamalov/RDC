@@ -230,6 +230,10 @@ func (s *MyGovService) VerifyPension(ctx context.Context, appID int) (*MyGovVeri
 //   - Staj = Contract.BeginDate (başlama tarixi) → bu gün, 30 günlük aylarla hesablanır
 //     (BeginDate boşdursa SignDate istifadə olunur — PR #255)
 //   - Staj >= 6 ay → PASS, əks halda FAIL
+//   - PR #363: staj < minimum olanda əlavə kəsintisizlik yoxlaması — deaktiv
+//     qeydlərin son bitmə tarixi (TerminateDate, boşdursa EndDate) ilə aktiv
+//     işin başlama tarixi arasındaki fasilə ≤ 29 gündürsə PASS (müştəri işini
+//     kəsintisiz dəyişib, hər ay maaş alıb), > 29 gündürsə FAIL.
 //
 // PR #242: months da qaytarılır (cutoff_results.actual_value üçün);
 // tarix hesablana bilmədikdə months = -1.
@@ -294,8 +298,59 @@ func checkEmploymentTenureFromEmployeeInfo(info *mygov.EmployeeInfoResponse, min
 		return true, months, fmt.Sprintf("İş yerində staj %.1f ay (%s, %s — ≥ %d ay) — uyğundur",
 			months, dateKind, employerName, minMonths)
 	}
+
+	// PR #363: staj minimumdan kiçikdirsə — kəsintisizlik yoxlaması.
+	// Məqsəd: müştəri işini dəyişsə də hər ay əmək haqqı alıb-almadığını
+	// yoxlamaq. Deaktiv qeydlərin ƏN SON bitmə tarixi (TerminateDate, boşdursa
+	// EndDate) ilə aktiv işin başlama tarixi arasındakı fasilə ≤ 29 gündürsə
+	// keçid kəsintisiz sayılır → PASS; fasilə > 29 gündürsə → FAIL.
+	lastEnd := latestDeactiveEndDate(deactive)
+	if !lastEnd.IsZero() {
+		gapDays := signDate.Sub(lastEnd).Hours() / 24
+		if gapDays < 0 {
+			gapDays = 0 // müqavilələr üst-üstə düşür (overlap) — fasilə yoxdur
+		}
+		if gapDays <= 29 {
+			return true, months, fmt.Sprintf(
+				"Aktiv staj %.1f ay (< %d ay), amma kəsintisiz iş dəyişikliyi — əvvəlki iş %s-də bitib, fasilə %.0f gün (≤ 29) — uyğundur",
+				months, minMonths, lastEnd.Format("02.01.2006"), gapDays)
+		}
+		return false, months, fmt.Sprintf(
+			"İş yerində staj %.1f ay (< %d ay) və işlər arası fasilə %.0f gün (> 29) — imtina (EMPLOYMENT_TENURE)%s",
+			months, minMonths, gapDays, employerSuffix(employerName))
+	}
+
 	return false, months, fmt.Sprintf("İş yerində staj %.1f ay (< %d ay) — imtina (EMPLOYMENT_TENURE)%s",
 		months, minMonths, employerSuffix(employerName))
+}
+
+// latestDeactiveEndDate — PR #363: deaktiv müqavilələrin ən son bitmə tarixini
+// qaytarır. Hər qeyd üçün TerminateDate (xitam tarixi) üstünlük təşkil edir,
+// boşdursa EndDate (müqavilənin təbii bitməsi) götürülür. Heç biri yoxdursa
+// və ya tarixlər parse olunmursa zero time qaytarır (çağıran fəaliyyətsiz
+// kimi qəbul edir — köhnə davranış qorunur).
+func latestDeactiveEndDate(deactive []mygov.EmploymentRecord) time.Time {
+	var latest time.Time
+	for _, d := range deactive {
+		if d.Contract == nil {
+			continue
+		}
+		s := d.Contract.TerminateDate
+		if s == "" {
+			s = d.Contract.EndDate
+		}
+		if s == "" {
+			continue
+		}
+		t, err := time.Parse("02.01.2006", s)
+		if err != nil {
+			continue
+		}
+		if latest.IsZero() || t.After(latest) {
+			latest = t
+		}
+	}
+	return latest
 }
 
 // PR #279: employmentTenureMinMonths artıq MyGovService field-dır (config: EMPLOYMENT_TENURE_MIN_MONTHS)
