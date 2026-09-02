@@ -221,7 +221,6 @@ func TestCheckEmploymentTenure_MonthsNegativeOnMissingData(t *testing.T) {
 	}
 }
 
-
 // TestCheckEmploymentTenure_BeginDatePreferredOverSignDate — PR #255
 // verifies that when both BeginDate and SignDate are present,
 // BeginDate is used as the anchor (not SignDate).
@@ -237,5 +236,109 @@ func TestCheckEmploymentTenure_BeginDatePreferredOverSignDate(t *testing.T) {
 	}
 	if !contains(reason, "başlama tarixi") {
 		t.Errorf("reason = %q, want 'başlama tarixi' mention (BeginDate used)", reason)
+	}
+}
+
+// deactiveRec — PR #363 testləri üçün deaktiv iş yeri qeydi.
+func deactiveRec(terminate, endDate string) mygov.EmploymentRecord {
+	return mygov.EmploymentRecord{
+		Employer: &mygov.EmployerInfo{Name: "ƏVVƏLKİ İŞ MMC"},
+		Contract: &mygov.ContractInfo{TerminateDate: terminate, EndDate: endDate},
+	}
+}
+
+// TestCheckEmploymentTenure_ContinuousJobChange_Pass — PR #363:
+// aktiv staj 2 ay (< 6), amma əvvəlki iş 1 gün əvvəl bitib (kəsintisiz
+// keçid) → PASS.
+func TestCheckEmploymentTenure_ContinuousJobChange_Pass(t *testing.T) {
+	begin := time.Now().AddDate(0, -2, 0)
+	term := begin.AddDate(0, 0, -1)
+	info := empInfo(begin.Format("02.01.2006"), begin.Format("02.01.2006"))
+	info.Data.Response.Deactive = []mygov.EmploymentRecord{deactiveRec(term.Format("02.01.2006"), "")}
+
+	passed, _, reason := checkEmploymentTenureFromEmployeeInfo(info, 6)
+	if !passed {
+		t.Errorf("passed = false, want true (seamless job change); reason = %q", reason)
+	}
+	if !contains(reason, "kəsintisiz") {
+		t.Errorf("reason = %q, want 'kəsintisiz' mention", reason)
+	}
+}
+
+// TestCheckEmploymentTenure_JobGapOver29Days_Fail — PR #363: aktiv staj
+// 2 ay (< 6) və əvvəlki işlə fasilə 40 gün (> 29) → FAIL.
+func TestCheckEmploymentTenure_JobGapOver29Days_Fail(t *testing.T) {
+	begin := time.Now().AddDate(0, -2, 0)
+	term := begin.AddDate(0, 0, -40)
+	info := empInfo(begin.Format("02.01.2006"), begin.Format("02.01.2006"))
+	info.Data.Response.Deactive = []mygov.EmploymentRecord{deactiveRec(term.Format("02.01.2006"), "")}
+
+	passed, _, reason := checkEmploymentTenureFromEmployeeInfo(info, 6)
+	if passed {
+		t.Errorf("passed = true, want false (40 days gap > 29)")
+	}
+	if !contains(reason, "fasilə") {
+		t.Errorf("reason = %q, want 'fasilə' mention", reason)
+	}
+}
+
+// TestCheckEmploymentTenure_GapExactly29Days_Pass — PR #363: fasilə tam
+// 29 gün (sərhəd dəyəri, ≤ 29) → PASS.
+func TestCheckEmploymentTenure_GapExactly29Days_Pass(t *testing.T) {
+	begin := time.Now().AddDate(0, -2, 0)
+	term := begin.AddDate(0, 0, -29)
+	info := empInfo(begin.Format("02.01.2006"), begin.Format("02.01.2006"))
+	info.Data.Response.Deactive = []mygov.EmploymentRecord{deactiveRec(term.Format("02.01.2006"), "")}
+
+	passed, _, _ := checkEmploymentTenureFromEmployeeInfo(info, 6)
+	if !passed {
+		t.Error("passed = false, want true (29 days gap is the boundary, ≤ 29 passes)")
+	}
+}
+
+// TestCheckEmploymentTenure_EndDateFallback_Pass — PR #363: deaktiv
+// qeyddə TerminateDate yoxdursa EndDate istifadə olunur (5 gün fasilə → PASS).
+func TestCheckEmploymentTenure_EndDateFallback_Pass(t *testing.T) {
+	begin := time.Now().AddDate(0, -2, 0)
+	end := begin.AddDate(0, 0, -5)
+	info := empInfo(begin.Format("02.01.2006"), begin.Format("02.01.2006"))
+	info.Data.Response.Deactive = []mygov.EmploymentRecord{deactiveRec("", end.Format("02.01.2006"))}
+
+	passed, _, _ := checkEmploymentTenureFromEmployeeInfo(info, 6)
+	if !passed {
+		t.Error("passed = false, want true (EndDate fallback with 5-day gap)")
+	}
+}
+
+// TestCheckEmploymentTenure_OverlapZeroGap_Pass — PR #363: əvvəlki işın
+// bitməsi aktiv işin başlamasından SONRADIR (overlap) → fasilə 0 → PASS.
+func TestCheckEmploymentTenure_OverlapZeroGap_Pass(t *testing.T) {
+	begin := time.Now().AddDate(0, -2, 0)
+	term := begin.AddDate(0, 0, 10) // aktiv başlamadan 10 gün SONRA bitib
+	info := empInfo(begin.Format("02.01.2006"), begin.Format("02.01.2006"))
+	info.Data.Response.Deactive = []mygov.EmploymentRecord{deactiveRec(term.Format("02.01.2006"), "")}
+
+	passed, _, _ := checkEmploymentTenureFromEmployeeInfo(info, 6)
+	if !passed {
+		t.Error("passed = false, want true (overlapping contracts, no salary gap)")
+	}
+}
+
+// TestCheckEmploymentTenure_LatestEndDateWins — PR #363: bir neçə deaktiv
+// qeyddən ƏN SON tarix götürülür (eski qeyd 1 il əvvəl, yenisi 1 gün əvvəl
+// bitib → PASS; əks halda fasilə 1 il olardı).
+func TestCheckEmploymentTenure_LatestEndDateWins(t *testing.T) {
+	begin := time.Now().AddDate(0, -2, 0)
+	old := begin.AddDate(-1, 0, 0)
+	recent := begin.AddDate(0, 0, -1)
+	info := empInfo(begin.Format("02.01.2006"), begin.Format("02.01.2006"))
+	info.Data.Response.Deactive = []mygov.EmploymentRecord{
+		deactiveRec(old.Format("02.01.2006"), ""),
+		deactiveRec(recent.Format("02.01.2006"), ""),
+	}
+
+	passed, _, _ := checkEmploymentTenureFromEmployeeInfo(info, 6)
+	if !passed {
+		t.Error("passed = false, want true (latest deactive end must be used, not the oldest)")
 	}
 }
