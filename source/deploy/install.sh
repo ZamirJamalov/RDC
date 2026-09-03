@@ -197,6 +197,9 @@ log "4/8 Fayllar kopyalanır..."
 install -m 755 "${REPO_ROOT}/rdc" "${RDC_HOME}/rdc"
 install -m 644 "${REPO_ROOT}/docker-compose.yml"   "${MON_HOME}/docker-compose.yml"
 install -m 644 "${REPO_ROOT}/promtail-config.yml"  "${MON_HOME}/promtail-config.yml"
+# PR #368: təkrar install-da nested copy olmasın deyə əvvəlcə təmizlənir —
+# cp -r mövcud ${MON_HOME}/grafana qovluğunun İÇİNƏ kopyalayır (grafana/grafana/...)
+rm -rf "${MON_HOME}/grafana"
 cp -r "${REPO_ROOT}/grafana" "${MON_HOME}/grafana"
 
 # Grafana parolu (default 'admin' deyilsə compose faylında əvəz olunur)
