@@ -10,6 +10,12 @@
 #
 # Detallar: MONITORING.md
 
+# PR #368: compose project adı sabitlənir — volume adları compose-un
+# işlədildiyi qovluqdan asılı olmayaraq sabit qalsın (əks halda source/
+# qovluğundan manual "docker compose up" source_loki-data yaradır, install.sh
+# isə monitoring_loki-data — köhnə loglar "itmiş" kimi görünür).
+name: monitoring
+
 services:
   loki:
     image: grafana/loki:2.9.4
