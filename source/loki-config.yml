@@ -45,7 +45,6 @@ compactor:
   working_directory: /loki/compactor
   shared_store: filesystem
   retention_enabled: true
-  retention_delay: 0s
 
 # PR #369: daxili server — anonim istifadə statistikası göndərilmir
 analytics:
