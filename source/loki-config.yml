@@ -1,0 +1,55 @@
+# PR #369: Loki öz konfiqurasiyası — 6 ay (4320h) retention ilə.
+#
+# BAZA: grafana/loki 2.9.4 image-inin rəsmi konfiqi (cmd/loki/loki-docker-config.yaml,
+# image-də /etc/loki/local-config.yaml kimi qoyulur). Yalnız aşağıdakılar əlavə olunub:
+#   1. compactor + limits_config.retention_period — 6 ay saxlanma
+#   2. analytics.reporting_enabled: false — daxili serverdə stats göndərişi bağlanır
+#
+# QEYD (kök səbəb, PR #369): image default path_prefix=/loki-dır. Əvvəl compose
+# volume-u /tmp/loki-yə mount edirdi → data volume-a deyil, konteynerin writable
+# layer-inə yazılırdı və hər "docker rm -f loki" (install.sh) bütün datanı silirdi.
+# İndi volume /loki-yə mount olunur (docker-compose.yml-ə bax).
+
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+
+common:
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2020-10-24
+      store: boltdb-shipper
+      object_store: filesystem
+      schema: v11
+      index:
+        prefix: index_
+        period: 24h
+
+# PR #369: 6 ay (180 gün = 4320h) retention — compactor köhnə chunk/index-ləri silir.
+# Dəyişmək: LOKI_RETENTION_PERIOD env (install.sh bu dəyəri sed ilə əvəz edir).
+limits_config:
+  retention_period: 4320h
+
+compactor:
+  working_directory: /loki/compactor
+  shared_store: filesystem
+  retention_enabled: true
+  retention_delay: 0s
+
+# PR #369: daxili server — anonim istifadə statistikası göndərilmir
+analytics:
+  reporting_enabled: false
+
+ruler:
+  alertmanager_url: http://localhost:9093

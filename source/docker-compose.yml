@@ -22,15 +22,19 @@ services:
     container_name: loki
     ports:
       - "3100:3100"
-    command: -config.file=/etc/loki/local-config.yaml -query-scheduler.max-outstanding-requests-per-tenant=1000
+    command: -config.file=/etc/loki/rdc-config.yaml -query-scheduler.max-outstanding-requests-per-tenant=1000
     # PR #325: "too many outstanding requests" (429) qarşısı — geniş zaman
     # aralıqlı sorğular Loki tərəfindən parçalara bölünür, hər parça 1
     # outstanding request sayılır; Loki default-u (100) bizim log həcminə
     # görə aşılırdı. install.sh LOKI_MAX_OUTSTANDING_REQUESTS env-u ilə
     # bu dəyəri override edə bilər (sed ilə əvəz olunur).
     volumes:
-      # PR #290: Loki datası restart-da itmasin (default local-config /tmp/loki istifadə edir)
-      - "loki-data:/tmp/loki"
+      # PR #369: image-in default path_prefix-i /loki-dır (cmd/loki/loki-docker-config.yaml).
+      # Əvvəl /tmp/loki mount yanlış idi → data volume-a deyil, konteynerin writable
+      # layer-inə yazılırdı; hər "docker rm -f loki" (install.sh) datasını SİLİRDİ.
+      - "loki-data:/loki"
+      # PR #369: öz konfiqimiz — 6 ay retention (loki-config.yml) mount olunur
+      - "./loki-config.yml:/etc/loki/rdc-config.yaml:ro"
     networks:
       - monitoring
     restart: unless-stopped
