@@ -55,6 +55,9 @@ GRAFANA_ADMIN_PASSWORD="${GRAFANA_ADMIN_PASSWORD:-admin}"
 # Geniş zaman aralığında sorğular parçalanır; hər parça 1 outstanding
 # request-dir. Loki default-u 100-dür, compose faylında 1000 qoyulub.
 LOKI_MAX_OUTSTANDING_REQUESTS="${LOKI_MAX_OUTSTANDING_REQUESTS:-1000}"
+# PR #369: Loki retention müddəti — default 6 ay (4320h). loki-config.yml-də
+# eyni default yazılıb; env ilə dəyişəndə sed ilə əvəz olunur.
+LOKI_RETENTION_PERIOD="${LOKI_RETENTION_PERIOD:-4320h}"
 
 # ------------------------- Köməkçi funksiyalar -------------------------
 log()  { printf '\033[1;32m==>\033[0m %s\n' "$*"; }
@@ -127,7 +130,7 @@ if [[ ! -f "${REPO_ROOT}/rdc" ]]; then
     exit 1
 fi
 
-for f in docker-compose.yml promtail-config.yml grafana; do
+for f in docker-compose.yml promtail-config.yml loki-config.yml grafana; do
     if [[ ! -e "${REPO_ROOT}/${f}" ]]; then
         err "${REPO_ROOT}/${f} tapılmadı — repo kökündən işlədin."
         exit 1
@@ -197,6 +200,7 @@ log "4/8 Fayllar kopyalanır..."
 install -m 755 "${REPO_ROOT}/rdc" "${RDC_HOME}/rdc"
 install -m 644 "${REPO_ROOT}/docker-compose.yml"   "${MON_HOME}/docker-compose.yml"
 install -m 644 "${REPO_ROOT}/promtail-config.yml"  "${MON_HOME}/promtail-config.yml"
+install -m 644 "${REPO_ROOT}/loki-config.yml"     "${MON_HOME}/loki-config.yml"
 # PR #368: təkrar install-da nested copy olmasın deyə əvvəlcə təmizlənir —
 # cp -r mövcud ${MON_HOME}/grafana qovluğunun İÇİNƏ kopyalayır (grafana/grafana/...)
 rm -rf "${MON_HOME}/grafana"
@@ -215,6 +219,13 @@ if [[ "${LOKI_MAX_OUTSTANDING_REQUESTS}" != "1000" ]]; then
         "${MON_HOME}/docker-compose.yml"
 fi
 
+# PR #369: Loki retention (loki-config.yml-də default 4320h = 6 ay; env ilə
+# fərqli verilibsə əvəz olunur — LOKI_MAX_OUTSTANDING_REQUESTS ilə eyni pattern)
+if [[ "${LOKI_RETENTION_PERIOD}" != "4320h" ]]; then
+    sed -i "s|retention_period: 4320h|retention_period: ${LOKI_RETENTION_PERIOD}|" \
+        "${MON_HOME}/loki-config.yml"
+fi
+
 # app.log — rdc istifadəçisi yazmalı, promtail (docker/root) oxumalı
 if [[ ! -f "${MON_HOME}/app.log" ]]; then
     touch "${MON_HOME}/app.log"
@@ -222,10 +233,19 @@ fi
 chown "${RDC_USER}:${RDC_USER}" "${MON_HOME}/app.log"
 chmod 640 "${MON_HOME}/app.log"
 
+# PR #369: app.log gündəlik backup — Loki/volume hər nə olsa, xam tarixçə
+# /opt/rdc/backups/ içində qalır (bərpa: app.log-u geri qoyub positions reset)
+install -d -o root -g root -m 755 "${RDC_HOME}/backups"
+cat > /etc/cron.d/rdc-log-backup <<'CRON_EOF'
+# PR #369: hər gün 01:00 — app.log arxivlənir, 30 gündən köhnələr silinir
+0 1 * * * root tar czf /opt/rdc/backups/app-$(date +\%Y\%m\%d).tar.gz -C /opt/rdc/monitoring app.log && find /opt/rdc/backups -name 'app-*.tar.gz' -mtime +30 -delete
+CRON_EOF
+chmod 644 /etc/cron.d/rdc-log-backup
+
 # PR #298: parollar serverdə faylda saxlanMIR. deploy/env.example artıq
 # laptop tərəfi şablondur (deploy/rdc.env kimi istifadə olunur — run-remote.sh).
 
-log "Yerləşdirildi: ${RDC_HOME}/rdc, ${MON_HOME}/{docker-compose.yml,promtail-config.yml,grafana/,app.log}"
+log "Yerləşdirildi: ${RDC_HOME}/rdc, ${MON_HOME}/{docker-compose.yml,promtail-config.yml,loki-config.yml,grafana/,app.log}"
 
 # ------------------------- 5) systemd unit generasiyası -------------------------
 log "5/8 systemd unit generasiya olunur..."
@@ -331,6 +351,7 @@ echo "============================================================"
 echo " App başlatma:   laptopdan: bash deploy/run-remote.sh user@bu-server"
 echo " Parametrlər:    laptopda deploy/rdc.env (şablon: deploy/env.example)"
 echo " Loglar:         tail -f ${MON_HOME}/app.log"
+echo " Backups:        /opt/rdc/backups (app.log gündəlik tar.gz, 30 gün — cron.d/rdc-log-backup)"
 echo " Grafana:        http://<server-ip>:3001  (${GRAFANA_ADMIN_PASSWORD} / ***)"
 echo " Loki sorğusu:   {job=\"go-app\"}"
 echo " Dayandırma:     ssh user@server 'pkill -x rdc'"

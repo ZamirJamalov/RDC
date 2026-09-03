@@ -42,6 +42,7 @@ REQUIRED_FILES=(
     "${REPO_ROOT}/docker-compose.yml"
     "${REPO_ROOT}/promtail-config.yml"
     "${REPO_ROOT}/deploy/rdc.service"
+    "${REPO_ROOT}/loki-config.yml"
     "${REPO_ROOT}/grafana/provisioning/datasources/loki.yml"
 )
 for f in "${REQUIRED_FILES[@]}"; do
@@ -50,11 +51,11 @@ for f in "${REQUIRED_FILES[@]}"; do
         exit 1
     fi
 done
-log "OK: 4 fayl mövcuddur"
+log "OK: 5 fayl mövcuddur"
 
 # Delimiter toqquşması qoruması — embed olunan fayllarda delimiter yoxdursa yaxşıdır
 for f in "${REQUIRED_FILES[@]}"; do
-    if grep -Eq '^(COMPOSE_TPL_EOF|PROMTAIL_TPL_EOF|LOKI_DS_TPL_EOF|UNIT_TPL_EOF)$' "${f}"; then
+    if grep -Eq '^(COMPOSE_TPL_EOF|PROMTAIL_TPL_EOF|LOKI_CFG_TPL_EOF|LOKI_DS_TPL_EOF|UNIT_TPL_EOF)$' "${f}"; then
         err "Delimiter toqquşması: ${f} içində TPL_EOF sətri var — embed edilə bilməz"
         exit 1
     fi
@@ -134,6 +135,8 @@ SERVER_ADDR="\${SERVER_ADDR:-:8000}"
 LOG_LEVEL="\${LOG_LEVEL:-info}"
 GRAFANA_ADMIN_PASSWORD="\${GRAFANA_ADMIN_PASSWORD:-admin}"
 LOKI_MAX_OUTSTANDING_REQUESTS="\${LOKI_MAX_OUTSTANDING_REQUESTS:-1000}"
+# PR #369: Loki retention — default 6 ay (4320h)
+LOKI_RETENTION_PERIOD="\${LOKI_RETENTION_PERIOD:-4320h}"
 SERVER_IP="\${SERVER_IP:-\$(hostname -I 2>/dev/null | awk '{print \$1}' || echo '')}"
 AZMK_PUBLIC_IP="\${AZMK_PUBLIC_IP:-185.161.225.102}"
 INSTALL_CADDYFILE_OVERWRITE="\${INSTALL_CADDYFILE_OVERWRITE:-0}"
@@ -300,6 +303,23 @@ GEN_LOGIC_A_EOF
     printf '%s\n' 'PROMTAIL_TPL_EOF'
 } >> "${OUT_SCRIPT}"
 
+# PR #369: Embed loki-config.yml (Loki retention konfiqi)
+{
+    printf 'cat > "${MON_HOME}/loki-config.yml" <<%s\n' "'LOKI_CFG_TPL_EOF'"
+    cat "${REPO_ROOT}/loki-config.yml"
+    printf '%s\n' 'LOKI_CFG_TPL_EOF'
+} >> "${OUT_SCRIPT}"
+
+# PR #369: retention override (generated script üçün runtime sed)
+cat >> "${OUT_SCRIPT}" <<'GEN_LOGIC_RET_EOF'
+
+# PR #369: Loki retention (loki-config.yml-də default 4320h; env ilə fərqli verilibsə)
+if [[ "${LOKI_RETENTION_PERIOD}" != "4320h" ]]; then
+    sed -i "s|retention_period: 4320h|retention_period: ${LOKI_RETENTION_PERIOD}|" \
+        "${MON_HOME}/loki-config.yml"
+fi
+GEN_LOGIC_RET_EOF
+
 # Grafana provisioning + app.log
 cat >> "${OUT_SCRIPT}" <<'GEN_LOGIC_B_EOF'
 
@@ -322,6 +342,15 @@ if [[ ! -f "${MON_HOME}/app.log" ]]; then
 fi
 chown "${RDC_USER}:${RDC_USER}" "${MON_HOME}/app.log"
 chmod 640 "${MON_HOME}/app.log"
+
+# PR #369: app.log gündəlik backup — Loki/volume hər nə olsa, xam tarixçə
+# /opt/rdc/backups/ içində qalır (bərpa: app.log-u geri qoyub positions reset)
+install -d -o root -g root -m 755 "${RDC_HOME}/backups"
+cat > /etc/cron.d/rdc-log-backup <<'CRON_EOF'
+# PR #369: hər gün 01:00 — app.log arxivlənir, 30 gündən köhnələr silinir
+0 1 * * * root tar czf /opt/rdc/backups/app-$(date +\%Y\%m\%d).tar.gz -C /opt/rdc/monitoring app.log && find /opt/rdc/backups -name 'app-*.tar.gz' -mtime +30 -delete
+CRON_EOF
+chmod 644 /etc/cron.d/rdc-log-backup
 
 # ------------------------- 7) systemd unit -------------------------
 log "7/11 systemd unit..."
@@ -478,6 +507,7 @@ echo " Update:         yeni bundle + setup-prod.sh + sudo systemctl restart ${SE
 echo " Env:            /etc/rdc/env (chmod 600) — dəyişmək: nano + systemctl restart ${SERVICE_NAME}"
 echo " Təmizlik:       rm /root/rdc-prod-*.tgz   (içində parol var!)"
 echo " Loglar:         tail -f ${MON_HOME}/app.log"
+echo " Backups:        /opt/rdc/backups (app.log gündəlik tar.gz, 30 gün)"
 echo " Caddy URL:      https://${SERVER_IP}"
 echo " Grafana:        http://${SERVER_IP}:3001 (${GRAFANA_ADMIN_PASSWORD} / ***)"
 echo " Loki sorğusu:   {job=\"go-app\"}"

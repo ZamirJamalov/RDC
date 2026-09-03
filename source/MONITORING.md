@@ -127,7 +127,7 @@ LOG_LEVEL=debug go run . 2>&1 | tee app.log
 |---|---|---|
 | Fayl mount | `./:/var/log/app:ro` (qovluq) | Faylı birbaşa mount etmək təhlükəlidir — app.log yoxdursa Docker qovluq yaradır. Qovluq + glob → fayl sonra yarananda promtail avtomatik görür. |
 | Promtail positions | `promtail-data:/tmp` volume | Restart-da pozisiya itmasin — yoxdursa app.log başdan oxunub Loki-yə dublikat düşərdi. |
-| Loki datası | `loki-data:/tmp/loki` volume | Restart-da loglar itmasin. |
+| Loki datası (PR #369) | `loki-data:/loki` volume | Image default `path_prefix`=/loki-dır; köhnə /tmp/loki mount writable layer-ə yazırdı — recreate-də silinirdi. |
 | Loki sorğu limiti (PR #325) | `-query-scheduler.max-outstanding-requests-per-tenant=1000` (compose faylında) | Geniş zaman aralıqlı sorğular parçalanır, hər parça 1 outstanding request sayılır; Loki default-u (100) bizim həcmlə aşılırdı → Grafana-da `429 too many outstanding requests`. Override: `sudo env LOKI_MAX_OUTSTANDING_REQUESTS=5000 bash deploy/install.sh` (detallar: DEPLOYMENT.md bölmə 3). |
 | Grafana | `grafana-data` volume + provisioning | Dashboards/datasource-lar qalıcı + Loki datasource avtomatik hazır. |
 | Versiyalar | loki/promtail 2.9.4, grafana 11.1.0 | Eyni loki+promtail versiyası (uyğunluq), pinned (təkrarlanan quraşdırma). |
@@ -148,8 +148,41 @@ docker compose down              # dayandır (volumelar qalır)
 docker compose down -v           # dayandır + Loki logları və Grafana datası silinir
 ```
 
-## 6. Gələcək üçün (bu PR-da deyil)
+## 6. Retention və backup (PR #369)
+
+**Loki retention — 6 ay.** Loki öz konfiqi ilə işləyir (`loki-config.yml` —
+image-də `/etc/loki/rdc-config.yaml` kimi mount olunur): compactor retention
+aktivdir, `limits_config.retention_period: 4320h`. Dəyişmək:
+
+```bash
+sudo env LOKI_RETENTION_PERIOD=2160h bash deploy/install.sh
+```
+
+**app.log backup.** install.sh `/etc/cron.d/rdc-log-backup` qurur — hər gün
+01:00 `app.log` → `/opt/rdc/backups/app-YYYYMMDD.tar.gz` (30 gün saxlanılır).
+
+**Bərpa (Loki datası itəndə):** xam `app.log` hər zaman bərpa mənbəyidir —
+
+```bash
+docker rm -f promtail
+docker run --rm -v monitoring_promtail-data:/tmp alpine rm -f /tmp/positions.yaml
+docker compose -f /opt/rdc/monitoring/docker-compose.yml --project-directory /opt/rdc/monitoring up -d
+```
+
+Promtail `app.log`-u başdan oxuyub Loki-yə göndərir (vaxtlar sətirlərdən
+götürülür — Grafana-da düzgün tarixlə görünür). Qeyd: Loki 168 saatdan (7 gün)
+köhnə nümunələri rədd edir — bərpanı gecikmədən edin; daha köhnə tarixçə üçün
+backup arxivindən `app.log`-u bərpa edib eyni addımı təkrarlayın.
+
+**Kök səbəb (PR #369-ya qədər):** Loki image-inin default `path_prefix`-i
+`/loki`-dir; compose volume-u yanlışlıqla `/tmp/loki`-yə mount etdiyindən data
+volume-a deyil, konteynerin writable layer-inə yazılırdı — hər `docker rm -f
+loki` (install.sh-ın PR #307 addımı) bütün datanı silirdi. İndi volume `/loki`-yə
+mount olunur və data konteyner recreate-lərində qalır.
+
+
+## 7. Gələcək üçün (bu PR-da deyil)
 
 - App konteynerləşdiriləndə promtail `docker_sd_configs`-ə keçə bilər — `tee`
   lazım olmur, container stdout birbaşa oxunur.
-- Prod-da Loki retention (`retention_period`) və S3 backend konfiqurasiyası.
+- S3 backend konfiqurasiyası (retention artıq var — PR #369, 6 ay).
