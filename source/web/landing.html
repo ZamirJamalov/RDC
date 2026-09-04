@@ -92,23 +92,17 @@
             font-variant-numeric: tabular-nums;
         }
 
-        /* Animated gradient background blob — Revolut-style hero */
+        /* PR #383: statik fon — pulse animasiyası və blur(80px) filter qaldırıldı
+           (radial-gradient onsuz da yumşaq keçidlidir, blur GPU yükü idi) */
         .hero-bg::before {
             content: '';
             position: absolute;
             top: -20%; left: 50%;
             transform: translateX(-50%);
             width: 900px; height: 900px;
-            background: radial-gradient(circle, rgba(45, 156, 219, 0.25) 0%, rgba(236, 72, 153, 0.15) 40%, transparent 70%);
-            filter: blur(80px);
+            background: radial-gradient(circle, rgba(45, 156, 219, 0.18) 0%, rgba(236, 72, 153, 0.08) 40%, transparent 70%);
             z-index: 0;
             pointer-events: none;
-            animation: pulse 8s ease-in-out infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 0.7; transform: translateX(-50%) scale(1); }
-            50%      { opacity: 1;   transform: translateX(-50%) scale(1.1); }
         }
 
         .gradient-text {
@@ -452,8 +446,6 @@
                 Kredit al →
             </a>
             </div>
-            <!-- PR #184: decorative image to the right of calculator (lg+ only) -->
-            <img src="/assets/calc-decoration.png" alt="" class="hidden lg:block w-32 xl:w-40 h-auto object-contain shrink-0 pointer-events-none select-none" aria-hidden="true">
         </div>
 
     </div>
