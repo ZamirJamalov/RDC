@@ -622,12 +622,14 @@ SIMA_USE_MOCK=false
 MYGOV_USE_MOCK=false
 AZMK_USE_MOCK=false
 
-# External servis URL-ləri (prod)
-LW_BASE_URL=https://lw.alpul.az
-OTP_BASE_URL=https://sms.alpul.az
-SIMA_BASE_URL=https://sima.alpul.az
-MYGOV_BASE_URL=https://mygov.alpul.az
-AZMK_BASE_URL=https://web.azmk.az:7077/LW_CREDIT_HOUSE/services/OnlineLendingService
+# External servis URL-ləri (prod) — PR #378: bu servis-lər LW
+# tərəfindən təqdim edilir, alpul.az subdomain-i DEYİL (öz
+# domain-ləri ilə gəlir). Real URL-lər LW-dən alındıqda doldurulur.
+LW_BASE_URL=<LW-nin verdiyi prod URL>
+OTP_BASE_URL=<LW-nin verdiyi OTP/SMS URL>
+SIMA_BASE_URL=<LW-nin verdiyi SIMA URL>
+MYGOV_BASE_URL=<LW-nin verdiyi MyGov URL>
+AZMK_BASE_URL=https://web.azmk.az:7077/LW_AKP/services/OnlineLendingService
 
 # MyGov prod URL-ləri
 MYGOV_REDIRECT_URI=https://alpul.az/api/mygov/permission-link
@@ -1107,22 +1109,22 @@ Aşağıdakı env var-lar artıq mövcuddur və prod-da mütləq düzgün dəyə
 | `SERVER_ADDR` | :8000 | :8000 (public), :8001 (internal) |
 | `MIGRATIONS_DROP_RECREATE` | **true** | **MÜTLƏQ false** |
 | `LOG_LEVEL` | info | info (və ya warn) |
-| `LW_BASE_URL` | http://localhost:8080 | https://lw.alpul.az |
+| `LW_BASE_URL` | http://localhost:8080 | LW-nin verdiyi URL (PR #378 — alpul.az deyil) |
 | `LW_API_KEY` | (boş) | prod API key |
 | `LW_USE_MOCK` | **true** | **false** |
 | `LW_USE_STUB` | false | false |
 | `LW_STUB_PORT` | 8090 | (işlənmir) |
 | `LW_TIMEOUT_S` | 30 | 30 |
-| `OTP_BASE_URL` | http://localhost:8081 | https://sms.alpul.az |
+| `OTP_BASE_URL` | http://localhost:8081 | LW-nin verdiyi URL (alpul.az deyil) |
 | `OTP_API_KEY` | (boş) | prod API key |
 | `OTP_SENDER` | RDC | ALPUL |
 | `OTP_USE_MOCK` | **true** | **false** |
 | `OTP_TIMEOUT_S` | 10 | 10 |
-| `SIMA_BASE_URL` | http://localhost:8082 | https://sima.alpul.az |
+| `SIMA_BASE_URL` | http://localhost:8082 | LW-nin verdiyi URL (alpul.az deyil) |
 | `SIMA_API_KEY` | (boş) | prod API key |
 | `SIMA_USE_MOCK` | **true** | **false** |
 | `SIMA_TIMEOUT_S` | 15 | 15 |
-| `MYGOV_BASE_URL` | http://localhost:8083 | https://mygov.alpul.az |
+| `MYGOV_BASE_URL` | http://localhost:8083 | LW-nin verdiyi URL (alpul.az deyil) |
 | `MYGOV_API_KEY` | (boş) | prod API key |
 | `MYGOV_USE_MOCK` | **true** | **false** |
 | `MYGOV_TIMEOUT_S` | 15 | 15 |
