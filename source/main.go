@@ -229,6 +229,7 @@ func main() {
 	mygovService.SetCustomerDataProvider(customerDataProvider)               // PR #239: AZMK GetEmployeeInfoByPin
 	mygovService.SetCutoffRepo(cutoffResultRepo)                             // PR #242: EMPLOYMENT_TENURE / DISABILITY_GROUP1 cutoff_results-a yazılır
 	mygovService.SetEmploymentTenureMinMonths(cfg.EmploymentTenureMinMonths) // PR #279: parametrik staj həddi
+	mygovService.SetServiceCacheLookup(serviceCacheRepo)                     // PR #375: emp/pension verify 3 günlük cache
 
 	// --- Handler layer ---
 	lwMockHandler := handler.NewLWMockHandler(lwProvider)
