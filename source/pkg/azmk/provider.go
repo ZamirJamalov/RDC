@@ -307,6 +307,32 @@ func (p *HTTPProvider) auditLog(ctx context.Context, serviceName, method, url, r
                 slog.Warn("failed to write audit log", "error", err, "service", serviceName)
         }
 }
+
+// PR #374: poll çağırışları üçün Loki-only audit — DB-yə yazmır.
+// KYC status poll-u (SENT) hər 3 saniyədən bir təkrarlanır və 60 cəhdə qədər
+// service_audit_logs cədvəlini şişirdirdi; Loki-də (6 ay retention, PR #369)
+// hər çağırış onsuz da saxlanılır.
+func (p *HTTPProvider) auditLogLokiOnly(_ context.Context, serviceName, method, url, reqBody, respBody string, statusCode int, durationMs int, errMsg string) {
+        extlog.Call("azmk", serviceName, method, url, reqBody, statusCode, respBody, durationMs, errMsg)
+}
+
+// PR #374: yalnız DB-yə yaz — poll-un YEKUN statusu üçün (VERIFIED / xəta).
+// Loki-ya onsuz da doGetVariant→auditLogLokiOnly yazıb — dublikat olmasın deyə.
+func (p *HTTPProvider) auditDBInsert(ctx context.Context, serviceName, method, url, reqBody, respBody string, statusCode int, durationMs int, errMsg string) {
+        if p.auditDB == nil {
+                return // audit logging disabled
+        }
+        appID := AppIDFromContext(ctx) // PR #259: context-dən oxu (thread-safe)
+        _, err := p.auditDB.ExecContext(ctx, `
+                INSERT INTO service_audit_logs
+                        (application_id, service_name, method, url, request_body, response_body, status_code, duration_ms, error)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                appID, serviceName, method, url, reqBody, respBody, statusCode, durationMs, errMsg)
+        if err != nil {
+                slog.Warn("failed to write audit log", "error", err, "service", serviceName)
+        }
+}
+
 // PR #123: AZMK servisi username/password tələb edir.
 func (p *HTTPProvider) setAuthHeaders(req *http.Request) {
         req.Header.Set("Content-Type", "application/json")
@@ -381,12 +407,23 @@ func (p *HTTPProvider) doRequest(ctx context.Context, method, path string, body 
 
 // doGet sends a GET request and returns the response body as string.
 func (p *HTTPProvider) doGet(ctx context.Context, path string) (string, error) {
+        return p.doGetVariant(ctx, path, true) // PR #374: default — DB audit ilə
+}
+
+// doGetVariant sends a GET request; dbAudit=false → audit yalnız Loki-ya yazılır
+// (PR #374: poll çağırışları — məs. KYC status SENT — service_audit_logs
+// cədvəlini hər 3 saniyədən bir şişirtməsin; Loki-də 6 ay retention var).
+func (p *HTTPProvider) doGetVariant(ctx context.Context, path string, dbAudit bool) (string, error) {
         url := p.baseURL + path
         serviceName := "AZMK_" + strings.ToUpper(strings.Trim(path, "/"))
+        audit := p.auditLog
+        if !dbAudit {
+                audit = p.auditLogLokiOnly // PR #374
+        }
 
         req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
         if err != nil {
-                p.auditLog(ctx, serviceName, "GET", url, "", "", 0, 0, err.Error())
+                audit(ctx, serviceName, "GET", url, "", "", 0, 0, err.Error())
                 return "", fmt.Errorf("azmk: failed to create request: %w", err)
         }
         p.setAuthHeaders(req)
@@ -395,14 +432,14 @@ func (p *HTTPProvider) doGet(ctx context.Context, path string) (string, error) {
         resp, err := p.doRequestWithRetry(ctx, req)
         durationMs := int(time.Since(start).Milliseconds())
         if err != nil {
-                p.auditLog(ctx, serviceName, "GET", url, "", "", 0, durationMs, err.Error())
+                audit(ctx, serviceName, "GET", url, "", "", 0, durationMs, err.Error())
                 return "", fmt.Errorf("azmk: HTTP request failed: %w", err)
         }
         defer resp.Body.Close()
 
         respBody, err := io.ReadAll(resp.Body)
         if err != nil {
-                p.auditLog(ctx, serviceName, "GET", url, "", "", resp.StatusCode, durationMs, err.Error())
+                audit(ctx, serviceName, "GET", url, "", "", resp.StatusCode, durationMs, err.Error())
                 return "", fmt.Errorf("azmk: failed to read response: %w", err)
         }
 
@@ -410,11 +447,11 @@ func (p *HTTPProvider) doGet(ctx context.Context, path string) (string, error) {
 
         if resp.StatusCode < 200 || resp.StatusCode >= 300 {
                 errMsg := fmt.Sprintf("azmk: %s returned HTTP %d: %s", path, resp.StatusCode, respBodyStr)
-                p.auditLog(ctx, serviceName, "GET", url, "", respBodyStr, resp.StatusCode, durationMs, errMsg)
+                audit(ctx, serviceName, "GET", url, "", respBodyStr, resp.StatusCode, durationMs, errMsg)
                 return "", fmt.Errorf("%s", errMsg)
         }
 
-        p.auditLog(ctx, serviceName, "GET", url, "", respBodyStr, resp.StatusCode, durationMs, "")
+        audit(ctx, serviceName, "GET", url, "", respBodyStr, resp.StatusCode, durationMs, "")
         return respBodyStr, nil
 }
 
@@ -468,13 +505,14 @@ func (p *HTTPProvider) KYC(ctx context.Context, req *KYCRequest) (string, error)
 // "SENT" halında false qaytarır (hələ verify olunmayıb — polling davam etməli).
 // "Invalidid" halında error qaytarır.
 func (p *HTTPProvider) VerifyKYC(ctx context.Context, kycID string) (bool, error) {
-        body, err := p.doGet(ctx, "/kyc/"+kycID)
+        body, err := p.doGetVariant(ctx, "/kyc/"+kycID, false) // PR #374: poll — Loki-only
         if err != nil {
                 return false, err
         }
 
         // PR #155: "Invalidid" yoxlaması — plain string, JSON struktursuz
         if strings.Contains(body, "Invalidid") {
+                p.auditDBInsert(ctx, "AZMK_KYC/"+kycID, "GET", p.baseURL+"/kyc/"+kycID, "", body, 200, 0, "invalid id") // PR #374: yekun xeta DB-de
                 slog.Warn("AZMK KYC verify failed — invalid ID", "kyc_id", kycID, "response", body)
                 return false, fmt.Errorf("AZMK KYC invalid id: %s", kycID)
         }
@@ -496,11 +534,13 @@ func (p *HTTPProvider) VerifyKYC(ctx context.Context, kycID string) (bool, error
 
         switch strings.ToUpper(resp.Status) {
         case "VERIFIED":
+                p.auditDBInsert(ctx, "AZMK_KYC/"+kycID, "GET", p.baseURL+"/kyc/"+kycID, "", body, 200, 0, "") // PR #374: yekun status DB-də qalır
                 return true, nil
         case "SENT":
                 return false, nil // hələ verify olunmayıb — polling davam etməli
         case "PIN_MISMATCH":
                 // PR #163: PIN uyğun gəlmir — polling-i dayandır və error qaytar
+                p.auditDBInsert(ctx, "AZMK_KYC/"+kycID, "GET", p.baseURL+"/kyc/"+kycID, "", body, 200, 0, "PIN_MISMATCH") // PR #374
                 slog.Warn("AZMK KYC verify failed — PIN mismatch",
                         "kyc_id", kycID, "response", body)
                 return false, fmt.Errorf("KYC PIN uyğun gəlmir — göndərilən FIN kodu sənədlə uyğun deyil")
