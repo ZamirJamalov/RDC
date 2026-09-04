@@ -227,6 +227,19 @@
         }
         .cta-btn:active { transform: translateY(0); }
 
+        /* PR #384: "Krediti ödə" düyməsi — fon rəngi (əvvəl sadəcə outline idi).
+           Emerald→teal qradiyent: "Kredit al" (göy) ilə vizual ayrılıq. */
+        .cta-btn-pay {
+            background: linear-gradient(135deg, #10B981 0%, #0d9488 100%);
+            border: 1px solid rgba(16, 185, 129, 0.35);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .cta-btn-pay:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px -10px rgba(16, 185, 129, 0.5);
+        }
+        .cta-btn-pay:active { transform: translateY(0); }
+
         /* PR #180: "Seçimi et" button — static (no animation), AZMK blue→navy gradient */
         .cta-btn-hero {
             background: linear-gradient(135deg, #2D9CDB 0%, #1d5a8f 100%);
@@ -304,7 +317,7 @@
             <a href="/apply?from=landing" class="cta-btn text-white text-sm font-semibold px-4 sm:px-5 py-2.5 rounded-xl">
                 Kredit al
             </a>
-            <a href="/how-to-pay.html" class="text-sm font-medium px-4 py-2.5 rounded-xl border border-white/15 hover:bg-white/5 hover:border-white/30 transition text-white hidden sm:inline-block">
+            <a href="/how-to-pay.html" class="cta-btn-pay text-sm font-medium px-4 py-2.5 rounded-xl text-white hidden sm:inline-block">
                 Krediti ödə
             </a>
             <!-- PR #139: Mobile hamburger menu -->
@@ -321,7 +334,7 @@
             <a href="/how-to-pay.html" @click="mobileNavOpen = false" class="block hover:text-white transition py-1">Ödənişi necə edim</a>
             <a href="/faq.html"        @click="mobileNavOpen = false" class="block hover:text-white transition py-1">Sual-cavab</a>
             <a href="/contact.html"    @click="mobileNavOpen = false" class="block hover:text-white transition py-1">Əlaqə</a>
-            <a href="/how-to-pay.html" @click="mobileNavOpen = false" class="block cta-btn text-white text-center font-semibold py-2 rounded-xl mt-2">Krediti ödə</a>
+            <a href="/how-to-pay.html" @click="mobileNavOpen = false" class="block cta-btn-pay text-white text-center font-semibold py-2 rounded-xl mt-2">Krediti ödə</a>
         </div>
     </div>
 </nav>
