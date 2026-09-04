@@ -149,7 +149,7 @@ docker compose down -v           # dayandır + Loki logları və Grafana datası
 ```
 
 ## 6. Retention və backup (PR #369)
-> Tam insident hesabatı və ətraflı bərpa runbook-u: [Docs/PR371_Loki_Incident_Recovery.md](../Docs/PR371_Loki_Incident_Recovery.md)
+> Tam insident hesabatı və ətraflı bərpa runbook-u: [Docs/PR371_Loki_Incident_Recovery.md](PR371_Loki_Incident_Recovery.md)
 
 **Loki retention — 6 ay.** Loki öz konfiqi ilə işləyir (`loki-config.yml` —
 image-də `/etc/loki/rdc-config.yaml` kimi mount olunur): compactor retention

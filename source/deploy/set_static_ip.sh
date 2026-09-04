@@ -10,7 +10,7 @@
 #   - NO_SCREEN=1 ilə screen-siz icra mümkündür (fiziki konsol olan hallar üçün).
 #   - Screen çıxışı /root/set_static_ip.screen.log-a yazılır.
 #
-# Sənədləşmə: DEPLOYMENT.md → Bölmə 10 (PR #328)
+# Sənədləşmə: Docs/DEPLOYMENT.md → Bölmə 10 (PR #328)
 #
 # İstifadə:
 #   sudo STATIC_IP=192.168.1.50 bash set_static_ip.sh
