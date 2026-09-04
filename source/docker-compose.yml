@@ -8,7 +8,7 @@
 # Grafana:   http://localhost:3001 (admin / admin)
 # Loki:      http://localhost:3100
 #
-# Detallar: MONITORING.md
+# Detallar: Docs/MONITORING.md
 
 # PR #368: compose project adı sabitlənir — volume adları compose-un
 # işlədildiyi qovluqdan asılı olmayaraq sabit qalsın (əks halda source/

@@ -151,7 +151,7 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
 			s.markDiscountCodeUsed(ctx, app.DiscountCode, id)
 		}
 
-		// PR #319 (plan R1 — pre_referal_code_plan.md): referal kodunun
+		// PR #319 (plan R1 — Docs/pre_referal_code_plan.md): referal kodunun
 		// generasiyası approve-dan köçürüldü — disburse success-da baş verir
 		// (referralOnDisburseSuccess, sign worker). Yalnız icra olunan kredit
 		// referal hüququ qazandırır.
@@ -352,7 +352,7 @@ func (s *ApplicationService) sendRejectionSMS(ctx context.Context, app *model.Lo
 		"phone", app.CustomerPhone)
 }
 
-// referralOnDisburseSuccess — PR #319 (pre_referal_code_plan.md, R1+R4):
+// referralOnDisburseSuccess — PR #319 (Docs/pre_referal_code_plan.md, R1+R4):
 // disburse success → 1) FIN-ə bağlı referal kodu generasiya et və store et
 // (idempotent), 2) kodu müştəriyə SMS ilə göndər (variant a — kod birbaşa
 // ötürülür, əlavə DB oxuması yoxdur).

@@ -250,7 +250,7 @@ func (s *ApplicationService) pollOneSignature(ctx context.Context, id, timeoutS 
 	// (PR #319) ƏVVƏL, çünki əsas əməliyyat bildirişi prioritetlidir. Non-fatal.
 	s.sendDisburseApprovalSMS(ctx, app)
 
-	// PR #319 (pre_referal_code_plan.md R1+R4): disburse success →
+	// PR #319 (Docs/pre_referal_code_plan.md R1+R4): disburse success →
 	// FIN-ə bağlı referal kodu generasiya et + store et, sonra müştəriyə SMS
 	// göndər (sıralama: R1 generasiya → R4 SMS; non-fatal).
 	s.referralOnDisburseSuccess(ctx, app)

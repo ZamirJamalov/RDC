@@ -82,7 +82,7 @@ func (s *DiscountCodeService) GenerateForApplication(ctx context.Context, appID,
 }
 
 // GenerateForApplicationWithValue creates a discount code with an explicit
-// discount_value (PR #319, plan R1 — pre_referal_code_plan.md: disburse success-də
+// discount_value (PR #319, plan R1 — Docs/pre_referal_code_plan.md: disburse success-də
 // generasiya olunan referal kodunun dəyəri REFERRAL_DISCOUNT_PERCENT-dən gəlir).
 // discountValue <= 0 olduqda DefaultDiscountValue istifadə olunur.
 func (s *DiscountCodeService) GenerateForApplicationWithValue(ctx context.Context, appID, customerID int, discountValue float64) (*model.DiscountCode, error) {
