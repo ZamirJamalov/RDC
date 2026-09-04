@@ -251,6 +251,23 @@ func creditHistoryFromCache(body string) *azmk.CreditHistory {
 	return &azmk.CreditHistory{Inquiry: resp.Data.Return}
 }
 
+// customerDataFromCache parses a cached AZMK GetPersonalInfo response body back
+// into CustomerData. Returns nil on empty/malformed body or missing data —
+// cache miss sayılır və fiziki AZMK çağırışı edilir (fail-soft, PR #381).
+func customerDataFromCache(body string) *azmk.CustomerData {
+	if body == "" {
+		return nil
+	}
+	var resp azmk.CustomerDataResponse
+	if err := json.Unmarshal([]byte(body), &resp); err != nil {
+		return nil
+	}
+	if resp.Data == nil {
+		return nil
+	}
+	return resp.Data
+}
+
 // fetchCustomerDataFromAzmk fetches customer data from AZMK CustomerDataService
 // (GetPersonalInfo). Returns nil on error (fail-soft — no rejection).
 // PR #152: yaş yoxlaması üçün əsas mənbə.
