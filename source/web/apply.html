@@ -1283,8 +1283,9 @@ function applyApp() {
         // çağrılır, hansı ki boş application_public_id göndərir və backend
         // 'application_id is required' xətası qaytarır.
         //
-        // Form fin/serialPrefix/serialNumber/phone saxlanılır — istifadəçi
-        // bu məlumatları yenidən daxil etməsin deyə (yaxşı UX).
+        // PR #373: şəxs məlumatları (fin/serial/phone) da tam sıfırlanır —
+        // 'Yenidən cəhd et' klikindən sonra səhifədə evvəlki daxil edilən
+        // məlumatlar qalmamalıdır.
         resetToStep0() {
             this.currentStep = 0;
             this.engineStatus = '';
@@ -1293,6 +1294,11 @@ function applyApp() {
             // PR #271: incomeRejected və hasOfficialIncome sıfırla
             this.incomeRejected = false;
             this.form.hasOfficialIncome = null;
+            // PR #373: şəxs məlumatlarını tam təmizlə (serialPrefix default AZE qalır)
+            this.form.fin = '';
+            this.form.serialPrefix = 'AZE';
+            this.form.serialNumber = '';
+            this.form.phone = '';
             // PR #256: blockedRejectionDays sıfırla
             this.blockedRejectionDays = -1;
             this.applicationId = null;
