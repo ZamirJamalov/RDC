@@ -177,6 +177,40 @@ func TestCreditHistoryFromCache_Invalid(t *testing.T) {
 	}
 }
 
+// TestCustomerDataFromCache_Valid — real AZMK GetPersonalInfo body parse (PR #381).
+func TestCustomerDataFromCache_Valid(t *testing.T) {
+	body := `{"result":1,"requestId":"1","message":"SUCCESS","data":{"BirthDate":"1983-07-22","Surname":"Camalov","RegistrationAddress":"BAKI ŞƏHƏRİ, BİNƏQƏDİ RAYONU","Patronymic":"Zeynal oğlu","Name":"Zamir","DocumentSeriaNumber":"AA3261226"}}`
+	d := customerDataFromCache(body)
+	if d == nil {
+		t.Fatal("expected parsed CustomerData, got nil")
+	}
+	if got, want := d.FullName(), "Zamir Camalov Zeynal oğlu"; got != want {
+		t.Errorf("FullName() = %q, want %q", got, want)
+	}
+	if d.BirthDate != "1983-07-22" {
+		t.Errorf("BirthDate = %q", d.BirthDate)
+	}
+	if d.Age() < 43 { // 1983-07-22 → 2026-da 43; sonrakı illərdə daha çox
+		t.Errorf("Age() = %d, want >= 43", d.Age())
+	}
+	if d.RegistrationAddress == "" {
+		t.Error("RegistrationAddress boş qaldı")
+	}
+}
+
+// TestCustomerDataFromCache_Invalid — xarab body / data yox → nil.
+func TestCustomerDataFromCache_Invalid(t *testing.T) {
+	for _, bad := range []string{
+		"",
+		"not json",
+		`{"result":1}`, // data yoxdur
+	} {
+		if got := customerDataFromCache(bad); got != nil {
+			t.Errorf("customerDataFromCache(%q) = %v, want nil", bad, got)
+		}
+	}
+}
+
 // TestPensionInfoFromCache_Invalid — xarab/boş body → nil.
 func TestPensionInfoFromCache_Invalid(t *testing.T) {
 	for _, bad := range []string{"", "not json", `{"result":1}`, `{"result":1,"data":{}}`} {

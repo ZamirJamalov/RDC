@@ -578,7 +578,16 @@ afterOwnerData: // PR #205: cache hit halında bura jump edilir
 	age := 0
 	if s.customerDataProvider != nil {
 		slog.Info("early cutoff: calling AZMK GetPersonalInfo (age check)", "application_id", appID, "customer_pin", customerPIN)
-		data := s.fetchCustomerDataFromAzmk(ctx, customerPIN, serial)
+		// PR #381: 3 günlük cache (migration 053, cache_days=3) — HIT olsa fiziki
+		// çağırış edilmir. Cached body tam cavabdır: yaş (BirthDate), fullName
+		// və qeydiyyat ünvanı (PR #243/#245) eynilə cached cavabdan oxunur.
+		var data *azmk.CustomerData
+		if cached, ok := s.GetCachedServiceResponse(ctx, &appID, "AZMK_GET_PERSONAL_INFO", customerPIN); ok {
+			data = customerDataFromCache(cached)
+		}
+		if data == nil {
+			data = s.fetchCustomerDataFromAzmk(ctx, customerPIN, serial)
+		}
 		var fullName string
 		if data != nil {
 			age = data.Age()
