@@ -709,15 +709,16 @@
                     </svg>
                 </div>
                 <h2 class="text-2xl sm:text-3xl font-bold mb-3">Müraciətiniz rədd edildi</h2>
+                <!-- PR #372: texniki reject səbəbi əvəzinə SMS-də göndərilən mesaj göstərilir -->
                 <p class="text-gray-400 max-w-md mx-auto mb-6">
-                    Təəssüf ki, müraciətiniz bizim kəsim nöqtələrimizdən keçə bilmədi.
+                    Hörmətli müştərimiz! Təəssüf ki, müraciətiniz bu dəfə təsdiq olunmadı. Hörmətlə, ALPUL.AZ
                 </p>
-                <div x-show="engineRejectionReason" class="bg-red-500/10 border border-red-500/30 rounded-xl p-4 max-w-md mx-auto mb-6 text-left">
-                    <div class="text-xs text-red-300 mb-1">Səbəb:</div>
-                    <div class="text-sm text-red-200" x-text="engineRejectionReason"></div>
-                </div>
+                <!-- PR #372: 'Səbəb' bloku silindi — texniki detallar müştəriyə göstərilmir -->
                 <p class="text-sm text-gray-500 mb-6">
-                    Müraciət nömrəniz: <span class="font-mono font-semibold text-white" x-text="applicationId"></span>
+                    Müraciət nömrəniz:
+                    <span @click="copyAppId()" title="Kopyalamaq üçün klikləyin"
+                          class="font-mono font-semibold text-white cursor-pointer hover:text-teal-300 underline decoration-dotted underline-offset-4 transition-colors select-none"
+                          x-text="appIdCopied ? '✓ Kopyalandı' : applicationId"></span>
                 </p>
                 <!-- PR #250: Texniki xəta halında 'Yenidən cəhd et' buttonu -->
                 <div x-show="isTechnicalError" x-cloak class="mb-4">
@@ -743,7 +744,10 @@
                 </div>
                 <h2 class="text-2xl sm:text-3xl font-bold mb-3">Müraciətiniz qəbul olundu!</h2>
                 <p class="text-gray-400 max-w-md mx-auto mb-8">
-                    Müraciət nömrəniz: <span class="font-mono font-semibold text-white" x-text="applicationId"></span>
+                    Müraciət nömrəniz:
+                    <span @click="copyAppId()" title="Kopyalamaq üçün klikləyin"
+                          class="font-mono font-semibold text-white cursor-pointer hover:text-teal-300 underline decoration-dotted underline-offset-4 transition-colors select-none"
+                          x-text="appIdCopied ? '✓ Kopyalandı' : applicationId"></span>
                 </p>
                 <div class="bg-black/30 border border-white/5 rounded-xl p-5 max-w-sm mx-auto text-left">
                     <div class="flex justify-between py-2 border-b border-white/5">
@@ -774,7 +778,10 @@
                 </div>
                 <h2 class="text-2xl sm:text-3xl font-bold mb-3">Müraciətiniz qeydə alındı</h2>
                 <p class="text-gray-400 max-w-md mx-auto mb-8">
-                    Müraciət nömrəniz: <span class="font-mono font-semibold text-white" x-text="applicationId"></span>
+                    Müraciət nömrəniz:
+                    <span @click="copyAppId()" title="Kopyalamaq üçün klikləyin"
+                          class="font-mono font-semibold text-white cursor-pointer hover:text-teal-300 underline decoration-dotted underline-offset-4 transition-colors select-none"
+                          x-text="appIdCopied ? '✓ Kopyalandı' : applicationId"></span>
                 </p>
                 <p class="text-sm text-gray-500 max-w-md mx-auto">
                     Sistem müraciətinizi yoxlayır. Ekspertimiz qısa müddətdə sizinlə əlaqə saxlayacaq.
@@ -920,6 +927,8 @@ function applyApp() {
         // PR #271: resmi gelir yoxlaması — 'xeyr' secilende reject mesajı
         incomeRejected: false,
         otpSent: false,
+        // PR #372: müraciət nömrəsi kopyalandımiqdan feedback üçün
+        appIdCopied: false,
 
         // PR #188: Video record state
         videoRequired: false,        // backend-dən gəlir (video_required)
@@ -1451,6 +1460,32 @@ function applyApp() {
         // PR #70: Get combined serial (prefix + number)
         get fullSerial() {
             return this.form.serialPrefix + this.form.serialNumber;
+        },
+
+        // PR #372: müraciət nömrəsini clipboard-a kopyala (success/reject/pending ekranları)
+        copyAppId() {
+            const id = this.applicationId || '';
+            if (!id) return;
+            const done = () => {
+                this.appIdCopied = true;
+                setTimeout(() => { this.appIdCopied = false; }, 2000);
+            };
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(id).then(done).catch(() => this.copyAppIdFallback(id, done));
+            } else {
+                this.copyAppIdFallback(id, done);
+            }
+        },
+        copyAppIdFallback(text, done) {
+            // HTTP (localhost) üçün köhnə üsul — müvəqqəti textarea + execCommand
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.opacity = '0';
+            document.body.appendChild(ta);
+            ta.select();
+            try { document.execCommand('copy'); done(); } catch (e) { /* ignore */ }
+            document.body.removeChild(ta);
         },
 
         async sendOtp() {
