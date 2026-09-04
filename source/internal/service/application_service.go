@@ -678,3 +678,28 @@ func (s *ApplicationService) ListRejected(ctx context.Context) ([]model.LoanAppl
 	}
 	return apps, nil
 }
+
+// ListIssued retrieves successfully issued applications (PR #376) — RDC
+// dashboard "Uğurla verilənlər" tabi üçün: approved (köhnə/auto-approve yolu)
+// + disbursed (AZMK imza axını — pul kartına köçürülüb) statusları.
+// Siralama: yenisi evvelde (ListRejected ilə eyni).
+func (s *ApplicationService) ListIssued(ctx context.Context) ([]model.LoanApplication, error) {
+	approvedApps, err := s.repo.ListByStatus(ctx, model.StatusApproved)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list approved applications: %w", err)
+	}
+	disbursedApps, err := s.repo.ListByStatus(ctx, model.StatusDisbursed)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list disbursed applications: %w", err)
+	}
+	all := append(approvedApps, disbursedApps...)
+	// ISO string tarixler leksikografik siralanir (ListRejected ilə eyni)
+	for i := 0; i < len(all); i++ {
+		for j := i + 1; j < len(all); j++ {
+			if all[i].CreatedAt < all[j].CreatedAt {
+				all[i], all[j] = all[j], all[i]
+			}
+		}
+	}
+	return all, nil
+}
