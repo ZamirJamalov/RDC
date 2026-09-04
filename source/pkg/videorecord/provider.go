@@ -145,17 +145,17 @@ func (p *HTTPProvider) CheckStatus(ctx context.Context, appIDs []string) (*model
 
 	respBody, statusCode, durationMs, err := p.doRequest(ctx, http.MethodPost, url, jsonBody)
 	if err != nil {
-		p.auditLog(ctx, serviceName, http.MethodPost, url, string(jsonBody), "", statusCode, durationMs, err.Error())
+		p.auditLogLokiOnly(ctx, serviceName, http.MethodPost, url, string(jsonBody), "", statusCode, durationMs, err.Error())
 		return nil, fmt.Errorf("video record status check request failed: %w", err)
 	}
 
 	var resp model.VideoOrderStatusResponse
 	if err := json.Unmarshal(respBody, &resp); err != nil {
-		p.auditLog(ctx, serviceName, http.MethodPost, url, string(jsonBody), string(respBody), statusCode, durationMs, fmt.Sprintf("decode error: %v", err))
+		p.auditLogLokiOnly(ctx, serviceName, http.MethodPost, url, string(jsonBody), string(respBody), statusCode, durationMs, fmt.Sprintf("decode error: %v", err))
 		return nil, fmt.Errorf("failed to decode video status response: %w", err)
 	}
 
-	p.auditLog(ctx, serviceName, http.MethodPost, url, string(jsonBody), string(respBody), statusCode, durationMs, "")
+	p.auditLogLokiOnly(ctx, serviceName, http.MethodPost, url, string(jsonBody), string(respBody), statusCode, durationMs, "")
 	return &resp, nil
 }
 
@@ -201,6 +201,14 @@ func (p *HTTPProvider) auditLog(ctx context.Context, serviceName, method, url, r
 	if err != nil {
 		slog.Warn("failed to write video audit log", "error", err, "service", serviceName)
 	}
+}
+
+// auditLogLokiOnly writes only to Loki (slog → app.log → Loki) — no DB row.
+// PR #374: CheckStatus poll-ları (hər 2 saniyə, müştəri video çəkənə qədər)
+// service_audit_logs cədvəlinə yazılmır — nəticə (recorded + req/resp) onsuz
+// da video_records cədvəlində UPDATE olunur; Loki-də 6 ay saxlanılır (PR #369).
+func (p *HTTPProvider) auditLogLokiOnly(_ context.Context, serviceName, method, url, reqBody, respBody string, statusCode int, durationMs int, errMsg string) {
+	extlog.Call("video", serviceName, method, url, reqBody, statusCode, respBody, durationMs, errMsg)
 }
 
 // MockProvider is a no-op mock for dev/test without real HTTP calls.
