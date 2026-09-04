@@ -95,7 +95,7 @@
             </div>
         </div>
 
-        <!-- PR #313: Tab filter — Gözləyən / İmtina olunmuş -->
+        <!-- PR #313: Tab filter — Gözləyən / İmtina olunmuş / Uğurla verilənlər (PR #376) -->
         <div class="flex gap-2 mb-4">
             <button @click="switchTab('pending')"
                     :class="tab === 'pending' ? 'alpul-btn text-white' : 'border border-gray-300 text-gray-600 hover:bg-gray-100'"
@@ -106,6 +106,11 @@
                     :class="tab === 'rejected' ? 'bg-red-500 text-white' : 'border border-gray-300 text-gray-600 hover:bg-gray-100'"
                     class="px-4 py-2 rounded-lg text-sm font-medium transition">
                 İmtina olunmuş
+            </button>
+            <button @click="switchTab('approved')"
+                    :class="tab === 'approved' ? 'bg-green-500 text-white' : 'border border-gray-300 text-gray-600 hover:bg-gray-100'"
+                    class="px-4 py-2 rounded-lg text-sm font-medium transition">
+                Uğurla verilənlər
             </button>
         </div>
 
@@ -120,7 +125,7 @@
 
         <!-- Empty -->
         <div x-show="!loading && !error && applications.length === 0" class="text-center py-8 text-gray-500"
-             x-text="tab === 'rejected' ? 'Heç bir imtina olunmuş muraciet yoxdur.' : 'Heç bir muraciet yoxdur.'">
+             x-text="tab === 'rejected' ? 'Heç bir imtina olunmuş muraciet yoxdur.' : tab === 'approved' ? 'Heç bir uğurla verilmiş muraciet yoxdur.' : 'Heç bir muraciet yoxdur.'">
         </div>
 
         <!-- Application List -->
@@ -138,6 +143,9 @@
                                 <p><span class="font-medium">PIN:</span> <span x-text="app.customer_pin"></span></p>
                                 <p><span class="font-medium">Mebleg:</span> <span x-text="(app.total_amount || app.amount) + ' AZN'"></span></p>
                                 <p><span class="font-medium">Muddet:</span> <span x-text="app.term_months + ' ay'"></span></p>
+                                <!-- PR #376: müraciət tarixi + baxılma tarixi (bütün tab-larda) -->
+                                <p><span class="font-medium">Müraciət tarixi:</span> <span x-text="fmtDate(app.created_at)"></span></p>
+                                <p><span class="font-medium">Baxılma tarixi:</span> <span x-text="fmtDate(app.updated_at)"></span></p>
                                 <!-- PR #142: Processed by display -->
                                 <p x-show="app.processed_by_username" class="text-xs text-gray-400 mt-1">
                                     <span class="font-medium">İşləyən:</span> <span x-text="app.processed_by_username"></span>
@@ -177,7 +185,7 @@
                 applications: [],
                 loading: false,
                 error: '',
-                tab: 'pending', // PR #313: 'pending' | 'rejected' 
+                tab: 'pending', // PR #313: 'pending' | 'rejected' | 'approved' (PR #376)
                 authChecking: true,
                 currentUser: null,
                 theme: localStorage.getItem('alpul_theme') || 'light',
@@ -240,7 +248,10 @@
                     this.error = '';
                     try {
                         // PR #313: rejected tab → ?status=rejected
-                        const url = this.tab === 'rejected' ? '/api/expert/queue?status=rejected' : '/api/expert/queue';
+                        // PR #376: approved tab → ?status=approved (approved + disbursed)
+                        const url = this.tab === 'rejected' ? '/api/expert/queue?status=rejected'
+                                  : this.tab === 'approved' ? '/api/expert/queue?status=approved'
+                                  : '/api/expert/queue';
                         const resp = await fetch(url);
                         if (resp.status === 401) {
                         window.clearAuthToken();
@@ -277,6 +288,14 @@
                 'disburse_failed': 'Köçürmə xətası'
             };
             return map[status] || status;
+        }
+
+        // PR #376: tarix formatı — dd.mm.yyyy HH:MM:SS (detail.html toLocaleString pattern-i)
+        function fmtDate(s) {
+            if (!s) return '-';
+            // MSSQL "2026-09-03 14:49:31.9" → ISO "2026-09-03T14:49:31.9" (Safari üçün)
+            const d = new Date(String(s).replace(' ', 'T'));
+            return isNaN(d) ? s : d.toLocaleString('az');
         }
 
         // PR #236: kredit level Azərbaycanca — backend kiçik hərflə qaytarır ('valuable'),

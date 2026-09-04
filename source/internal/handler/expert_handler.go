@@ -34,6 +34,7 @@ func NewExpertHandler(appSvc *service.ApplicationService) *ExpertHandler {
 //
 // PR #313: ?status=rejected → imtina olunmus muracietler (RDC dashboard
 // "Imtina olunmus" tabi). Yenisi evvelde, rejection_reason daxildir.
+// PR #376: ?status=approved → uğurla verilmiş (approved + disbursed) muracietler.
 func (h *ExpertHandler) Queue(w http.ResponseWriter, r *http.Request) {
         if r.URL.Query().Get("status") == model.StatusRejected {
                 apps, err := h.appSvc.ListRejected(r.Context())
@@ -44,6 +45,23 @@ func (h *ExpertHandler) Queue(w http.ResponseWriter, r *http.Request) {
                 }
                 writeExpertJSON(w, http.StatusOK, map[string]interface{}{
                         "status":       model.StatusRejected,
+                        "count":        len(apps),
+                        "applications": apps,
+                })
+                return
+        }
+
+        // PR #376: ?status=approved → uğurla verilmiş müraciətlər (approved +
+        // disbursed) — RDC dashboard "Uğurla verilənlər" tabı. Yenisi evvelde.
+        if r.URL.Query().Get("status") == model.StatusApproved {
+                apps, err := h.appSvc.ListIssued(r.Context())
+                if err != nil {
+                        slog.Error("expert queue: failed to list issued applications", "error", err)
+                        writeExpertError(w, http.StatusInternalServerError, "failed to list issued applications")
+                        return
+                }
+                writeExpertJSON(w, http.StatusOK, map[string]interface{}{
+                        "status":       "issued",
                         "count":        len(apps),
                         "applications": apps,
                 })
