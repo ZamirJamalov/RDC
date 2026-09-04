@@ -1,38 +1,47 @@
 package service
 
 import (
-        "context"
-        "fmt"
-        "log/slog"
-        "math"
-        "time"
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"math"
+	"time"
 
-        "rdc-source/internal/model"
-        "rdc-source/internal/repository"
-        "rdc-source/pkg/azmk"
-        "rdc-source/pkg/lw"
+	"rdc-source/internal/model"
+	"rdc-source/internal/repository"
+	"rdc-source/pkg/azmk"
+	"rdc-source/pkg/lw"
 )
 
 // CreditEngine processes loan applications through the credit decision pipeline.
 type CreditEngine struct {
-        lwProvider           lw.Provider
-        appRepo              ApplicationStore
-        customerDataProvider azmk.CustomerDataProvider // PR #265
+	lwProvider           lw.Provider
+	appRepo              ApplicationStore
+	customerDataProvider azmk.CustomerDataProvider // PR #265
+	cacheLookup          serviceCacheLookup        // PR #379: AZMK_GET_PERSONAL_INFO cache (3 gün)
 }
 
 // NewCreditEngine creates a new CreditEngine with the given dependencies.
 // The repo parameter accepts any ApplicationStore implementation (e.g.
 // *repository.ApplicationRepo in production, or a mock in tests).
 func NewCreditEngine(provider lw.Provider, repo ApplicationStore) *CreditEngine {
-        return &CreditEngine{
-                lwProvider: provider,
-                appRepo:    repo,
-        }
+	return &CreditEngine{
+		lwProvider: provider,
+		appRepo:    repo,
+	}
 }
 
 // SetCustomerDataProvider injects the AZMK CustomerDataProvider (PR #265).
 func (e *CreditEngine) SetCustomerDataProvider(provider azmk.CustomerDataProvider) {
-        e.customerDataProvider = provider
+	e.customerDataProvider = provider
+}
+
+// SetServiceCacheLookup injects the service cache (PR #379): resolveCustomerAge
+// AZMK_GET_PERSONAL_INFO cache_days ərzində cached cavabdan oxuyur — emal
+// zamanı eyni məlumat ikinci dəfə fiziki çağırılmır. nil = cache deaktiv.
+func (e *CreditEngine) SetServiceCacheLookup(l serviceCacheLookup) {
+	e.cacheLookup = l
 }
 
 // PreValidate checks whether the requested amount and term are valid for the customer's
@@ -44,51 +53,54 @@ func (e *CreditEngine) SetCustomerDataProvider(provider azmk.CustomerDataProvide
 // AKB score resolution (T-1.6): the score is fetched from LW first; if LW returns
 // a non-zero score it overrides the request-supplied value. If LW fails or returns
 // 0, the request-supplied value is used as a fallback (preserving backward compat).
-func (e *CreditEngine) PreValidate(ctx context.Context, customerPIN string, amount float64, termMonths int, akbScore int) error {
-        // PR #265: AZMK InquireByIdCard (LW silindi)
-        customerLoans := &lw.CustomerLoansResponse{Loans: []lw.CustomerLoan{}}
-        if e.customerDataProvider != nil {
-                history, err := e.customerDataProvider.InquireByIdCard(ctx, customerPIN, "")
-                if err != nil {
-                        slog.Warn("PreValidate: AZMK InquireByIdCard failed — fail-soft", "customer_pin", customerPIN, "error", err)
-                } else if history != nil {
-                        customerLoans = convertAzmkHistoryToLwLoans(history)
-                }
-        }
+func (e *CreditEngine) PreValidate(ctx context.Context, customerPIN, customerSerial string, amount float64, termMonths int, akbScore int) error {
+	// PR #265: AZMK InquireByIdCard (LW silindi)
+	customerLoans := &lw.CustomerLoansResponse{Loans: []lw.CustomerLoan{}}
+	if e.customerDataProvider != nil {
+		// PR #379: serial boşdursa AZMK yalnız 400 qaytarır — çağırışı ötür (fail-soft).
+		if customerSerial != "" {
+			history, err := e.customerDataProvider.InquireByIdCard(ctx, customerPIN, customerSerial)
+			if err != nil {
+				slog.Warn("PreValidate: AZMK InquireByIdCard failed — fail-soft", "customer_pin", customerPIN, "error", err)
+			} else if history != nil {
+				customerLoans = convertAzmkHistoryToLwLoans(history)
+			}
+		}
+	}
 
-        // 2. Resolve AKB score (LW first, request value as fallback)
-        resolvedAkb := e.resolveAkbScore(ctx, customerPIN, akbScore)
+	// 2. Resolve AKB score (LW first, request value as fallback)
+	resolvedAkb := e.resolveAkbScore(ctx, customerPIN, akbScore)
 
-        // 3. Determine credit level (LW history + AKB score override + current level from DB)
-        analytics := computeAnalytics(customerLoans.Loans)
-        currentLevel, _ := e.appRepo.GetCustomerCurrentLevel(ctx, customerPIN)
-        creditLevel := determineCreditLevel(analytics, resolvedAkb, currentLevel)
+	// 3. Determine credit level (LW history + AKB score override + current level from DB)
+	analytics := computeAnalytics(customerLoans.Loans)
+	currentLevel, _ := e.appRepo.GetCustomerCurrentLevel(ctx, customerPIN)
+	creditLevel := determineCreditLevel(analytics, resolvedAkb, currentLevel)
 
-        // 4. Determine unlock phase
-        unlockPhase := 1
-        approvedCount, err := e.appRepo.CountApprovedAtLevel(ctx, customerPIN, creditLevel)
-        if err != nil {
-                return fmt.Errorf("failed to count approved loans: %w", err)
-        }
-        if approvedCount >= 1 {
-                unlockPhase = 2
-        }
+	// 4. Determine unlock phase
+	unlockPhase := 1
+	approvedCount, err := e.appRepo.CountApprovedAtLevel(ctx, customerPIN, creditLevel)
+	if err != nil {
+		return fmt.Errorf("failed to count approved loans: %w", err)
+	}
+	if approvedCount >= 1 {
+		unlockPhase = 2
+	}
 
-        // 5. Check if a rate exists for this combination
-        rate, err := e.appRepo.GetCreditLevelRate(ctx, creditLevel, amount, termMonths, unlockPhase)
-        if err != nil {
-                // No rate found — build a descriptive error message
-                ranges, rngErr := e.appRepo.GetLevelRanges(ctx, creditLevel, unlockPhase)
-                if rngErr != nil {
-                        return fmt.Errorf("requested amount %.0f AZN, term %d ay is not valid for '%s' level (phase %d)",
-                                amount, termMonths, creditLevel, unlockPhase)
-                }
-                return fmt.Errorf("mebleg %.0f AZN, %d ay '%s' level ucun kecerli deyil (phase %d). %s",
-                        amount, termMonths, creditLevel, unlockPhase, buildRangeSummary(ranges, unlockPhase))
-        }
+	// 5. Check if a rate exists for this combination
+	rate, err := e.appRepo.GetCreditLevelRate(ctx, creditLevel, amount, termMonths, unlockPhase)
+	if err != nil {
+		// No rate found — build a descriptive error message
+		ranges, rngErr := e.appRepo.GetLevelRanges(ctx, creditLevel, unlockPhase)
+		if rngErr != nil {
+			return fmt.Errorf("requested amount %.0f AZN, term %d ay is not valid for '%s' level (phase %d)",
+				amount, termMonths, creditLevel, unlockPhase)
+		}
+		return fmt.Errorf("mebleg %.0f AZN, %d ay '%s' level ucun kecerli deyil (phase %d). %s",
+			amount, termMonths, creditLevel, unlockPhase, buildRangeSummary(ranges, unlockPhase))
+	}
 
-        _ = rate // rate exists — validation passed
-        return nil
+	_ = rate // rate exists — validation passed
+	return nil
 }
 
 // resolveAkbScore fetches the AKB score from LW. If LW returns a non-zero
@@ -109,8 +121,8 @@ func (e *CreditEngine) PreValidate(ctx context.Context, customerPIN string, amou
 // (score, stopFactorCode, hasStopFactor); both stop-factor fields are
 // discarded here with two underscores.
 func (e *CreditEngine) resolveAkbScore(ctx context.Context, customerPIN string, fallback int) int {
-        score, _, _ := e.resolveAkbScoreAndStopFactors(ctx, customerPIN, fallback)
-        return score
+	score, _, _ := e.resolveAkbScoreAndStopFactors(ctx, customerPIN, fallback)
+	return score
 }
 
 // resolveAkbScoreAndStopFactors fetches the AKB score from LW and interprets
@@ -132,30 +144,30 @@ func (e *CreditEngine) resolveAkbScore(ctx context.Context, customerPIN string, 
 // invoking computeDecision / runChecks.
 // PR #265: DB cache + AZMK, LW silindi
 func (e *CreditEngine) resolveAkbScoreAndStopFactors(ctx context.Context, customerPIN string, fallback int) (score int, stopFactorCode string, hasStopFactor bool) {
-        // 1. DB cache — PR #228
-        dbScore := e.appRepo.GetRecentAkbScore(ctx, customerPIN)
-        if dbScore > 0 {
-                slog.Info("resolveAkbScore: using DB cache", "customer_pin", customerPIN, "akb_score", dbScore)
-                return dbScore, "", false
-        }
-        // 2. AZMK GetMkrScore fallback
-        if e.customerDataProvider != nil {
-                mkrScore, err := e.customerDataProvider.GetMkrScore(ctx, customerPIN, "")
-                if err != nil {
-                        slog.Warn("resolveAkbScore: AZMK GetMkrScore failed — using request fallback",
-                                "customer_pin", customerPIN, "fallback_score", fallback, "error", err)
-                        return fallback, "", false
-                }
-                if mkrScore != nil && mkrScore.Score.Calculated {
-                        if mkrScore.Score.Point == 1 {
-                                return 0, mkrScore.Score.Response, true
-                        }
-                        if mkrScore.Score.Point > 1 {
-                                return mkrScore.Score.Point, "", false
-                        }
-                }
-        }
-        return fallback, "", false
+	// 1. DB cache — PR #228
+	dbScore := e.appRepo.GetRecentAkbScore(ctx, customerPIN)
+	if dbScore > 0 {
+		slog.Info("resolveAkbScore: using DB cache", "customer_pin", customerPIN, "akb_score", dbScore)
+		return dbScore, "", false
+	}
+	// 2. AZMK GetMkrScore fallback
+	if e.customerDataProvider != nil {
+		mkrScore, err := e.customerDataProvider.GetMkrScore(ctx, customerPIN, "")
+		if err != nil {
+			slog.Warn("resolveAkbScore: AZMK GetMkrScore failed — using request fallback",
+				"customer_pin", customerPIN, "fallback_score", fallback, "error", err)
+			return fallback, "", false
+		}
+		if mkrScore != nil && mkrScore.Score.Calculated {
+			if mkrScore.Score.Point == 1 {
+				return 0, mkrScore.Score.Response, true
+			}
+			if mkrScore.Score.Point > 1 {
+				return mkrScore.Score.Point, "", false
+			}
+		}
+	}
+	return fallback, "", false
 }
 
 // resolveCustomerAge fetches the customer's personal info from LW (via DIN)
@@ -163,38 +175,58 @@ func (e *CreditEngine) resolveAkbScoreAndStopFactors(ctx context.Context, custom
 // be parsed or GetPersonalInfo fails — the caller treats 0 as "unknown age"
 // and does NOT reject on it (fail-soft).
 // PR #265: AZMK GetPersonalInfo (LW silindi)
+// PR #379: əvvəlcə AZMK_GET_PERSONAL_INFO cache yoxlanılır (service_cache_config,
+// hal-hazırda 3 gün) — emal axınında early cutoffs eyni məlumatı onsuz da
+// çəkib; ikinci fiziki çağırışın qarşısı alınır. Cache HIT service_audit_logs-da
+// method='CACHE' marker row kimi görünür.
 func (e *CreditEngine) resolveCustomerAge(ctx context.Context, customerPIN, serial string) int {
-        if e.customerDataProvider == nil {
-                return 0
-        }
-        resp, err := e.customerDataProvider.GetPersonalInfo(ctx, customerPIN, serial)
-        if err != nil {
-                slog.Warn("failed to fetch personal info from LW — age unknown (fail-soft)",
-                        "customer_pin", customerPIN,
-                        "error", err)
-                return 0
-        }
-        if resp == nil || resp.BirthDate == "" {
-                return 0
-        }
-        dob, err := time.Parse("2006-01-02", resp.BirthDate)
-        if err != nil {
-                slog.Warn("failed to parse DOB from personal info — age unknown (fail-soft)",
-                        "customer_pin", customerPIN,
-                        "dob", resp.BirthDate,
-                        "error", err)
-                return 0
-        }
-        now := time.Now()
-        age := now.Year() - dob.Year()
-        // Subtract 1 if the birthday hasn't happened yet this year.
-        if now.Month() < dob.Month() || (now.Month() == dob.Month() && now.Day() < dob.Day()) {
-                age--
-        }
-        if age < 0 {
-                return 0 // defensive: bad DOB in the future
-        }
-        return age
+	if e.customerDataProvider == nil {
+		return 0
+	}
+	// PR #379: cache yoxlaması — HIT olsa AZMK çağırılmır.
+	if e.cacheLookup != nil {
+		if days, derr := e.cacheLookup.GetCacheDays(ctx, "AZMK_GET_PERSONAL_INFO"); derr == nil && days > 0 {
+			if body, found, _ := e.cacheLookup.GetCachedResponse(ctx, "AZMK_GET_PERSONAL_INFO", customerPIN, days); found {
+				var cdResp azmk.CustomerDataResponse
+				if jerr := json.Unmarshal([]byte(body), &cdResp); jerr == nil && cdResp.Data != nil {
+					appID := azmk.AppIDFromContext(ctx)
+					if lerr := e.cacheLookup.LogCacheHit(ctx, appID, "AZMK_GET_PERSONAL_INFO", customerPIN, body); lerr != nil {
+						slog.Warn("PR #379: failed to log cache hit", "service", "AZMK_GET_PERSONAL_INFO", "error", lerr)
+					}
+					slog.Info("PR #379: personal info cache HIT — AZMK çağırılmır", "customer_pin", customerPIN)
+					return cdResp.Data.Age()
+				}
+			}
+		}
+	}
+	resp, err := e.customerDataProvider.GetPersonalInfo(ctx, customerPIN, serial)
+	if err != nil {
+		slog.Warn("failed to fetch personal info from LW — age unknown (fail-soft)",
+			"customer_pin", customerPIN,
+			"error", err)
+		return 0
+	}
+	if resp == nil || resp.BirthDate == "" {
+		return 0
+	}
+	dob, err := time.Parse("2006-01-02", resp.BirthDate)
+	if err != nil {
+		slog.Warn("failed to parse DOB from personal info — age unknown (fail-soft)",
+			"customer_pin", customerPIN,
+			"dob", resp.BirthDate,
+			"error", err)
+		return 0
+	}
+	now := time.Now()
+	age := now.Year() - dob.Year()
+	// Subtract 1 if the birthday hasn't happened yet this year.
+	if now.Month() < dob.Month() || (now.Month() == dob.Month() && now.Day() < dob.Day()) {
+		age--
+	}
+	if age < 0 {
+		return 0 // defensive: bad DOB in the future
+	}
+	return age
 }
 
 // resolveAkbHistory fetches the customer's full AKB credit history and computes
@@ -218,95 +250,95 @@ func (e *CreditEngine) resolveCustomerAge(ctx context.Context, customerPIN, seri
 // per business requirement: "kredit müraciəti etdiyi tarixden geri sayılır".
 // PR #265: AZMK InquireByIdCard (LW silindi)
 func (e *CreditEngine) resolveAkbHistory(ctx context.Context, customerPIN, serial string, analytics *loanAnalytics) {
-        if e.customerDataProvider == nil {
-                analytics.akbHistoryAvailable = false
-                return
-        }
-        resp, err := e.customerDataProvider.InquireByIdCard(ctx, customerPIN, serial)
-        if err != nil {
-                slog.Warn("failed to fetch AKB history from LW — skipping AKB-history rules (fail-soft)",
-                        "customer_pin", customerPIN,
-                        "error", err)
-                analytics.akbHistoryAvailable = false
-                return
-        }
-        if resp == nil || resp.Inquiry == nil || resp.Inquiry.Liabilities == nil || len(resp.Inquiry.Liabilities.Liability) == 0 {
-                // No liabilities = no history to evaluate. Treat as "available but empty"
-                // so the caller knows the call succeeded. All metrics remain 0.
-                analytics.akbHistoryAvailable = true
-                return
-        }
+	if e.customerDataProvider == nil {
+		analytics.akbHistoryAvailable = false
+		return
+	}
+	resp, err := e.customerDataProvider.InquireByIdCard(ctx, customerPIN, serial)
+	if err != nil {
+		slog.Warn("failed to fetch AKB history from LW — skipping AKB-history rules (fail-soft)",
+			"customer_pin", customerPIN,
+			"error", err)
+		analytics.akbHistoryAvailable = false
+		return
+	}
+	if resp == nil || resp.Inquiry == nil || resp.Inquiry.Liabilities == nil || len(resp.Inquiry.Liabilities.Liability) == 0 {
+		// No liabilities = no history to evaluate. Treat as "available but empty"
+		// so the caller knows the call succeeded. All metrics remain 0.
+		analytics.akbHistoryAvailable = true
+		return
+	}
 
-        liabilities := resp.Inquiry.Liabilities.Liability
+	liabilities := resp.Inquiry.Liabilities.Liability
 
-        now := time.Now()
-        window3m := now.AddDate(0, -3, 0)
-        window6m := now.AddDate(0, -6, 0)
-        window12m := now.AddDate(0, -12, 0)
-        window18m := now.AddDate(0, -18, 0)
-        window24m := now.AddDate(0, -24, 0)
+	now := time.Now()
+	window3m := now.AddDate(0, -3, 0)
+	window6m := now.AddDate(0, -6, 0)
+	window12m := now.AddDate(0, -12, 0)
+	window18m := now.AddDate(0, -18, 0)
+	window24m := now.AddDate(0, -24, 0)
 
-        var (
-                totalDelay24m int
-                activeMonths  int
-                max3, max6, max12, max18 int
-                totalMonthly   float64
-                maxActiveDelay int
-        )
+	var (
+		totalDelay24m            int
+		activeMonths             int
+		max3, max6, max12, max18 int
+		totalMonthly             float64
+		maxActiveDelay           int
+	)
 
-        for _, lib := range liabilities {
-                // Active liability metrics (rules 6 + 12)
-                isActive := isAkbLiabilityActive(lib.CreditStatus)
-                if isActive {
-                        if lib.DaysMainSumOverdue > maxActiveDelay {
-                                maxActiveDelay = lib.DaysMainSumOverdue
-                        }
-                        totalMonthly += lib.MonthlyPaymentAmount
-                }
+	for _, lib := range liabilities {
+		// Active liability metrics (rules 6 + 12)
+		isActive := isAkbLiabilityActive(lib.CreditStatus)
+		if isActive {
+			if lib.DaysMainSumOverdue > maxActiveDelay {
+				maxActiveDelay = lib.DaysMainSumOverdue
+			}
+			totalMonthly += lib.MonthlyPaymentAmount
+		}
 
-                // Per-month history metrics (rules 2, 7, 8, 9, 10)
-                // PR #270: lib.History *azmk.History pointer-dır, HistoryItem slice range üçün.
-                if lib.History == nil {
-                        continue
-                }
-                for _, h := range lib.History.HistoryItem {
-                        period, err := time.Parse("2006-01", h.ReportingPeriod)
-                        if err != nil {
-                                // Unparseable period — skip this entry rather than failing the whole call.
-                                continue
-                        }
-                        // Active month = any month the liability had a reporting entry within last 24m.
-                        if period.After(window24m) {
-                                activeMonths++
-                                totalDelay24m += h.OverdueDays
-                        }
-                        if period.After(window3m) && h.OverdueDays > max3 {
-                                max3 = h.OverdueDays
-                        }
-                        if period.After(window6m) && h.OverdueDays > max6 {
-                                max6 = h.OverdueDays
-                        }
-                        if period.After(window12m) && h.OverdueDays > max12 {
-                                max12 = h.OverdueDays
-                        }
-                        if period.After(window18m) && h.OverdueDays > max18 {
-                                max18 = h.OverdueDays
-                        }
-                }
-        }
+		// Per-month history metrics (rules 2, 7, 8, 9, 10)
+		// PR #270: lib.History *azmk.History pointer-dır, HistoryItem slice range üçün.
+		if lib.History == nil {
+			continue
+		}
+		for _, h := range lib.History.HistoryItem {
+			period, err := time.Parse("2006-01", h.ReportingPeriod)
+			if err != nil {
+				// Unparseable period — skip this entry rather than failing the whole call.
+				continue
+			}
+			// Active month = any month the liability had a reporting entry within last 24m.
+			if period.After(window24m) {
+				activeMonths++
+				totalDelay24m += h.OverdueDays
+			}
+			if period.After(window3m) && h.OverdueDays > max3 {
+				max3 = h.OverdueDays
+			}
+			if period.After(window6m) && h.OverdueDays > max6 {
+				max6 = h.OverdueDays
+			}
+			if period.After(window12m) && h.OverdueDays > max12 {
+				max12 = h.OverdueDays
+			}
+			if period.After(window18m) && h.OverdueDays > max18 {
+				max18 = h.OverdueDays
+			}
+		}
+	}
 
-        if activeMonths > 0 {
-                // Round to 2 decimals to avoid floating-point noise.
-                ratio := float64(totalDelay24m) / float64(activeMonths)
-                analytics.delayRatio = math.Round(ratio*100) / 100
-        }
-        analytics.activeMaxDelayDays = maxActiveDelay
-        analytics.maxDelayLast3Months = max3
-        analytics.maxDelayLast6Months = max6
-        analytics.maxDelayLast12Months = max12
-        analytics.maxDelayLast18Months = max18
-        analytics.totalMonthlyPayments = math.Round(totalMonthly*100) / 100
-        analytics.akbHistoryAvailable = true
+	if activeMonths > 0 {
+		// Round to 2 decimals to avoid floating-point noise.
+		ratio := float64(totalDelay24m) / float64(activeMonths)
+		analytics.delayRatio = math.Round(ratio*100) / 100
+	}
+	analytics.activeMaxDelayDays = maxActiveDelay
+	analytics.maxDelayLast3Months = max3
+	analytics.maxDelayLast6Months = max6
+	analytics.maxDelayLast12Months = max12
+	analytics.maxDelayLast18Months = max18
+	analytics.totalMonthlyPayments = math.Round(totalMonthly*100) / 100
+	analytics.akbHistoryAvailable = true
 }
 
 // isAkbLiabilityActive returns true if the liability's credit status indicates
@@ -314,151 +346,150 @@ func (e *CreditEngine) resolveAkbHistory(ctx context.Context, customerPIN, seria
 // PR #270: AZMK CreditStatus "007" = aktiv (PR #174). Köhnə LW "active" string yox.
 // Liability.IsActive() metodu da eyni qaydanı istifadə edir.
 func isAkbLiabilityActive(status string) bool {
-        return status == "007"
+	return status == "007"
 }
 
 // ProcessApplication runs the full credit decision pipeline for a loan application.
 //
 // Pipeline (DB writes wrapped in a single transaction — T-1.3):
-//  1.  Status → checking (outside tx, visible immediately)
-//  2.  Fetch application + customer loans from LW
-//  3.  Resolve AKB score + stop factors from LW (PR #51)
-//  3b. Resolve customer age from LW PersonalInfo (PR #51)
-//  3c. Resolve AKB history metrics from LW (PR #52)
-//  4.  Blacklist check from LW (T-1.5, fail-open on error)
-//  4b. AZMK blacklist check from LW router (PR #53, fail-soft on error)
-//  5.  Determine credit level + unlock phase
-//  6.  Run checks (active-loan + payment-history + credit-level + blacklist + AZMK + AKB + age)
-//  7.  Compute decision (credit_decision.go::computeDecision)
-//  8.  Save checks + apply decision in transaction (T-1.3)
-//  9.  If approved → call LW.ApproveLoan (T-1.1), downgrade to rejected on failure
+//  1. Status → checking (outside tx, visible immediately)
+//  2. Fetch application + customer loans from LW
+//  3. Resolve AKB score + stop factors from LW (PR #51)
+//     3b. Resolve customer age from LW PersonalInfo (PR #51)
+//     3c. Resolve AKB history metrics from LW (PR #52)
+//  4. Blacklist check from LW (T-1.5, fail-open on error)
+//     4b. AZMK blacklist check from LW router (PR #53, fail-soft on error)
+//  5. Determine credit level + unlock phase
+//  6. Run checks (active-loan + payment-history + credit-level + blacklist + AZMK + AKB + age)
+//  7. Compute decision (credit_decision.go::computeDecision)
+//  8. Save checks + apply decision in transaction (T-1.3)
+//  9. If approved → call LW.ApproveLoan (T-1.1), downgrade to rejected on failure
 func (e *CreditEngine) ProcessApplication(ctx context.Context, appID int) error {
-        // Step 1: Update status to "checking" (outside tx — visible immediately)
-        if err := e.appRepo.UpdateApplicationStatus(ctx, appID, model.StatusChecking); err != nil {
-                return fmt.Errorf("failed to set checking status: %w", err)
-        }
+	// Step 1: Update status to "checking" (outside tx — visible immediately)
+	if err := e.appRepo.UpdateApplicationStatus(ctx, appID, model.StatusChecking); err != nil {
+		return fmt.Errorf("failed to set checking status: %w", err)
+	}
 
-        // Step 2: Get application
-        app, err := e.appRepo.GetApplicationByID(ctx, appID)
-        if err != nil {
-                return fmt.Errorf("failed to get application %d: %w", appID, err)
-        }
+	// Step 2: Get application
+	app, err := e.appRepo.GetApplicationByID(ctx, appID)
+	if err != nil {
+		return fmt.Errorf("failed to get application %d: %w", appID, err)
+	}
 
-        // PR #265: Step 3 — AZMK InquireByIdCard (LW silindi)
-        customerLoans := &lw.CustomerLoansResponse{Loans: []lw.CustomerLoan{}}
-        if e.customerDataProvider != nil {
-                history, err := e.customerDataProvider.InquireByIdCard(ctx, app.CustomerPIN, app.CustomerSerial)
-                if err != nil {
-                        slog.Warn("ProcessApplication: AZMK InquireByIdCard failed — fail-soft", "application_id", appID, "error", err)
-                } else if history != nil {
-                        customerLoans = convertAzmkHistoryToLwLoans(history)
-                }
-        }
+	// PR #265: Step 3 — AZMK InquireByIdCard (LW silindi)
+	customerLoans := &lw.CustomerLoansResponse{Loans: []lw.CustomerLoan{}}
+	if e.customerDataProvider != nil {
+		history, err := e.customerDataProvider.InquireByIdCard(ctx, app.CustomerPIN, app.CustomerSerial)
+		if err != nil {
+			slog.Warn("ProcessApplication: AZMK InquireByIdCard failed — fail-soft", "application_id", appID, "error", err)
+		} else if history != nil {
+			customerLoans = convertAzmkHistoryToLwLoans(history)
+		}
+	}
 
-        // Step 4: Pre-compute loan analytics
-        analytics := computeAnalytics(customerLoans.Loans)
+	// Step 4: Pre-compute loan analytics
+	analytics := computeAnalytics(customerLoans.Loans)
 
-        // Step 5: Resolve AKB score + stop factors from LW (T-1.6, PR #51, PR #55)
-        resolvedAkb, stopFactorCode, hasStopFactor := e.resolveAkbScoreAndStopFactors(ctx, app.CustomerPIN, app.AkbScore)
-        app.AkbScore = resolvedAkb
-        analytics.akbScore = resolvedAkb
-        analytics.akbStopFactorCode = stopFactorCode
-        analytics.akbHasStopFactor = hasStopFactor
+	// Step 5: Resolve AKB score + stop factors from LW (T-1.6, PR #51, PR #55)
+	resolvedAkb, stopFactorCode, hasStopFactor := e.resolveAkbScoreAndStopFactors(ctx, app.CustomerPIN, app.AkbScore)
+	app.AkbScore = resolvedAkb
+	analytics.akbScore = resolvedAkb
+	analytics.akbStopFactorCode = stopFactorCode
+	analytics.akbHasStopFactor = hasStopFactor
 
-        // Step 5b: Resolve customer age from LW PersonalInfo (PR #51, rule 3)
-        analytics.customerAge = e.resolveCustomerAge(ctx, app.CustomerPIN, app.CustomerSerial)
+	// Step 5b: Resolve customer age from LW PersonalInfo (PR #51, rule 3)
+	analytics.customerAge = e.resolveCustomerAge(ctx, app.CustomerPIN, app.CustomerSerial)
 
-        // Step 5c: Resolve AKB credit history metrics (PR #52, rules 2/6/7/8/9/10/12)
-        e.resolveAkbHistory(ctx, app.CustomerPIN, app.CustomerSerial, analytics)
+	// Step 5c: Resolve AKB credit history metrics (PR #52, rules 2/6/7/8/9/10/12)
+	e.resolveAkbHistory(ctx, app.CustomerPIN, app.CustomerSerial, analytics)
 
-        // PR #265: Step 6 — AZMK GetOwnerData (LW silindi)
-        blacklisted := false
-        if e.customerDataProvider != nil {
-                ownerData, ownerErr := e.customerDataProvider.GetOwnerData(ctx, app.CustomerPIN, app.CustomerSerial)
-                if ownerErr != nil {
-                        slog.Warn("ProcessApplication: AZMK GetOwnerData failed — treating as not blacklisted",
-                                "application_id", appID, "customer_pin", app.CustomerPIN, "error", ownerErr)
-                } else if ownerData != nil {
-                        blacklisted = ownerData.CustomerCheck.BlacklistStatus
-                        analytics.azmkCheckAvailable = true
-                        analytics.azmkBlacklisted = blacklisted
-                }
-        }
+	// PR #265: Step 6 — AZMK GetOwnerData (LW silindi)
+	blacklisted := false
+	if e.customerDataProvider != nil {
+		ownerData, ownerErr := e.customerDataProvider.GetOwnerData(ctx, app.CustomerPIN, app.CustomerSerial)
+		if ownerErr != nil {
+			slog.Warn("ProcessApplication: AZMK GetOwnerData failed — treating as not blacklisted",
+				"application_id", appID, "customer_pin", app.CustomerPIN, "error", ownerErr)
+		} else if ownerData != nil {
+			blacklisted = ownerData.CustomerCheck.BlacklistStatus
+			analytics.azmkCheckAvailable = true
+			analytics.azmkBlacklisted = blacklisted
+		}
+	}
 
-        // Step 7: Determine credit level + unlock phase
-        currentLevel, _ := e.appRepo.GetCustomerCurrentLevel(ctx, app.CustomerPIN)
-        creditLevel := determineCreditLevel(analytics, resolvedAkb, currentLevel)
-        approvedCount, err := e.appRepo.CountApprovedAtLevel(ctx, app.CustomerPIN, creditLevel)
-        if err != nil {
-                return fmt.Errorf("failed to count approved loans at level: %w", err)
-        }
-        unlockPhase := resolveUnlockPhase(approvedCount)
+	// Step 7: Determine credit level + unlock phase
+	currentLevel, _ := e.appRepo.GetCustomerCurrentLevel(ctx, app.CustomerPIN)
+	creditLevel := determineCreditLevel(analytics, resolvedAkb, currentLevel)
+	approvedCount, err := e.appRepo.CountApprovedAtLevel(ctx, app.CustomerPIN, creditLevel)
+	if err != nil {
+		return fmt.Errorf("failed to count approved loans at level: %w", err)
+	}
+	unlockPhase := resolveUnlockPhase(approvedCount)
 
-        // Step 8: Run checks
-        checks := e.runChecks(analytics, app, creditLevel, unlockPhase, approvedCount, blacklisted)
+	// Step 8: Run checks
+	checks := e.runChecks(analytics, app, creditLevel, unlockPhase, approvedCount, blacklisted)
 
-        // Step 9: Compute decision
-        decision, err := e.computeDecision(analytics, creditLevel, unlockPhase, app, blacklisted)
-        if err != nil {
-                return fmt.Errorf("failed to compute decision: %w", err)
-        }
+	// Step 9: Compute decision
+	decision, err := e.computeDecision(analytics, creditLevel, unlockPhase, app, blacklisted)
+	if err != nil {
+		return fmt.Errorf("failed to compute decision: %w", err)
+	}
 
-        // Step 10: Save checks + apply decision in a transaction (T-1.3)
-        if err := e.appRepo.WithTx(ctx, func(runner repository.TxRunner) error {
-                for i := range checks {
-                        if err := e.appRepo.SaveCheckResultTx(ctx, runner, appID, &checks[i]); err != nil {
-                                return fmt.Errorf("failed to save check result %s: %w", checks[i].CheckType, err)
-                        }
-                }
-                return e.applyDecisionTx(ctx, runner, appID, app, creditLevel, decision)
-        }); err != nil {
-                return fmt.Errorf("failed to apply decision (transaction rolled back): %w", err)
-        }
+	// Step 10: Save checks + apply decision in a transaction (T-1.3)
+	if err := e.appRepo.WithTx(ctx, func(runner repository.TxRunner) error {
+		for i := range checks {
+			if err := e.appRepo.SaveCheckResultTx(ctx, runner, appID, &checks[i]); err != nil {
+				return fmt.Errorf("failed to save check result %s: %w", checks[i].CheckType, err)
+			}
+		}
+		return e.applyDecisionTx(ctx, runner, appID, app, creditLevel, decision)
+	}); err != nil {
+		return fmt.Errorf("failed to apply decision (transaction rolled back): %w", err)
+	}
 
-        // Step 11: If approved, notify LW (T-1.1). After commit — can't roll back.
-        // On failure, downgrade to rejected with a descriptive reason.
-        if decision.Status == model.StatusApproved {
-                if err := e.notifyLwApproval(ctx, app, creditLevel, decision); err != nil {
-                        slog.Error("LW ApproveLoan failed — downgrading application to rejected",
-                                "application_id", appID,
-                                "customer_pin", app.CustomerPIN,
-                                "error", err)
-                        rejectReason := fmt.Sprintf("LW approval failed: %v", err)
-                        if err := e.appRepo.UpdateApplicationDecision(ctx, appID,
-                                model.StatusRejected, creditLevel, rejectReason, 0, 0, 0); err != nil {
-                                return fmt.Errorf("failed to downgrade after LW rejection: %w", err)
-                        }
-                }
-        }
+	// Step 11: If approved, notify LW (T-1.1). After commit — can't roll back.
+	// On failure, downgrade to rejected with a descriptive reason.
+	if decision.Status == model.StatusApproved {
+		if err := e.notifyLwApproval(ctx, app, creditLevel, decision); err != nil {
+			slog.Error("LW ApproveLoan failed — downgrading application to rejected",
+				"application_id", appID,
+				"customer_pin", app.CustomerPIN,
+				"error", err)
+			rejectReason := fmt.Sprintf("LW approval failed: %v", err)
+			if err := e.appRepo.UpdateApplicationDecision(ctx, appID,
+				model.StatusRejected, creditLevel, rejectReason, 0, 0, 0); err != nil {
+				return fmt.Errorf("failed to downgrade after LW rejection: %w", err)
+			}
+		}
+	}
 
-        return nil
+	return nil
 }
-
 
 // convertAzmkHistoryToLwLoans converts AZMK CreditHistory to lw.CustomerLoansResponse
 // so existing computeAnalytics logic can be reused (PR #265).
 func convertAzmkHistoryToLwLoans(history *azmk.CreditHistory) *lw.CustomerLoansResponse {
-        resp := &lw.CustomerLoansResponse{Loans: []lw.CustomerLoan{}}
-        if history == nil || history.Inquiry == nil || history.Inquiry.Liabilities == nil {
-                return resp
-        }
-        for i, lib := range history.Inquiry.Liabilities.Liability {
-                status := "completed"
-                if lib.IsActive() {
-                        status = "active"
-                }
-                resp.Loans = append(resp.Loans, lw.CustomerLoan{
-                        ID:              i + 1,
-                        LmsLoanID:       lib.ID,
-                        LoanType:        lib.CreditType,
-                        Amount:          lib.InitialAmount,
-                        RemainingAmount: lib.OutstandingDebtMain,
-                        Status:          status,
-                        DelayDays:       lib.DaysMainSumOverdue,
-                        StartDate:       lib.GrantedOn,
-                })
-        }
-        resp.LoanCount = len(resp.Loans)
-        resp.HasExistingLoans = resp.LoanCount > 0
-        return resp
+	resp := &lw.CustomerLoansResponse{Loans: []lw.CustomerLoan{}}
+	if history == nil || history.Inquiry == nil || history.Inquiry.Liabilities == nil {
+		return resp
+	}
+	for i, lib := range history.Inquiry.Liabilities.Liability {
+		status := "completed"
+		if lib.IsActive() {
+			status = "active"
+		}
+		resp.Loans = append(resp.Loans, lw.CustomerLoan{
+			ID:              i + 1,
+			LmsLoanID:       lib.ID,
+			LoanType:        lib.CreditType,
+			Amount:          lib.InitialAmount,
+			RemainingAmount: lib.OutstandingDebtMain,
+			Status:          status,
+			DelayDays:       lib.DaysMainSumOverdue,
+			StartDate:       lib.GrantedOn,
+		})
+	}
+	resp.LoanCount = len(resp.Loans)
+	resp.HasExistingLoans = resp.LoanCount > 0
+	return resp
 }

@@ -77,3 +77,22 @@ func (r *ServiceCacheRepo) GetCachedResponse(ctx context.Context, serviceName, c
 
 	return responseBody, true, nil
 }
+
+// LogCacheHit writes a marker row into service_audit_logs when a cached
+// response is used instead of a physical external call (PR #379).
+// Cədvəldə cache istifadəsini görünür edir: method = 'CACHE', duration_ms = 0.
+// request_body = customer_pin, response_body = cached cavabın özü.
+// Qeyd: error boş və response_body dolu olduğu üçün bu row gələcək cache
+// axtarışlarında da tapılır — cache pəncərəsi sliding mənada yenilənir.
+func (r *ServiceCacheRepo) LogCacheHit(ctx context.Context, appID *int, serviceName, customerPIN, responseBody string) error {
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO service_audit_logs
+			(application_id, service_name, method, url, request_body, response_body,
+			 status_code, duration_ms, error)
+		VALUES (?, ?, 'CACHE', '', ?, ?, 200, 0, '')`,
+		appID, serviceName, customerPIN, responseBody)
+	if err != nil {
+		return fmt.Errorf("failed to log cache hit for %s: %w", serviceName, err)
+	}
+	return nil
+}

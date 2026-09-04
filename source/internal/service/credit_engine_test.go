@@ -86,7 +86,7 @@ func TestPreValidate(t *testing.T) {
                         provider := newMockLWProvider().withLoans(tc.loans)
                         engine := NewCreditEngine(provider, store)
 
-                        err := engine.PreValidate(ctx, "PIN123", tc.amount, tc.termMonths, tc.akbScore)
+                        err := engine.PreValidate(ctx, "PIN123", "AA1234567", tc.amount, tc.termMonths, tc.akbScore)
 
                         if tc.wantErr {
                                 if err == nil {

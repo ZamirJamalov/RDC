@@ -107,6 +107,10 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
 		return nil, fmt.Errorf("müraciət təsdiq oluna bilməz (cari status: %s) — yalnız OTP təsdiq olunmuş müraciətlər təsdiqlənə bilər", app.Status)
 	}
 
+	// PR #379: audit row-larda application_id düzgün yazılsın deye ctx-e appID qoyulur
+	// (GetCards + GetPersonalInfo cagirislari bu ctx-den istifade edir).
+	ctx = azmk.WithAppID(ctx, &appID)
+
 	// PR #313: köhnə kart seçilib — AZMK kart siyahısında bu tətbiqin
 	// partner-i altında olduğunu təsdiqlə. Bu, başqa partnerin kart ID-si
 	// ilə disburse-a yol vermir (fraud qorunması) və bitmiş kartı bloklayır.
@@ -210,7 +214,7 @@ func (s *ApplicationService) CustomerConfirmApplication(ctx context.Context, app
 
 	// 4. Get credit offer → find the range matching the customer's amount → term_months
 	// (GetOffer internally resolves the score fail-soft: LW first, then this fallback.)
-	offer, err := s.GetOffer(ctx, app.CustomerPIN, app.AkbScore)
+	offer, err := s.GetOffer(ctx, app.CustomerPIN, app.CustomerSerial, app.AkbScore)
 	if err != nil {
 		slog.Error("customer-confirm: GetOffer failed — rejecting customer submission",
 			"application_id", appID,

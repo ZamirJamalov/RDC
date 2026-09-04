@@ -40,6 +40,8 @@ type MyGovService struct {
 type serviceCacheLookup interface {
 	GetCacheDays(ctx context.Context, serviceName string) (int, error)
 	GetCachedResponse(ctx context.Context, serviceName, customerPIN string, cacheDays int) (string, bool, error)
+	// PR #379: cache HIT audit cədvəlində görünür (method='CACHE' marker row)
+	LogCacheHit(ctx context.Context, appID *int, serviceName, customerPIN, responseBody string) error
 }
 
 var _ serviceCacheLookup = (*repository.ServiceCacheRepo)(nil)
@@ -88,8 +90,9 @@ func (s *MyGovService) SetServiceCacheLookup(l serviceCacheLookup) {
 // cachedResponse returns the cached response body for a service+PIN if caching
 // is enabled (service_cache_config.cache_days > 0) and a fresh successful entry
 // exists in service_audit_logs. PR #375 — ApplicationService.GetCachedServiceResponse
-// ilə eyni məntiq (PR #205).
-func (s *MyGovService) cachedResponse(ctx context.Context, serviceName, customerPIN string) (string, bool) {
+// ilə eyni məntiq (PR #205). PR #379: HIT olanda service_audit_logs-a method='CACHE'
+// marker row yazılır ki, cədvəldə cache-dən oxunduğu görünsün.
+func (s *MyGovService) cachedResponse(ctx context.Context, appID int, serviceName, customerPIN string) (string, bool) {
 	if s.cacheLookup == nil {
 		return "", false // cache deaktiv
 	}
@@ -108,6 +111,10 @@ func (s *MyGovService) cachedResponse(ctx context.Context, serviceName, customer
 	}
 	if found {
 		slog.Info("mygov verify cache: HIT", "service", serviceName, "customer_pin", customerPIN, "cache_days", days)
+		// PR #379: audit cədvəlində cache istifadəsini görünür et
+		if lerr := s.cacheLookup.LogCacheHit(ctx, &appID, serviceName, customerPIN, body); lerr != nil {
+			slog.Warn("mygov verify cache: failed to log cache hit", "service", serviceName, "error", lerr)
+		}
 	}
 	return body, found
 }
