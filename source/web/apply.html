@@ -1635,11 +1635,13 @@ function applyApp() {
                 }, 2000));
 
                 // 3. Fetch offer — PR #149: Changed from GET to POST (FIN in body, not URL query param)
+                // PR #379: serial da göndərilir — AZMK inquireByIdCard serialsız 400 qaytarır
                 const offerResp = await fetch('/api/applications/offer', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         customer_pin: this.form.fin,
+                        customer_serial: this.fullSerial,
                         akb_score: 0,
                     }),
                 });

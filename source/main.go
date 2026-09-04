@@ -185,6 +185,7 @@ func main() {
 	}
 	appService.SetCustomerDataProvider(customerDataProvider)
 	creditEngine.SetCustomerDataProvider(customerDataProvider)         // PR #265
+	creditEngine.SetServiceCacheLookup(serviceCacheRepo)               // PR #379: personal info cache (3 gün)
 	appService.SetCutoffRepo(cutoffResultRepo)                         // PR #168
 	appService.SetKycVerifyEnabled(cfg.AzmkKycVerifyEnabled)           // PR #170
 	appService.SetCutoffStopOnFirstFail(cfg.CutoffStopOnFirstFail)     // PR #171

@@ -185,8 +185,10 @@ func (s *ApplicationService) SetServiceCacheRepo(repo *repository.ServiceCacheRe
 
 // GetCachedServiceResponse checks if there's a cached response for the given service
 // and customer within the cache window. PR #205.
+// PR #379: appID parametri əlavə olundu — cache HIT olanda service_audit_logs-a
+// method='CACHE' marker row yazılır (cədvəldə cache istifadəsi görünür).
 // Returns (response_body, true) if cache hit, ("", false) if cache miss.
-func (s *ApplicationService) GetCachedServiceResponse(ctx context.Context, serviceName, customerPIN string) (string, bool) {
+func (s *ApplicationService) GetCachedServiceResponse(ctx context.Context, appID int, serviceName, customerPIN string) (string, bool) {
 	if s.serviceCacheRepo == nil {
 		return "", false // cache deaktiv
 	}
@@ -196,7 +198,7 @@ func (s *ApplicationService) GetCachedServiceResponse(ctx context.Context, servi
 		return "", false
 	}
 	if cacheDays <= 0 {
-		return "", false // cache_days=0 → birbaşa servise muraciet
+		return "", false // cache_days=0 → birbaşa servisi çağır
 	}
 	responseBody, found, err := s.serviceCacheRepo.GetCachedResponse(ctx, serviceName, customerPIN, cacheDays)
 	if err != nil {
@@ -205,6 +207,10 @@ func (s *ApplicationService) GetCachedServiceResponse(ctx context.Context, servi
 	}
 	if found {
 		slog.Info("service cache: HIT", "service", serviceName, "customer_pin", customerPIN, "cache_days", cacheDays)
+		// PR #379: audit cədvəlində cache istifadəsini görünür et
+		if lerr := s.serviceCacheRepo.LogCacheHit(ctx, &appID, serviceName, customerPIN, responseBody); lerr != nil {
+			slog.Warn("service cache: failed to log cache hit", "service", serviceName, "error", lerr)
+		}
 	}
 	return responseBody, found
 }
@@ -519,7 +525,8 @@ func (s *ApplicationService) CreateApplication(ctx context.Context, req *model.C
 
 	// Pre-validate: check if amount+term is valid for this customer's level
 	// This runs synchronously so the user gets an immediate error (400) instead of a delayed rejection
-	if err := s.creditEngine.PreValidate(ctx, req.CustomerPIN, req.Amount, req.TermMonths, req.AkbScore); err != nil {
+	// PR #379: serial da göndürilir — AZMK inquireByIdCard serialsız 400 qaytarır
+	if err := s.creditEngine.PreValidate(ctx, req.CustomerPIN, req.CustomerSerial, req.Amount, req.TermMonths, req.AkbScore); err != nil {
 		return nil, err
 	}
 

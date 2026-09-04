@@ -450,8 +450,8 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
 
 	// 1. Qara siyahı və aktiv kredit yoxlaması (AZMK getOwnerData)
 	if s.customerDataProvider != nil {
-		// PR #205: cache yoxlaması
-		cachedResp, cacheHit := s.GetCachedServiceResponse(ctx, "AZMK_GET_OWNER_DATA", customerPIN)
+		// PR #205: cache yoxlaması (PR #379: appID — cache HIT marker row üçün)
+		cachedResp, cacheHit := s.GetCachedServiceResponse(ctx, appID, "AZMK_GET_OWNER_DATA", customerPIN)
 		if cacheHit {
 			slog.Info("early cutoff: AZMK getOwnerData — using cached response", "application_id", appID, "customer_pin", customerPIN)
 			// Cache-dən gələn response-u parse et

@@ -65,6 +65,10 @@ func (s *ApplicationService) GetCustomerCardsByPublicID(ctx context.Context, pub
 		return []CustomerCard{}, nil
 	}
 
+	// PR #379: audit row-da application_id düzgün yazılsın deyə ctx-ə appID qoyulur
+	// (əvvəl NULL gedirdi — cache JOIN-i və hesabatlar üçün problem).
+	ctx = azmk.WithAppID(ctx, &app.ID)
+
 	cards, err := s.azmkProvider.GetCards(ctx, app.PartnerID)
 	if err != nil {
 		// Fail-soft: AZMK alınmadı → müştəri yeni kart daxil edəcək.

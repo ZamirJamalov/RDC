@@ -17,6 +17,10 @@ type fakeCacheLookup struct {
 	lastSvc  string
 	lastPIN  string
 	lastDays int
+
+	// PR #379: LogCacheHit çağırışları
+	lastHitAppID *int
+	lastHitBody  string
 }
 
 func (f *fakeCacheLookup) GetCacheDays(_ context.Context, serviceName string) (int, error) {
@@ -31,10 +35,17 @@ func (f *fakeCacheLookup) GetCachedResponse(_ context.Context, serviceName, cust
 	return f.body, f.found, f.err
 }
 
+// LogCacheHit — PR #379: marker row yazılmasını track edir (test assert üçün).
+func (f *fakeCacheLookup) LogCacheHit(_ context.Context, appID *int, serviceName, customerPIN, responseBody string) error {
+	f.lastHitAppID = appID
+	f.lastHitBody = responseBody
+	return nil
+}
+
 // TestMyGovCachedResponse_NilLookup — cache inject olunmayıbsa həmişə miss.
 func TestMyGovCachedResponse_NilLookup(t *testing.T) {
 	s := &MyGovService{}
-	if _, ok := s.cachedResponse(context.Background(), "AZMK_GET_EMPLOYEE_INFO", "1SBK08P"); ok {
+	if _, ok := s.cachedResponse(context.Background(), 1, "AZMK_GET_EMPLOYEE_INFO", "1SBK08P"); ok {
 		t.Fatal("nil cacheLookup must always be a cache miss")
 	}
 }
@@ -42,7 +53,7 @@ func TestMyGovCachedResponse_NilLookup(t *testing.T) {
 // TestMyGovCachedResponse_Disabled — cache_days=0 → miss (birbaşa AZMK çağırılır).
 func TestMyGovCachedResponse_Disabled(t *testing.T) {
 	s := &MyGovService{cacheLookup: &fakeCacheLookup{days: 0, body: "{}", found: true}}
-	if _, ok := s.cachedResponse(context.Background(), "AZMK_GET_EMPLOYEE_INFO", "1SBK08P"); ok {
+	if _, ok := s.cachedResponse(context.Background(), 1, "AZMK_GET_EMPLOYEE_INFO", "1SBK08P"); ok {
 		t.Fatal("cache_days=0 must be a cache miss")
 	}
 }
@@ -51,7 +62,7 @@ func TestMyGovCachedResponse_Disabled(t *testing.T) {
 func TestMyGovCachedResponse_Hit(t *testing.T) {
 	f := &fakeCacheLookup{days: 3, body: `{"result":1}`, found: true}
 	s := &MyGovService{cacheLookup: f}
-	body, ok := s.cachedResponse(context.Background(), "AZMK_GET_EMPLOYEE_INFO", "1SBK08P")
+	body, ok := s.cachedResponse(context.Background(), 1, "AZMK_GET_EMPLOYEE_INFO", "1SBK08P")
 	if !ok {
 		t.Fatal("expected cache hit")
 	}
@@ -66,7 +77,7 @@ func TestMyGovCachedResponse_Hit(t *testing.T) {
 // TestMyGovCachedResponse_RepoError — repo xətası fail-soft miss olmalıdır.
 func TestMyGovCachedResponse_RepoError(t *testing.T) {
 	s := &MyGovService{cacheLookup: &fakeCacheLookup{days: 3, err: errors.New("db down")}}
-	if _, ok := s.cachedResponse(context.Background(), "AZMK_GET_EMPLOYEE_INFO", "1SBK08P"); ok {
+	if _, ok := s.cachedResponse(context.Background(), 1, "AZMK_GET_EMPLOYEE_INFO", "1SBK08P"); ok {
 		t.Fatal("repo error must be a cache miss (fail-soft)")
 	}
 }

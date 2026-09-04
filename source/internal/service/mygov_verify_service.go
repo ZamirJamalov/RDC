@@ -90,7 +90,7 @@ func (s *MyGovService) VerifyEmployment(ctx context.Context, appID int) (*MyGovV
 		// PR #375: cache yoxlaması — cache_days ərzində (hazırda 3 gün) uğurlu
 		// response varsa AZMK çağırılmır, service_audit_logs-dan oxunur. Cutoff
 		// (EMPLOYMENT_TENURE) cached data ilə eyni qaydada hesablanır.
-		if cached, ok := s.cachedResponse(ctx, serviceName, pin); ok {
+		if cached, ok := s.cachedResponse(ctx, appID, serviceName, pin); ok {
 			info = employmentInfoFromCache(cached)
 			if info != nil {
 				slog.Info("employment verify: cache HIT — AZMK GetEmployeeInfoByPin çağırılmır (PR #375)",
@@ -173,7 +173,7 @@ func (s *MyGovService) VerifyPension(ctx context.Context, appID int) (*MyGovVeri
 	if s.customerDataProvider != nil {
 		// PR #375: cache yoxlaması — cache_days ərzində (hazırda 3 gün) uğurlu
 		// response varsa AZMK çağırılmır, service_audit_logs-dan oxunur.
-		if cached, ok := s.cachedResponse(ctx, serviceName, pin); ok {
+		if cached, ok := s.cachedResponse(ctx, appID, serviceName, pin); ok {
 			pension = pensionInfoFromCache(cached)
 			if pension != nil {
 				slog.Info("pension verify: cache HIT — AZMK GetPensionInfoByPin çağırılmır (PR #375)",
