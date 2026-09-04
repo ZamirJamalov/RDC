@@ -1,19 +1,20 @@
 package service
 
 import (
-        "context"
-        "log/slog"
-        "math"
-        "time"
+	"context"
+	"log/slog"
+	"math"
+	"time"
 
-        "rdc-source/internal/model"
+	"rdc-source/internal/model"
+	"rdc-source/pkg/azmk"
 )
 
 // engineProcessor is the minimal interface processApplicationWithRetry needs.
 // *CreditEngine satisfies it, and tests can use a wrapper (e.g. flakyEngine)
 // to simulate transient failures.
 type engineProcessor interface {
-        ProcessApplication(ctx context.Context, appID int) error
+	ProcessApplication(ctx context.Context, appID int) error
 }
 
 // RetryConfig controls the async retry behavior of the credit engine.
@@ -25,21 +26,21 @@ type engineProcessor interface {
 // because the engine runs in the background — we don't want to saturate
 // the DB with retries if there's a real outage.
 type RetryConfig struct {
-        MaxAttempts   int           // total attempts including the first
-        InitialDelay  time.Duration // delay before the 2nd attempt
-        MaxDelay      time.Duration // cap on backoff growth
-        BackoffFactor float64       // multiplier between attempts (2.0 = double each time)
+	MaxAttempts   int           // total attempts including the first
+	InitialDelay  time.Duration // delay before the 2nd attempt
+	MaxDelay      time.Duration // cap on backoff growth
+	BackoffFactor float64       // multiplier between attempts (2.0 = double each time)
 }
 
 // DefaultRetryConfig returns sensible defaults: 3 attempts, 500ms start,
 // 4s max, doubling backoff.
 func DefaultRetryConfig() RetryConfig {
-        return RetryConfig{
-                MaxAttempts:   3,
-                InitialDelay:  500 * time.Millisecond,
-                MaxDelay:      4 * time.Second,
-                BackoffFactor: 2.0,
-        }
+	return RetryConfig{
+		MaxAttempts:   3,
+		InitialDelay:  500 * time.Millisecond,
+		MaxDelay:      4 * time.Second,
+		BackoffFactor: 2.0,
+	}
 }
 
 // processApplicationWithRetry calls engine.ProcessApplication up to
@@ -63,57 +64,57 @@ func DefaultRetryConfig() RetryConfig {
 // repeat), so retrying is always safe. A future improvement could add a
 // Retryable(error) bool predicate to short-circuit non-retryable cases.
 func processApplicationWithRetry(ctx context.Context, engine engineProcessor, appID int, cfg RetryConfig) error {
-        var lastErr error
+	var lastErr error
 
-        for attempt := 1; attempt <= cfg.MaxAttempts; attempt++ {
-                err := engine.ProcessApplication(ctx, appID)
-                if err == nil {
-                        if attempt > 1 {
-                                slog.Info("credit engine succeeded after retry",
-                                        "application_id", appID,
-                                        "attempt", attempt)
-                        }
-                        return nil
-                }
+	for attempt := 1; attempt <= cfg.MaxAttempts; attempt++ {
+		err := engine.ProcessApplication(ctx, appID)
+		if err == nil {
+			if attempt > 1 {
+				slog.Info("credit engine succeeded after retry",
+					"application_id", appID,
+					"attempt", attempt)
+			}
+			return nil
+		}
 
-                lastErr = err
-                slog.Warn("credit engine attempt failed",
-                        "application_id", appID,
-                        "attempt", attempt,
-                        "max_attempts", cfg.MaxAttempts,
-                        "error", err)
+		lastErr = err
+		slog.Warn("credit engine attempt failed",
+			"application_id", appID,
+			"attempt", attempt,
+			"max_attempts", cfg.MaxAttempts,
+			"error", err)
 
-                // Don't sleep after the last attempt
-                if attempt < cfg.MaxAttempts {
-                        delay := backoff(cfg.InitialDelay, cfg.BackoffFactor, attempt, cfg.MaxDelay)
-                        slog.Debug("retrying credit engine",
-                                "application_id", appID,
-                                "next_attempt", attempt+1,
-                                "delay_ms", delay.Milliseconds())
-                        select {
-                        case <-ctx.Done():
-                                return ctx.Err()
-                        case <-time.After(delay):
-                        }
-                }
-        }
+		// Don't sleep after the last attempt
+		if attempt < cfg.MaxAttempts {
+			delay := backoff(cfg.InitialDelay, cfg.BackoffFactor, attempt, cfg.MaxDelay)
+			slog.Debug("retrying credit engine",
+				"application_id", appID,
+				"next_attempt", attempt+1,
+				"delay_ms", delay.Milliseconds())
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+	}
 
-        return lastErr
+	return lastErr
 }
 
 // backoff computes the delay before the next attempt. The formula is:
 //
-//      delay = min(initialDelay * backoffFactor^(attempt-1), maxDelay)
+//	delay = min(initialDelay * backoffFactor^(attempt-1), maxDelay)
 //
 // For attempt=1, delay=initialDelay. For attempt=2, delay=initialDelay*factor.
 // For attempt=3, delay=initialDelay*factor^2. Etc.
 func backoff(initialDelay time.Duration, factor float64, attempt int, maxDelay time.Duration) time.Duration {
-        multiplier := math.Pow(factor, float64(attempt-1))
-        delay := time.Duration(float64(initialDelay) * multiplier)
-        if delay > maxDelay {
-                return maxDelay
-        }
-        return delay
+	multiplier := math.Pow(factor, float64(attempt-1))
+	delay := time.Duration(float64(initialDelay) * multiplier)
+	if delay > maxDelay {
+		return maxDelay
+	}
+	return delay
 }
 
 // triggerAsyncProcessing starts the credit engine in a background goroutine
@@ -124,25 +125,28 @@ func backoff(initialDelay time.Duration, factor float64, attempt int, maxDelay t
 // the request completes before the pipeline finishes — we don't want to
 // cancel the pipeline when the client disconnects.
 func (s *ApplicationService) triggerAsyncProcessing(app *model.LoanApplication) {
-        go func() {
-                ctx := context.Background()
-                cfg := DefaultRetryConfig()
-                if err := processApplicationWithRetry(ctx, s.creditEngine, app.ID, cfg); err != nil {
-                        slog.Error("credit engine processing failed after all retries",
-                                "application_id", app.ID,
-                                "customer_pin", app.CustomerPIN,
-                                "attempts", cfg.MaxAttempts,
-                                "error", err)
-                        // Last-resort: mark the application as rejected so it doesn't
-                        // stay in "checking" forever. The reason explains what happened.
-                        rejectReason := "Credit engine failed after retries: " + err.Error()
-                        if rejectErr := s.repo.UpdateApplicationDecision(ctx, app.ID,
-                                model.StatusRejected, "", rejectReason, 0, 0, 0); rejectErr != nil {
-                                slog.Error("failed to mark application as rejected after engine failure",
-                                        "application_id", app.ID,
-                                        "original_error", err,
-                                        "reject_error", rejectErr)
-                        }
-                }
-        }()
+	go func() {
+		// PR #380: audit row-larda application_id düzgün yazılsın deye
+		// ctx-e appID qoyulur (ProcessApplication-in AZMK cagirislari +
+		// cache HIT marker row-lari bunu oxuyur).
+		ctx := azmk.WithAppID(context.Background(), &app.ID)
+		cfg := DefaultRetryConfig()
+		if err := processApplicationWithRetry(ctx, s.creditEngine, app.ID, cfg); err != nil {
+			slog.Error("credit engine processing failed after all retries",
+				"application_id", app.ID,
+				"customer_pin", app.CustomerPIN,
+				"attempts", cfg.MaxAttempts,
+				"error", err)
+			// Last-resort: mark the application as rejected so it doesn't
+			// stay in "checking" forever. The reason explains what happened.
+			rejectReason := "Credit engine failed after retries: " + err.Error()
+			if rejectErr := s.repo.UpdateApplicationDecision(ctx, app.ID,
+				model.StatusRejected, "", rejectReason, 0, 0, 0); rejectErr != nil {
+				slog.Error("failed to mark application as rejected after engine failure",
+					"application_id", app.ID,
+					"original_error", err,
+					"reject_error", rejectErr)
+			}
+		}
+	}()
 }

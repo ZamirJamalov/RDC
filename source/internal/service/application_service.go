@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -187,8 +188,9 @@ func (s *ApplicationService) SetServiceCacheRepo(repo *repository.ServiceCacheRe
 // and customer within the cache window. PR #205.
 // PR #379: appID parametri əlavə olundu — cache HIT olanda service_audit_logs-a
 // method='CACHE' marker row yazılır (cədvəldə cache istifadəsi görünür).
+// PR #380: appID *int edildi — app-agnostik çağırış yerlərində (GetOffer) NULL marker.
 // Returns (response_body, true) if cache hit, ("", false) if cache miss.
-func (s *ApplicationService) GetCachedServiceResponse(ctx context.Context, appID int, serviceName, customerPIN string) (string, bool) {
+func (s *ApplicationService) GetCachedServiceResponse(ctx context.Context, appID *int, serviceName, customerPIN string) (string, bool) {
 	if s.serviceCacheRepo == nil {
 		return "", false // cache deaktiv
 	}
@@ -198,7 +200,7 @@ func (s *ApplicationService) GetCachedServiceResponse(ctx context.Context, appID
 		return "", false
 	}
 	if cacheDays <= 0 {
-		return "", false // cache_days=0 → birbaşa servisi çağır
+		return "", false // cache_days=0 → birbaşa servisi çağır (məs. AZMK_GET_OWNER_DATA)
 	}
 	responseBody, found, err := s.serviceCacheRepo.GetCachedResponse(ctx, serviceName, customerPIN, cacheDays)
 	if err != nil {
@@ -208,11 +210,45 @@ func (s *ApplicationService) GetCachedServiceResponse(ctx context.Context, appID
 	if found {
 		slog.Info("service cache: HIT", "service", serviceName, "customer_pin", customerPIN, "cache_days", cacheDays)
 		// PR #379: audit cədvəlində cache istifadəsini görünür et
-		if lerr := s.serviceCacheRepo.LogCacheHit(ctx, &appID, serviceName, customerPIN, responseBody); lerr != nil {
+		if lerr := s.serviceCacheRepo.LogCacheHit(ctx, appID, serviceName, customerPIN, responseBody); lerr != nil {
 			slog.Warn("service cache: failed to log cache hit", "service", serviceName, "error", lerr)
 		}
 	}
 	return responseBody, found
+}
+
+// mkrScoreFromCache parses a cached AZMK getMkrScore response body back into
+// MkrScore. Returns nil on empty/malformed body or uncalculated score — bu halda
+// cache miss sayılır və fiziki AZMK çağırışı edilir (fail-soft, PR #380).
+func mkrScoreFromCache(body string) *azmk.MkrScore {
+	if body == "" {
+		return nil
+	}
+	var resp azmk.MkrScoreResponse
+	if err := json.Unmarshal([]byte(body), &resp); err != nil {
+		return nil
+	}
+	if resp.Data == nil || !resp.Data.Score.Calculated {
+		return nil
+	}
+	return &azmk.MkrScore{Score: resp.Data.Score}
+}
+
+// creditHistoryFromCache parses a cached AZMK inquireByIdCard response body
+// back into CreditHistory. Returns nil on empty/malformed body or missing
+// inquiry data — cache miss sayılır (fail-soft, PR #380).
+func creditHistoryFromCache(body string) *azmk.CreditHistory {
+	if body == "" {
+		return nil
+	}
+	var resp azmk.InquireByIdCardResponse
+	if err := json.Unmarshal([]byte(body), &resp); err != nil {
+		return nil
+	}
+	if resp.Data == nil || resp.Data.Return == nil {
+		return nil
+	}
+	return &azmk.CreditHistory{Inquiry: resp.Data.Return}
 }
 
 // fetchCustomerDataFromAzmk fetches customer data from AZMK CustomerDataService
