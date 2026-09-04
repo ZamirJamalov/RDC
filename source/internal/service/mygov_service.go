@@ -29,7 +29,20 @@ type MyGovService struct {
 	cutoffRepo *repository.CutoffResultRepo
 	// PR #279: EMPLOYMENT_TENURE minimum staj (ay, default: 6)
 	employmentTenureMinMonths int
+	// PR #375: employment/pension verify cache — service_cache_config-dakı
+	// cache_days ərzində service_audit_logs-dan son uğurlu response oxunur
+	cacheLookup serviceCacheLookup
 }
+
+// serviceCacheLookup is the minimal cache interface MyGovService needs (PR #375).
+// *repository.ServiceCacheRepo bu interface-i satisfies edir (PR #205 mexanizmi
+// üzərindən — cache mənbəyi service_audit_logs cədvəlidir).
+type serviceCacheLookup interface {
+	GetCacheDays(ctx context.Context, serviceName string) (int, error)
+	GetCachedResponse(ctx context.Context, serviceName, customerPIN string, cacheDays int) (string, bool, error)
+}
+
+var _ serviceCacheLookup = (*repository.ServiceCacheRepo)(nil)
 
 // NewMyGovService creates a new MyGovService.
 func NewMyGovService(provider mygov.Provider, repo *repository.MyGovRepo, appRepo *repository.ApplicationRepo, smsProvider otp.Provider, clientID, redirectURI, webURL string) *MyGovService {
@@ -63,6 +76,40 @@ func (s *MyGovService) SetEmploymentTenureMinMonths(months int) {
 	if months > 0 {
 		s.employmentTenureMinMonths = months
 	}
+}
+
+// SetServiceCacheLookup injects the service cache (PR #375): employment/pension
+// verify cache_days qədər (hal-hazırda 3 gün) cache ilə işləyir — dashboard-dakı
+// "Yoxla" düymələri hər klikdə AZMK-nı fiziki çağırmır. nil = cache deaktiv.
+func (s *MyGovService) SetServiceCacheLookup(l serviceCacheLookup) {
+	s.cacheLookup = l
+}
+
+// cachedResponse returns the cached response body for a service+PIN if caching
+// is enabled (service_cache_config.cache_days > 0) and a fresh successful entry
+// exists in service_audit_logs. PR #375 — ApplicationService.GetCachedServiceResponse
+// ilə eyni məntiq (PR #205).
+func (s *MyGovService) cachedResponse(ctx context.Context, serviceName, customerPIN string) (string, bool) {
+	if s.cacheLookup == nil {
+		return "", false // cache deaktiv
+	}
+	days, err := s.cacheLookup.GetCacheDays(ctx, serviceName)
+	if err != nil {
+		slog.Warn("mygov verify cache: failed to get cache_days", "service", serviceName, "error", err)
+		return "", false
+	}
+	if days <= 0 {
+		return "", false // cache_days=0 → birbaşa servisə müraciət
+	}
+	body, found, err := s.cacheLookup.GetCachedResponse(ctx, serviceName, customerPIN, days)
+	if err != nil {
+		slog.Warn("mygov verify cache: failed to get cached response", "service", serviceName, "error", err)
+		return "", false
+	}
+	if found {
+		slog.Info("mygov verify cache: HIT", "service", serviceName, "customer_pin", customerPIN, "cache_days", days)
+	}
+	return body, found
 }
 
 // GenerateLink creates a MyGov consent deeplink and sends it via SMS

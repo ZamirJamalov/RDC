@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"rdc-source/internal/model"
+	"rdc-source/pkg/azmk"
 	"rdc-source/pkg/mygov"
 )
 
@@ -80,8 +81,25 @@ func (s *MyGovService) VerifyEmployment(ctx context.Context, appID int) (*MyGovV
 	serviceName := "AZMK_GET_EMPLOYEE_INFO"
 	var info *mygov.EmployeeInfoResponse
 	var err error
+
+	// PR #375: audit row-lar cache-in qidasıdır — application_id düzgün yazılsın
+	// deyə ctx-ə appID qoyulur (əvvəl NULL gedirdi, cache JOIN-i tapa bilmirdi).
+	ctx = azmk.WithAppID(ctx, &appID)
+
 	if s.customerDataProvider != nil {
-		info, err = s.customerDataProvider.GetEmployeeInfoByPin(ctx, pin, serial)
+		// PR #375: cache yoxlaması — cache_days ərzində (hazırda 3 gün) uğurlu
+		// response varsa AZMK çağırılmır, service_audit_logs-dan oxunur. Cutoff
+		// (EMPLOYMENT_TENURE) cached data ilə eyni qaydada hesablanır.
+		if cached, ok := s.cachedResponse(ctx, serviceName, pin); ok {
+			info = employmentInfoFromCache(cached)
+			if info != nil {
+				slog.Info("employment verify: cache HIT — AZMK GetEmployeeInfoByPin çağırılmır (PR #375)",
+					"application_id", appID, "customer_pin", pin)
+			}
+		}
+		if info == nil {
+			info, err = s.customerDataProvider.GetEmployeeInfoByPin(ctx, pin, serial)
+		}
 	} else {
 		// Fallback: MyGov provider (localhost:8083)
 		serviceName = "MYGOV_GET_EMPLOYEE_INFO"
@@ -148,11 +166,26 @@ func (s *MyGovService) VerifyPension(ctx context.Context, appID int) (*MyGovVeri
 	serviceName := "AZMK_GET_PENSION_INFO"
 	var pension *mygov.PensionInfoResponse
 	var azmkErr error
+
+	// PR #375: audit row-lar cache-in qidasıdır — application_id ctx-ə qoyulur.
+	ctx = azmk.WithAppID(ctx, &appID)
+
 	if s.customerDataProvider != nil {
-		pension, azmkErr = s.customerDataProvider.GetPensionInfoByPin(ctx, pin, serial)
-		if azmkErr != nil {
-			slog.Warn("pension verify: AZMK GetPensionInfoByPin failed — trying stored MyGov data",
-				"application_id", appID, "error", azmkErr)
+		// PR #375: cache yoxlaması — cache_days ərzində (hazırda 3 gün) uğurlu
+		// response varsa AZMK çağırılmır, service_audit_logs-dan oxunur.
+		if cached, ok := s.cachedResponse(ctx, serviceName, pin); ok {
+			pension = pensionInfoFromCache(cached)
+			if pension != nil {
+				slog.Info("pension verify: cache HIT — AZMK GetPensionInfoByPin çağırılmır (PR #375)",
+					"application_id", appID, "customer_pin", pin)
+			}
+		}
+		if pension == nil {
+			pension, azmkErr = s.customerDataProvider.GetPensionInfoByPin(ctx, pin, serial)
+			if azmkErr != nil {
+				slog.Warn("pension verify: AZMK GetPensionInfoByPin failed — trying stored MyGov data",
+					"application_id", appID, "error", azmkErr)
+			}
 		}
 	}
 	if pension == nil {
@@ -219,6 +252,41 @@ func (s *MyGovService) VerifyPension(ctx context.Context, appID int) (*MyGovVeri
 		"is_pensioner", isPensioner)
 
 	return resp, nil
+}
+
+// employmentInfoFromCache parses a cached AZMK GetEmployeeInfoByPin response
+// body (service_audit_logs.response_body) back into EmployeeInfoResponse.
+// Returns nil on empty/malformed body or missing data — bu halda cache miss
+// sayılır və fiziki AZMK çağırışı edilir (fail-soft, PR #375).
+func employmentInfoFromCache(body string) *mygov.EmployeeInfoResponse {
+	if body == "" {
+		return nil
+	}
+	var info mygov.EmployeeInfoResponse
+	if err := json.Unmarshal([]byte(body), &info); err != nil {
+		return nil
+	}
+	if info.Data == nil || info.Data.Response == nil {
+		return nil
+	}
+	return &info
+}
+
+// pensionInfoFromCache parses a cached AZMK GetPensionInfoByPin response body
+// back into PensionInfoResponse. Returns nil on empty/malformed body or missing
+// data — cache miss sayılır (fail-soft, PR #375).
+func pensionInfoFromCache(body string) *mygov.PensionInfoResponse {
+	if body == "" {
+		return nil
+	}
+	var p mygov.PensionInfoResponse
+	if err := json.Unmarshal([]byte(body), &p); err != nil {
+		return nil
+	}
+	if p.Data == nil || p.Data.Response == nil {
+		return nil
+	}
+	return &p
 }
 
 // checkEmploymentTenureFromEmployeeInfo implements the EMPLOYMENT_TENURE cutoff
