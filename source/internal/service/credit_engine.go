@@ -40,8 +40,32 @@ func (e *CreditEngine) SetCustomerDataProvider(provider azmk.CustomerDataProvide
 // SetServiceCacheLookup injects the service cache (PR #379): resolveCustomerAge
 // AZMK_GET_PERSONAL_INFO cache_days ərzində cached cavabdan oxuyur — emal
 // zamanı eyni məlumat ikinci dəfə fiziki çağırılmır. nil = cache deaktiv.
+// PR #380: MKR/INQUIRE üçün də istifadə olunur.
 func (e *CreditEngine) SetServiceCacheLookup(l serviceCacheLookup) {
 	e.cacheLookup = l
+}
+
+// cachedBody is the generic cache-read helper for the engine (PR #380):
+// checks service_cache_config.cache_days, reads the last fresh successful
+// response from service_audit_logs and writes the method='CACHE' marker row.
+// appID ctx-dən oxunur (yoxdursa marker NULL app ilə yazılır).
+func (e *CreditEngine) cachedBody(ctx context.Context, serviceName, customerPIN string) (string, bool) {
+	if e.cacheLookup == nil {
+		return "", false // cache deaktiv
+	}
+	days, err := e.cacheLookup.GetCacheDays(ctx, serviceName)
+	if err != nil || days <= 0 {
+		return "", false
+	}
+	body, found, err := e.cacheLookup.GetCachedResponse(ctx, serviceName, customerPIN, days)
+	if err != nil || !found {
+		return "", false
+	}
+	slog.Info("engine cache: HIT", "service", serviceName, "customer_pin", customerPIN, "cache_days", days)
+	if lerr := e.cacheLookup.LogCacheHit(ctx, azmk.AppIDFromContext(ctx), serviceName, customerPIN, body); lerr != nil {
+		slog.Warn("engine cache: failed to log cache hit", "service", serviceName, "error", lerr)
+	}
+	return body, true
 }
 
 // PreValidate checks whether the requested amount and term are valid for the customer's
@@ -59,10 +83,20 @@ func (e *CreditEngine) PreValidate(ctx context.Context, customerPIN, customerSer
 	if e.customerDataProvider != nil {
 		// PR #379: serial boşdursa AZMK yalnız 400 qaytarır — çağırışı ötür (fail-soft).
 		if customerSerial != "" {
-			history, err := e.customerDataProvider.InquireByIdCard(ctx, customerPIN, customerSerial)
-			if err != nil {
-				slog.Warn("PreValidate: AZMK InquireByIdCard failed — fail-soft", "customer_pin", customerPIN, "error", err)
-			} else if history != nil {
+			// PR #380: 3 günlük cache — HIT olsa fiziki çağırış edilmir
+			// (pre-app çağırışdır — marker row NULL app_id ilə yazılır)
+			var history *azmk.CreditHistory
+			if cached, ok := e.cachedBody(ctx, "AZMK_INQUIRE_BY_ID_CARD", customerPIN); ok {
+				history = creditHistoryFromCache(cached)
+			}
+			if history == nil {
+				var err error
+				history, err = e.customerDataProvider.InquireByIdCard(ctx, customerPIN, customerSerial)
+				if err != nil {
+					slog.Warn("PreValidate: AZMK InquireByIdCard failed — fail-soft", "customer_pin", customerPIN, "error", err)
+				}
+			}
+			if history != nil {
 				customerLoans = convertAzmkHistoryToLwLoans(history)
 			}
 		}
@@ -254,13 +288,21 @@ func (e *CreditEngine) resolveAkbHistory(ctx context.Context, customerPIN, seria
 		analytics.akbHistoryAvailable = false
 		return
 	}
-	resp, err := e.customerDataProvider.InquireByIdCard(ctx, customerPIN, serial)
-	if err != nil {
-		slog.Warn("failed to fetch AKB history from LW — skipping AKB-history rules (fail-soft)",
-			"customer_pin", customerPIN,
-			"error", err)
-		analytics.akbHistoryAvailable = false
-		return
+	// PR #380: 3 günlük cache — HIT olsa fiziki çağırış edilmir
+	var resp *azmk.CreditHistory
+	if cached, ok := e.cachedBody(ctx, "AZMK_INQUIRE_BY_ID_CARD", customerPIN); ok {
+		resp = creditHistoryFromCache(cached)
+	}
+	if resp == nil {
+		var err error
+		resp, err = e.customerDataProvider.InquireByIdCard(ctx, customerPIN, serial)
+		if err != nil {
+			slog.Warn("failed to fetch AKB history from LW — skipping AKB-history rules (fail-soft)",
+				"customer_pin", customerPIN,
+				"error", err)
+			analytics.akbHistoryAvailable = false
+			return
+		}
 	}
 	if resp == nil || resp.Inquiry == nil || resp.Inquiry.Liabilities == nil || len(resp.Inquiry.Liabilities.Liability) == 0 {
 		// No liabilities = no history to evaluate. Treat as "available but empty"
@@ -379,10 +421,19 @@ func (e *CreditEngine) ProcessApplication(ctx context.Context, appID int) error 
 	// PR #265: Step 3 — AZMK InquireByIdCard (LW silindi)
 	customerLoans := &lw.CustomerLoansResponse{Loans: []lw.CustomerLoan{}}
 	if e.customerDataProvider != nil {
-		history, err := e.customerDataProvider.InquireByIdCard(ctx, app.CustomerPIN, app.CustomerSerial)
-		if err != nil {
-			slog.Warn("ProcessApplication: AZMK InquireByIdCard failed — fail-soft", "application_id", appID, "error", err)
-		} else if history != nil {
+		// PR #380: 3 günlük cache — HIT olsa fiziki çağırış edilmir
+		var history *azmk.CreditHistory
+		if cached, ok := e.cachedBody(ctx, "AZMK_INQUIRE_BY_ID_CARD", app.CustomerPIN); ok {
+			history = creditHistoryFromCache(cached)
+		}
+		if history == nil {
+			var err error
+			history, err = e.customerDataProvider.InquireByIdCard(ctx, app.CustomerPIN, app.CustomerSerial)
+			if err != nil {
+				slog.Warn("ProcessApplication: AZMK InquireByIdCard failed — fail-soft", "application_id", appID, "error", err)
+			}
+		}
+		if history != nil {
 			customerLoans = convertAzmkHistoryToLwLoans(history)
 		}
 	}

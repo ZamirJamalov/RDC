@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"rdc-source/pkg/azmk"
 	"rdc-source/pkg/lw"
 )
 
@@ -28,10 +29,20 @@ func (s *ApplicationService) GetOffer(ctx context.Context, customerPIN, customer
 	// PR #265: AZMK InquireByIdCard (LW silindi)
 	customerLoans := &lw.CustomerLoansResponse{Loans: []lw.CustomerLoan{}}
 	if s.creditEngine.customerDataProvider != nil && customerSerial != "" { // PR #379: serial boşdursa AZMK 400 qaytarır — ötür
-		history, err := s.creditEngine.customerDataProvider.InquireByIdCard(ctx, customerPIN, customerSerial)
-		if err != nil {
-			slog.Warn("GetOffer: AZMK InquireByIdCard failed — fail-soft", "customer_pin", customerPIN, "error", err)
-		} else if history != nil {
+		// PR #380: 3 günlük cache — HIT olsa fiziki çağırış edilmir
+		// (app-agnostik çağırışdır — marker row NULL app_id ilə yazılır)
+		var history *azmk.CreditHistory
+		if cached, ok := s.GetCachedServiceResponse(ctx, azmk.AppIDFromContext(ctx), "AZMK_INQUIRE_BY_ID_CARD", customerPIN); ok {
+			history = creditHistoryFromCache(cached)
+		}
+		if history == nil {
+			var err error
+			history, err = s.creditEngine.customerDataProvider.InquireByIdCard(ctx, customerPIN, customerSerial)
+			if err != nil {
+				slog.Warn("GetOffer: AZMK InquireByIdCard failed — fail-soft", "customer_pin", customerPIN, "error", err)
+			}
+		}
+		if history != nil {
 			customerLoans = convertAzmkHistoryToLwLoans(history)
 		}
 	}

@@ -451,7 +451,7 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
 	// 1. Qara siyahı və aktiv kredit yoxlaması (AZMK getOwnerData)
 	if s.customerDataProvider != nil {
 		// PR #205: cache yoxlaması (PR #379: appID — cache HIT marker row üçün)
-		cachedResp, cacheHit := s.GetCachedServiceResponse(ctx, appID, "AZMK_GET_OWNER_DATA", customerPIN)
+		cachedResp, cacheHit := s.GetCachedServiceResponse(ctx, &appID, "AZMK_GET_OWNER_DATA", customerPIN)
 		if cacheHit {
 			slog.Info("early cutoff: AZMK getOwnerData — using cached response", "application_id", appID, "customer_pin", customerPIN)
 			// Cache-dən gələn response-u parse et
@@ -512,7 +512,15 @@ afterOwnerData: // PR #205: cache hit halında bura jump edilir
 	// 2. AKB skoru və stop-faktor (AZMK getMkrScore)
 	if s.customerDataProvider != nil {
 		slog.Info("early cutoff: calling AZMK getMkrScore", "application_id", appID, "customer_pin", customerPIN)
-		mkrScore, err := s.customerDataProvider.GetMkrScore(ctx, customerPIN, serial)
+		// PR #380: 3 günlük cache — HIT olsa fiziki çağırış edilmir
+		var mkrScore *azmk.MkrScore
+		if cached, ok := s.GetCachedServiceResponse(ctx, &appID, "AZMK_GET_MKR_SCORE", customerPIN); ok {
+			mkrScore = mkrScoreFromCache(cached)
+		}
+		var err error
+		if mkrScore == nil {
+			mkrScore, err = s.customerDataProvider.GetMkrScore(ctx, customerPIN, serial)
+		}
 		if err != nil {
 			slog.Warn("early cutoff: AZMK getMkrScore failed — fail-soft (skip)", "error", err)
 			s.logCutoff(ctx, appID, "AKB_SCORE_LOW", "Skor balı yoxlaması", "AZMK_GET_MKR_SCORE", false, true, "service error", "point >= 200", err.Error())
@@ -614,7 +622,15 @@ afterOwnerData: // PR #205: cache hit halında bura jump edilir
 	// 4. Kredit tarixçəsi kesim nöqtələri (AZMK inquireByIdCard)
 	if s.customerDataProvider != nil {
 		slog.Info("early cutoff: calling AZMK inquireByIdCard", "application_id", appID, "customer_pin", customerPIN)
-		creditHistory, err := s.customerDataProvider.InquireByIdCard(ctx, customerPIN, serial)
+		// PR #380: 3 günlük cache — HIT olsa fiziki çağırış edilmir
+		var creditHistory *azmk.CreditHistory
+		if cached, ok := s.GetCachedServiceResponse(ctx, &appID, "AZMK_INQUIRE_BY_ID_CARD", customerPIN); ok {
+			creditHistory = creditHistoryFromCache(cached)
+		}
+		var err error
+		if creditHistory == nil {
+			creditHistory, err = s.customerDataProvider.InquireByIdCard(ctx, customerPIN, serial)
+		}
 		if err != nil {
 			slog.Warn("early cutoff: AZMK inquireByIdCard failed — fail-soft (skip)", "error", err)
 			s.logCutoff(ctx, appID, "DELAY_RATIO_HIGH", "Gecikmə əmsalı yoxlaması", "AZMK_INQUIRE_BY_ID_CARD", false, true, "service error", "ratio <= 6", err.Error())
