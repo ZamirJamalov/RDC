@@ -1144,6 +1144,12 @@ function applyApp() {
                 // PR #313: step 2-yə restore olunduqda köhnə kartları yenidən yüklə
                 if (this.currentStep === 2 && this.applicationId) {
                     this.loadSavedCards();
+                    // PR #400: refresh olanda video record düyməsi itmir —
+                    // videoRequired və videoRecorded backend-dən yenidən yüklənir.
+                    // (checkVideoRequired yalnız verifyOtp içində çağırıldığından
+                    // refresh-dən sonra x-show="videoRequired" düyməni gizlədirdi;
+                    // videoRecorded=false qalıb confirm blokunu da yumşaldırdı.)
+                    this.checkVideoRequired();
                 }
             }
         },
