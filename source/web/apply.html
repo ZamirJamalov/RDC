@@ -1144,6 +1144,12 @@ function applyApp() {
                 // PR #313: step 2-yə restore olunduqda köhnə kartları yenidən yüklə
                 if (this.currentStep === 2 && this.applicationId) {
                     this.loadSavedCards();
+                    // PR #400: refresh olanda video record düyməsi itmir —
+                    // videoRequired və videoRecorded backend-dən yenidən yüklənir.
+                    // (checkVideoRequired yalnız verifyOtp içində çağırıldığından
+                    // refresh-dən sonra x-show="videoRequired" düyməni gizlədirdi;
+                    // videoRecorded=false qalıb confirm blokunu da yumşaldırdı.)
+                    this.checkVideoRequired();
                 }
             }
         },
@@ -2184,14 +2190,21 @@ function applyApp() {
             </button>
         </div>
         <!-- Modal body: iframe with video service -->
-        <div class="flex-1 overflow-hidden p-3 sm:p-5 min-h-0">
+        <!-- PR #400: body flex-col — iframe + görünən fallback link (rec.azmk.az
+             çatılmadıqda müştəri linki yeni pəncərədə aça bilər) -->
+        <div class="flex-1 overflow-hidden p-3 sm:p-5 min-h-0 flex flex-col">
             <iframe x-show="videoRedirectUrl" :src="videoRedirectUrl"
-                    class="w-full h-full min-h-[400px] sm:min-h-[600px] rounded-lg sm:rounded-xl border border-[var(--alpul-border)] bg-white"
+                    class="flex-1 w-full min-h-[350px] sm:min-h-[550px] rounded-lg sm:rounded-xl border border-[var(--alpul-border)] bg-white"
                     allow="camera; microphone"
                     allowfullscreen></iframe>
-            <div x-show="!videoRedirectUrl" class="flex items-center justify-center h-full min-h-[400px]">
+            <div x-show="!videoRedirectUrl" class="flex items-center justify-center flex-1 min-h-[350px]">
                 <div class="text-[var(--alpul-text-soft)]">Video yüklənir...</div>
             </div>
+            <!-- PR #400: video record linki həmişə görünür — iframe xəta versə də
+                 müştəri linkə klikləyərək yazmanı yeni pəncərədə davam etdirə bilər -->
+            <a x-show="videoRedirectUrl" :href="videoRedirectUrl" target="_blank" rel="noopener noreferrer"
+               class="shrink-0 block text-center text-[11px] leading-snug break-all text-[var(--alpul-text-soft)] hover:text-[var(--alpul-accent)] transition mt-2"
+               x-text="videoRedirectUrl"></a>
         </div>
         <!-- Modal footer: status indicator -->
         <div class="p-4 sm:p-5 border-t border-[var(--alpul-border)] flex items-center justify-between shrink-0">
