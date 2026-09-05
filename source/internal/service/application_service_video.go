@@ -80,6 +80,10 @@ func (s *ApplicationService) StartVideoRecord(ctx context.Context, appID int, am
 		return "", fmt.Errorf("video service call failed: %w", err)
 	}
 
+	// PR #401: video service redirect_url-i sondaki "/" ilə qaytarır —
+	// səhifə slash-sız açıldığından link kəsilir (iframe, SMS, DB — hamısı üçün).
+	resp.RedirectURL = strings.TrimRight(resp.RedirectURL, "/")
+
 	// 5. Build raw JSON for storage
 	reqBodyJSON, _ := json.Marshal(videoReq)
 	respBodyJSON, _ := json.Marshal(resp)
@@ -187,7 +191,8 @@ func (s *ApplicationService) GetVideoRecordRedirectURL(ctx context.Context, appI
 	if vr == nil {
 		return "", false, fmt.Errorf("video record order not found")
 	}
-	return vr.OrderRedirectURL, vr.Recorded, nil
+	// PR #401: köhnə DB sətirlərində sondaki "/" ola bilər — oxuyarkən kəsilir
+	return strings.TrimRight(vr.OrderRedirectURL, "/"), vr.Recorded, nil
 }
 
 // SendVideoRecordSMS — PR #399: dashboard "Video müraciət göndər" axını.
