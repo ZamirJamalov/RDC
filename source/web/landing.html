@@ -81,8 +81,10 @@
 
         /* PR #386: hər bölmə tam ekran tutur — scrollda ekranda yalnız bir section.
            Məzmun şaquli mərkəzləşdirilir; bölmə ekrandan hündür olsa (mobil SSS)
-           min-height sayəsində böyüyür, kəsilmə olmur. */
-        body > section {
+           min-height sayəsində böyüyür, kəsilmə olmur.
+           PR #387: footer də ayrıca tam-ekran snap bölməsidir (son ekran). */
+        body > section,
+        body > footer {
             scroll-snap-align: start;
             scroll-snap-stop: always;
             min-height: 100vh;
@@ -725,7 +727,7 @@
 </section>
 
 <!-- ============ FOOTER ============ -->
-<footer class="border-t border-[var(--alpul-border)] py-12 px-4 sm:px-6 mt-16 bg-[var(--alpul-bg-soft)]">
+<footer class="border-t border-[var(--alpul-border)] py-12 px-4 sm:px-6 bg-[var(--alpul-bg-soft)]">
     <div class="max-w-7xl mx-auto">
         <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
             <!-- Brand column -->
