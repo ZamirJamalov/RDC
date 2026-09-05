@@ -70,21 +70,16 @@
 
         * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
-        /* PR #385/#391: scroll-snap — hər scrollda növbəti bölmə yumşaq çəkilir
-           (mandatory + smooth: snap özü animasiyalı çəkir, sərt sıçrayış hissi yoxdur;
-           proximity rejimində snap çox vaxt tutmurdu) */
+        /* PR #385/#393: keçidlər JS "lift" effekti ilə idarə olunur (aşağıda softScroll):
+           wheel-də növbəti bölməyə ease-out animasiyalı yumşaq eniş — CSS snap-in
+           sərt düşməsi əvəzinə. scroll-snap çıxarıldı (JS ilə conflict etməsin). */
         html {
             scroll-behavior: smooth;
-            scroll-snap-type: y mandatory;
         }
 
-        /* PR #386: hər bölmə tam ekran tutur — scrollda ekranda yalnız bir section.
-           Məzmun şaquli mərkəzləşdirilir; bölmə ekrandan hündür olsa (mobil SSS)
-           min-height sayəsində böyüyür, kəsilmə olmur.
-           PR #387: footer də ayrıca tam-ekran snap bölməsidir (son ekran). */
+        /* PR #386: hər bölmə tam ekran tutur. PR #387: footer də. */
         body > section,
         body > footer {
-            scroll-snap-align: start;
             min-height: 100vh;
             min-height: 100dvh; /* mobil brauzer paneli ilə dəqiq ölçü */
             display: flex;
@@ -381,8 +376,8 @@
             </div>
 
             <h1 class="hero-headline text-6xl md:text-7xl font-extrabold tracking-tight leading-[1.02] mb-8">
-                <span class="text-white">Kredit götürdükcə —</span><br>
-                <span class="gradient-text">daha çox, daha sərfəli.</span>
+                <span class="text-white">Götürdükcə –</span><br>
+                <span class="gradient-text">sərfəli!</span>
             </h1>
 
             <p class="text-lg md:text-xl text-gray-300 mb-10 max-w-xl leading-relaxed">
@@ -420,7 +415,7 @@
             <div class="flex items-center justify-between mb-6">
                 <div>
                     <!-- PR #391: iki cümlə bir birləşmiş başlıqda -->
-                    <h3 class="text-2xl font-bold leading-snug">Məbləği seç — hər səviyyənin qaytarma fərqini gör</h3>
+                    <h3 class="text-2xl font-bold leading-snug">Məbləği dəyiş, qazanc fərqini gör</h3>
                 </div>
             </div>
 
@@ -917,6 +912,65 @@ const observer = new IntersectionObserver((entries) => {
     });
 }, { threshold: 0.1 });
 document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+
+// PR #393: "lift" effekti — hər wheel scrollda növbəti bölməyə yumşaq eniş.
+// CSS scroll-snap-in sərt dayanması əvəzinə ease-out-quart animasiyası:
+// son anda yavaşlayır (liftin yumşaq oturması kimi).
+// - Yalnız mouse wheel/trackpad (touch cihazlarda native scroll qalır)
+// - Bölmə viewportdan hündür olsa native scroll-a icazə (ilişmə olmasın)
+// - prefers-reduced-motion ilə deaktiv
+(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let animating = false;
+    const easeOutQuart = t => 1 - Math.pow(1 - t, 4);
+
+    function softScrollTo(y, dur) {
+        const startY = window.scrollY;
+        const dist = y - startY;
+        const t0 = performance.now();
+        animating = true;
+        function frame(now) {
+            const t = Math.min(1, (now - t0) / dur);
+            window.scrollTo(0, startY + dist * easeOutQuart(t));
+            if (t < 1) {
+                requestAnimationFrame(frame);
+            } else {
+                animating = false;
+            }
+        }
+        requestAnimationFrame(frame);
+    }
+
+    window.addEventListener('wheel', (e) => {
+        // animasiya zamanı yeni wheel-ləri ud (yarımçıq keçid olmasın)
+        if (animating) {
+            e.preventDefault();
+            return;
+        }
+        if (e.ctrlKey || Math.abs(e.deltaY) < 4 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+
+        const targets = Array.from(document.querySelectorAll('body > section, body > footer'));
+        if (!targets.length) return;
+
+        const y = window.scrollY;
+        let cur = 0;
+        targets.forEach((el, i) => {
+            if (el.offsetTop <= y + 2) cur = i;
+        });
+        const dir = e.deltaY > 0 ? 1 : -1;
+        const next = targets[cur + dir];
+        if (!next) return; // ilk/son bölmə — native
+
+        // hər iki bölmə viewport-a sığırsa "lift", yoxsa native scroll
+        if (targets[cur].offsetHeight > window.innerHeight + 40 ||
+            next.offsetHeight > window.innerHeight + 40) return;
+
+        e.preventDefault();
+        const dist = Math.abs(next.offsetTop - y);
+        const dur = Math.min(1200, 380 + dist * 0.45);
+        softScrollTo(next.offsetTop, dur);
+    }, { passive: false });
+})();
 </script>
 
 <style>
