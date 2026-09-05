@@ -70,13 +70,12 @@
 
         * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
-        /* PR #385: scroll-snap — hər skroll gesture növbəti bölməyə düşür
-           (hero/kalkulyator → 3 addım → pilləkən → statistika → SSS → CTA).
-           mandatory: kiçik scrollda belə bölmə başına snap olunur;
-           scroll-snap-stop: always — sürətli scrollda bölmə ötürülmür. */
+        /* PR #385/#390: scroll-snap — yumşaq rejim (proximity): bölmə yaxınındakı
+           scrollda yumşaq çəkilir, məcburi sıçrayış yoxdur; sürətli scrollda
+           bölmələr ötürülə bilər. */
         html {
             scroll-behavior: smooth;
-            scroll-snap-type: y mandatory;
+            scroll-snap-type: y proximity;
         }
 
         /* PR #386: hər bölmə tam ekran tutur — scrollda ekranda yalnız bir section.
@@ -86,7 +85,6 @@
         body > section,
         body > footer {
             scroll-snap-align: start;
-            scroll-snap-stop: always;
             min-height: 100vh;
             min-height: 100dvh; /* mobil brauzer paneli ilə dəqiq ölçü */
             display: flex;
@@ -245,7 +243,9 @@
         }
 
         .cta-btn {
-            background: linear-gradient(135deg, #2D9CDB 0%, #1d5a8f 100%);
+            /* PR #390: açıq göy qradiyent + tünd mətn — hər temada yaxşı oxunur */
+            background: linear-gradient(135deg, #8ED8F8 0%, #3FA9E6 100%);
+            border: 1px solid rgba(45, 156, 219, 0.6);
             transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
         .cta-btn:hover {
@@ -254,10 +254,12 @@
         }
         .cta-btn:active { transform: translateY(0); }
 
-        /* PR #389: düymə mətni hər temada ağ qalsın — light temada .text-white
-           override-u tünd rəng verdiyindən tünd qradiyent üzərində oxunmurdu */
+        /* PR #389/#390: "Kredit al" düymələri — açıq fonda TÜND göy mətn (maksimal oxunaqlılıq),
+           "Krediti ödə" yaşıl düyməsində ağ mətn qalır */
         .cta-btn,
-        .cta-btn-hero,
+        .cta-btn-hero {
+            color: #0B3A5C !important;
+        }
         .cta-btn-pay {
             color: #ffffff !important;
         }
@@ -275,9 +277,10 @@
         }
         .cta-btn-pay:active { transform: translateY(0); }
 
-        /* PR #180: "Seçimi et" button — static (no animation), AZMK blue→navy gradient */
+        /* PR #180: "Seçimi et" button — PR #390: eyni açıq qradiyent */
         .cta-btn-hero {
-            background: linear-gradient(135deg, #2D9CDB 0%, #1d5a8f 100%);
+            background: linear-gradient(135deg, #8ED8F8 0%, #3FA9E6 100%);
+            border: 1px solid rgba(45, 156, 219, 0.6);
         }
         .cta-btn-hero:hover {
             transform: translateY(-2px);
@@ -378,12 +381,12 @@
             </div>
 
             <h1 class="hero-headline text-6xl md:text-7xl font-extrabold tracking-tight leading-[1.02] mb-8">
-                <span class="text-white">Ödədikcə</span><br>
-                <span class="gradient-text">ucuzlaşan kredit.</span>
+                <span class="text-white">Sənin davranışın —</span><br>
+                <span class="gradient-text">sənin faizin.</span>
             </h1>
 
             <p class="text-lg md:text-xl text-gray-300 mb-10 max-w-xl leading-relaxed">
-                Hər vaxtında ödənişlə faizin <span class="text-white font-semibold">30%-dən 20%-ə düşür</span>, kredit limitin <span class="text-white font-semibold">500₼-dən 3000₼-ə qədər böyüyür</span>. Müraciət 5 dəqiqə çəkir.
+                Vaxtında ödədikcə daha yüksək məbləği daha sərfəli şərtlərlə götürürsən. Müraciət 5 dəqiqə çəkir.
             </p>
 
             <div class="mt-2">
@@ -413,7 +416,7 @@
 
         <!-- Right: Live Calculator (PR #74 v3) + decorative image (PR #184) -->
         <div class="flex items-center gap-4 lg:gap-6">
-            <div id="calc" class="card-glow rounded-3xl p-8 flex-1 min-w-0">
+            <div id="calc" class="card-glow rounded-3xl p-6 flex-1 min-w-0">
             <div class="flex items-center justify-between mb-6">
                 <div>
                     <!-- PR #389: məbləğ seçki aləti deyil — səviyyələrin qaytarma fərqini göstərən vasitə -->
@@ -499,16 +502,7 @@
                 </template>
             </div>
 
-            <!-- PR #389: ELİT fayda vurğusu — ümumi xülasə sətri -->
-            <div class="mb-5 px-4 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-center" x-show="eliteSavings > 0" x-cloak>
-                <span class="text-sm text-gray-300">Bu məbləğdə </span>
-                <span class="text-sm font-extrabold text-emerald-400">ELİT səni </span>
-                <span class="text-lg font-extrabold text-emerald-400"><span x-text="formatMoney(eliteSavings)"></span>₼</span>
-                <span class="text-sm font-extrabold text-emerald-400"> az</span>
-                <span class="text-sm text-gray-300"> qaytarmağa gətirir (YENİ ilə müqayisədə)</span>
-            </div>
-
-            <a href="/apply?from=landing" class="cta-btn block text-center text-white font-semibold py-3.5 rounded-xl">
+            <a href="/apply?from=landing" class="cta-btn block text-center font-bold py-3.5 rounded-xl">
                 Kredit al →
             </a>
             </div>
@@ -519,7 +513,7 @@
 
 <!-- ============ HOW IT WORKS ============ -->
 <section id="how" class="py-24 px-6 border-t border-white/5">
-    <div class="max-w-7xl mx-auto">
+    <div class="max-w-[1400px] mx-auto">
         <div class="text-center mb-16">
             <div class="text-xs uppercase tracking-widest text-teal-400 font-semibold mb-3">Necə işləyir</div>
             <h2 class="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-4">3 addımda ucuzlaşan kredit</h2>
@@ -554,8 +548,8 @@
             <!-- Step 3 -->
             <div class="card-glow rounded-2xl p-8 relative">
                 <div class="step-num w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg mb-6">3</div>
-                <h3 class="text-xl font-bold mb-3">💎 Səviyyə yüksəlt</h3>
-                <p class="text-gray-400 text-sm leading-relaxed mb-4">Səviyyə nə qədər yüksək olursa, faiz bir o qədər aşağı. <span class="text-white font-semibold">ELİT</span>-də 20% faizlə kredit götürürsən.</p>
+                <h3 class="text-xl font-bold mb-3">💎 Daha çox, daha ucuz götür</h3>
+                <p class="text-gray-400 text-sm leading-relaxed mb-4">Vaxtında ödədiyin hər kreditdən sonra limitin artır, faizin düşür — növbəti məbləği <span class="text-white font-semibold">daha sərfəli şərtlərlə</span> götürürsən.</p>
                 <div class="px-4 py-3 rounded-xl bg-black/30 border border-white/5 text-center">
                     <div class="text-lg font-extrabold text-emerald-400">↓17.86₼ qənaət</div>
                     <div class="text-xs text-gray-500 mt-0.5">ELİT-də 300₼ → 325.00₼ qaytarırsan</div>
@@ -567,7 +561,7 @@
 
 <!-- ============ HOW TO GET (PR #389: "Pilləkən yuxarı" əvəzinə — kredit əldə etmə asanlığı) ============ -->
 <section id="get" class="py-24 px-6 bg-gradient-to-b from-transparent to-teal-950/10 border-t border-white/5">
-    <div class="max-w-7xl mx-auto">
+    <div class="max-w-[1400px] mx-auto">
         <div class="text-center mb-16">
             <div class="text-xs uppercase tracking-widest text-teal-400 font-semibold mb-3">Asanlıq</div>
             <h2 class="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight mb-4">Kredit 3 addımda əlində</h2>
@@ -618,29 +612,6 @@
     </div>
 </section>
 
-<!-- ============ SOCIAL PROOF ============ -->
-<section class="py-24 px-6 border-t border-white/5">
-    <div class="max-w-7xl mx-auto">
-        <div class="grid lg:grid-cols-3 gap-8">
-            <!-- Stat 1 (PR #388: real, yoxlanıla bilən məhsul faktları — şişirtməmiş rəqəmlər) -->
-            <div class="text-center">
-                <div class="text-4xl md:text-5xl font-extrabold gradient-accent-text mb-2">30% <span class="text-2xl align-middle">→</span> 20%</div>
-                <div class="text-gray-400">YENİ-dən ELİT-ə faiz düşüşü</div>
-            </div>
-            <!-- Stat 2 -->
-            <div class="text-center">
-                <div class="text-4xl md:text-5xl font-extrabold gradient-accent-text mb-2">500₼ <span class="text-2xl align-middle">→</span> 3000₼</div>
-                <div class="text-gray-400">səviyyə ilə böyüyən kredit limiti</div>
-            </div>
-            <!-- Stat 3 -->
-            <div class="text-center">
-                <div class="text-4xl md:text-5xl font-extrabold gradient-accent-text mb-2 text-center">5 dəq</div>
-                <div class="text-gray-400 text-center">onlayn müraciət müddəti</div>
-            </div>
-        </div>
-
-</section>
-
 <!-- ============ FINAL CTA (PR #389: qərar verməyə sövq edən struktur) ============ -->
 <section id="apply" class="py-24 px-6 border-t border-white/5 relative overflow-hidden">
     <div class="absolute inset-0 hero-bg opacity-50"></div>
@@ -650,7 +621,7 @@
         </div>
         <h2 class="text-3xl sm:text-4xl md:text-6xl font-extrabold tracking-tight mb-6">
             <span class="gradient-text">Bu gün başla.</span><br>
-            <span class="text-white">Sabah ucuz kredit al.</span>
+            <span class="text-white">İlk ödənişdən daha ucuz.</span>
         </h2>
         <p class="text-base sm:text-lg text-gray-400 mb-10 max-w-xl mx-auto">
             Müraciət 5 dəqiqə çəkir. Hər vaxtında ödəniş faizini bir addım aşağı salır — birinci gündən etibarən.
