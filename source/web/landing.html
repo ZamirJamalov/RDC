@@ -70,12 +70,12 @@
 
         * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
-        /* PR #385/#390: scroll-snap — yumşaq rejim (proximity): bölmə yaxınındakı
-           scrollda yumşaq çəkilir, məcburi sıçrayış yoxdur; sürətli scrollda
-           bölmələr ötürülə bilər. */
+        /* PR #385/#391: scroll-snap — hər scrollda növbəti bölmə yumşaq çəkilir
+           (mandatory + smooth: snap özü animasiyalı çəkir, sərt sıçrayış hissi yoxdur;
+           proximity rejimində snap çox vaxt tutmurdu) */
         html {
             scroll-behavior: smooth;
-            scroll-snap-type: y proximity;
+            scroll-snap-type: y mandatory;
         }
 
         /* PR #386: hər bölmə tam ekran tutur — scrollda ekranda yalnız bir section.
@@ -381,12 +381,12 @@
             </div>
 
             <h1 class="hero-headline text-6xl md:text-7xl font-extrabold tracking-tight leading-[1.02] mb-8">
-                <span class="text-white">Sənin davranışın —</span><br>
-                <span class="gradient-text">sənin faizin.</span>
+                <span class="text-white">Vaxtında ödə —</span><br>
+                <span class="gradient-text">faizin düşsün.</span>
             </h1>
 
             <p class="text-lg md:text-xl text-gray-300 mb-10 max-w-xl leading-relaxed">
-                Vaxtında ödədikcə daha yüksək məbləği daha sərfəli şərtlərlə götürürsən. Müraciət 5 dəqiqə çəkir.
+                Vaxtında ödədikcə daha yüksək məbləği daha sərfəli şərtlərlə götürürsən.
             </p>
 
             <div class="mt-2">
@@ -419,9 +419,8 @@
             <div id="calc" class="card-glow rounded-3xl p-6 flex-1 min-w-0">
             <div class="flex items-center justify-between mb-6">
                 <div>
-                    <!-- PR #389: məbləğ seçki aləti deyil — səviyyələrin qaytarma fərqini göstərən vasitə -->
-                    <h3 class="text-2xl font-bold">Eyni məbləğ — fərqli qaytarma</h3>
-                    <p class="text-xs text-gray-500 mt-1">Məbləği seç, hər səviyyənin sənə nə qazandıracağını gör</p>
+                    <!-- PR #391: iki cümlə bir birləşmiş başlıqda -->
+                    <h3 class="text-2xl font-bold leading-snug">Məbləği seç — hər səviyyənin qaytarma fərqini gör</h3>
                 </div>
             </div>
 
@@ -475,7 +474,6 @@
                             <span class="text-xl" x-text="lvl.icon"></span>
                             <div>
                                 <div class="font-semibold text-sm" x-text="lvl.title"></div>
-                                <div class="text-xs text-gray-500" x-text="lvl.subtitle"></div>
                             </div>
                         </div>
                         <!-- Available: show total + monthly + PR #389: YENİ-yə qarşı fərq -->
@@ -502,9 +500,16 @@
                 </template>
             </div>
 
+            <!-- PR #391: düymə artıq generic "Kredit al" deyil — seçimlə müraciət
+                 axınına keçidi ifadə edir (klik = dərhal kredit yox, formaya davam) -->
             <a href="/apply?from=landing" class="cta-btn block text-center font-bold py-3.5 rounded-xl">
-                Kredit al →
+                Müraciətə davam et →
             </a>
+            <div class="text-center text-xs text-gray-500 mt-2.5">
+                Seçimin: <span class="text-gray-300 font-semibold" x-text="amount"></span>₼ ·
+                <span class="text-gray-300 font-semibold" x-text="term"></span> ay —
+                növbəti səhifədə təsdiqləyəcəksən
+            </div>
             </div>
         </div>
 
@@ -736,11 +741,12 @@ function alpulLanding() {
         // Level definitions with max amounts and available terms
         // PR #389: title = Azərbaycanca görünən ad (name JS açarları üçün dəyişməz qalır —
         // rateTable açarları new-/trusted-/valuable-/elite- prefikslərinə bağlıdır)
+        // PR #391: subtitle sahələri silindi — "1 ödənişdən sonra" ifadəsi qeyri-müəyyən idi
         levels: [
-            { name: 'NEW',      title: 'YENİ',     subtitle: 'Başlanğıc səviyyə',  icon: '🥉', maxAmount: 500,  terms: [3],         textClass: 'text-slate-300' },
-            { name: 'TRUSTED',  title: 'ETİBARLI', subtitle: '1 ödənişdən sonra',  icon: '🥈', maxAmount: 900,  terms: [3, 6],      textClass: 'text-slate-400' },
-            { name: 'VALUABLE', title: 'DƏYƏRLİ',  subtitle: '3 ödənişdən sonra',  icon: '🥇', maxAmount: 1300, terms: [3, 6, 9],   textClass: 'text-amber-500' },
-            { name: 'ELITE',    title: 'ELİT',     subtitle: 'Maksimum etimad',    icon: '💎', maxAmount: 3000, terms: [3, 6, 9, 12], textClass: 'text-emerald-400' },
+            { name: 'NEW',      title: 'YENİ',     icon: '🥉', maxAmount: 500,  terms: [3],           textClass: 'text-slate-300' },
+            { name: 'TRUSTED',  title: 'ETİBARLI', icon: '🥈', maxAmount: 900,  terms: [3, 6],        textClass: 'text-slate-400' },
+            { name: 'VALUABLE', title: 'DƏYƏRLİ',  icon: '🥇', maxAmount: 1300, terms: [3, 6, 9],     textClass: 'text-amber-500' },
+            { name: 'ELITE',    title: 'ELİT',     icon: '💎', maxAmount: 3000, terms: [3, 6, 9, 12], textClass: 'text-emerald-400' },
         ],
 
         // Commission lookup table — PR #86: updated with correct commission values.
