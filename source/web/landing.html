@@ -79,9 +79,17 @@
             scroll-snap-type: y mandatory;
         }
 
+        /* PR #386: hər bölmə tam ekran tutur — scrollda ekranda yalnız bir section.
+           Məzmun şaquli mərkəzləşdirilir; bölmə ekrandan hündür olsa (mobil SSS)
+           min-height sayəsində böyüyür, kəsilmə olmur. */
         body > section {
             scroll-snap-align: start;
             scroll-snap-stop: always;
+            min-height: 100vh;
+            min-height: 100dvh; /* mobil brauzer paneli ilə dəqiq ölçü */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
 
         /* Redaktə ayarı: hərəkəti azaldan istifadəçilər üçün snap deaktiv */
