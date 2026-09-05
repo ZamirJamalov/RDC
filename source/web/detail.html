@@ -103,7 +103,7 @@
             background: #F8FAFC;
             border: 1px solid var(--border);
             border-radius: 10px;
-            padding: 12px;
+            padding: 9px 11px; /* PR #402: 12px → 9px — kompakt layout */
         }
         .sub-card-title { color: #64748B; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
 
@@ -257,17 +257,44 @@
             <div x-show="error" class="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-lg mb-4 text-sm" x-text="error"></div>
 
             <!-- Content (fits viewport on lg) -->
-            <div x-show="!loading && !error && app" class="grid grid-cols-12 gap-4">
+            <!-- PR #402: gap-4 → gap-3 — kompakt layout, vertikal scrollbar aradan qalxır -->
+            <div x-show="!loading && !error && app" class="grid grid-cols-12 gap-3">
+
+                <!-- PR #402: Video Verifikasiya — ən yuxarıda slim bar; "Videya bax"
+                     birinci, "Video müraciət göndər" ikinci. Hər addımda ✓ checkmark. -->
+                <section class="panel p-3 col-span-12 flex flex-col lg:flex-row lg:items-center gap-2.5">
+                    <div class="flex items-center gap-2 shrink-0">
+                        <span class="icon-chip">🎥</span>
+                        <h2 class="panel-title text-sm font-bold tracking-wide uppercase">Video Verifikasiya</h2>
+                    </div>
+                    <p class="flex-1 min-w-0 truncate text-[11px]"
+                       :class="videoError ? 'text-rose-600' : 'text-gray-400'"
+                       x-text="videoMessage || 'Videya bax → video çəkilməyibsə SMS göndər'"></p>
+                    <div class="flex flex-col sm:flex-row gap-2 shrink-0">
+                        <button @click="openVideoDialog()"
+                                :disabled="videoStreamLoading"
+                                class="flex-1 sm:flex-none bg-indigo-600 text-white px-4 py-2 rounded-md text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition">
+                            <span x-show="!videoStreamLoading"><span x-show="videoWatched" class="text-emerald-300 mr-1 font-bold">✓</span>▶ Videya bax</span>
+                            <span x-show="videoStreamLoading">Açılır...</span>
+                        </button>
+                        <button @click="videoRequest()"
+                                :disabled="videoLoading"
+                                class="flex-1 sm:flex-none alpul-btn text-white px-4 py-2 rounded-md text-xs font-medium disabled:opacity-50 transition">
+                            <span x-show="!videoLoading"><span x-show="videoOrderSent" class="text-emerald-300 mr-1 font-bold">✓</span>📤 Video müraciət göndər</span>
+                            <span x-show="videoLoading">Göndərilir...</span>
+                        </button>
+                    </div>
+                </section>
 
                 <!-- ===== ROW 1: Customer | Credit | Contacts ===== -->
 
                 <!-- Müştəri Məlumatları -->
-                <section class="panel p-4 col-span-12 lg:col-span-4 flex flex-col">
-                    <div class="flex items-center gap-2 mb-3">
+                <section class="panel p-3 col-span-12 lg:col-span-4 flex flex-col">
+                    <div class="flex items-center gap-2 mb-2">
                         <span class="icon-chip">👤</span>
                         <h2 class="panel-title text-sm font-bold tracking-wide uppercase">Müştəri</h2>
                     </div>
-                    <div class="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm flex-1">
+                    <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm flex-1">
                         <div>
                             <div class="label-soft text-[11px] uppercase tracking-wide">PIN</div>
                             <div class="value-strong font-semibold" x-text="app?.customer_pin || '-'"></div>
@@ -307,14 +334,17 @@
                                     </svg>
                                 </button>
                             </div>
-                            <div class="value-strong text-xs leading-snug break-words"
+                            <div class="value-strong text-xs truncate"
                                  :title="app?.registration_address || ''"
                                  x-text="app?.registration_address || '-'"></div>
                         </div>
                         <!-- PR #245: Faktiki ünvan — ekspert redaktə edə bilər -->
                         <div class="col-span-2">
                             <div class="label-soft text-[11px] uppercase tracking-wide flex items-center justify-between">
-                                <span>Faktiki ünvan</span>
+                                <span class="flex items-center gap-1">Faktiki ünvan
+                                    <!-- PR #402: ünvan dəyişilibsə yaşıl ✓ (PR #249 audit sahələrindən) -->
+                                    <span x-show="app?.actual_address_updated_by_username || app?.actual_address_updated_at" class="text-emerald-500 font-bold">✓</span>
+                                </span>
                                 <button x-show="!isReadOnly && !addressEditing" @click="startAddressEdit()"
                                         class="text-gray-400 hover:text-teal-600 transition shrink-0" title="Dəyiş">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -323,7 +353,8 @@
                                 </button>
                             </div>
                             <!-- Baxış rejimi -->
-                            <div x-show="!addressEditing" class="value-strong text-xs leading-snug break-words"
+                            <div x-show="!addressEditing" class="value-strong text-xs truncate"
+                                 :title="app?.actual_address || ''"
                                  x-text="app?.actual_address || '-'"></div>
                             <!-- Redaktə rejimi -->
                             <div x-show="addressEditing" class="mt-1">
@@ -342,63 +373,55 @@
                                 </div>
                             </div>
                         </div>
-                        <!-- PR #142: Processed by display -->
-                        <div x-show="app?.processed_by_username" class="col-span-2">
-                            <div class="label-soft text-[11px] uppercase tracking-wide">Təsdiq/İmtina edən</div>
-                            <div class="value-strong font-semibold text-sm" x-text="app?.processed_by_username || '-'"></div>
+                        <!-- PR #142/#148/#249: Audit — PR #402: kompakt tək-sətir şəklində -->
+                        <div x-show="app?.processed_by_username" class="col-span-2 flex items-baseline gap-1.5 text-[11px]">
+                            <span class="label-soft uppercase tracking-wide shrink-0">Təsdiq/İmtina edən:</span>
+                            <span class="value-strong font-semibold truncate" x-text="app?.processed_by_username || '-'"></span>
                         </div>
-                        <!-- PR #148: Audit fields -->
-                        <div x-show="app?.contacts_updated_by_username" class="col-span-2">
-                            <div class="label-soft text-[11px] uppercase tracking-wide">Kontaktları yeniləyən</div>
-                            <div class="value-strong font-semibold text-sm">
-                                <span x-text="app?.contacts_updated_by_username || '-'"></span>
-                                <span x-show="app?.contacts_updated_at" class="text-xs text-gray-400 ml-1" x-text="app?.contacts_updated_at ? new Date(app.contacts_updated_at).toLocaleString('az') : ''"></span>
-                            </div>
+                        <div x-show="app?.contacts_updated_by_username" class="col-span-2 flex items-baseline gap-1.5 text-[11px]">
+                            <span class="label-soft uppercase tracking-wide shrink-0">Kontaktları yeniləyən:</span>
+                            <span class="value-strong font-semibold truncate" x-text="app?.contacts_updated_by_username || '-'"></span>
+                            <span class="text-gray-400 shrink-0" x-text="app?.contacts_updated_at ? new Date(app.contacts_updated_at).toLocaleString('az') : ''"></span>
                         </div>
-                        <div x-show="app?.timer_updated_by_username" class="col-span-2">
-                            <div class="label-soft text-[11px] uppercase tracking-wide">Timer saxlayan</div>
-                            <div class="value-strong font-semibold text-sm" x-text="app?.timer_updated_by_username || '-'"></div>
+                        <div x-show="app?.timer_updated_by_username" class="col-span-2 flex items-baseline gap-1.5 text-[11px]">
+                            <span class="label-soft uppercase tracking-wide shrink-0">Timer saxlayan:</span>
+                            <span class="value-strong font-semibold truncate" x-text="app?.timer_updated_by_username || '-'"></span>
                         </div>
-                        <div x-show="app?.mygov_checked_by_username" class="col-span-2">
-                            <div class="label-soft text-[11px] uppercase tracking-wide">MyGov yoxlayan</div>
-                            <div class="value-strong font-semibold text-sm">
-                                <span x-text="app?.mygov_checked_by_username || '-'"></span>
-                                <span x-show="app?.mygov_checked_at" class="text-xs text-gray-400 ml-1" x-text="app?.mygov_checked_at ? new Date(app.mygov_checked_at).toLocaleString('az') : ''"></span>
-                            </div>
+                        <div x-show="app?.mygov_checked_by_username" class="col-span-2 flex items-baseline gap-1.5 text-[11px]">
+                            <span class="label-soft uppercase tracking-wide shrink-0">MyGov yoxlayan:</span>
+                            <span class="value-strong font-semibold truncate" x-text="app?.mygov_checked_by_username || '-'"></span>
+                            <span class="text-gray-400 shrink-0" x-text="app?.mygov_checked_at ? new Date(app.mygov_checked_at).toLocaleString('az') : ''"></span>
                         </div>
-                        <!-- PR #249: faktiki ünvan audit -->
-                        <div x-show="app?.actual_address_updated_by_username" class="col-span-2">
-                            <div class="label-soft text-[11px] uppercase tracking-wide">Ünvanı yeniləyən</div>
-                            <div class="value-strong font-semibold text-sm">
-                                <span x-text="app?.actual_address_updated_by_username || '-'"></span>
-                                <span x-show="app?.actual_address_updated_at" class="text-xs text-gray-400 ml-1" x-text="app?.actual_address_updated_at ? new Date(app.actual_address_updated_at).toLocaleString('az') : ''"></span>
-                            </div>
+                        <div x-show="app?.actual_address_updated_by_username" class="col-span-2 flex items-baseline gap-1.5 text-[11px]">
+                            <span class="label-soft uppercase tracking-wide shrink-0">Ünvanı yeniləyən:</span>
+                            <span class="value-strong font-semibold truncate" x-text="app?.actual_address_updated_by_username || '-'"></span>
+                            <span class="text-gray-400 shrink-0" x-text="app?.actual_address_updated_at ? new Date(app.actual_address_updated_at).toLocaleString('az') : ''"></span>
                         </div>
                     </div>
                 </section>
 
                 <!-- Kredit Məlumatları -->
-                <section class="panel p-4 col-span-12 lg:col-span-4 flex flex-col">
-                    <div class="flex items-center gap-2 mb-3">
+                <section class="panel p-3 col-span-12 lg:col-span-4 flex flex-col">
+                    <div class="flex items-center gap-2 mb-2">
                         <span class="icon-chip">💳</span>
                         <h2 class="panel-title text-sm font-bold tracking-wide uppercase">Kredit</h2>
                         <span x-show="app?.credit_level" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700" x-text="levelAz(app?.credit_level)"></span>
                     </div>
-                    <div class="grid grid-cols-3 gap-3 mb-3">
+                    <div class="grid grid-cols-3 gap-2 mb-2">
                         <div class="sub-card text-center">
-                            <div class="sub-card-title mb-1">Məbləğ</div>
-                            <div class="alpul-grad-text font-extrabold text-lg leading-tight" x-text="((app?.total_amount || app?.amount) ?? '-') + ' AZN'"></div>
+                            <div class="sub-card-title mb-0.5">Məbləğ</div>
+                            <div class="alpul-grad-text font-extrabold text-base leading-tight" x-text="((app?.total_amount || app?.amount) ?? '-') + ' AZN'"></div>
                         </div>
                         <div class="sub-card text-center">
-                            <div class="sub-card-title mb-1">Müddət</div>
-                            <div class="alpul-grad-text font-extrabold text-lg leading-tight" x-text="(app?.term_months ?? '-') + ' ay'"></div>
+                            <div class="sub-card-title mb-0.5">Müddət</div>
+                            <div class="alpul-grad-text font-extrabold text-base leading-tight" x-text="(app?.term_months ?? '-') + ' ay'"></div>
                         </div>
                         <div class="sub-card text-center">
-                            <div class="sub-card-title mb-1">Komissiya</div>
-                            <div class="alpul-grad-text font-extrabold text-lg leading-tight" x-text="(app?.approved_rate !== undefined && app?.approved_rate !== null) ? app.approved_rate + '%' : '-'"></div>
+                            <div class="sub-card-title mb-0.5">Komissiya</div>
+                            <div class="alpul-grad-text font-extrabold text-base leading-tight" x-text="(app?.approved_rate !== undefined && app?.approved_rate !== null) ? app.approved_rate + '%' : '-'"></div>
                         </div>
                     </div>
-                    <div x-show="app?.total_amount > 0" class="panel-divider border-t pt-3 grid grid-cols-3 gap-3 text-sm">
+                    <div x-show="app?.total_amount > 0" class="panel-divider border-t pt-2 grid grid-cols-3 gap-2 text-xs">
                         <div>
                             <div class="label-soft text-[11px] uppercase tracking-wide">Ümumi (komissiya ilə)</div>
                             <div class="value-strong font-semibold" x-text="(app?.total_amount ?? '-') + ' AZN'"></div>
@@ -599,13 +622,13 @@
                                 <button @click="employmentRequest()"
                                         :disabled="employmentLoading"
                                         class="flex-1 alpul-btn text-white px-2 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition">
-                                    <span x-show="!employmentLoading">📤 Sorgu</span>
+                                    <span x-show="!employmentLoading"><span x-show="employmentSMSDone" class="text-emerald-300 mr-0.5 font-bold">✓</span>📤 Sorgu</span>
                                     <span x-show="employmentLoading">...</span>
                                 </button>
                                 <button @click="employmentVerify()"
                                         :disabled="employmentVerifying"
                                         class="flex-1 bg-indigo-600 text-white px-2 py-1.5 rounded-md text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition">
-                                    <span x-show="!employmentVerifying">✓ Yoxla</span>
+                                    <span x-show="!employmentVerifying"><span x-show="employmentVerified" class="text-emerald-300 mr-0.5 font-bold">✓</span>Yoxla</span>
                                     <span x-show="employmentVerifying">...</span>
                                 </button>
                             </div>
@@ -624,13 +647,13 @@
                                 <button @click="pensionRequest()"
                                         :disabled="pensionLoading"
                                         class="flex-1 alpul-btn text-white px-2 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition">
-                                    <span x-show="!pensionLoading">📤 Sorgu</span>
+                                    <span x-show="!pensionLoading"><span x-show="pensionSMSDone" class="text-emerald-300 mr-0.5 font-bold">✓</span>📤 Sorgu</span>
                                     <span x-show="pensionLoading">...</span>
                                 </button>
                                 <button @click="pensionVerify()"
                                         :disabled="pensionVerifying"
                                         class="flex-1 bg-indigo-600 text-white px-2 py-1.5 rounded-md text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition">
-                                    <span x-show="!pensionVerifying">✓ Yoxla</span>
+                                    <span x-show="!pensionVerifying"><span x-show="pensionVerified" class="text-emerald-300 mr-0.5 font-bold">✓</span>Yoxla</span>
                                     <span x-show="pensionVerifying">...</span>
                                 </button>
                             </div>
@@ -655,7 +678,7 @@
                     </div>
                     <div class="grid grid-cols-1 gap-2 flex-1">
                         <!-- Copy düyməsi -->
-                        <button @click="complianceChecked = true; copyToClipboard(app?.customer_full_name)"
+                        <button @click="complianceChecked = true; copyToClipboard(app?.customer_full_name); markDone('compliance_name')"
                                 class="sub-card flex items-center gap-3 p-2.5 text-left hover:border-teal-300 transition group">
                             <div class="w-8 h-8 rounded-lg bg-teal-500/10 flex items-center justify-center group-hover:bg-teal-500/20 transition shrink-0">
                                 <svg class="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -666,10 +689,13 @@
                                 <div class="sub-card-title text-xs">1. Adı kopyala</div>
                                 <div class="text-[11px] text-gray-500 truncate" x-text="app?.customer_full_name || '—'"></div>
                             </div>
+                            <!-- PR #402: addım görülübsə yaşıl ✓ -->
+                            <span x-show="compliance.name" class="ml-auto text-emerald-500 font-bold shrink-0">✓</span>
                         </button>
 
                         <!-- HMS.gov.az -->
                         <a href="https://hms.gov.az/" target="_blank" rel="noopener noreferrer"
+                           @click="markDone('compliance_hms')"
                            class="sub-card flex items-center gap-3 p-2.5 text-left hover:border-teal-300 transition group no-underline">
                             <div class="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center group-hover:bg-indigo-500/20 transition shrink-0">
                                 <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -680,10 +706,13 @@
                                 <div class="sub-card-title text-xs">2. HMS yoxla</div>
                                 <div class="text-[11px] text-gray-500 truncate">hms.gov.az</div>
                             </div>
+                            <!-- PR #402: addım görülübsə yaşıl ✓ -->
+                            <span x-show="compliance.hms" class="ml-auto text-emerald-500 font-bold shrink-0">✓</span>
                         </a>
 
                         <!-- OpenSanctions.org -->
                         <a href="https://www.opensanctions.org/" target="_blank" rel="noopener noreferrer"
+                           @click="markDone('compliance_os')"
                            class="sub-card flex items-center gap-3 p-2.5 text-left hover:border-teal-300 transition group no-underline">
                             <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center group-hover:bg-amber-500/20 transition shrink-0">
                                 <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -694,6 +723,8 @@
                                 <div class="sub-card-title text-xs">3. OpenSanctions yoxla</div>
                                 <div class="text-[11px] text-gray-500 truncate">opensanctions.org</div>
                             </div>
+                            <!-- PR #402: addım görülübsə yaşıl ✓ -->
+                            <span x-show="compliance.os" class="ml-auto text-emerald-500 font-bold shrink-0">✓</span>
                         </a>
                     </div>
                     <p class="text-[10px] text-gray-500 mt-2">
@@ -740,32 +771,6 @@
                         <div x-show="actionMessage" class="bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-2 rounded-md text-xs mt-auto" x-text="actionMessage"></div>
                         <div x-show="actionError" class="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 rounded-md text-xs mt-auto" x-text="actionError"></div>
                     </div>
-                </section>
-
-                <!-- PR #399: Video Verifikasiya — SMS göndər / videya bax -->
-                <section class="panel p-4 col-span-12 flex flex-col">
-                    <div class="flex items-center justify-between mb-3">
-                        <div class="flex items-center gap-2">
-                            <span class="icon-chip">🎥</span>
-                            <h2 class="panel-title text-sm font-bold tracking-wide uppercase">Video Verifikasiya</h2>
-                        </div>
-                        <span class="text-[11px] text-gray-400">SMS göndər → videya bax</span>
-                    </div>
-                    <div class="flex flex-col sm:flex-row gap-2">
-                        <button @click="videoRequest()"
-                                :disabled="videoLoading"
-                                class="flex-1 alpul-btn text-white px-3 py-2 rounded-md text-xs font-medium disabled:opacity-50 transition">
-                            <span x-show="!videoLoading">📤 Video müraciət göndər</span>
-                            <span x-show="videoLoading">Göndərilir...</span>
-                        </button>
-                        <button @click="openVideoDialog()"
-                                :disabled="videoStreamLoading"
-                                class="flex-1 bg-indigo-600 text-white px-3 py-2 rounded-md text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition">
-                            <span x-show="!videoStreamLoading">▶ Videya bax</span>
-                            <span x-show="videoStreamLoading">Açılır...</span>
-                        </button>
-                    </div>
-                    <p class="text-[11px] mt-2" :class="videoError ? 'text-rose-600' : 'text-gray-500'" x-text="videoMessage"></p>
                 </section>
 
             </div>
@@ -823,6 +828,15 @@
                 videoStreamUrl: '',
                 videoStreamLoading: false,
                 videoStreamError: '',
+
+                // PR #402: addım checkmark-ları (localStorage-da app-a görə saxlanılır)
+                videoOrderSent: false,   // video müraciət göndərilib (backend status + local)
+                videoWatched: false,     // videya baxılıb
+                compliance: { name: false, hms: false, os: false },
+                employmentSMSDone: false,
+                employmentVerified: false,
+                pensionSMSDone: false,
+                pensionVerified: false,
 
                 // PR #245: Ünvanlar — qeydiyyat (read-only, AZMK) + faktiki (ekspert redaktəsi)
                 addressEditing: false,
@@ -1301,6 +1315,32 @@
                     return this.app?.id || '';
                 },
 
+                // PR #402: ekspert addım checkmark-ları — localStorage-da app-a görə saxlanılır.
+                // Faktiki ünvan ✓ backend audit-dən (actual_address_updated_*), video order ✓
+                // backend-dən (video_records) gəlir — qalanı lokal işarələmədir.
+                markDone(key) {
+                    const map = {
+                        video_watch: () => this.videoWatched = true,
+                        compliance_name: () => this.compliance.name = true,
+                        compliance_hms: () => this.compliance.hms = true,
+                        compliance_os: () => this.compliance.os = true,
+                        emp_req: () => this.employmentSMSDone = true,
+                        emp_verify: () => this.employmentVerified = true,
+                        pen_req: () => this.pensionSMSDone = true,
+                        pen_verify: () => this.pensionVerified = true,
+                    };
+                    if (map[key]) map[key]();
+                    try { localStorage.setItem('alpul_done_' + this.internalId + '_' + key, '1'); } catch (e) { /* ignore */ }
+                },
+                restoreDones() {
+                    ['video_watch', 'compliance_name', 'compliance_hms', 'compliance_os',
+                     'emp_req', 'emp_verify', 'pen_req', 'pen_verify'].forEach(k => {
+                        let done = false;
+                        try { done = localStorage.getItem('alpul_done_' + this.internalId + '_' + k) === '1'; } catch (e) { /* ignore */ }
+                        if (done) this.markDone(k);
+                    });
+                },
+
                 async load() {
                     this.loading = true;
                     this.error = '';
@@ -1366,6 +1406,15 @@
 
                         // PR #245: qeydiyyat ünvanı boşdursa AZMK-dən doldur (arxa fonda, blocking deyil)
                         this.backfillRegistrationAddress();
+
+                        // PR #402: addım checkmark-larını bərpa et + video order statusunu yoxla
+                        this.restoreDones();
+                        if (this.app.public_id) {
+                            fetch('/api/applications/' + this.app.public_id + '/video-record')
+                                .then(r => r.ok ? r.json() : null)
+                                .then(d => { if (d && d.redirect_url) this.videoOrderSent = true; })
+                                .catch(() => { /* fail-soft */ });
+                        }
                     } catch (e) {
                         this.error = e.message;
                     } finally {
@@ -1447,6 +1496,7 @@
                         if (!resp.ok) throw new Error(data.error || 'Sorgu gonderilmedi');
                         this.employmentMessage = 'SMS gonderildi.';
                         this.employmentResult = '';
+                        this.markDone('emp_req'); // PR #402: ✓
                     } catch (e) {
                         this.employmentMessage = 'Xeta: ' + e.message;
                     } finally {
@@ -1463,6 +1513,7 @@
                         if (!resp.ok) throw new Error(data.error || 'Yoxlama ugursuz');
                         this.employmentResult = data.status;
                         this.employmentMessage = data.reason;
+                        this.markDone('emp_verify'); // PR #402: ✓ (nəticədən asılı olmayaraq yoxlanılıb)
                         // PR #238: EMPLOYMENT_TENURE cutoff-a düşdü → imtina dialoqu göstər.
                         // Dialoq bağlananda closeEmpRejectModal() müraciəti yeniləyir —
                         // backend artıq auto-reject edib (müraciət sonlanıb), dashboard-da
@@ -1495,6 +1546,7 @@
                         if (!resp.ok) throw new Error(data.error || 'Sorgu gonderilmedi');
                         this.pensionMessage = 'SMS gonderildi.';
                         this.pensionResult = '';
+                        this.markDone('pen_req'); // PR #402: ✓
                     } catch (e) {
                         this.pensionMessage = 'Xeta: ' + e.message;
                     } finally {
@@ -1511,6 +1563,7 @@
                         if (!resp.ok) throw new Error(data.error || 'Yoxlama ugursuz');
                         this.pensionResult = data.status;
                         this.pensionMessage = data.reason;
+                        this.markDone('pen_verify'); // PR #402: ✓
                         if (data.status === 'rejected') await this.load();
                     } catch (e) {
                         this.pensionMessage = 'Xeta: ' + e.message;
@@ -1529,6 +1582,7 @@
                         const data = await resp.json();
                         if (!resp.ok) throw new Error(data.error || 'SMS gonderilmedi');
                         this.videoMessage = 'SMS gonderildi — musteri linke kecid ederek video cekecek.';
+                        this.videoOrderSent = true; // PR #402: ✓
                     } catch (e) {
                         this.videoMessage = 'Xeta: ' + e.message;
                         this.videoError = true;
@@ -1548,6 +1602,7 @@
                         const data = await resp.json();
                         if (!resp.ok) throw new Error(data.error || 'Video tapilmadi');
                         this.videoStreamUrl = data.stream_url;
+                        this.markDone('video_watch'); // PR #402: ✓
                     } catch (e) {
                         this.videoStreamError = 'Video acila bilmedi: ' + e.message;
                     } finally {
