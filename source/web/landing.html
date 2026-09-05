@@ -70,7 +70,24 @@
 
         * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
-        html { scroll-behavior: smooth; }
+        /* PR #385: scroll-snap — hər skroll gesture növbəti bölməyə düşür
+           (hero/kalkulyator → 3 addım → pilləkən → statistika → SSS → CTA).
+           mandatory: kiçik scrollda belə bölmə başına snap olunur;
+           scroll-snap-stop: always — sürətli scrollda bölmə ötürülmür. */
+        html {
+            scroll-behavior: smooth;
+            scroll-snap-type: y mandatory;
+        }
+
+        body > section {
+            scroll-snap-align: start;
+            scroll-snap-stop: always;
+        }
+
+        /* Redaktə ayarı: hərəkəti azaldan istifadəçilər üçün snap deaktiv */
+        @media (prefers-reduced-motion: reduce) {
+            html { scroll-snap-type: none; }
+        }
 
         body {
             font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
