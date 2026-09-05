@@ -59,12 +59,13 @@ func (s *ApplicationService) StartVideoRecord(ctx context.Context, appID int, am
 		Amount:      amount,
 		WebhookURL:  s.videoRecordWebhookURL,
 		RedirectURL: s.videoRecordRedirectURL,
-		Name:        customerName,
+		Name:        truncateVideoField(customerName, 100),
 		Lang:        "az",
 		City:        "",
 		// PR #399: faktiki ünvan (ekspert tərəfindən doldurulur) — video service
 		// order-in address sahəsinə ötürülür. Boş olsa JSON-dan düşür (omitempty).
-		Address: app.ActualAddress,
+		// PR #400: "too long" validasiya xətalarına qarşı rune limiti ilə kəsilir.
+		Address: truncateVideoField(app.ActualAddress, 150),
 		Salary:  0,
 	}
 
@@ -248,6 +249,20 @@ func (s *ApplicationService) SendVideoRecordSMS(ctx context.Context, appID int) 
 		"chars", len(msg))
 
 	return redirectURL, nil
+}
+
+// truncateVideoField — PR #400: video service tərəfindən "too long" xətası
+// qaytarılan sahələri (name, address) maksimal rune sayına kəsir. Azərbaycan
+// hərfləri (ə, ü, ö...) çoxbaytlı olduğundan bayt yox, rune hesabı ilə kəsilir.
+func truncateVideoField(s string, maxRunes int) string {
+	if s == "" || maxRunes <= 0 {
+		return s
+	}
+	r := []rune(s)
+	if len(r) <= maxRunes {
+		return s
+	}
+	return string(r[:maxRunes])
 }
 
 // GetVideoStreamURL — PR #399: dashboard "Videya bax" dialoqu üçün stream linki.
