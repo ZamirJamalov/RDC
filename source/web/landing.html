@@ -325,7 +325,11 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 py-2 flex items-center justify-between">
         <a href="/index.html" class="flex items-center gap-2">
             <img src="/assets/alpul-logo.png" alt="ALPUL" class="w-24 h-24 object-contain">
-            <span class="text-xl font-bold tracking-tight">ALPUL</span>
+            <!-- PR #398: ALPUL yazısının altında kiçik "by AZMK" alt-sətri -->
+            <span class="flex flex-col leading-none">
+                <span class="text-xl font-bold tracking-tight">ALPUL</span>
+                <span class="text-[10px] tracking-[0.2em] font-medium mt-0.5" style="color: var(--alpul-text-soft)">by AZMK</span>
+            </span>
         </a>
         <div class="hidden md:flex items-center gap-6 text-sm text-gray-300">
             <a href="/how-to-get.html" class="hover:text-white transition">Necə əldə edim</a>
