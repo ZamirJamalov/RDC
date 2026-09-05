@@ -381,7 +381,7 @@
             </h1>
 
             <p class="text-lg md:text-xl text-gray-300 mb-10 max-w-xl leading-relaxed">
-                Hər kreditindən sonra limitin artır, faizin düşür — növbəti məbləği <span class="text-white font-semibold">daha sərfəli şərtlərlə</span> götürürsən.
+                Hər kreditindən sonra limitin artır, faizin düşür — növbəti məbləği <span class="text-white font-semibold">daha çox və daha sərfəli şərtlərlə</span> götürürsən.
             </p>
 
             <div class="mt-2">
@@ -913,40 +913,35 @@ const observer = new IntersectionObserver((entries) => {
 }, { threshold: 0.1 });
 document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
 
-// PR #393: "lift" effekti — hər wheel scrollda növbəti bölməyə yumşaq eniş.
-// CSS scroll-snap-in sərt dayanması əvəzinə ease-out-quart animasiyası:
-// son anda yavaşlayır (liftin yumşaq oturması kimi).
+// PR #393/#394: "lift" effekti — wheel-də növbəti bölməyə yumşaq eniş.
+// PR #394: ləngimə aradan qaldırıldı:
+//   - yeni wheel hadisəsi əvvəlki animasiyanı dərhal əvəz edir (token ilə ləğv —
+//     "düşünüb sonra hərəkət" pauzası yoxdur, hər cavab dərhal)
+//   - müddət qısaldıldı (max 550ms) və easeOutCubic — keçid sürətli,
+//     eniş sonunda yenə yumşaq
 // - Yalnız mouse wheel/trackpad (touch cihazlarda native scroll qalır)
 // - Bölmə viewportdan hündür olsa native scroll-a icazə (ilişmə olmasın)
 // - prefers-reduced-motion ilə deaktiv
 (() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    let animating = false;
-    const easeOutQuart = t => 1 - Math.pow(1 - t, 4);
+    const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+    let token = 0;
 
     function softScrollTo(y, dur) {
+        const my = ++token; // bu animasiyanı identifikatoru — yeni çağırış köhnəni ləğv edir
         const startY = window.scrollY;
         const dist = y - startY;
         const t0 = performance.now();
-        animating = true;
         function frame(now) {
+            if (my !== token) return; // əvəz olundu — dayan
             const t = Math.min(1, (now - t0) / dur);
-            window.scrollTo(0, startY + dist * easeOutQuart(t));
-            if (t < 1) {
-                requestAnimationFrame(frame);
-            } else {
-                animating = false;
-            }
+            window.scrollTo(0, startY + dist * easeOutCubic(t));
+            if (t < 1) requestAnimationFrame(frame);
         }
         requestAnimationFrame(frame);
     }
 
     window.addEventListener('wheel', (e) => {
-        // animasiya zamanı yeni wheel-ləri ud (yarımçıq keçid olmasın)
-        if (animating) {
-            e.preventDefault();
-            return;
-        }
         if (e.ctrlKey || Math.abs(e.deltaY) < 4 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
 
         const targets = Array.from(document.querySelectorAll('body > section, body > footer'));
@@ -967,7 +962,7 @@ document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
 
         e.preventDefault();
         const dist = Math.abs(next.offsetTop - y);
-        const dur = Math.min(1200, 380 + dist * 0.45);
+        const dur = Math.min(550, 220 + dist * 0.25);
         softScrollTo(next.offsetTop, dur);
     }, { passive: false });
 })();
