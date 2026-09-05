@@ -2,7 +2,9 @@ package handler
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/google/uuid"
 )
@@ -169,5 +171,52 @@ func (h *ApplicationHandler) GetApplicationVideoRequired(w http.ResponseWriter, 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"video_required": videoRequired,
 		"recorded":       recorded,
+	})
+}
+
+// ExpertSendVideoRequest handles POST /api/applications/{id}/video-request.
+// PR #399: dashboard "Video müraciət göndər" düyməsi — video service-də order
+// yaradır və qayıdan redirect_url-i SMS ilə müştərinin nömrəsinə göndərir.
+// Protected (yalnız ekspert) — {id} daxili INT id-dir (mygov endpoint-ləri kimi).
+func (h *ApplicationHandler) ExpertSendVideoRequest(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || id <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid application id")
+		return
+	}
+
+	redirectURL, err := h.service.SendVideoRecordSMS(r.Context(), id)
+	if err != nil {
+		slog.Error("expert video request failed", "application_id", id, "error", err)
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"success":      1,
+		"message":      "SMS göndərildi",
+		"redirect_url": redirectURL,
+	})
+}
+
+// ExpertGetVideoStreamURL handles GET /api/applications/{id}/video-stream-url.
+// PR #399: dashboard "Videya bax" dialoqu — {VIDEO_URL}/video/{app_id}/stream
+// linkini qaytarır (video_application_id = app.PublicID). Protected (yalnız ekspert).
+func (h *ApplicationHandler) ExpertGetVideoStreamURL(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || id <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid application id")
+		return
+	}
+
+	streamURL, err := h.service.GetVideoStreamURL(r.Context(), id)
+	if err != nil {
+		slog.Error("expert video stream url failed", "application_id", id, "error", err)
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{
+		"stream_url": streamURL,
 	})
 }

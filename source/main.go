@@ -70,6 +70,7 @@ func main() {
 		"video_record_enabled", cfg.VideoRecordEnabled,
 		"video_record_use_mock", cfg.VideoRecordUseMock,
 		"video_record_base_url", cfg.VideoRecordBaseURL,
+		"video_url", cfg.VideoURL,
 		"rate_limit_per_minute", cfg.RateLimitPerMinute,
 		"otp_rate_limit_per_min", cfg.OTPRateLimitPerMin,
 		"discount_rate_per_min", cfg.DiscountRatePerMin,
@@ -198,18 +199,25 @@ func main() {
 	}
 
 	// PR #188: Video record service (Kvadrat Lab)
+	// PR #399: VIDEO_URL (set edilibsə) VIDEO_RECORD_BASE_URL-i override edir —
+	// həm POST /api/orders, həm /video/{id}/stream linkləri bu base üzərindən işləyir.
+	videoBaseURL := cfg.VideoRecordBaseURL
+	if cfg.VideoURL != "" {
+		videoBaseURL = cfg.VideoURL
+	}
 	var videoRecordProvider videorecord.Provider
 	if cfg.VideoRecordUseMock {
 		slog.Info("using mock video record service (dev/test mode)")
 		videoRecordProvider = videorecord.NewMockProvider()
 	} else {
-		slog.Info("using HTTP video record service", "url", cfg.VideoRecordBaseURL)
-		videoRecordProvider = videorecord.NewHTTPProvider(cfg.VideoRecordBaseURL, cfg.VideoRecordUsername, cfg.VideoRecordPassword, cfg.VideoRecordTimeoutS)
+		slog.Info("using HTTP video record service", "url", videoBaseURL)
+		videoRecordProvider = videorecord.NewHTTPProvider(videoBaseURL, cfg.VideoRecordUsername, cfg.VideoRecordPassword, cfg.VideoRecordTimeoutS)
 	}
 	appService.SetVideoRecordProvider(videoRecordProvider)
 	appService.SetVideoRecordRepo(videoRecordRepo)
 	appService.SetServiceCacheRepo(serviceCacheRepo) // PR #205: service cache
 	appService.SetVideoRecordEnabled(cfg.VideoRecordEnabled, cfg.VideoRecordWebhookURL, cfg.VideoRecordRedirectURL)
+	appService.SetVideoStreamBaseURL(videoBaseURL) // PR #399: dashboard stream linkləri üçün
 	slog.Info("video record service", "enabled", cfg.VideoRecordEnabled, "mock", cfg.VideoRecordUseMock)
 	// Audit log for HTTP provider
 	if httpVRP, ok := videoRecordProvider.(*videorecord.HTTPProvider); ok {

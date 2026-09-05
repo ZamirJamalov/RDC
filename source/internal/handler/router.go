@@ -135,6 +135,10 @@ func NewRouter(
 	mux.Handle("POST /api/applications/{id}/mygov-employment-request", protectedAuth(http.HandlerFunc(mygovHandler.RequestEmployment)))
 	mux.Handle("POST /api/applications/{id}/mygov-employment-verify", protectedAuth(http.HandlerFunc(mygovHandler.VerifyEmployment)))
 	mux.Handle("POST /api/applications/{id}/mygov-pension-request", protectedAuth(http.HandlerFunc(mygovHandler.RequestPension)))
+
+	// PR #399: Dashboard video verifikasiya endpoint-ləri — protected (ekspert)
+	mux.Handle("POST /api/applications/{id}/video-request", protectedAuth(http.HandlerFunc(appHandler.ExpertSendVideoRequest)))
+	mux.Handle("GET /api/applications/{id}/video-stream-url", protectedAuth(http.HandlerFunc(appHandler.ExpertGetVideoStreamURL)))
 	mux.Handle("POST /api/applications/{id}/mygov-pension-verify", protectedAuth(http.HandlerFunc(mygovHandler.VerifyPension)))
 
 	// --- Expert (operator) endpoints (T-5.7) — protected ---
