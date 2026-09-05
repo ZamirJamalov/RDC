@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"rdc-source/internal/model"
 	"rdc-source/pkg/videorecord"
@@ -61,8 +62,10 @@ func (s *ApplicationService) StartVideoRecord(ctx context.Context, appID int, am
 		Name:        customerName,
 		Lang:        "az",
 		City:        "",
-		Address:     "",
-		Salary:      0,
+		// PR #399: faktiki ünvan (ekspert tərəfindən doldurulur) — video service
+		// order-in address sahəsinə ötürülür. Boş olsa JSON-dan düşür (omitempty).
+		Address: app.ActualAddress,
+		Salary:  0,
 	}
 
 	// PR #260: SetAuditAppID shared mutable state race yaradırdı (PR #259 analizindən).
@@ -184,4 +187,84 @@ func (s *ApplicationService) GetVideoRecordRedirectURL(ctx context.Context, appI
 		return "", false, fmt.Errorf("video record order not found")
 	}
 	return vr.OrderRedirectURL, vr.Recorded, nil
+}
+
+// SendVideoRecordSMS — PR #399: dashboard "Video müraciət göndər" axını.
+//  1. Video service-də order yaradır (amount = approved_amount, boşdursa amount —
+//     karta köçürüləcək kredit məbləği), 2) qayıdan redirect_url-i müştərinin
+//
+// OTP-təsdiqli nömrəsinə SMS ilə göndərir (movcud SMS provider üzərindən).
+// SMS mətni maksimum 160 simvol (GSM-7) saxlanılır.
+func (s *ApplicationService) SendVideoRecordSMS(ctx context.Context, appID int) (string, error) {
+	if !s.IsVideoRecordEnabled() {
+		return "", fmt.Errorf("video record deaktiv")
+	}
+
+	app, err := s.repo.GetApplicationByID(ctx, appID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get application: %w", err)
+	}
+	if app == nil {
+		return "", fmt.Errorf("application not found: %d", appID)
+	}
+	if app.CustomerPhone == "" {
+		return "", fmt.Errorf("customer_phone tapılmadı — müraciətdə OTP-təsdiqli nömrə yoxdur")
+	}
+	if s.smsProvider == nil {
+		return "", fmt.Errorf("SMS provider konfiqurasiya olunmayıb")
+	}
+
+	// Karta köçürüləcək kredit məbləği: təsdiq olunubsa approved_amount,
+	// hələ yoxdursa istənilən məbləğ (amount)
+	amount := app.ApprovedAmount
+	if amount <= 0 {
+		amount = app.Amount
+	}
+
+	// Order yaradılır (audit video_records cədvəlinə yazılır)
+	redirectURL, err := s.StartVideoRecord(ctx, appID, amount)
+	if err != nil {
+		return "", err
+	}
+
+	// SMS — maks 160 simvol (nümunə URL ~97 simvol, cəm ~156)
+	msg := fmt.Sprintf("Video eynilesdirme ucun linke kecid etmeyiniz xahis olunur. %s", redirectURL)
+	if len(msg) > 160 {
+		slog.Warn("video record SMS exceeds 160 chars — gateway may split it",
+			"application_id", appID, "length", len(msg))
+	}
+	if err := s.smsProvider.Send(ctx, app.CustomerPhone, msg); err != nil {
+		slog.Error("video record: failed to send SMS",
+			"application_id", appID,
+			"phone", app.CustomerPhone,
+			"error", err)
+		return "", fmt.Errorf("SMS göndərilə bilmədi: %w", err)
+	}
+
+	slog.Info("video record SMS sent",
+		"application_id", appID,
+		"phone", app.CustomerPhone,
+		"amount", amount,
+		"chars", len(msg))
+
+	return redirectURL, nil
+}
+
+// GetVideoStreamURL — PR #399: dashboard "Videya bax" dialoqu üçün stream linki.
+// {VIDEO_URL}/video/{video_application_id}/stream formatında qurulur;
+// video_application_id = video service-ə göndərilən app_id (= app.PublicID).
+func (s *ApplicationService) GetVideoStreamURL(ctx context.Context, appID int) (string, error) {
+	if s.videoStreamBaseURL == "" {
+		return "", fmt.Errorf("video stream base URL konfiqurasiya olunmayıb")
+	}
+
+	vr, err := s.videoRecordRepo.GetByApplication(ctx, appID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get video record: %w", err)
+	}
+	if vr == nil {
+		return "", fmt.Errorf("video order tapılmadı — əvvəlcə \"Video müraciət göndər\" düyməsini işlədin")
+	}
+
+	return strings.TrimRight(s.videoStreamBaseURL, "/") + "/video/" + vr.AppIDExternal + "/stream", nil
 }

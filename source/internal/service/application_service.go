@@ -51,6 +51,9 @@ type ApplicationService struct {
 	videoRecordEnabled     bool
 	videoRecordWebhookURL  string
 	videoRecordRedirectURL string
+	// PR #399: dashboard "Videya bax" dialoqu üçün stream base URL
+	// (VIDEO_URL → VIDEO_RECORD_BASE_URL fallback, main.go-da resolve olunur)
+	videoStreamBaseURL string
 
 	// PR #205: Service cache (service_audit_logs üzərindən)
 	serviceCacheRepo *repository.ServiceCacheRepo
@@ -171,6 +174,12 @@ func (s *ApplicationService) SetVideoRecordEnabled(enabled bool, webhookURL, red
 	s.videoRecordEnabled = enabled
 	s.videoRecordWebhookURL = webhookURL
 	s.videoRecordRedirectURL = redirectURL
+}
+
+// SetVideoStreamBaseURL sets the base URL for /video/{id}/stream links (PR #399).
+// Dashboard "Videya bax" dialoqu bu base üzərindən stream URL qurur.
+func (s *ApplicationService) SetVideoStreamBaseURL(baseURL string) {
+	s.videoStreamBaseURL = baseURL
 }
 
 // IsVideoRecordEnabled returns whether video record is required (PR #188).

@@ -154,6 +154,27 @@
             </div>
         </div>
 
+        <!-- PR #399: Videya bax dialoqu — stream URL-dən video oynadılır -->
+        <div x-show="videoDialogOpen" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" @keydown.escape.window="closeVideoDialog()">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-2xl w-full p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">🎥</span>
+                        <h3 class="font-bold text-gray-900 dark:text-gray-100">Video Verifikasiya</h3>
+                    </div>
+                    <button @click="closeVideoDialog()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <div class="bg-black rounded-lg overflow-hidden aspect-video flex items-center justify-center">
+                    <video id="videoVerifyPlayer" x-show="videoStreamUrl" :src="videoStreamUrl" controls playsinline class="w-full h-full"></video>
+                    <div x-show="!videoStreamUrl && !videoStreamError" class="text-gray-400 text-sm animate-pulse">Yüklənir...</div>
+                    <div x-show="videoStreamError" class="text-rose-400 text-sm px-4 text-center" x-text="videoStreamError"></div>
+                </div>
+                <p x-show="videoStreamUrl" class="text-[10px] text-gray-400 mt-2 break-all" x-text="videoStreamUrl"></p>
+            </div>
+        </div>
+
         <template x-if="!authChecking">
         <div class="min-h-screen flex flex-col">
 
@@ -721,6 +742,32 @@
                     </div>
                 </section>
 
+                <!-- PR #399: Video Verifikasiya — SMS göndər / videya bax -->
+                <section class="panel p-4 col-span-12 flex flex-col">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="icon-chip">🎥</span>
+                            <h2 class="panel-title text-sm font-bold tracking-wide uppercase">Video Verifikasiya</h2>
+                        </div>
+                        <span class="text-[11px] text-gray-400">SMS göndər → videya bax</span>
+                    </div>
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        <button @click="videoRequest()"
+                                :disabled="videoLoading"
+                                class="flex-1 alpul-btn text-white px-3 py-2 rounded-md text-xs font-medium disabled:opacity-50 transition">
+                            <span x-show="!videoLoading">📤 Video müraciət göndər</span>
+                            <span x-show="videoLoading">Göndərilir...</span>
+                        </button>
+                        <button @click="openVideoDialog()"
+                                :disabled="videoStreamLoading"
+                                class="flex-1 bg-indigo-600 text-white px-3 py-2 rounded-md text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition">
+                            <span x-show="!videoStreamLoading">▶ Videya bax</span>
+                            <span x-show="videoStreamLoading">Açılır...</span>
+                        </button>
+                    </div>
+                    <p class="text-[11px] mt-2" :class="videoError ? 'text-rose-600' : 'text-gray-500'" x-text="videoMessage"></p>
+                </section>
+
             </div>
         </main>
     </div>
@@ -767,6 +814,15 @@
                 pensionVerifying: false,
                 pensionResult: '',
                 pensionMessage: '',
+
+                // PR #399: Video verifikasiya (dashboard)
+                videoLoading: false,
+                videoMessage: '',
+                videoError: false,
+                videoDialogOpen: false,
+                videoStreamUrl: '',
+                videoStreamLoading: false,
+                videoStreamError: '',
 
                 // PR #245: Ünvanlar — qeydiyyat (read-only, AZMK) + faktiki (ekspert redaktəsi)
                 addressEditing: false,
@@ -1461,6 +1517,50 @@
                     } finally {
                         this.pensionVerifying = false;
                     }
+                },
+
+                // PR #399: "Video müraciət göndər" — order yaradılır, redirect_url SMS-lə gedir
+                async videoRequest() {
+                    this.videoLoading = true;
+                    this.videoMessage = '';
+                    this.videoError = false;
+                    try {
+                        const resp = await fetch('/api/applications/' + this.internalId + '/video-request', { method: 'POST' });
+                        const data = await resp.json();
+                        if (!resp.ok) throw new Error(data.error || 'SMS gonderilmedi');
+                        this.videoMessage = 'SMS gonderildi — musteri linke kecid ederek video cekecek.';
+                    } catch (e) {
+                        this.videoMessage = 'Xeta: ' + e.message;
+                        this.videoError = true;
+                    } finally {
+                        this.videoLoading = false;
+                    }
+                },
+
+                // PR #399: "Videya bax" — stream URL-i alınıb modalda oynadılır
+                async openVideoDialog() {
+                    this.videoDialogOpen = true;
+                    this.videoStreamUrl = '';
+                    this.videoStreamError = '';
+                    this.videoStreamLoading = true;
+                    try {
+                        const resp = await fetch('/api/applications/' + this.internalId + '/video-stream-url');
+                        const data = await resp.json();
+                        if (!resp.ok) throw new Error(data.error || 'Video tapilmadi');
+                        this.videoStreamUrl = data.stream_url;
+                    } catch (e) {
+                        this.videoStreamError = 'Video acila bilmedi: ' + e.message;
+                    } finally {
+                        this.videoStreamLoading = false;
+                    }
+                },
+
+                closeVideoDialog() {
+                    this.videoDialogOpen = false;
+                    const v = document.getElementById('videoVerifyPlayer');
+                    if (v) { v.pause(); v.removeAttribute('src'); v.load(); }
+                    this.videoStreamUrl = '';
+                    this.videoStreamError = '';
                 },
             }
         }

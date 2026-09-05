@@ -147,6 +147,11 @@ type Config struct {
 	VideoRecordWebhookURL    string // webhook URL sent to video service (optional)
 	VideoRecordRedirectURL   string // redirect URL sent to video service (optional)
 	VideoRecordPollIntervalS int    // status polling interval (default: 2)
+
+	// PR #399: VIDEO_URL — video servisin əsas URL-i. Set olunubsa
+	// VIDEO_RECORD_BASE_URL-i override edir: həm POST /api/orders çağırışları,
+	// həm dashboard-dakı /video/{id}/stream linkləri bu base üzərindən qurulur.
+	VideoURL string
 }
 
 // Load reads configuration from environment variables. Required fields (DB_HOST,
@@ -243,6 +248,9 @@ func Load() *Config {
 		VideoRecordWebhookURL:    getEnv("VIDEO_RECORD_WEBHOOK_URL", ""),
 		VideoRecordRedirectURL:   getEnv("VIDEO_RECORD_REDIRECT_URL", ""),
 		VideoRecordPollIntervalS: getEnvInt("VIDEO_RECORD_POLL_INTERVAL_S", 2),
+
+		// PR #399: VIDEO_URL (əgər set edilibsə) VIDEO_RECORD_BASE_URL override edir
+		VideoURL: getEnv("VIDEO_URL", ""),
 	}
 
 	if cfg.MigrationsDropRecreate {
