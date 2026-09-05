@@ -70,16 +70,18 @@
 
         * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
-        /* PR #385/#393: keçidlər JS "lift" effekti ilə idarə olunur (aşağıda softScroll):
-           wheel-də növbəti bölməyə ease-out animasiyalı yumşaq eniş — CSS snap-in
-           sərt düşməsi əvəzinə. scroll-snap çıxarıldı (JS ilə conflict etməsin). */
+        /* PR #385/#395: scroll-snap — hər scrollda növbəti bölməyə düşür (mandatory).
+           PR #393/#394 JS "lift" effekti sınaqdan sonra ləğv edildi — native CSS
+           snap qaytarıldı (stabil, bütün qurğularda eyni davranış). */
         html {
             scroll-behavior: smooth;
+            scroll-snap-type: y mandatory;
         }
 
         /* PR #386: hər bölmə tam ekran tutur. PR #387: footer də. */
         body > section,
         body > footer {
+            scroll-snap-align: start;
             min-height: 100vh;
             min-height: 100dvh; /* mobil brauzer paneli ilə dəqiq ölçü */
             display: flex;
@@ -912,60 +914,6 @@ const observer = new IntersectionObserver((entries) => {
     });
 }, { threshold: 0.1 });
 document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
-
-// PR #393/#394: "lift" effekti — wheel-də növbəti bölməyə yumşaq eniş.
-// PR #394: ləngimə aradan qaldırıldı:
-//   - yeni wheel hadisəsi əvvəlki animasiyanı dərhal əvəz edir (token ilə ləğv —
-//     "düşünüb sonra hərəkət" pauzası yoxdur, hər cavab dərhal)
-//   - müddət qısaldıldı (max 550ms) və easeOutCubic — keçid sürətli,
-//     eniş sonunda yenə yumşaq
-// - Yalnız mouse wheel/trackpad (touch cihazlarda native scroll qalır)
-// - Bölmə viewportdan hündür olsa native scroll-a icazə (ilişmə olmasın)
-// - prefers-reduced-motion ilə deaktiv
-(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
-    let token = 0;
-
-    function softScrollTo(y, dur) {
-        const my = ++token; // bu animasiyanı identifikatoru — yeni çağırış köhnəni ləğv edir
-        const startY = window.scrollY;
-        const dist = y - startY;
-        const t0 = performance.now();
-        function frame(now) {
-            if (my !== token) return; // əvəz olundu — dayan
-            const t = Math.min(1, (now - t0) / dur);
-            window.scrollTo(0, startY + dist * easeOutCubic(t));
-            if (t < 1) requestAnimationFrame(frame);
-        }
-        requestAnimationFrame(frame);
-    }
-
-    window.addEventListener('wheel', (e) => {
-        if (e.ctrlKey || Math.abs(e.deltaY) < 4 || Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
-
-        const targets = Array.from(document.querySelectorAll('body > section, body > footer'));
-        if (!targets.length) return;
-
-        const y = window.scrollY;
-        let cur = 0;
-        targets.forEach((el, i) => {
-            if (el.offsetTop <= y + 2) cur = i;
-        });
-        const dir = e.deltaY > 0 ? 1 : -1;
-        const next = targets[cur + dir];
-        if (!next) return; // ilk/son bölmə — native
-
-        // hər iki bölmə viewport-a sığırsa "lift", yoxsa native scroll
-        if (targets[cur].offsetHeight > window.innerHeight + 40 ||
-            next.offsetHeight > window.innerHeight + 40) return;
-
-        e.preventDefault();
-        const dist = Math.abs(next.offsetTop - y);
-        const dur = Math.min(550, 220 + dist * 0.25);
-        softScrollTo(next.offsetTop, dur);
-    }, { passive: false });
-})();
 </script>
 
 <style>
