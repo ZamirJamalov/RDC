@@ -459,52 +459,42 @@
                 </div>
             </div>
 
-            <!-- PR #396: pillələr donut (pyroq) üzərində — səviyyə adları YOX.
-                 Hər dilim nə vaxt açılan faiz pilləsini göstərir (İndi / Növbəti /
-                 Daha sonra / Davamlı), aktivlik isə seçilən məbləğ+müddətə görə dəyişir:
-                 solğun dilim bu seçimdə mövcud deyil. Mərkəzdə cari seçim. -->
-            <div class="mb-4">
-                <svg viewBox="0 0 200 200" class="w-52 h-52 mx-auto select-none" role="img" aria-label="Faiz pillələri">
-                    <!-- Dilim 1: 30% — İNDİ (yuxarı-sağ) -->
-                    <path d="M 102 20 A 80 80 0 0 1 180 98" stroke="#cbd5e1" stroke-width="26" fill="none" :opacity="lvlActive(0) ? 1 : 0.15"/>
-                    <text x="130" y="54" text-anchor="middle" font-size="8" letter-spacing="1" fill="#94a3b8">İNDİ</text>
-                    <text x="130" y="70" text-anchor="middle" font-size="15" font-weight="700" :fill="lvlActive(0) ? '#cbd5e1' : '#94a3b8'" :opacity="lvlActive(0) ? 1 : 0.55">30%</text>
-                    <text x="130" y="83" text-anchor="middle" font-size="9.5" fill="#94a3b8" x-show="lvlActive(0)" x-text="formatMoney(totalFor(getCommission(levels[0]))) + '₼'"></text>
-                    <text x="130" y="83" text-anchor="middle" font-size="9" fill="#64748b" x-show="isLevelAvailable(levels[0]) && !isTermAvailableForLevel(levels[0], term)" x-text="levels[0].terms.join(', ') + ' ay'"></text>
-                    <text x="130" y="83" text-anchor="middle" font-size="9" fill="#64748b" x-show="!isLevelAvailable(levels[0])">maks 500₼</text>
-
-                    <!-- Dilim 2: 27% — NÖVBƏTİ (sağ-aşağı) -->
-                    <path d="M 180 102 A 80 80 0 0 1 102 180" stroke="#94a3b8" stroke-width="26" fill="none" :opacity="lvlActive(1) ? 1 : 0.15"/>
-                    <text x="130" y="118" text-anchor="middle" font-size="8" letter-spacing="1" fill="#94a3b8">NÖVBƏTİ</text>
-                    <text x="130" y="134" text-anchor="middle" font-size="15" font-weight="700" :fill="lvlActive(1) ? '#e2e8f0' : '#94a3b8'" :opacity="lvlActive(1) ? 1 : 0.55">27%</text>
-                    <text x="130" y="147" text-anchor="middle" font-size="9.5" fill="#94a3b8" x-show="lvlActive(1)" x-text="formatMoney(totalFor(getCommission(levels[1]))) + '₼'"></text>
-                    <text x="130" y="147" text-anchor="middle" font-size="9" fill="#64748b" x-show="isLevelAvailable(levels[1]) && !isTermAvailableForLevel(levels[1], term)" x-text="levels[1].terms.join(', ') + ' ay'"></text>
-                    <text x="130" y="147" text-anchor="middle" font-size="9" fill="#64748b" x-show="!isLevelAvailable(levels[1])">maks 900₼</text>
-
-                    <!-- Dilim 3: 24% — DAHA SONRA (aşağı-sol) -->
-                    <path d="M 98 180 A 80 80 0 0 1 20 102" stroke="#f59e0b" stroke-width="26" fill="none" :opacity="lvlActive(2) ? 1 : 0.15"/>
-                    <text x="70" y="118" text-anchor="middle" font-size="8" letter-spacing="1" fill="#94a3b8">DAHA SONRA</text>
-                    <text x="70" y="134" text-anchor="middle" font-size="15" font-weight="700" :fill="lvlActive(2) ? '#f59e0b' : '#94a3b8'" :opacity="lvlActive(2) ? 1 : 0.55">24%</text>
-                    <text x="70" y="147" text-anchor="middle" font-size="9.5" fill="#94a3b8" x-show="lvlActive(2)" x-text="formatMoney(totalFor(getCommission(levels[2]))) + '₼'"></text>
-                    <text x="70" y="147" text-anchor="middle" font-size="9" fill="#64748b" x-show="isLevelAvailable(levels[2]) && !isTermAvailableForLevel(levels[2], term)" x-text="levels[2].terms.join(', ') + ' ay'"></text>
-                    <text x="70" y="147" text-anchor="middle" font-size="9" fill="#64748b" x-show="!isLevelAvailable(levels[2])">maks 1300₼</text>
-
-                    <!-- Dilim 4: 20% — DAVAMLI (sol-yuxarı) -->
-                    <path d="M 20 98 A 80 80 0 0 1 98 20" stroke="#34d399" stroke-width="26" fill="none" :opacity="lvlActive(3) ? 1 : 0.15"/>
-                    <text x="70" y="54" text-anchor="middle" font-size="8" letter-spacing="1" fill="#94a3b8">DAVAMLI</text>
-                    <text x="70" y="70" text-anchor="middle" font-size="15" font-weight="700" :fill="lvlActive(3) ? '#34d399' : '#94a3b8'" :opacity="lvlActive(3) ? 1 : 0.55">20%</text>
-                    <text x="70" y="83" text-anchor="middle" font-size="9.5" fill="#94a3b8" x-show="lvlActive(3)" x-text="formatMoney(totalFor(getCommission(levels[3]))) + '₼'"></text>
-                    <text x="70" y="83" text-anchor="middle" font-size="9" fill="#64748b" x-show="isLevelAvailable(levels[3]) && !isTermAvailableForLevel(levels[3], term)" x-text="levels[3].terms.join(', ') + ' ay'"></text>
-                    <text x="70" y="83" text-anchor="middle" font-size="9" fill="#64748b" x-show="!isLevelAvailable(levels[3])">maks 3000₼</text>
-
-                    <!-- Mərkəz: cari seçim -->
-                    <text x="100" y="95" text-anchor="middle" font-size="19" font-weight="800" class="fill-[var(--alpul-text)]" x-text="amount + '₼'"></text>
-                    <text x="100" y="112" text-anchor="middle" font-size="11" fill="#94a3b8" x-text="term + ' ay'"></text>
-                </svg>
-                <p class="text-center text-xs text-gray-500 leading-relaxed mt-1">
-                    Hər kreditindən sonra daha aşağı faiz pilləsi açılır.
-                    <span class="opacity-75">Solğun dilim seçilən məbləğ/müddətdə mövcud deyil.</span>
-                </p>
+            <!-- Level rows -->
+            <div class="space-y-2.5 mb-5">
+                <template x-for="lvl in levels" :key="lvl.name">
+                    <div class="flex items-center justify-between p-3 min-h-[72px] rounded-xl bg-black/30 border border-white/5 transition"
+                         :class="{
+                            'opacity-30 cursor-not-allowed': !isLevelAvailable(lvl) || !isTermAvailableForLevel(lvl, term),
+                            'ring-1 ring-emerald-500/40': lvl.name === 'ELITE' && isLevelAvailable(lvl) && isTermAvailableForLevel(lvl, term)
+                         }">
+                        <div class="flex items-center gap-3">
+                            <span class="text-xl" x-text="lvl.icon"></span>
+                            <div>
+                                <div class="font-semibold text-sm" x-text="lvl.title"></div>
+                            </div>
+                        </div>
+                        <!-- Available: show total + monthly + PR #389: YENİ-yə qarşı fərq -->
+                        <div class="text-right" x-show="isLevelAvailable(lvl) && isTermAvailableForLevel(lvl, term)">
+                            <div class="font-bold text-lg" :class="lvl.textClass">
+                                <span x-text="formatMoney(totalFor(getCommission(lvl)))"></span> ₼
+                            </div>
+                            <div class="text-xs text-gray-500">
+                                Aylıq: <span x-text="formatMoney(totalFor(getCommission(lvl)) / term)"></span>₼
+                            </div>
+                            <div class="text-[11px] text-emerald-400 font-semibold" x-show="savingsFor(lvl) > 0">
+                                YENİ-yə görə ↓<span x-text="formatMoney(savingsFor(lvl))"></span>₼
+                            </div>
+                        </div>
+                        <!-- Level available but term not: show max amount -->
+                        <div class="text-right" x-show="isLevelAvailable(lvl) && !isTermAvailableForLevel(lvl, term)">
+                            <div class="text-xs text-gray-600" x-text="lvl.terms.join(', ') + ' ay'"></div>
+                        </div>
+                        <!-- Level not available: show max amount -->
+                        <div class="text-right" x-show="!isLevelAvailable(lvl)">
+                            <div class="text-xs text-gray-600">Maks. <span x-text="lvl.maxAmount"></span>₼</div>
+                        </div>
+                    </div>
+                </template>
             </div>
 
             <!-- PR #391/#392: düymə artıq generic "Kredit al" deyil — seçimlə müraciət
@@ -856,12 +846,6 @@ function alpulLanding() {
             const range = this.getAmountRange();
             const key = `${lvl.name.toLowerCase()}-${range}-${t}`;
             return this.rateTable[key] !== undefined;
-        },
-
-        // PR #396: donut üçün köməkçi — pillə cari məbləğ+müddətdə aktivdir?
-        lvlActive(i) {
-            const lvl = this.levels[i];
-            return this.isLevelAvailable(lvl) && this.isTermAvailableForLevel(lvl, this.term);
         },
 
         // PR #75: Get all available terms at the current amount (across all levels)
