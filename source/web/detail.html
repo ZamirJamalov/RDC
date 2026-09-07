@@ -884,8 +884,9 @@
                 addressDraft: '',
                 addressSaving: false,
 
-                // PR #408: müştəri şəkli (base64 data URL) — AZMK PersonalInfo Image tagı
-                customerPhoto: '',
+                // PR #408/#412: müştəri şəkli — DEFAULT olaraq siluet göstərilir;
+                // AZMK PersonalInfo-dan real Image gələndə əvəz olunur.
+                customerPhoto: '/assets/sample-customer-photo.jpg',
                 photoDialogOpen: false,
 
                 initTheme() {

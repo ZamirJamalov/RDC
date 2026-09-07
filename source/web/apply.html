@@ -215,7 +215,7 @@
 </head>
 <body x-data="applyApp()" x-init="init()" x-cloak data-theme="light">
 
-<div class="min-h-screen flex flex-col">
+<div id="pageShell" class="min-h-screen flex flex-col">
 
     <!-- Header — PR #403: funnel səhifəsi olduğu üçün minimal: loqo + dəstək + tema.
          Naviqasiya linkləri və "Krediti ödə" düyməsi silinib — exit point-lər
@@ -1069,11 +1069,43 @@ function applyApp() {
             document.body.setAttribute('data-theme', this.theme);
         },
 
+        // PR #412: vertikal scroll yaranmasın — məzmun viewport-dan böyükdürsə bütün
+        // shell kiçildilir (zoom < 1, heç vaxt böyüdülmür; minHeight kompensasiyası
+        // ilə vizual 100vh qalır). Modallar shell-dən kənardadır — təsirlənmirlər.
+        setupFit() {
+            const attach = () => {
+                const shell = document.getElementById('pageShell');
+                if (!shell) { requestAnimationFrame(attach); return; }
+                let raf = 0;
+                const fit = () => {
+                    cancelAnimationFrame(raf);
+                    raf = requestAnimationFrame(() => this.fitPage());
+                };
+                new ResizeObserver(fit).observe(shell);
+                window.addEventListener('resize', fit);
+                fit();
+            };
+            attach();
+        },
+        fitPage() {
+            const shell = document.getElementById('pageShell');
+            if (!shell) return;
+            shell.style.zoom = '1';
+            shell.style.minHeight = '';
+            const vh = window.innerHeight;
+            const h = shell.offsetHeight;
+            let z = 1;
+            if (h > vh + 1) z = Math.max(0.5, vh / h);
+            shell.style.zoom = String(+z.toFixed(3));
+            shell.style.minHeight = z < 1 ? (100 / z).toFixed(2) + 'vh' : '';
+        },
+
         // --- Actions ---
 
         init() {
             // PR #83: Apply saved theme
             this.applyTheme();
+            this.setupFit(); // PR #412: səhifəni ekrana sığdır (detail.html ilə eyni mexanizm)
             // PR #360: ekspert iş saatlarını yüklə (success mesajı üçün)
             this.loadExpertWorkHours();
             // PR #74: If navigated from landing page (?from=landing), clear
@@ -1541,7 +1573,7 @@ function applyApp() {
                     // PR #155: KYC loading ekranına keç və countdown başlat
                     this.currentStep = 1;
                     this.kycLoadingTitle = 'Kimlik təsdiqi...';
-                    this.kycLoadingMessage = 'Sistem sizin kimliyinizi AZMK KYC ilə təsdiqləyir. Bu, bir neçə saniyə çəkə bilər.';
+                    this.kycLoadingMessage = 'Biometrik eyniləşdirmə üçün SMS vasitəsilə göndərilən SİMA linkinə keçid edərək eyniləşdirməni tamamlayın.';
                     this.startKYCCountdown(); // 3 dəqiqə geri sayım
                 } else {
                     // KYC disabled — sadə loading göstər
