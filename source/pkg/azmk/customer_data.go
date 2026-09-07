@@ -1,8 +1,8 @@
 package azmk
 
 import (
-	"crypto/tls"
 	"context"
+	"crypto/tls"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
@@ -766,6 +766,7 @@ type CustomerData struct {
 	Patronymic          string `json:"Patronymic"`
 	Name                string `json:"Name"`
 	DocumentSeriaNumber string `json:"DocumentSeriaNumber"`
+	Image               string `json:"Image"` // base64 JPEG (vətəndaşın şəkli), boş ola bilər
 }
 
 // FullName returns "Name Surname Patronymic".

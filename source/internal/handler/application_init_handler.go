@@ -251,6 +251,26 @@ func (h *ApplicationHandler) BackfillRegistrationAddress(w http.ResponseWriter, 
 	})
 }
 
+// GetCustomerPhoto handles GET /api/applications/{id}/customer-photo (PR #408).
+// AZMK PersonalInfo cavabındaki Image tagını (base64 JPEG) qaytarır.
+// Fail-soft: şəkil yoxdursa image boş qaytarılır, xəta yoxdur.
+func (h *ApplicationHandler) GetCustomerPhoto(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || id <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid application id")
+		return
+	}
+
+	image, err := h.service.GetCustomerPhoto(r.Context(), id)
+	if err != nil {
+		slog.Error("get customer photo failed", "application_id", id, "error", err)
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"image": image})
+}
+
 // UpdateTimer handles PUT /api/applications/{id}/timer.
 // PR #134: müraciət üzərində işləmə vaxtını saxlayır.
 func (h *ApplicationHandler) UpdateTimer(w http.ResponseWriter, r *http.Request) {

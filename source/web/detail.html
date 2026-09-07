@@ -78,6 +78,12 @@
         }
         .panel:hover { box-shadow: 0 4px 16px rgba(15,23,42,0.06); }
 
+        /* PR #408: müştəri şəkli — tema sərhədi (light/dark) */
+        .customer-photo {
+            border: 1px solid var(--border);
+            object-fit: cover;
+        }
+
         .panel-title { color: var(--text); }
         .panel-divider { border-color: var(--border); }
         .label-soft { color: var(--text-soft); }
@@ -294,6 +300,13 @@
                     <div class="flex items-center gap-2 mb-2">
                         <span class="icon-chip">👤</span>
                         <h2 class="panel-title text-sm font-bold tracking-wide uppercase">Müştəri</h2>
+                        <span class="flex-1"></span>
+                        <!-- PR #408: vətəndaşın şəkli — AZMK PersonalInfo Image tagı -->
+                        <template x-if="customerPhoto">
+                            <img :src="customerPhoto" alt="Müştəri şəkli"
+                                 title="Vətəndaşın şəkli"
+                                 class="customer-photo w-12 h-12 rounded-lg shadow-sm shrink-0">
+                        </template>
                     </div>
                     <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm flex-1">
                         <div>
@@ -846,6 +859,9 @@
                 addressEditing: false,
                 addressDraft: '',
                 addressSaving: false,
+
+                // PR #408: müştəri şəkli (base64 data URL) — AZMK PersonalInfo Image tagı
+                customerPhoto: '',
 
                 initTheme() {
                     document.body.setAttribute('data-theme', this.theme);
@@ -1443,6 +1459,17 @@
                             fetch('/api/applications/' + this.app.public_id + '/video-record')
                                 .then(r => r.ok ? r.json() : null)
                                 .then(d => { if (d) this.videoBackendRequired = !!d.video_required; })
+                                .catch(() => { /* fail-soft */ });
+                        }
+
+                        // PR #408: müştəri şəkli — AZMK PersonalInfo Image tagı (fail-soft,
+                        // backend-də cache varsa oradan). Şəkil yoxdursa gizlədilir.
+                        if (this.internalId) {
+                            fetch('/api/applications/' + this.internalId + '/customer-photo')
+                                .then(r => r.ok ? r.json() : null)
+                                .then(d => {
+                                    if (d && d.image) this.customerPhoto = 'data:image/jpeg;base64,' + d.image;
+                                })
                                 .catch(() => { /* fail-soft */ });
                         }
                     } catch (e) {
