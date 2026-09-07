@@ -71,6 +71,7 @@ func main() {
 		"video_record_use_mock", cfg.VideoRecordUseMock,
 		"video_record_base_url", cfg.VideoRecordBaseURL,
 		"video_url", cfg.VideoURL,
+		"lw_partner_phones_enabled", cfg.LwPartnerPhonesEnabled,
 		"rate_limit_per_minute", cfg.RateLimitPerMinute,
 		"otp_rate_limit_per_min", cfg.OTPRateLimitPerMin,
 		"discount_rate_per_min", cfg.DiscountRatePerMin,
@@ -217,8 +218,14 @@ func main() {
 	appService.SetVideoRecordRepo(videoRecordRepo)
 	appService.SetServiceCacheRepo(serviceCacheRepo) // PR #205: service cache
 	appService.SetVideoRecordEnabled(cfg.VideoRecordEnabled, cfg.VideoRecordWebhookURL, cfg.VideoRecordRedirectURL)
-	appService.SetVideoStreamBaseURL(videoBaseURL) // PR #399: dashboard stream linkləri üçün
+	appService.SetVideoStreamBaseURL(videoBaseURL)                   // PR #399: dashboard stream linkləri üçün
+	appService.SetLwPartnerPhonesEnabled(cfg.LwPartnerPhonesEnabled) // PR #404: approve-da LW-yə kontakt nömrələri
 	slog.Info("video record service", "enabled", cfg.VideoRecordEnabled, "mock", cfg.VideoRecordUseMock)
+	if cfg.LwPartnerPhonesEnabled {
+		slog.Info("PR #404: LW partner phones ENABLED — approve zamanı 3 kontakt nömrəsi LW-yə göndəriləcək")
+	} else {
+		slog.Info("PR #404: LW partner phones DISABLED (default) — LW_PARTNER_PHONES_ENABLED=true ilə aktivləşdir")
+	}
 	// Audit log for HTTP provider
 	if httpVRP, ok := videoRecordProvider.(*videorecord.HTTPProvider); ok {
 		httpVRP.SetAuditDB(db, nil)

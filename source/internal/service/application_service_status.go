@@ -103,6 +103,22 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
 		} else {
 			totalAmount = calculateTotalAmount(app.Amount, app.ApprovedRate) // ApprovedRate is commission
 		}
+
+		// PR #404: LW partner phones — application create-dən ƏVVƏL 3 kontakt
+		// nömrəsi LW Loan Management System-ə göndərilir. XƏTA HALINDA status
+		// DB-yə yazılmır (rejected rollback YOX, imtina SMS-i YOX) — ekspert
+		// xətanı görür, kontaktları düzəldir və yenidən "Təsdiq Et" vuraraq
+		// prosesi davam etdirə bilər.
+		// LwPartnerPhonesEnabled=false (default) → addım tamamilə skip olunur.
+		if s.lwPartnerPhonesEnabled && s.azmkProvider != nil && app.PartnerID != "" {
+			if err := s.sendPartnerPhones(ctx, app); err != nil {
+				slog.Error("PR #404: LW partner phones failed — approval blocked (retryable)",
+					"application_id", id,
+					"partner_id", app.PartnerID,
+					"error", err)
+				return nil, fmt.Errorf("Kontakt nömrələri LW-yə göndərilə bilmədi: %w", err)
+			}
+		}
 	}
 
 	err = s.repo.UpdateApplicationDecision(ctx, id,
@@ -617,6 +633,75 @@ func (s *ApplicationService) azmkCreateApplication(ctx context.Context, app *mod
 		"interest_rate_sent", annualInterestRate/100.0)
 
 	return nil
+}
+
+// sendPartnerPhones — PR #404: dashboard-dakı 3 kontakt nömrəsini LW-yə göndərir.
+// Hər kontakt üçün: number = boşluqlardan təmizlənmiş telefon (+994...),
+// description = qohumluq dərəcəsi + ad + zəng qeydi (maks 100 simvol).
+// Boş telefonu olan kontaktlar ötürülür; HƏR BİRİ boşdursa xəta — ekspert
+// əlaqə nömrələrini doldurub yenidən təsdiq etməlidir.
+func (s *ApplicationService) sendPartnerPhones(ctx context.Context, app *model.LoanApplication) error {
+	if app.PartnerID == "" {
+		return fmt.Errorf("partner_id tapılmadı")
+	}
+	entries := PartnerPhoneEntries(app)
+	if len(entries) == 0 {
+		return fmt.Errorf("heç bir kontakt nömrəsi doldurulmayıb — Əlaqə Nömrələri blokunda minimum 1 nömrə daxil edin")
+	}
+
+	appID := app.ID
+	ctx = azmk.WithAppID(ctx, &appID) // PR #404: audit log-da application_id görünsün
+
+	req := &azmk.PartnerPhonesRequest{
+		PhoneData: azmk.PhoneData{Data: entries},
+	}
+	if err := s.azmkProvider.SendPartnerPhones(ctx, app.PartnerID, req); err != nil {
+		return err
+	}
+
+	slog.Info("PR #404: partner phones sent to LW",
+		"application_id", app.ID,
+		"partner_id", app.PartnerID,
+		"count", len(entries))
+	return nil
+}
+
+// PartnerPhoneEntries builds LW PhoneEntry list from the 3 dashboard contacts.
+// Boş nömrələr ötürülür; nömrədən bütün boşluqlar silinir ("+994 55 111 00 11" → "+99455110011").
+func PartnerPhoneEntries(app *model.LoanApplication) []azmk.PhoneEntry {
+	contacts := [][4]string{
+		{app.Contact1Phone, app.Contact1Relation, app.Contact1Name, app.Contact1CallNote},
+		{app.Contact2Phone, app.Contact2Relation, app.Contact2Name, app.Contact2CallNote},
+		{app.Contact3Phone, app.Contact3Relation, app.Contact3Name, app.Contact3CallNote},
+	}
+	entries := make([]azmk.PhoneEntry, 0, len(contacts))
+	for _, c := range contacts {
+		number := strings.Join(strings.Fields(c[0]), "") // bütün whitespace silinir
+		if number == "" {
+			continue
+		}
+		entries = append(entries, azmk.PhoneEntry{
+			Number:      number,
+			Description: phoneDescription(c[1], c[2], c[3]),
+		})
+	}
+	return entries
+}
+
+// phoneDescription concatenates qohumluq dərəcəsi + ad + zəng qeydi,
+// maksimum 100 simvol (rune hesabı ilə — Azərbaycan hərfləri çoxbaytlıdır).
+func phoneDescription(relation, name, note string) string {
+	parts := make([]string, 0, 3)
+	for _, p := range []string{relation, name, note} {
+		if p = strings.TrimSpace(p); p != "" {
+			parts = append(parts, p)
+		}
+	}
+	desc := strings.Join(parts, " | ")
+	if r := []rune(desc); len(r) > 100 {
+		return string(r[:100])
+	}
+	return desc
 }
 
 // logManualRejection writes a manual rejection to cutoff_results.

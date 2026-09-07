@@ -60,6 +60,10 @@ type ApplicationService struct {
 
 	// PR #284: Referal SMS endirim faizi (X% parametri)
 	referralDiscountPercent int
+
+	// PR #404: LW partner phones — approve zamanı 3 kontakt nömrəsi LW-yə
+	// göndərilir (application create-dən ƏVVƏL). Default: false (müvəqqəti deaktiv).
+	lwPartnerPhonesEnabled bool
 }
 
 // NewApplicationService creates a new ApplicationService.
@@ -112,6 +116,13 @@ func (s *ApplicationService) SetAzmkProvider(provider azmk.Provider, branchCode,
 	s.azmkBranch = branchCode
 	s.azmkCardExpiring = cardExpiring
 	s.azmkProductID = productID
+}
+
+// SetLwPartnerPhonesEnabled enables/disables the LW partner phones step (PR #404).
+// true = approve zamanı 3 kontakt nömrəsi LW-yə göndərilir (create-dən əvvəl).
+// false (default) = addım tamamilə skip olunur.
+func (s *ApplicationService) SetLwPartnerPhonesEnabled(enabled bool) {
+	s.lwPartnerPhonesEnabled = enabled
 }
 
 // SetCustomerDataProvider injects the AZMK CustomerDataService provider (PR #152).
