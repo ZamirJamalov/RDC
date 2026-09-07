@@ -434,9 +434,11 @@
         </div>
 
         <!-- STEP 3: Offer + Customer Confirm -->
-        <div x-show="currentStep === 2" x-transition class="card-glow rounded-3xl p-5 sm:p-8">
+        <!-- PR #413: padding/aralıqlar sıxıldı — səhifə ekrana sığarkən zoom az kiçilsin,
+             yazılar oxunaqlı qalsın (fit floor-u 0.8 ilə birlikdə) -->
+        <div x-show="currentStep === 2" x-transition class="card-glow rounded-3xl p-4 sm:p-6">
             <h2 class="text-2xl sm:text-3xl font-bold mb-2">Təklif</h2>
-            <p class="text-gray-400 mb-8">Sizin <span class="font-semibold text-white" x-text="levelNameAz(offer?.credit_level)"></span> kredit səviyyənizə uyğun təklif aşağıdadır.</p>
+            <p class="text-gray-400 mb-5">Sizin <span class="font-semibold text-white" x-text="levelNameAz(offer?.credit_level)"></span> kredit səviyyənizə uyğun təklif aşağıdadır.</p>
 
             <div x-show="offer" class="grid md:grid-cols-5 gap-6">
 
@@ -505,7 +507,7 @@
                 </div>
 
                 <!-- RIGHT: Amount slider + card + address (3/5 width) -->
-                <div class="md:col-span-3 space-y-8">
+                <div class="md:col-span-3 space-y-5">
                     <!-- Amount slider -->
                     <div>
                         <div class="flex justify-between items-baseline mb-3">
@@ -550,7 +552,7 @@
                     <div x-show="savedCards.length > 0" x-cloak class="mb-3">
                         <div class="relative">
                             <select x-model="selectedCardId"
-                                    class="input-field w-full px-4 py-3.5 pr-10 rounded-xl text-base font-mono tracking-wider cursor-pointer appearance-none">
+                                    class="input-field w-full px-4 py-3 pr-10 rounded-xl text-base font-mono tracking-wider cursor-pointer appearance-none">
                                 <template x-for="card in savedCards" :key="card.id">
                                     <option :value="card.id" x-text="card.code"></option>
                                 </template>
@@ -566,7 +568,7 @@
                     <div x-show="savedCards.length === 0 || selectedCardId === ''" class="mt-2">
                         <label class="text-sm text-gray-400 mb-2 block">Kart nömrəsi (16 rəqəm) <span class="text-red-400">*</span></label>
                         <input type="text" x-model="form.cardNumber" maxlength="19" placeholder="4169 7312 3456 7890"
-                               class="input-field w-full px-4 py-3.5 rounded-xl text-lg font-mono tracking-wider"
+                               class="input-field w-full px-4 py-3 rounded-xl text-lg font-mono tracking-wider"
                                @input="formatCardNumber()">
                     </div>
                 </div>
@@ -585,7 +587,7 @@
                 <div>
                     <label class="text-sm text-gray-400 mb-2 block">Faktiki yaşayış ünvanı <span class="text-red-400">*</span></label>
                     <textarea x-model="form.address" rows="2" placeholder="Məs: Bakı, Nizami r., Murtuza Muxtarov 12, m. 34"
-                              class="input-field w-full px-4 py-3.5 rounded-xl resize-none"></textarea>
+                              class="input-field w-full px-4 py-3 rounded-xl resize-none"></textarea>
                 </div>
 
                 <!-- PR #96: Discount code -->
@@ -599,7 +601,7 @@
                                @input="formatDiscountCode()"
                                placeholder="ALPUL-XXXXXX"
                                maxlength="12"
-                               class="input-field w-full px-4 py-3.5 rounded-xl uppercase tracking-wider font-mono">
+                               class="input-field w-full px-4 py-3 rounded-xl uppercase tracking-wider font-mono">
                     </div>
                     <p x-show="discountValid === 'invalid'" class="text-xs text-rose-400 mt-1.5 font-medium">
                         ✗ Yanlış və ya artıq istifadə olunmuş kod.
@@ -1095,7 +1097,7 @@ function applyApp() {
             const vh = window.innerHeight;
             const h = shell.offsetHeight;
             let z = 1;
-            if (h > vh + 1) z = Math.max(0.5, vh / h);
+            if (h > vh + 1) z = Math.max(0.8, vh / h); // PR #413: 0.5 → 0.8 (oxunaqlılıq floor-u — altında scroll qalır)
             shell.style.zoom = String(+z.toFixed(3));
             shell.style.minHeight = z < 1 ? (100 / z).toFixed(2) + 'vh' : '';
         },

@@ -1129,8 +1129,11 @@
                             errors.push('MyGov: İş yeri və ya Pensiya yoxlamasından ən azı biri keçilməlidir');
                         }
                     }
-                    if (!this.complianceChecked) {
-                        errors.push('Komplayans: HMS və OpenSanctions yoxlanılmayıb');
+                    // PR #413: komplayansın HƏR 3 düyməsi klik olunmalıdır
+                    // (name + HMS + OpenSanctions). Əvvəl yalnız complianceChecked
+                    // yoxlanılırdı — bir düymə kifayət edirdi.
+                    if (!this.compliance.name || !this.compliance.hms || !this.compliance.os) {
+                        errors.push('Komplayans: Ad, HMS və OpenSanctions yoxlamalarının HƏR 3-ü açılmalıdır');
                     }
                     // PR #405: video baxışı tələb olunur — yalnız backend video_required=true
                     // olanda (video deaktiv olanda approve bloklanmır). ✓ yalnız video
