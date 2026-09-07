@@ -78,6 +78,12 @@
         }
         .panel:hover { box-shadow: 0 4px 16px rgba(15,23,42,0.06); }
 
+        /* PR #408: müştəri şəkli — tema sərhədi (light/dark) */
+        .customer-photo {
+            border: 1px solid var(--border);
+            object-fit: cover;
+        }
+
         .panel-title { color: var(--text); }
         .panel-divider { border-color: var(--border); }
         .label-soft { color: var(--text-soft); }
@@ -173,6 +179,24 @@
                     <div x-show="videoStreamError" class="text-rose-400 text-sm px-4 text-center" x-text="videoStreamError"></div>
                 </div>
                 <p x-show="videoStreamUrl" class="text-[10px] text-gray-400 mt-2 break-all" x-text="videoStreamUrl"></p>
+            </div>
+        </div>
+
+        <!-- PR #408: Müştəri şəkli — tam ölçü baxış (zoom) -->
+        <div x-show="photoDialogOpen" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" @keydown.escape.window="photoDialogOpen = false">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-sm w-full p-4">
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="text-xl shrink-0">👤</span>
+                        <h3 class="font-bold text-gray-900 dark:text-gray-100 truncate" x-text="app?.customer_full_name || 'Müştəri şəkli'"></h3>
+                    </div>
+                    <button @click="photoDialogOpen = false" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition shrink-0">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </div>
+                <div class="flex items-center justify-center">
+                    <img :src="customerPhoto" alt="Müştəri şəkli (tam ölçü)" class="max-h-[70vh] rounded-lg object-contain">
+                </div>
             </div>
         </div>
 
@@ -295,7 +319,8 @@
                         <span class="icon-chip">👤</span>
                         <h2 class="panel-title text-sm font-bold tracking-wide uppercase">Müştəri</h2>
                     </div>
-                    <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm flex-1">
+                    <div class="flex gap-3 flex-1 min-h-0">
+                    <div class="grid grid-cols-2 gap-x-3 gap-y-1.5 text-sm flex-1 min-w-0">
                         <div>
                             <div class="label-soft text-[11px] uppercase tracking-wide">PIN</div>
                             <div class="value-strong font-semibold" x-text="app?.customer_pin || '-'"></div>
@@ -398,6 +423,13 @@
                             <span class="value-strong font-semibold truncate" x-text="app?.actual_address_updated_by_username || '-'"></span>
                             <span class="text-gray-400 shrink-0" x-text="app?.actual_address_updated_at ? new Date(app.actual_address_updated_at).toLocaleString('az') : ''"></span>
                         </div>
+                    </div>
+                    <!-- PR #408: vətəndaşın şəkli — AZMK PersonalInfo Image tagı (böyük, klik → tam ölçü) -->
+                    <template x-if="customerPhoto">
+                        <img :src="customerPhoto" alt="Müştəri şəkli" title="Şəkilə klik — tam ölçü"
+                             @click="photoDialogOpen = true"
+                             class="customer-photo w-24 h-24 lg:w-28 lg:h-28 rounded-xl shadow-sm shrink-0 self-start cursor-zoom-in hover:shadow-md transition">
+                    </template>
                     </div>
                 </section>
 
@@ -846,6 +878,10 @@
                 addressEditing: false,
                 addressDraft: '',
                 addressSaving: false,
+
+                // PR #408: müştəri şəkli (base64 data URL) — AZMK PersonalInfo Image tagı
+                customerPhoto: '',
+                photoDialogOpen: false,
 
                 initTheme() {
                     document.body.setAttribute('data-theme', this.theme);
@@ -1443,6 +1479,17 @@
                             fetch('/api/applications/' + this.app.public_id + '/video-record')
                                 .then(r => r.ok ? r.json() : null)
                                 .then(d => { if (d) this.videoBackendRequired = !!d.video_required; })
+                                .catch(() => { /* fail-soft */ });
+                        }
+
+                        // PR #408: müştəri şəkli — AZMK PersonalInfo Image tagı (fail-soft,
+                        // backend-də cache varsa oradan). Şəkil yoxdursa gizlədilir.
+                        if (this.internalId) {
+                            fetch('/api/applications/' + this.internalId + '/customer-photo')
+                                .then(r => r.ok ? r.json() : null)
+                                .then(d => {
+                                    if (d && d.image) this.customerPhoto = 'data:image/jpeg;base64,' + d.image;
+                                })
                                 .catch(() => { /* fail-soft */ });
                         }
                     } catch (e) {

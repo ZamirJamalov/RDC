@@ -141,6 +141,9 @@ func NewRouter(
 	mux.Handle("GET /api/applications/{id}/video-stream-url", protectedAuth(http.HandlerFunc(appHandler.ExpertGetVideoStreamURL)))
 	mux.Handle("POST /api/applications/{id}/mygov-pension-verify", protectedAuth(http.HandlerFunc(mygovHandler.VerifyPension)))
 
+	// PR #408: müştəri şəkli (AZMK PersonalInfo Image tagı) — protected (ekspert)
+	mux.Handle("GET /api/applications/{id}/customer-photo", protectedAuth(http.HandlerFunc(appHandler.GetCustomerPhoto)))
+
 	// --- Expert (operator) endpoints (T-5.7) — protected ---
 	mux.Handle("GET /api/expert/queue", protectedAuth(http.HandlerFunc(expertHandler.Queue)))
 	mux.Handle("GET /api/expert/{id}", protectedAuth(http.HandlerFunc(expertHandler.GetApplication)))

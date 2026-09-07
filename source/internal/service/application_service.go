@@ -460,6 +460,42 @@ func (s *ApplicationService) BackfillRegistrationAddress(ctx context.Context, ap
 	return app, nil
 }
 
+// GetCustomerPhoto returns the citizen photo (base64 JPEG) from AZMK
+// GetPersonalInfo (PR #408). Əvvəlcə AZMK_GET_PERSONAL_INFO cache yoxlanılır
+// (service_cache_config, 3 gün) — HIT olsa Image oradan oxunur, fiziki çağırış
+// edilmir. Fail-soft: AZMK xətası olsa boş string qaytarılır (UI şəkli gizlədir).
+func (s *ApplicationService) GetCustomerPhoto(ctx context.Context, appID int) (string, error) {
+	if appID <= 0 {
+		return "", fmt.Errorf("invalid application id")
+	}
+	app, err := s.repo.GetApplicationByID(ctx, appID)
+	if err != nil {
+		return "", fmt.Errorf("application not found: %w", err)
+	}
+	if s.customerDataProvider == nil {
+		return "", nil
+	}
+
+	// 1) Cache (PR #381 mexanizmi) — cached raw JSON-də Image tagı var.
+	if cached, ok := s.GetCachedServiceResponse(ctx, &appID, "AZMK_GET_PERSONAL_INFO", app.CustomerPIN); ok {
+		if data := customerDataFromCache(cached); data != nil && data.Image != "" {
+			return data.Image, nil
+		}
+	}
+
+	// 2) Cache miss / Image boş — birbaşa AZMK (BackfillRegistrationAddress üslubunda).
+	data, err := s.customerDataProvider.GetPersonalInfo(ctx, app.CustomerPIN, app.CustomerSerial)
+	if err != nil {
+		slog.Warn("PR #408: failed to fetch customer photo — fail-soft",
+			"application_id", appID, "error", err)
+		return "", nil
+	}
+	if data == nil {
+		return "", nil
+	}
+	return data.Image, nil
+}
+
 // SetProcessedBy records which dashboard user approved/rejected the application.
 // PR #142: ekspert əməliyyatları istifadəçiyə bağlanır.
 func (s *ApplicationService) SetProcessedBy(ctx context.Context, appID int, userID int, username string) error {
