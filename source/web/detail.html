@@ -167,7 +167,8 @@
                     </button>
                 </div>
                 <div class="bg-black rounded-lg overflow-hidden aspect-video flex items-center justify-center">
-                    <video id="videoVerifyPlayer" x-show="videoStreamUrl" :src="videoStreamUrl" controls playsinline class="w-full h-full"></video>
+                    <!-- PR #405: ✓ yalnız video REAL yüklənəndə (ilk kadr oxunanda) -->
+                    <video id="videoVerifyPlayer" x-show="videoStreamUrl" :src="videoStreamUrl" controls playsinline @loadeddata="videoWatched = true" class="w-full h-full"></video>
                     <div x-show="!videoStreamUrl && !videoStreamError" class="text-gray-400 text-sm animate-pulse">Yüklənir...</div>
                     <div x-show="videoStreamError" class="text-rose-400 text-sm px-4 text-center" x-text="videoStreamError"></div>
                 </div>
@@ -829,9 +830,12 @@
                 videoStreamLoading: false,
                 videoStreamError: '',
 
-                // PR #402: addım checkmark-ları (localStorage-da app-a görə saxlanılır)
-                videoOrderSent: false,   // video müraciət göndərilib (backend status + local)
-                videoWatched: false,     // videya baxılıb
+                // PR #402/#405: addım checkmark-ları. Video ✓-ləri YALNIZ düymə
+                // klikində yaranır (session-only — backend statusu / localStorage
+                //! göstərmir). Komplayans/MyGov ✓-ləri localStorage-da qalır.
+                videoOrderSent: false,   // "Video müraciət göndər" kliklənib (bu sessiya)
+                videoWatched: false,     // video REAL yüklənib (loadeddata hadisəsi)
+                videoBackendRequired: false, // PR #405: backend video_required — approve qadağası üçün
                 compliance: { name: false, hms: false, os: false },
                 employmentSMSDone: false,
                 employmentVerified: false,
@@ -1048,7 +1052,13 @@
                         }
                     }
                     if (!this.complianceChecked) {
-                        errors.push('Komplyans: HMS və OpenSanctions yoxlanılmayıb');
+                        errors.push('Komplayans: HMS və OpenSanctions yoxlanılmayıb');
+                    }
+                    // PR #405: video baxışı tələb olunur — yalnız backend video_required=true
+                    // olanda (video deaktiv olanda approve bloklanmır). ✓ yalnız video
+                    // real yüklənəndə qoyulur (loadeddata), ona görə baxılmayan video approve-i blokluyur.
+                    if (this.videoBackendRequired && !this.videoWatched) {
+                        errors.push('Video: əvvəlcə “Videya bax” düyməsi ilə videoya baxılmalıdır');
                     }
                     return errors;
                 },
@@ -1320,7 +1330,6 @@
                 // backend-dən (video_records) gəlir — qalanı lokal işarələmədir.
                 markDone(key) {
                     const map = {
-                        video_watch: () => this.videoWatched = true,
                         compliance_name: () => this.compliance.name = true,
                         compliance_hms: () => this.compliance.hms = true,
                         compliance_os: () => this.compliance.os = true,
@@ -1333,7 +1342,9 @@
                     try { localStorage.setItem('alpul_done_' + this.internalId + '_' + key, '1'); } catch (e) { /* ignore */ }
                 },
                 restoreDones() {
-                    ['video_watch', 'compliance_name', 'compliance_hms', 'compliance_os',
+                    // PR #405: video_watch silindi — video ✓ session-only-dur
+                    // (yalnız düymə klikində yaranır, refresh-dən sonra yenidən klik lazımdır)
+                    ['compliance_name', 'compliance_hms', 'compliance_os',
                      'emp_req', 'emp_verify', 'pen_req', 'pen_verify'].forEach(k => {
                         let done = false;
                         try { done = localStorage.getItem('alpul_done_' + this.internalId + '_' + k) === '1'; } catch (e) { /* ignore */ }
@@ -1407,12 +1418,14 @@
                         // PR #245: qeydiyyat ünvanı boşdursa AZMK-dən doldur (arxa fonda, blocking deyil)
                         this.backfillRegistrationAddress();
 
-                        // PR #402: addım checkmark-larını bərpa et + video order statusunu yoxla
+                        // PR #402/#405: addım checkmark-larını bərpa et (komplayans/MyGov)
+                        // + backend video_required oxu — YALNIZ approve qadağası üçün,
+                        // ✓ göstərmək üçün YOX (PR #405: ✓ yalnız düymə klikində).
                         this.restoreDones();
                         if (this.app.public_id) {
                             fetch('/api/applications/' + this.app.public_id + '/video-record')
                                 .then(r => r.ok ? r.json() : null)
-                                .then(d => { if (d && d.redirect_url) this.videoOrderSent = true; })
+                                .then(d => { if (d) this.videoBackendRequired = !!d.video_required; })
                                 .catch(() => { /* fail-soft */ });
                         }
                     } catch (e) {
@@ -1582,7 +1595,7 @@
                         const data = await resp.json();
                         if (!resp.ok) throw new Error(data.error || 'SMS gonderilmedi');
                         this.videoMessage = 'SMS gonderildi — musteri linke kecid ederek video cekecek.';
-                        this.videoOrderSent = true; // PR #402: ✓
+                        this.videoOrderSent = true; // PR #405: ✓ yalnız klikdə (session-only)
                     } catch (e) {
                         this.videoMessage = 'Xeta: ' + e.message;
                         this.videoError = true;
@@ -1602,7 +1615,8 @@
                         const data = await resp.json();
                         if (!resp.ok) throw new Error(data.error || 'Video tapilmadi');
                         this.videoStreamUrl = data.stream_url;
-                        this.markDone('video_watch'); // PR #402: ✓
+                        // PR #405: ✓ BURADA yox — video elementinin loadeddata
+                        // hadisəsində qoyulur (video REAL yüklənib oxunanda)
                     } catch (e) {
                         this.videoStreamError = 'Video acila bilmedi: ' + e.message;
                     } finally {
