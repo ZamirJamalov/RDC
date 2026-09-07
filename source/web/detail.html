@@ -657,17 +657,21 @@
                                       x-text="employmentResult === 'passed' ? '✓ Keçdi' : '✗ İmtina'"></span>
                             </div>
                             <div class="flex gap-2 mb-2">
+                                <!-- PR #415: klikdən sonra 10 san cooldown (geri sayım düymənin üstündə);
+                                     'passed' nəticəsində Sorgu + Yoxla hər ikisi tam deaktiv qalır -->
                                 <button @click="employmentRequest()"
-                                        :disabled="employmentLoading"
+                                        :disabled="employmentLoading || employmentResult === 'passed' || mygovCooldown.empReq > 0"
                                         class="flex-1 alpul-btn text-white px-2 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition">
-                                    <span x-show="!employmentLoading"><span x-show="employmentSMSDone" class="text-emerald-300 mr-0.5 font-bold">✓</span>📤 Sorgu</span>
+                                    <span x-show="!employmentLoading && mygovCooldown.empReq <= 0"><span x-show="employmentSMSDone" class="text-emerald-300 mr-0.5 font-bold">✓</span>📤 Sorgu</span>
                                     <span x-show="employmentLoading">...</span>
+                                    <span x-show="!employmentLoading && mygovCooldown.empReq > 0" x-text="'⏳ ' + mygovCooldown.empReq + ' san'"></span>
                                 </button>
                                 <button @click="employmentVerify()"
-                                        :disabled="employmentVerifying"
+                                        :disabled="employmentVerifying || employmentResult === 'passed' || mygovCooldown.empVerify > 0"
                                         class="flex-1 bg-indigo-600 text-white px-2 py-1.5 rounded-md text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition">
-                                    <span x-show="!employmentVerifying"><span x-show="employmentVerified" class="text-emerald-300 mr-0.5 font-bold">✓</span>Yoxla</span>
+                                    <span x-show="!employmentVerifying && mygovCooldown.empVerify <= 0"><span x-show="employmentVerified" class="text-emerald-300 mr-0.5 font-bold">✓</span>Yoxla</span>
                                     <span x-show="employmentVerifying">...</span>
+                                    <span x-show="!employmentVerifying && mygovCooldown.empVerify > 0" x-text="'⏳ ' + mygovCooldown.empVerify + ' san'"></span>
                                 </button>
                             </div>
                             <p class="text-[11px] mt-auto" :class="employmentResult === 'rejected' ? 'text-rose-600' : 'text-gray-500'" x-text="employmentMessage"></p>
@@ -682,17 +686,20 @@
                                       x-text="pensionResult === 'passed' ? '✓ Keçdi' : '✗ İmtina'"></span>
                             </div>
                             <div class="flex gap-2 mb-2">
+                                <!-- PR #415: iş yeri ilə eyni cooldown məntiqi -->
                                 <button @click="pensionRequest()"
-                                        :disabled="pensionLoading"
+                                        :disabled="pensionLoading || pensionResult === 'passed' || mygovCooldown.penReq > 0"
                                         class="flex-1 alpul-btn text-white px-2 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition">
-                                    <span x-show="!pensionLoading"><span x-show="pensionSMSDone" class="text-emerald-300 mr-0.5 font-bold">✓</span>📤 Sorgu</span>
+                                    <span x-show="!pensionLoading && mygovCooldown.penReq <= 0"><span x-show="pensionSMSDone" class="text-emerald-300 mr-0.5 font-bold">✓</span>📤 Sorgu</span>
                                     <span x-show="pensionLoading">...</span>
+                                    <span x-show="!pensionLoading && mygovCooldown.penReq > 0" x-text="'⏳ ' + mygovCooldown.penReq + ' san'"></span>
                                 </button>
                                 <button @click="pensionVerify()"
-                                        :disabled="pensionVerifying"
+                                        :disabled="pensionVerifying || pensionResult === 'passed' || mygovCooldown.penVerify > 0"
                                         class="flex-1 bg-indigo-600 text-white px-2 py-1.5 rounded-md text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition">
-                                    <span x-show="!pensionVerifying"><span x-show="pensionVerified" class="text-emerald-300 mr-0.5 font-bold">✓</span>Yoxla</span>
+                                    <span x-show="!pensionVerifying && mygovCooldown.penVerify <= 0"><span x-show="pensionVerified" class="text-emerald-300 mr-0.5 font-bold">✓</span>Yoxla</span>
                                     <span x-show="pensionVerifying">...</span>
+                                    <span x-show="!pensionVerifying && mygovCooldown.penVerify > 0" x-text="'⏳ ' + mygovCooldown.penVerify + ' san'"></span>
                                 </button>
                             </div>
                             <p class="text-[11px] mt-auto" :class="pensionResult === 'rejected' ? 'text-rose-600' : 'text-gray-500'" x-text="pensionMessage"></p>
@@ -857,6 +864,12 @@
                 pensionVerifying: false,
                 pensionResult: '',
                 pensionMessage: '',
+
+                // PR #415: MyGov düymə cooldown-ları — klikdən sonra 10 san deaktiv,
+                // üzərində qalan saniyə görünür; bitəndə yenidən aktivləşir.
+                // 'passed' nəticəsində düymələr tam deaktiv qalır (:disabled şərti).
+                mygovCooldown: { empReq: 0, empVerify: 0, penReq: 0, penVerify: 0 },
+                cooldownTimers: {},
 
                 // PR #399: Video verifikasiya (dashboard)
                 videoLoading: false,
@@ -1611,8 +1624,25 @@
                     }
                 },
 
+                // PR #415: düymə cooldown-u — klikdən sonra 10 san geri sayım; bitəndə
+                // düymə yenidən aktivləşir. Nəticə 'passed' olsa cooldown lazımsızdır
+                // (:disabled içində employmentResult/pensionResult === 'passed' şərti
+                // düymələri tam deaktiv saxlayır).
+                startCooldown(key) {
+                    if (this.cooldownTimers[key]) return;
+                    this.mygovCooldown[key] = 10;
+                    this.cooldownTimers[key] = setInterval(() => {
+                        this.mygovCooldown[key]--;
+                        if (this.mygovCooldown[key] <= 0) {
+                            clearInterval(this.cooldownTimers[key]);
+                            this.cooldownTimers[key] = null;
+                        }
+                    }, 1000);
+                },
+
                 // MyGov employment
                 async employmentRequest() {
+                    this.startCooldown('empReq'); // PR #415
                     this.employmentLoading = true;
                     this.employmentMessage = '';
                     try {
@@ -1630,6 +1660,7 @@
                 },
 
                 async employmentVerify() {
+                    this.startCooldown('empVerify'); // PR #415
                     this.employmentVerifying = true;
                     this.employmentMessage = '';
                     try {
@@ -1664,6 +1695,7 @@
 
                 // MyGov pension
                 async pensionRequest() {
+                    this.startCooldown('penReq'); // PR #415
                     this.pensionLoading = true;
                     this.pensionMessage = '';
                     try {
@@ -1681,6 +1713,7 @@
                 },
 
                 async pensionVerify() {
+                    this.startCooldown('penVerify'); // PR #415
                     this.pensionVerifying = true;
                     this.pensionMessage = '';
                     try {
