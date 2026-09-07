@@ -201,7 +201,7 @@
         </div>
 
         <template x-if="!authChecking">
-        <div class="min-h-screen flex flex-col">
+        <div id="pageShell" class="min-h-screen flex flex-col">
 
         <!-- ============ TOP HEADER (sticky, compact) ============ -->
         <header class="top-header sticky top-0 z-30 px-5 py-3 flex items-center gap-4">
@@ -900,10 +900,46 @@
                 // PR #142: Auth
                 async init() {
                     this.initTheme();
+                    this.setupFit(); // PR #411: səhifəni ekrana sığdır (adaptive zoom)
                     await this.checkAuth();
                     if (this.currentUser) {
                         this.load();
                     }
+                },
+
+                // PR #411: detallar səhifəsi vertikal scroll YARATMAMALIDIR — məzmun
+                // viewport hündürlüyündən böyükdürsə bütün shell kiçildilir (zoom < 1,
+                // heç vaxt böyüdülmür). minHeight kompensasiyası ilə vizual hündürlük
+                // yenə 100vh qalır (aşaqıda boş zolaq yaranmır). Dialoqlar shell-dən
+                // kənardadır — zoom-dan təsirlənmirlər.
+                setupFit() {
+                    const attach = () => {
+                        const shell = document.getElementById('pageShell');
+                        if (!shell) { requestAnimationFrame(attach); return; }
+                        let raf = 0;
+                        const fit = () => {
+                            cancelAnimationFrame(raf);
+                            raf = requestAnimationFrame(() => this.fitPage());
+                        };
+                        new ResizeObserver(fit).observe(shell);
+                        window.addEventListener('resize', fit);
+                        fit();
+                    };
+                    attach();
+                },
+                fitPage() {
+                    const shell = document.getElementById('pageShell');
+                    if (!shell) return;
+                    // ölçmək üçün zoom/minHeight sıfırla, təbii hündürlüyü ölç
+                    shell.style.zoom = '1';
+                    shell.style.minHeight = '';
+                    const vh = window.innerHeight;
+                    const h = shell.offsetHeight;
+                    let z = 1;
+                    if (h > vh + 1) z = Math.max(0.5, vh / h);
+                    shell.style.zoom = String(+z.toFixed(3));
+                    // vizual 100vh qalsın deyə minHeight kompensasiya et
+                    shell.style.minHeight = z < 1 ? (100 / z).toFixed(2) + 'vh' : '';
                 },
                 async checkAuth() {
                     try {
