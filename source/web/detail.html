@@ -349,8 +349,20 @@
                             <div class="label-soft text-[11px] uppercase tracking-wide">Kart</div>
                             <div class="value-strong font-semibold" x-text="app?.card_number ? '**** ' + app.card_number.slice(-4) : '-'"></div>
                         </div>
+                    </div>
+                    <!-- PR #408: vətəndaşın şəkli — AZMK PersonalInfo Image tagı (böyük, klik → tam ölçü).
+                         PR #410: şəkil yalnız yuxarı sahələrin yanındadır — ünvanlar aşağıda tam en üzrə. -->
+                    <template x-if="customerPhoto">
+                        <img :src="customerPhoto" alt="Müştəri şəkli" title="Şəkilə klik — tam ölçü"
+                             @click="photoDialogOpen = true"
+                             class="customer-photo w-24 h-24 lg:w-28 lg:h-28 rounded-xl shadow-sm shrink-0 self-start cursor-zoom-in hover:shadow-md transition">
+                    </template>
+                    </div>
+
+                    <!-- PR #410: ünvanlar panelin TAM eni üzrə — wrap ilə tam görünür (~2 sətir) -->
+                    <div class="text-sm mt-2">
                         <!-- PR #245: Qeydiyyat ünvanı — AZMK GetPersonalInfo-dən (read-only) -->
-                        <div class="col-span-2">
+                        <div>
                             <div class="label-soft text-[11px] uppercase tracking-wide flex items-center justify-between">
                                 <span>Qeydiyyat ünvanı</span>
                                 <button x-show="app?.registration_address" @click="copyToClipboard(app?.registration_address)"
@@ -360,12 +372,12 @@
                                     </svg>
                                 </button>
                             </div>
-                            <div class="value-strong text-xs truncate"
+                            <div class="value-strong text-xs break-words leading-snug"
                                  :title="app?.registration_address || ''"
                                  x-text="app?.registration_address || '-'"></div>
                         </div>
                         <!-- PR #245: Faktiki ünvan — ekspert redaktə edə bilər -->
-                        <div class="col-span-2">
+                        <div class="mt-1.5">
                             <div class="label-soft text-[11px] uppercase tracking-wide flex items-center justify-between">
                                 <span class="flex items-center gap-1">Faktiki ünvan
                                     <!-- PR #402: ünvan dəyişilibsə yaşıl ✓ (PR #249 audit sahələrindən) -->
@@ -379,7 +391,7 @@
                                 </button>
                             </div>
                             <!-- Baxış rejimi -->
-                            <div x-show="!addressEditing" class="value-strong text-xs truncate"
+                            <div x-show="!addressEditing" class="value-strong text-xs break-words leading-snug"
                                  :title="app?.actual_address || ''"
                                  x-text="app?.actual_address || '-'"></div>
                             <!-- Redaktə rejimi -->
@@ -400,36 +412,29 @@
                             </div>
                         </div>
                         <!-- PR #142/#148/#249: Audit — PR #402: kompakt tək-sətir şəklində -->
-                        <div x-show="app?.processed_by_username" class="col-span-2 flex items-baseline gap-1.5 text-[11px]">
+                        <div x-show="app?.processed_by_username" class="flex items-baseline gap-1.5 text-[11px] mt-1.5">
                             <span class="label-soft uppercase tracking-wide shrink-0">Təsdiq/İmtina edən:</span>
                             <span class="value-strong font-semibold truncate" x-text="app?.processed_by_username || '-'"></span>
                         </div>
-                        <div x-show="app?.contacts_updated_by_username" class="col-span-2 flex items-baseline gap-1.5 text-[11px]">
+                        <div x-show="app?.contacts_updated_by_username" class="flex items-baseline gap-1.5 text-[11px] mt-1.5">
                             <span class="label-soft uppercase tracking-wide shrink-0">Kontaktları yeniləyən:</span>
                             <span class="value-strong font-semibold truncate" x-text="app?.contacts_updated_by_username || '-'"></span>
                             <span class="text-gray-400 shrink-0" x-text="app?.contacts_updated_at ? new Date(app.contacts_updated_at).toLocaleString('az') : ''"></span>
                         </div>
-                        <div x-show="app?.timer_updated_by_username" class="col-span-2 flex items-baseline gap-1.5 text-[11px]">
+                        <div x-show="app?.timer_updated_by_username" class="flex items-baseline gap-1.5 text-[11px] mt-1.5">
                             <span class="label-soft uppercase tracking-wide shrink-0">Timer saxlayan:</span>
                             <span class="value-strong font-semibold truncate" x-text="app?.timer_updated_by_username || '-'"></span>
                         </div>
-                        <div x-show="app?.mygov_checked_by_username" class="col-span-2 flex items-baseline gap-1.5 text-[11px]">
+                        <div x-show="app?.mygov_checked_by_username" class="flex items-baseline gap-1.5 text-[11px] mt-1.5">
                             <span class="label-soft uppercase tracking-wide shrink-0">MyGov yoxlayan:</span>
                             <span class="value-strong font-semibold truncate" x-text="app?.mygov_checked_by_username || '-'"></span>
                             <span class="text-gray-400 shrink-0" x-text="app?.mygov_checked_at ? new Date(app.mygov_checked_at).toLocaleString('az') : ''"></span>
                         </div>
-                        <div x-show="app?.actual_address_updated_by_username" class="col-span-2 flex items-baseline gap-1.5 text-[11px]">
+                        <div x-show="app?.actual_address_updated_by_username" class="flex items-baseline gap-1.5 text-[11px] mt-1.5">
                             <span class="label-soft uppercase tracking-wide shrink-0">Ünvanı yeniləyən:</span>
                             <span class="value-strong font-semibold truncate" x-text="app?.actual_address_updated_by_username || '-'"></span>
                             <span class="text-gray-400 shrink-0" x-text="app?.actual_address_updated_at ? new Date(app.actual_address_updated_at).toLocaleString('az') : ''"></span>
                         </div>
-                    </div>
-                    <!-- PR #408: vətəndaşın şəkli — AZMK PersonalInfo Image tagı (böyük, klik → tam ölçü) -->
-                    <template x-if="customerPhoto">
-                        <img :src="customerPhoto" alt="Müştəri şəkli" title="Şəkilə klik — tam ölçü"
-                             @click="photoDialogOpen = true"
-                             class="customer-photo w-24 h-24 lg:w-28 lg:h-28 rounded-xl shadow-sm shrink-0 self-start cursor-zoom-in hover:shadow-md transition">
-                    </template>
                     </div>
                 </section>
 
