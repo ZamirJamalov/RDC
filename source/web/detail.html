@@ -1330,13 +1330,17 @@
                 // backend-dən (video_records) gəlir — qalanı lokal işarələmədir.
                 markDone(key) {
                     const map = {
-                        compliance_name: () => this.compliance.name = true,
+                        compliance_name: () => { this.compliance.name = true; this.complianceChecked = true; }, // PR #406: klik də precondition-i qane edir
                         compliance_hms: () => this.compliance.hms = true,
                         compliance_os: () => this.compliance.os = true,
                         emp_req: () => this.employmentSMSDone = true,
                         emp_verify: () => this.employmentVerified = true,
+                        // PR #406: nəticə özü də saxlanılır — siyahıya qayıdıb geri
+                        // gələndə approve precondition-i yenidən keçilsin (✓ ilə birgə)
+                        emp_passed: () => this.employmentResult = 'passed',
                         pen_req: () => this.pensionSMSDone = true,
                         pen_verify: () => this.pensionVerified = true,
+                        pen_passed: () => this.pensionResult = 'passed',
                     };
                     if (map[key]) map[key]();
                     try { localStorage.setItem('alpul_done_' + this.internalId + '_' + key, '1'); } catch (e) { /* ignore */ }
@@ -1344,8 +1348,11 @@
                 restoreDones() {
                     // PR #405: video_watch silindi — video ✓ session-only-dur
                     // (yalnız düymə klikində yaranır, refresh-dən sonra yenidən klik lazımdır)
+                    // PR #406: emp_passed/pen_passed əlavə olundu — checkmark ✓ ilə yanaşı
+                    // approve precondition-i (complianceChecked + nəticələr) də bərpa olunur
                     ['compliance_name', 'compliance_hms', 'compliance_os',
-                     'emp_req', 'emp_verify', 'pen_req', 'pen_verify'].forEach(k => {
+                     'emp_req', 'emp_verify', 'emp_passed',
+                     'pen_req', 'pen_verify', 'pen_passed'].forEach(k => {
                         let done = false;
                         try { done = localStorage.getItem('alpul_done_' + this.internalId + '_' + k) === '1'; } catch (e) { /* ignore */ }
                         if (done) this.markDone(k);
@@ -1527,6 +1534,7 @@
                         this.employmentResult = data.status;
                         this.employmentMessage = data.reason;
                         this.markDone('emp_verify'); // PR #402: ✓ (nəticədən asılı olmayaraq yoxlanılıb)
+                        if (data.status === 'passed') this.markDone('emp_passed'); // PR #406: precondition bərpası üçün
                         // PR #238: EMPLOYMENT_TENURE cutoff-a düşdü → imtina dialoqu göstər.
                         // Dialoq bağlananda closeEmpRejectModal() müraciəti yeniləyir —
                         // backend artıq auto-reject edib (müraciət sonlanıb), dashboard-da
@@ -1577,6 +1585,7 @@
                         this.pensionResult = data.status;
                         this.pensionMessage = data.reason;
                         this.markDone('pen_verify'); // PR #402: ✓
+                        if (data.status === 'passed') this.markDone('pen_passed'); // PR #406: precondition bərpası üçün
                         if (data.status === 'rejected') await this.load();
                     } catch (e) {
                         this.pensionMessage = 'Xeta: ' + e.message;
