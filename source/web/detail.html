@@ -1483,14 +1483,17 @@
                         }
 
                         // PR #408: müştəri şəkli — AZMK PersonalInfo Image tagı (fail-soft,
-                        // backend-də cache varsa oradan). Şəkil yoxdursa gizlədilir.
+                        // backend-də cache varsa oradan).
+                        // PR #409 (MÜVƏQQƏTİ): Image tagı gəlməsə də NÜMUNƏ şəkil göstərilir
+                        // (UI-u baxmaq üçün) — PR #410-da bu fallback silinəcək.
                         if (this.internalId) {
                             fetch('/api/applications/' + this.internalId + '/customer-photo')
                                 .then(r => r.ok ? r.json() : null)
                                 .then(d => {
                                     if (d && d.image) this.customerPhoto = 'data:image/jpeg;base64,' + d.image;
+                                    else this.customerPhoto = '/assets/sample-customer-photo.jpg';
                                 })
-                                .catch(() => { /* fail-soft */ });
+                                .catch(() => { this.customerPhoto = '/assets/sample-customer-photo.jpg'; });
                         }
                     } catch (e) {
                         this.error = e.message;
