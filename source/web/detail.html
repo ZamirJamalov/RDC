@@ -1357,6 +1357,16 @@
                         try { done = localStorage.getItem('alpul_done_' + this.internalId + '_' + k) === '1'; } catch (e) { /* ignore */ }
                         if (done) this.markDone(k);
                     });
+                    // PR #407: köhnə sessiya datası — PR #406-dan ƏVVƏL verify edilən
+                    // müraciətlərdə emp_passed/pen_passed açarı yoxdur (yalnız emp_verify/
+                    // pen_verify var). Müraciət hələ pending-dirsə, verify rejected olsaydı
+                    // avtomatik rejected olardı (PR #238/#242) — demək nəticə passed olub.
+                    // Bu halda nəticəni çıxarış edirik ki ✓ ilə precondition sinxron olsun.
+                    const isPending = this.app?.status === 'pending_approval' || this.app?.status === 'pending_expert';
+                    if (isPending) {
+                        if (!this.employmentResult && this.employmentVerified) this.employmentResult = 'passed';
+                        if (!this.pensionResult && this.pensionVerified) this.pensionResult = 'passed';
+                    }
                 },
 
                 async load() {
