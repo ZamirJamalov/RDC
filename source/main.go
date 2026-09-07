@@ -224,7 +224,7 @@ func main() {
 	if cfg.LwPartnerPhonesEnabled {
 		slog.Info("PR #404: LW partner phones ENABLED — approve zamanı 3 kontakt nömrəsi LW-yə göndəriləcək")
 	} else {
-		slog.Info("PR #404: LW partner phones DISABLED (default) — LW_PARTNER_PHONES_ENABLED=true ilə aktivləşdir")
+		slog.Info("PR #404: LW partner phones DISABLED — aktivləşdirmək üçün config.go-da LwPartnerPhonesEnabled: true edin (kod səviyyəsində idarə olunur, env YOX)")
 	}
 	// Audit log for HTTP provider
 	if httpVRP, ok := videoRecordProvider.(*videorecord.HTTPProvider); ok {
