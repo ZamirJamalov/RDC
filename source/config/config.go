@@ -103,6 +103,13 @@ type Config struct {
 	// PR #170: KYC verify toggle — true=KYC verify tələb olunur, false=skip
 	AzmkKycVerifyEnabled bool // default: true
 
+	// PR #404: LW partner phones — approve zamanı 3 kontakt nömrəsi LW Loan
+	// Management System-ə göndərilir (application create-dən ƏVVƏL).
+	// KOD SƏVİYYƏSİNDƏ idarə olunur (env YOX): aktivləşdirmək üçün
+	// Load() içindəki dəyəri false → true edin. Bir dəfə aktiv ediləndən
+	// sonra deaktiv edilməyəcəyi üçün env-dən oxunmur.
+	LwPartnerPhonesEnabled bool
+
 	// PR #171: Cutoff stop-on-first-fail toggle
 	// true (default) = ilk kesim rədd edildikdə digərləri yoxlanılmır
 	// false = bütün kesimlər həmişə yoxlanılır (birinci rədd səbəbi qaytarılır)
@@ -210,6 +217,10 @@ func Load() *Config {
 
 		// PR #170: KYC verify toggle
 		AzmkKycVerifyEnabled: getEnvBool("AZMK_KYC_VERIFY_ENABLED", true),
+
+		// PR #404: LW partner phones — KOD SƏVİYYƏSİNDƏ idarə olunur (env YOX).
+		// Aktivləşdirmək üçün bu sətri false → true edin:
+		LwPartnerPhonesEnabled: false,
 
 		// PR #171: Cutoff stop-on-first-fail toggle
 		CutoffStopOnFirstFail: getEnvBool("CUTOFF_STOP_ON_FIRST_FAIL", true),

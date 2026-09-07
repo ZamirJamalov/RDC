@@ -24,10 +24,13 @@ type fakeAzmkOnlineProvider struct {
 	cardsErr           error
 	registerCardErr    error // PR #350: yeni kart xətasını simulyasiya etmək üçün
 	registerPartnerErr error // PR #357: partner re-register xətasını simulyasiya etmək üçün
+	sendPhonesErr      error // PR #404: partner phones xətasını simulyasiya etmək üçün
 	getCards           int
 	registerCard       int
 	createAppReq       *azmk.ApplicationCreateRequest // PR #353: son create request-i (assert üçün)
 	partnerReq         *azmk.PartnerRequest           // PR #357: son partner re-register request-i
+	phonesReq          *azmk.PartnerPhonesRequest     // PR #404: son phones request-i (assert üçün)
+	phonesPartnerID    string                         // PR #404: phones çağırılışında göndərilən partner id
 }
 
 func (f *fakeAzmkOnlineProvider) KYC(context.Context, *azmk.KYCRequest) (string, error) {
@@ -66,6 +69,17 @@ func (f *fakeAzmkOnlineProvider) GetCards(_ context.Context, _ string) ([]azmk.C
 		return nil, f.cardsErr
 	}
 	return f.cards, nil
+}
+
+// SendPartnerPhones — PR #404: son phones request-i saxla (assert üçün) +
+// konfiqurasiya olunmuş xətanı qaytar.
+func (f *fakeAzmkOnlineProvider) SendPartnerPhones(_ context.Context, partnerID string, req *azmk.PartnerPhonesRequest) error {
+	f.phonesPartnerID = partnerID
+	f.phonesReq = req
+	if f.sendPhonesErr != nil {
+		return f.sendPhonesErr
+	}
+	return nil
 }
 
 // newCardsTestStore: app 1 = pending_customer (PublicID və PartnerID dolu).
