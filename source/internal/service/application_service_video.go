@@ -67,6 +67,8 @@ func (s *ApplicationService) StartVideoRecord(ctx context.Context, appID int, am
 		// PR #400: "too long" validasiya xətalarına qarşı rune limiti ilə kəsilir.
 		Address: truncateVideoField(app.ActualAddress, 150),
 		Salary:  0,
+		// PR #414: video service metodu — api/orders requestində m_type:1 göndərilir.
+		MType: 1,
 	}
 
 	// PR #260: SetAuditAppID shared mutable state race yaradırdı (PR #259 analizindən).
