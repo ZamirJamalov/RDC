@@ -10,8 +10,9 @@ import (
 )
 
 // ServiceHealthHandler — PR #421: xarici servis sağlamlıq paneli.
-// GET /api/service-health (protected) — dashboard-da hər xarici servisin
-// statusu: son uğurlu/uğursuz çağırış, gecikmə, 24 saatlıq statistika.
+// GET /api/admin/service-health (PR #422: YALNIZ ADMIN — ekspert görmür) —
+// dashboard-da hər xarici servisin statusu: son uğurlu/uğursuz çağırış,
+// gecikmə, 24 saatlıq statistika.
 // Mənbə: service_audit_logs cədvəli (bir aqreqasiya sorğu).
 type ServiceHealthHandler struct {
 	repo *repository.ServiceAuditLogRepo
@@ -21,7 +22,7 @@ func NewServiceHealthHandler(repo *repository.ServiceAuditLogRepo) *ServiceHealt
 	return &ServiceHealthHandler{repo: repo}
 }
 
-// GetServiceHealth handles GET /api/service-health?hours=24
+// GetServiceHealth handles GET /api/admin/service-health?hours=24
 func (h *ServiceHealthHandler) GetServiceHealth(w http.ResponseWriter, r *http.Request) {
 	hours := 24
 	if v := r.URL.Query().Get("hours"); v != "" {
