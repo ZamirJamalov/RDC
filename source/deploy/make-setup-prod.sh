@@ -140,6 +140,8 @@ LOKI_RETENTION_PERIOD="\${LOKI_RETENTION_PERIOD:-4320h}"
 SERVER_IP="\${SERVER_IP:-\$(hostname -I 2>/dev/null | awk '{print \$1}' || echo '')}"
 AZMK_PUBLIC_IP="\${AZMK_PUBLIC_IP:-185.161.225.102}"
 INSTALL_CADDYFILE_OVERWRITE="\${INSTALL_CADDYFILE_OVERWRITE:-0}"
+# PR #419: public qapı domeni — Caddyfile-da alpul.az bloku üçün
+ALPUL_DOMAIN="\${ALPUL_DOMAIN:-alpul.az}"
 APP_PORT="\${SERVER_ADDR##*:}"
 APP_PORT="\${APP_PORT:-8000}"
 
@@ -447,11 +449,27 @@ https://${SERVER_IP} {
     tls internal
     reverse_proxy localhost:${APP_PORT}
 }
+
+# PR #419: PUBLIC qapı — yalnız müştəri səhifələri (landing/apply/contact/faq).
+# Dashboard (index/detail/admin), login, ekspert/admin API-ləri 403.
+# Daxili qapı (yuxarıdakı SERVER_IP bloku) tam açıq qalır — ekspertlər üçün.
+${ALPUL_DOMAIN}, www.${ALPUL_DOMAIN} {
+    @root path /
+    redir @root /landing.html permanent
+
+    @blocked {
+        path /index* /detail* /admin* /login*
+        path /api/mock/* /api/expert/* /api/admin/* /api/auth/*
+    }
+    respond @blocked 403
+
+    reverse_proxy localhost:${APP_PORT}
+}
 CADDYFILE_EOF
             caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile 2>/dev/null || warn "Caddy validate uğursuz"
             systemctl enable --now caddy 2>/dev/null || warn "caddy başladıla bilmədi"
             systemctl reload caddy 2>/dev/null || systemctl restart caddy 2>/dev/null || warn "caddy reload/restart uğursuz"
-            log "Caddy konfiqurasiya olundu: https://${SERVER_IP}"
+            log "Caddy konfiqurasiya olundu: https://${SERVER_IP} + public qapı ${ALPUL_DOMAIN}"
         else
             log "Caddyfile artıq mövcuddur (üzərinə yazılmır) — INSTALL_CADDYFILE_OVERWRITE=1 ilə məcburi yenilə"
         fi
