@@ -187,8 +187,12 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
 						"application_id", id,
 						"error", err)
 				}
-				// PR #362: AZMK create rollback reject-i — müştəriyə imtina SMS-i (non-fatal)
-				s.sendRejectionSMS(ctx, app)
+				// PR #421: TEXNİKİ rollback-də müştəriyə imtina SMS-i GETMİR.
+				// Bu, həqiqi imtina deyil — AZMK müvəqqəti xətasıdır (Günel hadisəsi:
+				// amount limiti 500 xətası → rollback → “təsdiq olunmadı” SMS-i gedib,
+				// halbuki müraciət yenidən təsdiq edilə bilərdi). Ekspert xətanı görür,
+				// səbəbi aradan qaldırıb yenidən “Təsdiq Et” vurur. SMS yalnız həqiqi
+				// imtina nöqtələrində gedir (ekspert reject, cutoff, KYC, AKB, imza timeout).
 				return nil, fmt.Errorf("AZMK approve flow uğursuz: %w", err)
 			}
 		}
@@ -339,8 +343,10 @@ func (s *ApplicationService) sendDisburseApprovalSMS(ctx context.Context, app *m
 }
 
 // sendRejectionSMS — PR #362: müraciət rejected olanda müştəriyə imtina SMS-i.
-// Bütün reject nöqtələrində çağrılır: early cutoff, KYC fail, AKB stop factor,
-// ekspert reject, AZMK create rollback (PR #283), imza timeout (sign worker).
+// Reject nöqtələri: early cutoff, KYC fail, AKB stop factor, ekspert reject,
+// imza timeout (sign worker). PR #421: AZMK create rollback (texniki xəta,
+// PR #283) siyahıdan ÇIXARILDI — müvəqqəti AZMK xətasında müştəriyə “imtina”
+// SMS-i getmir (müraciət yenidən təsdiq edilə bilər).
 // Non-fatal: SMS xətası reject qərarını dəyişmir, yalnız log lanır.
 // Reject səbəbi (daxili cutoff kodu) SMS-ə yazılmır — müştəriyə ümumi mətn gedir.
 func (s *ApplicationService) sendRejectionSMS(ctx context.Context, app *model.LoanApplication) {

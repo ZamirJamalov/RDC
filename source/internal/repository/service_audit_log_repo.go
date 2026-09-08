@@ -18,6 +18,57 @@ func NewServiceAuditLogRepo(db *sql.DB) *ServiceAuditLogRepo {
 	return &ServiceAuditLogRepo{db: db}
 }
 
+// GetServiceHealth — PR #421: xarici servis sağlamlıq aqreqasiyası.
+// Bir GROUP BY sorğu: hər service_name üçün son uğurlu/uğursuz çağırış vaxtı,
+// pəncərədəki çağırış sayları və gecikmələr (son hours saat üzrə).
+// Loki/extlog ilə paralel olaraq DB-də audit yazan servislar əhatə olunur
+// (AZMK OnlineLending, AZMK CustomerData, VideoRecord və s.).
+func (r *ServiceAuditLogRepo) GetServiceHealth(ctx context.Context, hours int) ([]model.ServiceHealth, error) {
+	if hours <= 0 || hours > 24*30 {
+		hours = 24
+	}
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT service_name,
+		       MAX(CASE WHEN (error IS NULL OR error = '') AND status_code >= 200 AND status_code < 300 THEN created_at END) AS last_success_at,
+		       MAX(CASE WHEN (error IS NOT NULL AND error <> '') OR status_code >= 400 THEN created_at END) AS last_failure_at,
+		       COUNT(*) AS total_calls,
+		       SUM(CASE WHEN (error IS NULL OR error = '') AND status_code >= 200 AND status_code < 300 THEN 1 ELSE 0 END) AS ok_calls,
+		       SUM(CASE WHEN (error IS NOT NULL AND error <> '') OR status_code >= 400 THEN 1 ELSE 0 END) AS failed_calls,
+		       ISNULL(AVG(CAST(duration_ms AS FLOAT)), 0) AS avg_duration_ms,
+		       ISNULL(MAX(CASE WHEN rn = 1 THEN duration_ms END), 0) AS last_duration_ms
+		FROM (
+		    SELECT service_name, error, status_code, duration_ms, created_at,
+		           ROW_NUMBER() OVER (PARTITION BY service_name ORDER BY created_at DESC) AS rn
+		    FROM service_audit_logs
+		    WHERE created_at >= DATEADD(HOUR, ?/*hours*/ * -1, GETDATE())
+		) t
+		GROUP BY service_name
+		ORDER BY service_name`, hours)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query service health: %w", err)
+	}
+	defer rows.Close()
+
+	var healths []model.ServiceHealth
+	for rows.Next() {
+		var h model.ServiceHealth
+		var okCalls, failedCalls sql.NullInt64
+		var avgDur sql.NullFloat64
+		if err := rows.Scan(
+			&h.ServiceName, &h.LastSuccessAt, &h.LastFailureAt,
+			&h.TotalCalls, &okCalls, &failedCalls, &avgDur, &h.LastDurationMs,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan service health: %w", err)
+		}
+		h.OkCalls = int(okCalls.Int64)
+		h.FailedCalls = int(failedCalls.Int64)
+		h.AvgDurationMs = int(avgDur.Float64)
+		h.ComputeStatus()
+		healths = append(healths, h)
+	}
+	return healths, rows.Err()
+}
+
 // Insert logs a service call to the database.
 func (r *ServiceAuditLogRepo) Insert(ctx context.Context, log *model.ServiceAuditLog) error {
 	_, err := r.db.ExecContext(ctx, `

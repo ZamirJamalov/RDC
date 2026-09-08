@@ -25,6 +25,7 @@ type fakeAzmkOnlineProvider struct {
 	registerCardErr    error // PR #350: yeni kart xətasını simulyasiya etmək üçün
 	registerPartnerErr error // PR #357: partner re-register xətasını simulyasiya etmək üçün
 	sendPhonesErr      error // PR #404: partner phones xətasını simulyasiya etmək üçün
+	createAppErr       error // PR #421: approve rollback path-i üçün (AZMK create xətası)
 	getCards           int
 	registerCard       int
 	createAppReq       *azmk.ApplicationCreateRequest // PR #353: son create request-i (assert üçün)
@@ -55,6 +56,9 @@ func (f *fakeAzmkOnlineProvider) RegisterCard(context.Context, *azmk.CardRequest
 }
 func (f *fakeAzmkOnlineProvider) CreateApplication(_ context.Context, req *azmk.ApplicationCreateRequest) (string, error) {
 	f.createAppReq = req
+	if f.createAppErr != nil {
+		return "", f.createAppErr
+	}
 	return "FAKE-APP-1", nil
 }
 func (f *fakeAzmkOnlineProvider) GetApplicationStatus(context.Context, string) (*azmk.ApplicationStatus, error) {
