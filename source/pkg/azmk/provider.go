@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -358,6 +359,66 @@ func (p *HTTPProvider) auditDBInsert(ctx context.Context, serviceName, method, u
 	}
 }
 
+// httpError is a typed error for non-2xx AZMK responses. PR #420: retry
+// wrapper status kodu bu tipdən oxuyur (string parse yox). Error mesajı
+// əvvəlki ilə eynidir — loglar dəyişmir.
+type httpError struct {
+	Path   string
+	Status int
+	Body   string
+}
+
+func (e *httpError) Error() string {
+	return fmt.Sprintf("azmk: %s returned HTTP %d: %s", e.Path, e.Status, e.Body)
+}
+
+// transient reports whether the status is worth retrying: server-side /
+// rate-limit responses (5xx, 429). 4xx cavablar (validasiya, auth və s.)
+// retry-edilmir — təkrar sorğu nəticəni dəyişməz.
+func (e *httpError) transient() bool {
+	return e.Status == http.StatusTooManyRequests || e.Status >= 500
+}
+
+// PR #420: idempotent AZMK çağırışları üçün HTTP-level retry.
+// PR #264 (doRequestWithRetry) yalnız connection/timeout xətalarını retry edir;
+// bu wrapper əlavə olaraq HTTP 5xx/429 cavablarını da retry edir.
+// YALNIZ idempotent əməliyyatlarda istifadə olunur:
+//   - RegisterPartner (PUT, eyni məlumat → eyni ID qaytarır)
+//   - RegisterCard, SendPartnerPhones (set semantikası)
+//   - bütün GET-lər (doGetVariant daxilində)
+//
+// Qeyri-idempotent əməliyyatlar (disburse, application/create, KYC create)
+// retry EDİLMİR — təkrar sorğu cüt əməliyyat/cüt SMS riski daşıyır.
+func withAzmkRetry(ctx context.Context, path string, fn func() (string, error)) (string, error) {
+	const maxAttempts = 3
+	var lastErr error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		body, err := fn()
+		if err == nil {
+			return body, nil
+		}
+		lastErr = err
+		var httpErr *httpError
+		if !errors.As(err, &httpErr) || !httpErr.transient() || attempt == maxAttempts {
+			return "", err
+		}
+		// backoff: 500ms, 1s (transport retry daxilində əlavə 1s/2s var)
+		backoff := time.Duration(500*(1<<(attempt-1))) * time.Millisecond
+		slog.Warn("PR #420: AZMK transient HTTP error — retrying",
+			"path", path,
+			"attempt", attempt,
+			"max_attempts", maxAttempts,
+			"status", httpErr.Status,
+			"backoff_ms", backoff.Milliseconds())
+		select {
+		case <-time.After(backoff):
+		case <-ctx.Done():
+			return "", ctx.Err()
+		}
+	}
+	return "", lastErr
+}
+
 // PR #123: AZMK servisi username/password tələb edir.
 func (p *HTTPProvider) setAuthHeaders(req *http.Request) {
 	req.Header.Set("Content-Type", "application/json")
@@ -421,7 +482,7 @@ func (p *HTTPProvider) doRequest(ctx context.Context, method, path string, body 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		errMsg := fmt.Sprintf("azmk: %s returned HTTP %d: %s", path, resp.StatusCode, respBodyStr)
 		p.auditLog(ctx, serviceName, method, url, reqBodyStr, respBodyStr, resp.StatusCode, durationMs, errMsg)
-		return "", fmt.Errorf("%s", errMsg)
+		return "", &httpError{Path: path, Status: resp.StatusCode, Body: respBodyStr} // PR #420: typed — retry wrapper üçün
 	}
 
 	// PR #163: audit log — uğurlu çağırış
@@ -473,7 +534,7 @@ func (p *HTTPProvider) doGetVariant(ctx context.Context, path string, dbAudit bo
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		errMsg := fmt.Sprintf("azmk: %s returned HTTP %d: %s", path, resp.StatusCode, respBodyStr)
 		audit(ctx, serviceName, "GET", url, "", respBodyStr, resp.StatusCode, durationMs, errMsg)
-		return "", fmt.Errorf("%s", errMsg)
+		return "", &httpError{Path: path, Status: resp.StatusCode, Body: respBodyStr} // PR #420: typed — retry wrapper üçün
 	}
 
 	audit(ctx, serviceName, "GET", url, "", respBodyStr, resp.StatusCode, durationMs, "")
@@ -576,8 +637,11 @@ func (p *HTTPProvider) VerifyKYC(ctx context.Context, kycID string) (bool, error
 
 // RegisterPartner registers a partner and returns the Partner ID.
 // PR #156: AZMK /partner endpoint PUT metodu tələb edir (POST yox).
+// PR #420: 5xx/429-də retry — PUT idempotentdir (eyni məlumat → eyni ID).
 func (p *HTTPProvider) RegisterPartner(ctx context.Context, req *PartnerRequest) (string, error) {
-	body, err := p.doPut(ctx, "/partner", req)
+	body, err := withAzmkRetry(ctx, "/partner", func() (string, error) {
+		return p.doPut(ctx, "/partner", req)
+	})
 	if err != nil {
 		return "", err
 	}
@@ -590,8 +654,13 @@ func (p *HTTPProvider) RegisterPartner(ctx context.Context, req *PartnerRequest)
 }
 
 // RegisterCard registers a card and returns the Card ID.
+// PR #420: 5xx/429-də retry — kart set semantikası daşıyır (eyni PAN →
+// AZMK tərəfindən eyni kart qeydi saxlanılır). 4xx (məs. "Invalid code")
+// retry olunmur — validasiya xətası təkrar sorğu ilə dəyişməz.
 func (p *HTTPProvider) RegisterCard(ctx context.Context, req *CardRequest) (string, error) {
-	body, err := p.doPost(ctx, "/card", req)
+	body, err := withAzmkRetry(ctx, "/card", func() (string, error) {
+		return p.doPost(ctx, "/card", req)
+	})
 	if err != nil {
 		return "", err
 	}
@@ -608,7 +677,11 @@ func (p *HTTPProvider) RegisterCard(ctx context.Context, req *CardRequest) (stri
 // AZMK mövcud olmayan partner üçün HTTP 404 ("Invalidid") qaytarır — bu
 // normal haldır (heç kart qeyd edilməyib): boş siyahı qaytarılır.
 func (p *HTTPProvider) GetCards(ctx context.Context, partnerID string) ([]CardInfo, error) {
-	body, err := p.doGet(ctx, "/card/"+partnerID)
+	// PR #420: 5xx/429-də retry — GET idempotentdir. (404 retry-siz qalır —
+	// “kart yoxdur” normal haldır və aşağıda boş siyahıya çevrilir.)
+	body, err := withAzmkRetry(ctx, "/card/"+partnerID, func() (string, error) {
+		return p.doGet(ctx, "/card/"+partnerID)
+	})
 	if err != nil {
 		if strings.Contains(err.Error(), "HTTP 404") {
 			slog.Info("PR #313: AZMK card list — no cards for partner (404)",
@@ -626,6 +699,9 @@ func (p *HTTPProvider) GetCards(ctx context.Context, partnerID string) ([]CardIn
 }
 
 // CreateApplication creates a loan application and returns the Application ID.
+// PR #420: retry YOXDUR — qeyri-idempotentdir (təkrar sorğu AZMK-da cüt
+// application yarada bilər). Transport-level connection retry (PR #264)
+// doRequestWithRetry daxilində qalır.
 func (p *HTTPProvider) CreateApplication(ctx context.Context, req *ApplicationCreateRequest) (string, error) {
 	body, err := p.doPost(ctx, "/application/create", req)
 	if err != nil {
@@ -643,7 +719,10 @@ func (p *HTTPProvider) CreateApplication(ctx context.Context, req *ApplicationCr
 // GET /application/{id}/status. PR #312: replaces the old CheckSign
 // (GET /application/{id}/sign) endpoint which was incorrect.
 func (p *HTTPProvider) GetApplicationStatus(ctx context.Context, applicationID string) (*ApplicationStatus, error) {
-	body, err := p.doGet(ctx, "/application/"+applicationID+"/status")
+	// PR #420: 5xx/429-də retry — GET idempotentdir.
+	body, err := withAzmkRetry(ctx, "/application/"+applicationID+"/status", func() (string, error) {
+		return p.doGet(ctx, "/application/"+applicationID+"/status")
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -661,6 +740,8 @@ func (p *HTTPProvider) GetApplicationStatus(ctx context.Context, applicationID s
 }
 
 // Disburse disburses the loan to the customer's card.
+// PR #420: retry YOXDUR — qeyri-idempotentdir (cüt köçürmə riski). Transport-level
+// connection retry (PR #264) qalır; HTTP 5xx cavabında dərhal uğursuz sayılır.
 func (p *HTTPProvider) Disburse(ctx context.Context, req *DisburseRequest) error {
 	_, err := p.doPost(ctx, "/application/disburse", req)
 	if err != nil {
@@ -681,7 +762,10 @@ func (p *HTTPProvider) SendPartnerPhones(ctx context.Context, partnerID string, 
 	if partnerID == "" {
 		return fmt.Errorf("azmk: partner id is required for phones")
 	}
-	_, err := p.doPost(ctx, "/partner/"+partnerID+"/phones", req)
+	// PR #420: 5xx/429-də retry — phones set semantikasıdır (idempotent).
+	_, err := withAzmkRetry(ctx, "/partner/"+partnerID+"/phones", func() (string, error) {
+		return p.doPost(ctx, "/partner/"+partnerID+"/phones", req)
+	})
 	if err != nil {
 		return err
 	}
