@@ -168,8 +168,8 @@ func NewRouter(
 
 	mux.Handle("GET /api/discount-codes/validate", middleware.RateLimit(discountLimiter)(http.HandlerFunc(discountCodeHandler.Validate)))
 
-	// PR #421: xarici servis sağlamlığı — dashboard paneli (protected, ekspert+admin)
-	mux.Handle("GET /api/service-health", protectedAuth(http.HandlerFunc(serviceHealthHandler.GetServiceHealth)))
+	// PR #421/#422: xarici servis sağlamlığı — YALNIZ ADMIN (ekspert görmür)
+	mux.Handle("GET /api/admin/service-health", protectedAuth(adminAuth(http.HandlerFunc(serviceHealthHandler.GetServiceHealth))))
 
 	// --- PR #98: Feature flag management (admin endpoints) — now protected ---
 	mux.Handle("GET /api/admin/feature-flags", protectedAuth(adminAuth(http.HandlerFunc(featureFlagHandler.List))))

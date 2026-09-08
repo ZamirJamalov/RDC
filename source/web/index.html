@@ -95,8 +95,8 @@
             </div>
         </div>
 
-        <!-- PR #421: Xarici servis sağlamlığı — audit cədvəlindən (son 24 saat) -->
-        <div class="mb-4 rounded-xl border border-gray-200 bg-white overflow-hidden">
+        <!-- PR #421/#422: Xarici servis sağlamlığı — YALNIZ ADMIN (ekspert görmür) -->
+        <div x-show="currentUser?.role === 'admin'" x-cloak class="mb-4 rounded-xl border border-gray-200 bg-white overflow-hidden">
             <button @click="healthOpen = !healthOpen" class="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 transition">
                 <div class="flex items-center gap-2">
                     <span class="text-sm font-semibold text-gray-700">Xarici servis sağlamlığı</span>
@@ -240,15 +240,19 @@
                     await this.checkAuth();
                     if (this.currentUser) {
                         this.load();
-                        this.loadHealth(); // PR #421
-                        this.healthTimer = setInterval(() => this.loadHealth(), 60000); // hər 60 san
+                        // PR #422: sağlamlıq paneli yalnız admin — ekspert üçün yükləmə YOX
+                        if (this.currentUser.role === 'admin') {
+                            this.loadHealth();
+                            this.healthTimer = setInterval(() => this.loadHealth(), 60000);
+                        }
                     }
                 },
 
-                // PR #421: servis sağlamlığı — /api/service-health (son 24 saat)
+                // PR #421/#422: servis sağlamlığı — YALNIZ ADMIN (backend də admin-only):
+                // /api/admin/service-health (son 24 saat)
                 async loadHealth() {
                     try {
-                        const resp = await fetch('/api/service-health?hours=24');
+                        const resp = await fetch('/api/admin/service-health?hours=24');
                         if (!resp.ok) return;
                         const data = await resp.json();
                         this.services = data.services || [];
