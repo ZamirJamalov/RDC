@@ -95,6 +95,43 @@
             </div>
         </div>
 
+        <!-- PR #421: Xarici servis sağlamlığı — audit cədvəlindən (son 24 saat) -->
+        <div class="mb-4 rounded-xl border border-gray-200 bg-white overflow-hidden">
+            <button @click="healthOpen = !healthOpen" class="w-full flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 transition">
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-semibold text-gray-700">Xarici servis sağlamlığı</span>
+                    <!-- Ümumi status xülasəsi -->
+                    <span x-show="healthLoaded && healthErrorCount() === 0" class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium">hamısı işləyir</span>
+                    <span x-show="healthLoaded && healthErrorCount() > 0" class="text-[11px] px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 font-medium" x-text="healthErrorCount() + ' servis xətada'"></span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-[11px] text-gray-400" x-text="healthUpdated ? 'yeni: ' + healthUpdated : ''"></span>
+                    <svg class="w-4 h-4 text-gray-400 transition-transform" :class="healthOpen ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </div>
+            </button>
+            <div x-show="healthOpen" x-cloak class="px-4 pb-4 pt-1 border-t border-gray-100">
+                <div x-show="!healthLoaded" class="text-xs text-gray-400 py-2">Yüklənir...</div>
+                <div x-show="healthLoaded && services.length === 0" class="text-xs text-gray-400 py-2">Son 24 saatda xarici çağırış yoxdur</div>
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                    <template x-for="s in services" :key="s.service_name">
+                        <div class="rounded-lg border p-2.5"
+                             :class="s.status === 'error' ? 'border-rose-200 bg-rose-50' : s.status === 'ok' ? 'border-emerald-200 bg-emerald-50' : 'border-gray-200 bg-gray-50'">
+                            <div class="flex items-center gap-1.5 mb-1">
+                                <span class="w-2 h-2 rounded-full shrink-0"
+                                      :class="s.status === 'error' ? 'bg-rose-500 animate-pulse' : s.status === 'ok' ? 'bg-emerald-500' : 'bg-gray-400'"></span>
+                                <span class="text-[11px] font-semibold text-gray-700 truncate" x-text="s.service_name" :title="s.service_name"></span>
+                            </div>
+                            <div class="text-[10px] text-gray-500 space-y-0.5">
+                                <div x-show="s.last_success_at">✓ <span x-text="fmtTime(s.last_success_at)"></span></div>
+                                <div x-show="s.last_failure_at" class="text-rose-600">✗ <span x-text="fmtTime(s.last_failure_at)"></span></div>
+                                <div><span x-text="s.ok_calls"></span>/<span x-text="s.total_calls"></span> uğurlu · <span x-text="s.avg_duration_ms"></span>ms</div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+
         <!-- PR #313: Tab filter — Gözləyən / İmtina olunmuş / Uğurla verilənlər (PR #376) -->
         <div class="flex gap-2 mb-4">
             <button @click="switchTab('pending')"
@@ -190,13 +227,41 @@
                 currentUser: null,
                 theme: localStorage.getItem('alpul_theme') || 'light',
 
+                // PR #421: xarici servis sağlamlığı
+                healthOpen: false,
+                healthLoaded: false,
+                healthUpdated: '',
+                services: [],
+                healthTimer: null,
+
                 async init() {
                     this.initTheme();
                     // PR #142: Check auth before loading
                     await this.checkAuth();
                     if (this.currentUser) {
                         this.load();
+                        this.loadHealth(); // PR #421
+                        this.healthTimer = setInterval(() => this.loadHealth(), 60000); // hər 60 san
                     }
+                },
+
+                // PR #421: servis sağlamlığı — /api/service-health (son 24 saat)
+                async loadHealth() {
+                    try {
+                        const resp = await fetch('/api/service-health?hours=24');
+                        if (!resp.ok) return;
+                        const data = await resp.json();
+                        this.services = data.services || [];
+                        this.healthLoaded = true;
+                        this.healthUpdated = new Date().toLocaleTimeString('az');
+                    } catch (e) { /* fail-soft — panel boş qalır */ }
+                },
+                healthErrorCount() {
+                    return this.services.filter(s => s.status === 'error').length;
+                },
+                fmtTime(iso) {
+                    if (!iso) return '—';
+                    return new Date(iso).toLocaleTimeString('az', {hour: '2-digit', minute: '2-digit'});
                 },
 
                 initTheme() {

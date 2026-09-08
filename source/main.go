@@ -286,7 +286,10 @@ func main() {
 	)
 
 	// --- Route registration + middleware chain ---
-	router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler, lwLoanStatusHandler, discountCodeHandler, featureFlagHandler, authHandler, userHandler, authService, cfg.AllowedOrigin, apiLimiter, otpLimiter, discountLimiter, cfg.ExpertWorkStartHour, cfg.ExpertWorkEndHour)
+	// PR #421: ServiceAuditLogRepo — servis sağlamlıq paneli üçün
+	serviceAuditLogRepo := repository.NewServiceAuditLogRepo(db)
+	serviceHealthHandler := handler.NewServiceHealthHandler(serviceAuditLogRepo)
+	router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler, lwLoanStatusHandler, discountCodeHandler, featureFlagHandler, authHandler, userHandler, serviceHealthHandler, authService, cfg.AllowedOrigin, apiLimiter, otpLimiter, discountLimiter, cfg.ExpertWorkStartHour, cfg.ExpertWorkEndHour)
 
 	// UI: serve embedded static files from web/ directory.
 	// fs.Sub strips the "web/" prefix so /detail.html maps to web/detail.html.

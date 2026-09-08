@@ -41,6 +41,7 @@ func NewRouter(
 	featureFlagHandler *FeatureFlagHandler, // PR #98
 	authHandler *AuthHandler, // PR #142
 	userHandler *UserHandler, // PR #142
+	serviceHealthHandler *ServiceHealthHandler, // PR #421
 	authSvc *service.AuthService, // PR #142
 	allowedOrigin string, // PR #149: CORS
 	apiLimiter *middleware.RateLimiter, // PR #149: generic API rate limit
@@ -166,6 +167,9 @@ func NewRouter(
 	})))
 
 	mux.Handle("GET /api/discount-codes/validate", middleware.RateLimit(discountLimiter)(http.HandlerFunc(discountCodeHandler.Validate)))
+
+	// PR #421: xarici servis sağlamlığı — dashboard paneli (protected, ekspert+admin)
+	mux.Handle("GET /api/service-health", protectedAuth(http.HandlerFunc(serviceHealthHandler.GetServiceHealth)))
 
 	// --- PR #98: Feature flag management (admin endpoints) — now protected ---
 	mux.Handle("GET /api/admin/feature-flags", protectedAuth(adminAuth(http.HandlerFunc(featureFlagHandler.List))))
