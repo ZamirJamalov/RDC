@@ -447,12 +447,21 @@ else
 # PR #330: RDC reverse proxy (əlavələriniz qorunur — üzərinə yazılmır)
 https://${SERVER_IP} {
     tls internal
+    # PR #425: security headers (daxili qapı da qorunur — dashboard üçün vacibdir)
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://cdn.soft10.io; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://cdn.soft10.io; frame-src 'self' https://rec.azmk.az:8699; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    }
     reverse_proxy localhost:${APP_PORT}
 }
 
 # PR #419: PUBLIC qapı — yalnız müştəri səhifələri (landing/apply/contact/faq).
 # Dashboard (index/detail/admin), login, ekspert/admin API-ləri 403.
 # Daxili qapı (yuxarıdakı SERVER_IP bloku) tam açıq qalır — ekspertlər üçün.
+# PR #425: security headers — public qapıda da eyni qaydalar.
 ${ALPUL_DOMAIN}, www.${ALPUL_DOMAIN} {
     @root path /
     redir @root /landing.html permanent
@@ -462,6 +471,14 @@ ${ALPUL_DOMAIN}, www.${ALPUL_DOMAIN} {
         path /api/mock/* /api/expert/* /api/admin/* /api/auth/*
     }
     respond @blocked 403
+
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://cdn.soft10.io; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://cdn.soft10.io; frame-src 'self' https://rec.azmk.az:8699; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+    }
 
     reverse_proxy localhost:${APP_PORT}
 }
