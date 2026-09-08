@@ -140,6 +140,12 @@ type Config struct {
 	// Ofisdə ekspertlər bir IP-dən gəlir — 10/dəq həm ofis üçün rahat, həm bot üçün məhdudlayıcıdır.
 	LoginRateLimitPerMin int
 
+	// PR #427: LW (partner) video-url endpoint — X-API-Key açarı (PARTNER_VIDEO_API_KEY).
+	// Boş qoysaq endpoint 404 qaytarır (deaktiv — xarici skanerlər üçün görünməz).
+	PartnerVideoAPIKey string
+	// PR #427: partner video-url endpoint rate limit (çağırış/dəq/IP, default 30).
+	PartnerVideoRateLimitPerMin int
+
 	// PR #360: Ekspert iş saatları (apply success ekranının mesajı üçün)
 	// Bakı vaxtı 20:00-09:00 arası olanda müştəriyə "iş saatlarında"
 	// mesajı göstərilir.
@@ -249,6 +255,10 @@ func Load() *Config {
 		DiscountRatePerMin: getEnvInt("DISCOUNT_RATE_PER_MIN", 5),
 		// PR #424: login rate limit (10/dəq/IP default)
 		LoginRateLimitPerMin: getEnvInt("LOGIN_RATE_LIMIT_PER_MIN", 10),
+
+		// PR #427: partner (LW) video-url endpoint — açar boşdursa endpoint deaktiv
+		PartnerVideoAPIKey:          getEnv("PARTNER_VIDEO_API_KEY", ""),
+		PartnerVideoRateLimitPerMin: getEnvInt("PARTNER_VIDEO_RATE_LIMIT_PER_MIN", 30),
 
 		// PR #360: Ekspert iş saatları (apply success mesajı)
 		ExpertWorkStartHour: getEnvInt("EXPERT_WORK_START_HOUR", 9),
