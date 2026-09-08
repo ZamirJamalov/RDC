@@ -453,7 +453,7 @@ https://${SERVER_IP} {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
-        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://cdn.soft10.io; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://cdn.soft10.io; frame-src 'self' https://rec.azmk.az:8699; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://cdn.soft10.io; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src 'self' https://rec.azmk.az:8699; connect-src 'self' https://cdn.soft10.io; frame-src 'self' https://rec.azmk.az:8699; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     }
     reverse_proxy localhost:${APP_PORT}
 }
@@ -463,6 +463,13 @@ https://${SERVER_IP} {
 # Daxili qapı (yuxarıdakı SERVER_IP bloku) tam açıq qalır — ekspertlər üçün.
 # PR #425: security headers — public qapıda da eyni qaydalar.
 ${ALPUL_DOMAIN}, www.${ALPUL_DOMAIN} {
+    # PR #428: access log — 403/statistika sorğuları üçün (journald-a yazılır:
+    # journalctl -u caddy --since today -o cat | grep '"status":403')
+    log {
+        output stdout
+        format json
+    }
+
     @root path /
     redir @root /landing.html permanent
 
@@ -477,7 +484,7 @@ ${ALPUL_DOMAIN}, www.${ALPUL_DOMAIN} {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
         Referrer-Policy "strict-origin-when-cross-origin"
-        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://cdn.soft10.io; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://cdn.soft10.io; frame-src 'self' https://rec.azmk.az:8699; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdn.jsdelivr.net https://cdn.soft10.io; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; media-src 'self' https://rec.azmk.az:8699; connect-src 'self' https://cdn.soft10.io; frame-src 'self' https://rec.azmk.az:8699; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     }
 
     reverse_proxy localhost:${APP_PORT}
