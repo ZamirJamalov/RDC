@@ -161,16 +161,20 @@
         </div>
 
         <!-- PR #399: Videya bax dialoqu — stream URL-dən video oynadılır -->
-        <div x-show="videoDialogOpen" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" @keydown.escape.window="closeVideoDialog()">
-            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-2xl w-full p-4">
-                <div class="flex items-center justify-between mb-3">
+        <!-- PR #428: dialoq başlıqdan tutub sürüşdürülə bilər (drag) -->
+        <div x-show="videoDialogOpen" x-cloak class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" @keydown.escape.window="closeVideoDialog()" @mousemove.window="onVideoDrag($event)" @mouseup.window="endVideoDrag()" @mouseleave.window="endVideoDrag()">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-2xl w-full p-4 select-none" :style="'transform: translate(' + videoDragX + 'px, ' + videoDragY + 'px)'">
+                <div class="flex items-center justify-between mb-3 cursor-move" @mousedown.prevent="startVideoDrag($event)">
                     <div class="flex items-center gap-2">
                         <span class="text-xl">🎥</span>
                         <h3 class="font-bold text-gray-900 dark:text-gray-100">Video Verifikasiya</h3>
                     </div>
-                    <button @click="closeVideoDialog()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                    </button>
+                    <div class="flex items-center gap-2">
+                        <span x-show="!videoDragging" class="text-[10px] text-gray-400 hidden sm:inline">⇕ sürüşdür</span>
+                        <button @mousedown.stop @click="closeVideoDialog()" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        </button>
+                    </div>
                 </div>
                 <div class="bg-black rounded-lg overflow-hidden aspect-video flex items-center justify-center">
                     <!-- PR #405: ✓ yalnız video REAL yüklənəndə (ilk kadr oxunanda) -->
@@ -879,6 +883,16 @@
                 videoStreamUrl: '',
                 videoStreamLoading: false,
                 videoStreamError: '',
+
+                // PR #428: dialoq drag (sürüşdürmə) vəziyyəti — başlıqdan tutub
+                // hərəkət etdirmək olur; translate offset-ləri mərkəzdən hesablanır
+                videoDragging: false,
+                videoDragX: 0,
+                videoDragY: 0,
+                videoDragStartX: 0,
+                videoDragStartY: 0,
+                videoDragOrigX: 0,
+                videoDragOrigY: 0,
 
                 // PR #402/#405: addım checkmark-ları. Video ✓-ləri YALNIZ düymə
                 // klikində yaranır (session-only — backend statusu / localStorage
@@ -1757,6 +1771,10 @@
                     this.videoStreamUrl = '';
                     this.videoStreamError = '';
                     this.videoStreamLoading = true;
+                    // PR #428: hər açılışda dialoq mərkəzə qayıdır
+                    this.videoDragging = false;
+                    this.videoDragX = 0;
+                    this.videoDragY = 0;
                     try {
                         const resp = await fetch('/api/applications/' + this.internalId + '/video-stream-url');
                         const data = await resp.json();
@@ -1777,6 +1795,24 @@
                     if (v) { v.pause(); v.removeAttribute('src'); v.load(); }
                     this.videoStreamUrl = '';
                     this.videoStreamError = '';
+                },
+
+                // PR #428: dialoqu başlıqdan sürüşdürmə (drag) — video idarəetmə
+                // elementləri ilə konflikt yaratmır (yalnız başlıq tutulur)
+                startVideoDrag(e) {
+                    this.videoDragging = true;
+                    this.videoDragStartX = e.clientX;
+                    this.videoDragStartY = e.clientY;
+                    this.videoDragOrigX = this.videoDragX;
+                    this.videoDragOrigY = this.videoDragY;
+                },
+                onVideoDrag(e) {
+                    if (!this.videoDragging) return;
+                    this.videoDragX = this.videoDragOrigX + (e.clientX - this.videoDragStartX);
+                    this.videoDragY = this.videoDragOrigY + (e.clientY - this.videoDragStartY);
+                },
+                endVideoDrag() {
+                    this.videoDragging = false;
                 },
             }
         }
