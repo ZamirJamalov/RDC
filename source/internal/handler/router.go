@@ -79,13 +79,17 @@ func NewRouter(
 	// PR #149: Rate-limited public endpoints
 	mux.Handle("POST /api/applications/init", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.InitApplication)))
 	mux.Handle("POST /api/applications/init/verify", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.VerifyInitApplication)))
-	mux.HandleFunc("POST /api/applications", appHandler.Create)
+	// PR #417: Create — admin/legacy axınıdır (heç bir frontend səhifəsi çağırmır);
+	// auth-sız istənilən kəs birbaşa API ilə müraciət yarada bilirdi → RequireAuth.
+	mux.Handle("POST /api/applications", middleware.RequireAuth(authSvc)(http.HandlerFunc(appHandler.Create)))
 	mux.HandleFunc("POST /api/applications/{id}/customer-confirm", appHandler.CustomerConfirm) // PR #58
 	// PR #313: müştərinin AZMK-da qeydiyyatda olan kartları (maskalı) — apply səhifəsi üçün
 	mux.Handle("GET /api/applications/{id}/cards", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.GetCustomerCards)))
 	// PR #149: Changed GET → POST (FIN in body, not URL query param)
 	mux.Handle("POST /api/applications/offer", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.GetOffer)))
-	mux.HandleFunc("GET /api/applications/{id}", appHandler.GetByID)
+	// PR #417: GetByID — apply.html (müştəri, login-siz) refresh/resume üçün çağırır,
+	// auth qoymaq olmaz; UUID 128-bit random olsa da brute-force-a qarşı rate limit.
+	mux.Handle("GET /api/applications/{id}", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.GetByID)))
 	mux.HandleFunc("GET /api/applications/{id}/status", appHandler.GetStatus)
 	// PR #188: Video record endpoints (public — müştəri özü çağırır)
 	mux.Handle("POST /api/applications/{id}/video-record/start", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.StartVideoRecord)))
