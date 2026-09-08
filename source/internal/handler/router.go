@@ -47,14 +47,16 @@ func NewRouter(
 	apiLimiter *middleware.RateLimiter, // PR #149: generic API rate limit
 	otpLimiter *middleware.RateLimiter, // PR #149: OTP rate limit
 	discountLimiter *middleware.RateLimiter, // PR #149: discount code rate limit
+	loginLimiter *middleware.RateLimiter, // PR #424: login brute-force qorunması
 	expertWorkStartHour int, // PR #360: ekspert iş saatı başlanğıcı (Bakı vaxtı, default 9)
 	expertWorkEndHour int, // PR #360: ekspert iş saatı sonu (Bakı vaxtı, default 20)
 ) http.Handler {
 	mux := http.NewServeMux()
 
 	// --- PR #142: Auth endpoints ---
-	// Login + logout are public (no auth required)
-	mux.HandleFunc("POST /api/auth/login", authHandler.Login)
+	// PR #424: login — brute-force qorunması (IP üzrə LOGIN_RATE_LIMIT_PER_MIN,
+	// default 10/dəq). Logout auth tələb etmir, zərərsizdir — limit lazım deyil.
+	mux.Handle("POST /api/auth/login", middleware.RateLimit(loginLimiter)(http.HandlerFunc(authHandler.Login)))
 	mux.HandleFunc("POST /api/auth/logout", authHandler.Logout)
 	// PR #147: /me and /change-password REQUIRE auth — must be wrapped with RequireAuth
 	//   Otherwise the principal is never set in context and Me() always returns 401.

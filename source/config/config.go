@@ -136,6 +136,9 @@ type Config struct {
 	OTPRateLimitPerMin int    // OTP send rate limit per phone per minute (default: 1, already in service)
 	OTPMaxAttempts     int    // max wrong OTP attempts before blocking application (default: 3)
 	DiscountRatePerMin int    // discount code validation rate limit per IP per minute (default: 5)
+	// PR #424: login brute-force qorunması — IP üzrə login cəhdləri/dəq (default: 10).
+	// Ofisdə ekspertlər bir IP-dən gəlir — 10/dəq həm ofis üçün rahat, həm bot üçün məhdudlayıcıdır.
+	LoginRateLimitPerMin int
 
 	// PR #360: Ekspert iş saatları (apply success ekranının mesajı üçün)
 	// Bakı vaxtı 20:00-09:00 arası olanda müştəriyə "iş saatlarında"
@@ -244,6 +247,8 @@ func Load() *Config {
 		OTPRateLimitPerMin: getEnvInt("OTP_RATE_LIMIT_PER_MIN", 1),
 		OTPMaxAttempts:     getEnvInt("OTP_MAX_ATTEMPTS", 3),
 		DiscountRatePerMin: getEnvInt("DISCOUNT_RATE_PER_MIN", 5),
+		// PR #424: login rate limit (10/dəq/IP default)
+		LoginRateLimitPerMin: getEnvInt("LOGIN_RATE_LIMIT_PER_MIN", 10),
 
 		// PR #360: Ekspert iş saatları (apply success mesajı)
 		ExpertWorkStartHour: getEnvInt("EXPERT_WORK_START_HOUR", 9),

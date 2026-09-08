@@ -278,10 +278,12 @@ func main() {
 	apiLimiter := middleware.NewRateLimiter(cfg.RateLimitPerMinute)
 	otpLimiter := middleware.NewRateLimiter(cfg.OTPRateLimitPerMin)
 	discountLimiter := middleware.NewRateLimiter(cfg.DiscountRatePerMin)
+	loginLimiter := middleware.NewRateLimiter(cfg.LoginRateLimitPerMin) // PR #424: brute-force qorunması
 	slog.Info("rate limiters configured",
 		"api_per_min", cfg.RateLimitPerMinute,
 		"otp_per_min", cfg.OTPRateLimitPerMin,
 		"discount_per_min", cfg.DiscountRatePerMin,
+		"login_per_min", cfg.LoginRateLimitPerMin, // PR #424
 		"allowed_origin", cfg.AllowedOrigin,
 	)
 
@@ -289,7 +291,7 @@ func main() {
 	// PR #421: ServiceAuditLogRepo — servis sağlamlıq paneli üçün
 	serviceAuditLogRepo := repository.NewServiceAuditLogRepo(db)
 	serviceHealthHandler := handler.NewServiceHealthHandler(serviceAuditLogRepo)
-	router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler, lwLoanStatusHandler, discountCodeHandler, featureFlagHandler, authHandler, userHandler, serviceHealthHandler, authService, cfg.AllowedOrigin, apiLimiter, otpLimiter, discountLimiter, cfg.ExpertWorkStartHour, cfg.ExpertWorkEndHour)
+	router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler, lwLoanStatusHandler, discountCodeHandler, featureFlagHandler, authHandler, userHandler, serviceHealthHandler, authService, cfg.AllowedOrigin, apiLimiter, otpLimiter, discountLimiter, loginLimiter, cfg.ExpertWorkStartHour, cfg.ExpertWorkEndHour)
 
 	// UI: serve embedded static files from web/ directory.
 	// fs.Sub strips the "web/" prefix so /detail.html maps to web/detail.html.
