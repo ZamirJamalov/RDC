@@ -28,6 +28,10 @@ type mockApplicationStore struct {
 	appByID    map[int]*model.LoanApplication
 	appByIDErr error // returned for every call if set (overrides map lookup)
 
+	// FindLatestByPINAndDate (PR #427)
+	appByPINDate    *model.LoanApplication
+	appByPINDateErr error
+
 	// CreateApplication
 	createErr error
 
@@ -140,6 +144,19 @@ func (m *mockApplicationStore) GetApplicationByPublicID(_ context.Context, publi
 		}
 	}
 	return nil, errNotFound
+}
+
+// FindLatestByPINAndDate — PR #427: mock (pin/day arqumentləri nəzərə alınmır —
+// testlər appByPINDate sahəsini konfiqurasiya edir).
+func (m *mockApplicationStore) FindLatestByPINAndDate(_ context.Context, pin, day string) (*model.LoanApplication, error) {
+	if m.appByPINDateErr != nil {
+		return nil, m.appByPINDateErr
+	}
+	if m.appByPINDate != nil {
+		copied := *m.appByPINDate
+		return &copied, nil
+	}
+	return nil, nil
 }
 
 func (m *mockApplicationStore) UpdateApplicationStatus(_ context.Context, id int, status string) error {

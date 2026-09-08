@@ -42,12 +42,15 @@ func NewRouter(
 	authHandler *AuthHandler, // PR #142
 	userHandler *UserHandler, // PR #142
 	serviceHealthHandler *ServiceHealthHandler, // PR #421
+	partnerVideoHandler *PartnerVideoHandler, // PR #427: LW video-url endpoint
 	authSvc *service.AuthService, // PR #142
 	allowedOrigin string, // PR #149: CORS
 	apiLimiter *middleware.RateLimiter, // PR #149: generic API rate limit
 	otpLimiter *middleware.RateLimiter, // PR #149: OTP rate limit
 	discountLimiter *middleware.RateLimiter, // PR #149: discount code rate limit
 	loginLimiter *middleware.RateLimiter, // PR #424: login brute-force qorunması
+	partnerVideoAPIKey string, // PR #427: LW video-url API açarı (boşdursa endpoint deaktiv)
+	partnerVideoLimiter *middleware.RateLimiter, // PR #427: partner video-url rate limit
 	expertWorkStartHour int, // PR #360: ekspert iş saatı başlanğıcı (Bakı vaxtı, default 9)
 	expertWorkEndHour int, // PR #360: ekspert iş saatı sonu (Bakı vaxtı, default 20)
 ) http.Handler {
@@ -172,6 +175,14 @@ func NewRouter(
 
 	// PR #421/#422: xarici servis sağlamlığı — YALNIZ ADMIN (ekspert görmür)
 	mux.Handle("GET /api/admin/service-health", protectedAuth(adminAuth(http.HandlerFunc(serviceHealthHandler.GetServiceHealth))))
+
+	// --- PR #427: Partner (LW) video URL — server-to-server, API key ilə qorunur ---
+	// LW-dəki düymə PIN + müraciətin yaradıldığı günü göndərir, cavabda stream_url
+	// qayıdır (LW onu brauzerdə açır).
+	// DİQQƏT: video servisin stream URL-də auth YOXDUR — yeganə qapı bu endpoint-in
+	// API açarıdır. Public qapıda (alpul.az) /api/partner/* blok siyahısında DEYİL.
+	mux.Handle("GET /api/partner/video-url/{pin}/{date}",
+		middleware.RateLimit(partnerVideoLimiter)(middleware.RequirePartnerAPIKey(partnerVideoAPIKey)(http.HandlerFunc(partnerVideoHandler.GetVideoURL))))
 
 	// --- PR #98: Feature flag management (admin endpoints) — now protected ---
 	mux.Handle("GET /api/admin/feature-flags", protectedAuth(adminAuth(http.HandlerFunc(featureFlagHandler.List))))
