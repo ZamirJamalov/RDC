@@ -68,6 +68,22 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
 		return nil, fmt.Errorf("credit_level must be one of new/trusted/valuable/elite, got '%s'", req.CreditLevel)
 	}
 
+	// PR #436: approve video gate — son video order hələ çəkilməyibsə (recorded=0)
+	// təsdiq göndərilə bilməz. Ekspert yeni "Video müraciət" göndəribsə, köhnə
+	// videoya baxılmiş olsa belə status reset olunur və YENİ video çəkilənə qədər
+	// bu qadağa qalır. Video deaktiv olanda (və ya repo əlaqələnməyibsə) qadağa yoxdur.
+	if req.Status == model.StatusApproved && s.videoRecordEnabled && s.videoIsRecordedFn != nil {
+		recorded, verr := s.videoIsRecordedFn(ctx, id)
+		if verr != nil {
+			slog.Warn("PR #436: approve video gate — status yoxlana bilmədi (bloklanır)",
+				"application_id", id, "error", verr)
+			return nil, fmt.Errorf("video status yoxlana bilmədi: %w", verr)
+		}
+		if !recorded {
+			return nil, fmt.Errorf("yeni video hələ çəkilməyib — müştəri video çəkənə qədər müraciət təsdiqə göndərilə bilməz")
+		}
+	}
+
 	// Update via UpdateApplicationDecision so credit_level is stored
 	creditLevel := req.CreditLevel
 	if creditLevel == "" {

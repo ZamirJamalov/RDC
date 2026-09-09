@@ -54,6 +54,9 @@ type ApplicationService struct {
 	// PR #399: dashboard "Videya bax" dialoqu üçün stream base URL
 	// (VIDEO_URL → VIDEO_RECORD_BASE_URL fallback, main.go-da resolve olunur)
 	videoStreamBaseURL string
+	// PR #436: approve video gate — son video order-in recorded statusunu
+	// oxuyan seam (prod: videoRecordRepo.IsRecorded; test: əvəz olunur).
+	videoIsRecordedFn func(ctx context.Context, appID int) (bool, error)
 
 	// PR #205: Service cache (service_audit_logs üzərindən)
 	serviceCacheRepo *repository.ServiceCacheRepo
@@ -177,6 +180,9 @@ func (s *ApplicationService) SetVideoRecordProvider(provider videorecord.Provide
 // SetVideoRecordRepo injects the video record repo (PR #188).
 func (s *ApplicationService) SetVideoRecordRepo(repo *repository.VideoRecordRepo) {
 	s.videoRecordRepo = repo
+	// PR #436: approve video gate üçün seam — prod-da repo.IsRecorded,
+	// testlərdə eyni paketdən əvəz oluna bilir.
+	s.videoIsRecordedFn = repo.IsRecorded
 }
 
 // SetVideoRecordEnabled enables/disables video record requirement (PR #188).
