@@ -103,6 +103,9 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
 	var rejectionReason string
 	var totalAmount float64
 	var discountAmount float64
+	// PR #450 (plan R2): approve zamanı tətbiq olunan endirim kodu — manual
+	// (apply-də yazılmış) VƏ YA owner-ın öz referal kodu (avtomatik tətbiq).
+	appliedDiscountCode := app.DiscountCode
 
 	if req.Status == model.StatusRejected {
 		// PR #258: MANUAL_* cutoff code qəbul et (frontend-dən gəlir)
@@ -121,6 +124,12 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
 			if err != nil {
 				return nil, err
 			}
+		} else if s.discountSvc != nil && s.customerRepo != nil {
+			// PR #450 (Docs/pre_referal_code_plan.md, plan R2 — owner benefit):
+			// manual kod YOXDURSA və müştərinin öz aktiv referal kodu varsa,
+			// endirim avtomatik tətbiq olunur. Bir müraciətə yalnız bir endirim:
+			// manual kod prioritetlidir.
+			discountAmount, appliedDiscountCode = s.applyOwnerReferralDiscount(ctx, app)
 		}
 
 		// Calculate total amount for manual approval (Principal + Interest)
@@ -165,8 +174,9 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
 	// PR #95: persist discount_amount on the application (if applicable).
 	// This is a separate UPDATE so we don't break the existing
 	// UpdateApplicationDecision signature (which other callers depend on).
+	// PR #450: appliedDiscountCode — manual kod VƏ YA owner-ın öz kodu (R2).
 	if req.Status == model.StatusApproved && discountAmount > 0 {
-		if err := s.repo.UpdateApplicationDiscount(ctx, id, app.DiscountCode, &discountAmount); err != nil {
+		if err := s.repo.UpdateApplicationDiscount(ctx, id, appliedDiscountCode, &discountAmount); err != nil {
 			slog.Warn("failed to persist discount_amount (non-fatal)",
 				"application_id", id,
 				"error", err)
@@ -189,8 +199,9 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
 		// next customer could potentially redeem it — but the discount was
 		// already applied to this application, so the financial impact is
 		// limited to a possible double-redemption (extremely rare).
-		if app.DiscountCode != "" && s.discountSvc != nil {
-			s.markDiscountCodeUsed(ctx, app.DiscountCode, id)
+		// PR #450: owner-ın öz kodu (R2) da eyni şəkildə bağlanır — single-use.
+		if appliedDiscountCode != "" && s.discountSvc != nil {
+			s.markDiscountCodeUsed(ctx, appliedDiscountCode, id)
 		}
 
 		// PR #319 (plan R1 — Docs/pre_referal_code_plan.md): referal kodunun
@@ -326,6 +337,83 @@ func (s *ApplicationService) markDiscountCodeUsed(ctx context.Context, code stri
 		"application_id", appID,
 		"discount_code", code,
 		"code_id", dc.ID)
+}
+
+// applyOwnerReferralDiscount — PR #450 (Docs/pre_referal_code_plan.md, plan R2 —
+// owner benefit): müştəri apply-də başqasının kodunu yazmayıbsa
+// (app.DiscountCode boşdur), onun ÖZ aktiv referal kodu axtarılır və tapılarsa
+// faiz məbləğindən endirim avtomatik hesablanır (PR #109 məntiqi ilə eyni:
+// credit_levels-dən illik faiz → interestAmount → CalculateDiscount).
+// Sms-dəki vədin yerinə yetirilməsidir: "sən də növbəti kreditində X% endirim
+// qazan" (sendReferralSMSWithCode, PR #284/#319).
+//
+// Kodun 'used' kimi işarələnməsi UpdateStatus-da, approve uğurlu olanda baş
+// verir (manual kod kimi) — imtina olunan müraciət kodu yandırmır.
+// Single-use: kod owner tərəfindən istifadə olunanda dostu (redeemer) artıq
+// onu istifadə edə bilməz — və əksinə (ilk gələn alır).
+//
+// Fail-soft: hər hansı xəta halında (0, "") qaytarır — approve endirimsiz
+// davam edir. Manual kodun əksinə olaraq approve-u BLOKLAMIR (müştəri kodu
+// yazmayıb, bloklamaq üçün səbəb yoxdur).
+//
+// Returns: (discount amount, applied code string — boş string = endirim yoxdur).
+func (s *ApplicationService) applyOwnerReferralDiscount(ctx context.Context, app *model.LoanApplication) (float64, string) {
+	customer, err := s.customerRepo.GetByPIN(ctx, app.CustomerPIN)
+	if err != nil || customer == nil {
+		// sql.ErrNoRows — normal hal: bu FIN üçün customers row yoxdur →
+		// disburse olunmuş kredit də yoxdur → referal kod yoxdur.
+		slog.Debug("PR #450: customer not found — no owner referral benefit",
+			"application_id", app.ID,
+			"customer_pin", app.CustomerPIN)
+		return 0, ""
+	}
+
+	dc, err := s.discountSvc.FindActiveOwnedCode(ctx, customer.ID)
+	if err != nil {
+		slog.Warn("PR #450: owner referral code lookup failed (non-fatal)",
+			"application_id", app.ID,
+			"customer_id", customer.ID,
+			"error", err)
+		return 0, ""
+	}
+	if dc == nil {
+		return 0, "" // aktiv kod yoxdur — normal hal, loglamağa ehtiyac yoxdur
+	}
+
+	// Defensive: kod məhz bu müraciətdən yaranıbsa tətbiq etmə (praktikada
+	// mümkün deyil — generasiya disburse-da, approve-dan SONRA olur).
+	if dc.IssuedFromApplicationID != nil && *dc.IssuedFromApplicationID == app.ID {
+		slog.Warn("PR #450: owner code issued from the same application — skip",
+			"application_id", app.ID,
+			"discount_code", dc.Code)
+		return 0, ""
+	}
+
+	// PR #109 ilə eyni hesab: illik faiz → interestAmount → faizdən endirim.
+	annualInterestRate := s.annualInterestRateForApp(ctx, app)
+	if annualInterestRate <= 0 {
+		slog.Warn("PR #450: annual interest rate not found — owner discount skipped",
+			"application_id", app.ID,
+			"credit_level", app.CreditLevel)
+		return 0, ""
+	}
+	interestAmount := calculateInterestAmount(app.Amount, annualInterestRate, app.TermMonths)
+	discount := s.discountSvc.CalculateDiscount(dc, interestAmount)
+	if discount <= 0 {
+		return 0, ""
+	}
+
+	slog.Info("PR #450: owner referral discount applied (plan R2)",
+		"application_id", app.ID,
+		"customer_id", customer.ID,
+		"discount_code", dc.Code,
+		"discount_type", dc.DiscountType,
+		"discount_value", dc.DiscountValue,
+		"annual_interest_rate", annualInterestRate,
+		"interest_amount", interestAmount,
+		"discount_amount", discount)
+
+	return discount, dc.Code
 }
 
 // sendDisburseApprovalSMS — PR #323: disburse success-dən sonra müştəriyə

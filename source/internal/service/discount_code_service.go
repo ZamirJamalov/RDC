@@ -7,6 +7,7 @@ import (
         "log/slog"
         "math"
         "math/big"
+        "sort"
         "strings"
         "time"
 
@@ -312,6 +313,49 @@ func (s *DiscountCodeService) ValidateForCustomerTx(ctx context.Context, runner 
         }
 
         return dc, nil
+}
+
+// FindActiveOwnedCode — PR #450 (Docs/pre_referal_code_plan.md, plan R2 — owner
+// benefit): müştərinin özünə aid ən YENİ aktiv referal kodunu tapır.
+// "Aktiv" = status='active' (istifadə olunmamış) və valid_until keçməmiş.
+// Yalnız discount_codes_enabled feature flag-i açıqdursa işləyir.
+//
+// Returns nil (error YOX) if the customer has no active code — bu normal haldır
+// (əksər müştərilərin kodu yoxdur). DB xətasında error qaytarır — çağıran
+// tərəf fail-soft davranır (endirimsiz approve davam edir).
+func (s *DiscountCodeService) FindActiveOwnedCode(ctx context.Context, customerID int) (*model.DiscountCode, error) {
+        if customerID <= 0 {
+                return nil, nil
+        }
+        if s.flags != nil && !s.flags.IsDiscountCodesEnabled(ctx) {
+                return nil, nil
+        }
+
+        codes, err := s.repo.GetByOwnerCustomerID(ctx, customerID)
+        if err != nil {
+                return nil, fmt.Errorf("failed to fetch owner codes: %w", err)
+        }
+
+        // Deterministik ən-yeni sıralama: repo ORDER BY created_at DESC qaytarır,
+        // amma mock/alternativ store-lərdə sıra zəmanətli deyil (map iterasiyası).
+        sort.Slice(codes, func(i, j int) bool {
+                if !codes[i].CreatedAt.Equal(codes[j].CreatedAt) {
+                        return codes[i].CreatedAt.After(codes[j].CreatedAt)
+                }
+                return codes[i].ID > codes[j].ID
+        })
+
+        now := time.Now()
+        for _, dc := range codes {
+                if dc.Status != model.DiscountStatusActive {
+                        continue // used / expired
+                }
+                if dc.ValidUntil != nil && dc.ValidUntil.Before(now) {
+                        continue // vaxtı bitib (status hələ 'active' olsa belə)
+                }
+                return dc, nil
+        }
+        return nil, nil
 }
 
 // CalculateDiscount computes the discount amount to subtract.
