@@ -181,5 +181,6 @@ Xam log həmişə `/opt/rdc/monitoring/app.log`-da durur + gündəlik tar.gz bac
   regressiya deyil, nəzərə alınmamalıdır
 - Login rate-limit: 10 cəhd/dəq/IP (`LOGIN_RATE_LIMIT_PER_MIN`) — 429 görmək =
   brute-force cəhdi və ya konfiq nəticəsidir
-- LW partner telefonlarının ötürülməsi söndürülüb (`LwPartnerPhonesEnabled=false`) —
-  sifarişlə aktivləşəcək (GitHub issue açılıb)
+- LW partner telefonlarının ötürülməsi AKTİVDİR (PR #430 ilə aktivləşdirildi,
+  `LwPartnerPhonesEnabled=true`) — approve zamanı 3 kontakt nömrəsi LW-yə
+  göndərilir; xəta olsa approval bloklanır (retryable)
