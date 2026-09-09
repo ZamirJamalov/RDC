@@ -164,14 +164,17 @@ func (l *Liability) PaymentMonths() int {
 	return len(l.History.HistoryItem)
 }
 
-// DelayRatio calculates: totalDelayDays / paymentMonths.
+// DelayRatio calculates: currentDelayDays / paymentMonths.
+// PR #446: gecikmə günü kimi history overdueDays CƏMİ (kumulativ dəyərlərin
+// toplanması — yanlış şişirdilmiş nəticə verirdi) ƏVƏZİNƏ liability-nin cari
+// teg dəyərləri — max(daysInterestOverdue, daysMainSumOverdue) — götürülür.
 // Returns 0 if paymentMonths is 0.
 func (l *Liability) DelayRatio() float64 {
 	pm := l.PaymentMonths()
 	if pm == 0 {
 		return 0
 	}
-	return float64(l.TotalDelayDays()) / float64(pm)
+	return float64(l.CurrentDelayDays()) / float64(pm)
 }
 
 // MaxDelayInPeriod returns the highest single overdueDays from history items
@@ -329,13 +332,17 @@ type DelayRatioDetailJSON struct {
 }
 
 // DelayRatioLiability is a single liability entry in DelayRatioDetailJSON.
+// PR #446: total_delay_days (kumulativ cəm — yanlış metrik) əvəzinə teg
+// dəyərləri və onlardan götürülən current_delay_days göstərilir.
 type DelayRatioLiability struct {
-	ID             string  `json:"id"`
-	BankName       string  `json:"bank_name"`
-	CreditStatus   string  `json:"credit_status"`
-	TotalDelayDays int     `json:"total_delay_days"`
-	PaymentMonths  int     `json:"payment_months"`
-	DelayRatio     float64 `json:"delay_ratio"`
+	ID                  string  `json:"id"`
+	BankName            string  `json:"bank_name"`
+	CreditStatus        string  `json:"credit_status"`
+	DaysInterestOverdue int     `json:"days_interest_overdue"`
+	DaysMainSumOverdue  int     `json:"days_main_sum_overdue"`
+	CurrentDelayDays    int     `json:"current_delay_days"` // max(yuxarıdakı ikisi) — PR #446
+	PaymentMonths       int     `json:"payment_months"`
+	DelayRatio          float64 `json:"delay_ratio"`
 }
 
 // CurrentDelayDetailJSON describes how MaxCurrentDelay was calculated.
@@ -386,10 +393,10 @@ type MonthlyPaymentLiability struct {
 //	{
 //	  "calculation": "max_delay_ratio",
 //	  "max_ratio": 7.00,
-//	  "formula": "max(totalDelayDays / paymentMonths) across all liabilities",
+//	  "formula": "max(max(daysInterestOverdue, daysMainSumOverdue) / paymentMonths) across all liabilities with history",
 //	  "liabilities": [
-//	    {"id":"1677","bank_name":"...","credit_status":"007","total_delay_days":70,"payment_months":10,"delay_ratio":7.00},
-//	    {"id":"1544","bank_name":"...","credit_status":"001","total_delay_days":1,"payment_months":14,"delay_ratio":0.07}
+//	    {"id":"1677","bank_name":"...","credit_status":"007","days_interest_overdue":10,"days_main_sum_overdue":5,"current_delay_days":10,"payment_months":10,"delay_ratio":1.00},
+//	    {"id":"1544","bank_name":"...","credit_status":"001","days_interest_overdue":0,"days_main_sum_overdue":0,"current_delay_days":0,"payment_months":14,"delay_ratio":0.00}
 //	  ]
 //	}
 func (ch *CreditHistory) MaxDelayRatioDetail() string {
@@ -398,7 +405,7 @@ func (ch *CreditHistory) MaxDelayRatioDetail() string {
 	}
 	detail := DelayRatioDetailJSON{
 		Calculation: "max_delay_ratio",
-		Formula:     "max(totalDelayDays / paymentMonths) across all liabilities with history",
+		Formula:     "max(max(daysInterestOverdue, daysMainSumOverdue) / paymentMonths) across all liabilities with history", // PR #446
 	}
 	maxRatio := 0.0
 	for _, l := range ch.Inquiry.Liabilities.Liability {
@@ -410,12 +417,14 @@ func (ch *CreditHistory) MaxDelayRatioDetail() string {
 			maxRatio = ratio
 		}
 		detail.Liabilities = append(detail.Liabilities, DelayRatioLiability{
-			ID:             l.ID,
-			BankName:       l.BankName,
-			CreditStatus:   l.CreditStatus,
-			TotalDelayDays: l.TotalDelayDays(),
-			PaymentMonths:  l.PaymentMonths(),
-			DelayRatio:     ratio,
+			ID:                  l.ID,
+			BankName:            l.BankName,
+			CreditStatus:        l.CreditStatus,
+			DaysInterestOverdue: l.DaysInterestOverdue,
+			DaysMainSumOverdue:  l.DaysMainSumOverdue,
+			CurrentDelayDays:    l.CurrentDelayDays(),
+			PaymentMonths:       l.PaymentMonths(),
+			DelayRatio:          ratio,
 		})
 	}
 	if len(detail.Liabilities) == 0 {
