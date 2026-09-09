@@ -76,3 +76,56 @@ func (s *ApplicationService) GetVideoStreamURLByPINAndDate(ctx context.Context, 
 
 	return info, nil
 }
+
+// GetVideoStreamURLByPIN — PR #432: PIN-lə axtarış (tarix YOX).
+// Həmin PIN-in ÇƏKİLMİŞ (recorded=1) videolu ən son müraciətini tapır və
+// stream URL qurur. Yeni müraciətlərdə video hələ çəkilməyibsə onlar ötürülür —
+// LW "müştərinin videosunu göstər" sorğusunda ən son İZLƏNİLƏ BİLƏN video
+// qayıdır (müraciətin hansı gündə yaradıldığını bilmək lazım deyil).
+func (s *ApplicationService) GetVideoStreamURLByPIN(ctx context.Context, pin string) (*PartnerVideoInfo, error) {
+	if s.videoStreamBaseURL == "" {
+		return nil, fmt.Errorf("video stream base URL konfiqurasiya olunmayıb")
+	}
+
+	appID, err := s.repo.FindLatestAppIDByPINWithRecordedVideo(ctx, pin)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find application by pin: %w", err)
+	}
+	if appID == 0 {
+		return nil, ErrVideoRecordNotFound
+	}
+
+	app, err := s.repo.GetApplicationByID(ctx, appID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get application: %w", err)
+	}
+	if app == nil {
+		return nil, ErrApplicationNotFound
+	}
+
+	// PR #432: yalnız ÇƏKİLMİŞ videolar — ekspert yeni (çəkilməmiş) sifariş
+	// göndəribsə köhnə çəkilmiş video itmir (GetLatestRecordedByApplication).
+	vr, err := s.videoRecordRepo.GetLatestRecordedByApplication(ctx, appID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get video record: %w", err)
+	}
+	if vr == nil {
+		return nil, ErrVideoRecordNotFound
+	}
+
+	info := &PartnerVideoInfo{
+		AppID:                vr.AppIDExternal,
+		StreamURL:            strings.TrimRight(s.videoStreamBaseURL, "/") + "/video/" + vr.AppIDExternal + "/stream",
+		Recorded:             true, // GetLatestRecordedByApplication yalnız recorded=1 qaytarır
+		ApplicationCreatedAt: app.CreatedAt,
+		VideoCreatedAt:       vr.CreatedAt,
+		ApplicationID:        app.ID, // PR #431: audit üçün (JSON-da yox)
+	}
+
+	slog.Info("partner video url served (pin-only)",
+		"pin", pin,
+		"application_id", app.ID,
+		"app_id_external", vr.AppIDExternal)
+
+	return info, nil
+}

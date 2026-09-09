@@ -17,9 +17,14 @@ type fakePartnerVideoFinder struct {
 	info *service.PartnerVideoInfo
 	err  error
 
-	lastPIN string
-	lastDay string
-	calls   int
+	// PR #432: PIN-only axını ayrıca konfiqurasiya olunur
+	pinOnlyInfo *service.PartnerVideoInfo
+	pinOnlyErr  error
+
+	lastPIN      string
+	lastDay      string
+	calls        int
+	pinOnlyCalls int
 }
 
 func (f *fakePartnerVideoFinder) GetVideoStreamURLByPINAndDate(_ context.Context, pin, day string) (*service.PartnerVideoInfo, error) {
@@ -30,6 +35,15 @@ func (f *fakePartnerVideoFinder) GetVideoStreamURLByPINAndDate(_ context.Context
 		return nil, f.err
 	}
 	return f.info, nil
+}
+
+func (f *fakePartnerVideoFinder) GetVideoStreamURLByPIN(_ context.Context, pin string) (*service.PartnerVideoInfo, error) {
+	f.pinOnlyCalls++
+	f.lastPIN = pin
+	if f.pinOnlyErr != nil {
+		return nil, f.pinOnlyErr
+	}
+	return f.pinOnlyInfo, nil
 }
 
 // doPartnerRequest — handler-i birbaşa deyil, ServeMux üzərindən çağırır:
@@ -48,8 +62,11 @@ func (f *fakePartnerAudit) Insert(_ context.Context, log *model.ServiceAuditLog)
 	return nil
 }
 
+// doPartnerRequest — handler-i birbaşa deyil, ServeMux üzərindən çağırır:
+// r.PathValue yalnız mux pattern-matching-dən sonra dolur (Go 1.22+).
 func doPartnerRequest(h *PartnerVideoHandler, url string) *httptest.ResponseRecorder {
 	mux := http.NewServeMux()
+	mux.Handle("GET /api/partner/video-url/{pin}", http.HandlerFunc(h.GetVideoURL))
 	mux.Handle("GET /api/partner/video-url/{pin}/{date}", http.HandlerFunc(h.GetVideoURL))
 	req := httptest.NewRequest("GET", url, nil)
 	w := httptest.NewRecorder()
@@ -209,5 +226,52 @@ func TestPartnerVideoHandler_AuditWrittenOnFailure(t *testing.T) {
 	}
 	if row.ApplicationID != nil {
 		t.Errorf("application_id = %v, want nil on failure", row.ApplicationID)
+	}
+}
+
+// PR #432: PIN-lə axtarış (tarixsiz) — uğur, xəta və 404 halları.
+func TestPartnerVideoHandler_PinOnly_Success(t *testing.T) {
+	fake := &fakePartnerVideoFinder{
+		pinOnlyInfo: &service.PartnerVideoInfo{
+			AppID:     "b7d57b9e-071a-4819-8dbb-26f25539f29d",
+			StreamURL: "https://rec.azmk.az:8699/video/b7d57b9e-071a-4819-8dbb-26f25539f29d/stream",
+			Recorded:  true,
+		},
+	}
+	h := NewPartnerVideoHandler(fake, nil)
+
+	w := doPartnerRequest(h, "/api/partner/video-url/29G00GF")
+
+	if w.Code != 200 {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	if fake.pinOnlyCalls != 1 {
+		t.Errorf("pin-only calls = %d, want 1", fake.pinOnlyCalls)
+	}
+	if fake.calls != 0 {
+		t.Errorf("dated calls = %d, want 0 (PIN-only axını işləməli idi)", fake.calls)
+	}
+	if !strings.Contains(w.Body.String(), "b7d57b9e") {
+		t.Errorf("body should contain app_id: %s", w.Body.String())
+	}
+}
+
+func TestPartnerVideoHandler_PinOnly_NotFound(t *testing.T) {
+	h := NewPartnerVideoHandler(&fakePartnerVideoFinder{pinOnlyErr: service.ErrVideoRecordNotFound}, nil)
+
+	w := doPartnerRequest(h, "/api/partner/video-url/29G00GF")
+
+	if w.Code != 404 {
+		t.Errorf("status = %d, want 404", w.Code)
+	}
+}
+
+func TestPartnerVideoHandler_PinOnly_BadPIN(t *testing.T) {
+	h := NewPartnerVideoHandler(&fakePartnerVideoFinder{}, nil)
+
+	w := doPartnerRequest(h, "/api/partner/video-url/ABC")
+
+	if w.Code != 400 {
+		t.Errorf("status = %d, want 400", w.Code)
 	}
 }

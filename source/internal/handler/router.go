@@ -177,10 +177,13 @@ func NewRouter(
 	mux.Handle("GET /api/admin/service-health", protectedAuth(adminAuth(http.HandlerFunc(serviceHealthHandler.GetServiceHealth))))
 
 	// --- PR #427: Partner (LW) video URL — server-to-server, API key ilə qorunur ---
-	// LW-dəki düymə PIN + müraciətin yaradıldığı günü göndərir, cavabda stream_url
+	// LW-dəki düymə PIN (+ istəyə görə tarix) göndərir, cavabda stream_url
 	// qayıdır (LW onu brauzerdə açır).
-	// DİQQƏT: video servisin stream URL-də auth YOXDUR — yeganə qapı bu endpoint-in
-	// API açarıdır. Public qapıda (alpul.az) /api/partner/* blok siyahısında DEYİL.
+	// PR #432: iki forma — {pin} (ən son çəkilmiş video) və {pin}/{date}
+	// (həmin günün müraciəti). DİQQƏT: video servisin stream URL-də auth YOXDUR —
+	// yeganə qapı bu endpoint-in API açarıdır.
+	mux.Handle("GET /api/partner/video-url/{pin}",
+		middleware.RateLimit(partnerVideoLimiter)(middleware.RequirePartnerAPIKey(partnerVideoAPIKey)(http.HandlerFunc(partnerVideoHandler.GetVideoURL))))
 	mux.Handle("GET /api/partner/video-url/{pin}/{date}",
 		middleware.RateLimit(partnerVideoLimiter)(middleware.RequirePartnerAPIKey(partnerVideoAPIKey)(http.HandlerFunc(partnerVideoHandler.GetVideoURL))))
 
