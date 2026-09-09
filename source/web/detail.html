@@ -905,6 +905,9 @@
                 videoStreamUrl: '',
                 videoStreamLoading: false,
                 videoStreamError: '',
+                // PR #449: prefetch olunmuş stream URL — səhifə yüklənəndə arxa fonda
+                // alınır, klikdə dialoq ANINDA açılır (backend roundtrip gözlənilmir)
+                videoStreamUrlReady: '',
 
                 // PR #428: dialoq drag (sürüşdürmə) vəziyyəti — başlıqdan tutub
                 // hərəkət etdirmək olur; translate offset-ləri mərkəzdən hesablanır
@@ -1575,6 +1578,10 @@
                                     // hələ çəkilməyibsə panel xəbərdarlığı göstərilir
                                     // (dəqiq status dialoq açılanda service-dən yenilənir).
                                     this.videoPendingNew = !!d.video_required && !d.recorded;
+                                    // PR #449: video axını olan müraciətdirsə stream URL-i
+                                    // arxa fonda prefetch et — klikdə dialoq ani açılsın
+                                    // (xarici status check backend-də artıq keçilir)
+                                    if (d.video_required) this.prefetchVideoStreamUrl();
                                 })
                                 .catch(() => { /* fail-soft */ });
                         }
@@ -1792,6 +1799,9 @@
                         this.videoWatched = false;
                         this.videoStreamUrl = '';
                         this.videoStreamError = '';
+                        // PR #449: köhnə prefetch-i keçərsizləşdir — yeni order üçün
+                        // URL fərqlidir (yeni app_id), klik zamanı təzədən alınacaq
+                        this.videoStreamUrlReady = '';
                         // PR #440: panel xəbərdarlığı — yeni video gözlənilir
                         this.videoPendingNew = true;
                     } catch (e) {
@@ -1802,16 +1812,39 @@
                     }
                 },
 
+                // PR #449: stream URL-i arxa fonda əvvəlcədən al (klikdən əvvəl).
+                // Nəticə videoStreamUrlReady-də saxlanılır; xətalar udulur —
+                // klik zamanı adi axın işə düşür.
+                async prefetchVideoStreamUrl() {
+                    if (this.videoStreamUrlReady || !this.internalId) return;
+                    try {
+                        const resp = await fetch('/api/applications/' + this.internalId + '/video-stream-url');
+                        const data = await resp.json();
+                        if (resp.ok && data.stream_url) {
+                            this.videoStreamUrlReady = data.stream_url;
+                            // PR #440: prefetch uğurludursa video hazırdır
+                            this.videoPendingNew = false;
+                        }
+                    } catch (e) { /* fail-soft — klik zamanı yenidən cəhd olunacaq */ }
+                },
+
                 // PR #399: "Videya bax" — stream URL-i alınıb modalda oynadılır
                 async openVideoDialog() {
                     this.videoDialogOpen = true;
-                    this.videoStreamUrl = '';
                     this.videoStreamError = '';
-                    this.videoStreamLoading = true;
                     // PR #428: hər açılışda dialoq mərkəzə qayıdır
                     this.videoDragging = false;
                     this.videoDragX = 0;
                     this.videoDragY = 0;
+                    // PR #449: URL əvvəlcədən alınmışsa — ANINDA göstər
+                    if (this.videoStreamUrlReady) {
+                        this.videoStreamUrl = this.videoStreamUrlReady;
+                        this.videoPendingNew = false;
+                        this.videoStreamLoading = false;
+                        return;
+                    }
+                    this.videoStreamUrl = '';
+                    this.videoStreamLoading = true;
                     try {
                         const resp = await fetch('/api/applications/' + this.internalId + '/video-stream-url');
                         const data = await resp.json();
