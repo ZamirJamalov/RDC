@@ -439,10 +439,50 @@ func (p *HTTPProvider) doPut(ctx context.Context, path string, body interface{})
 	return p.doRequest(ctx, http.MethodPut, path, body)
 }
 
+// azmkServiceName — PR #431: path-dən SABİT servis adı törədir.
+// Uzun hex/UUID seqmentləri (partner/card/application/kyc ID-ləri) çıxarılır ki,
+// service_audit_logs və sağlamlıq panelində (GROUP BY service_name) hər ID üçün
+// ayrı "servis" yaranmasın:
+//
+//	/partner/{32-hex}/phones      → AZMK_PARTNER_PHONES  (əvvəl: AZMK_PARTNER_{ID}_PHONES)
+//	/card/{32-hex}                → AZMK_CARD            (əvvəl: AZMK_CARD_{ID})
+//	/application/{id}/status      → AZMK_APPLICATION_STATUS
+//	/application/create           → AZMK_APPLICATION_CREATE (dəyişməz)
+func azmkServiceName(path string) string {
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	kept := make([]string, 0, len(parts))
+	for _, seg := range parts {
+		if isHexID(seg) {
+			continue
+		}
+		kept = append(kept, strings.ToUpper(seg))
+	}
+	if len(kept) == 0 {
+		return "AZMK"
+	}
+	return "AZMK_" + strings.Join(kept, "_")
+}
+
+// isHexID — path seqmenti 16+ simvollu yalnız-hex dirsə ID yer tutucusudur
+// (UUID 32 hex, LW application id — hex format). Qısa seqmentlər (məs. "create",
+// "status") adın hissəsi kimi qalır.
+func isHexID(s string) bool {
+	if len(s) < 16 {
+		return false
+	}
+	for _, c := range s {
+		hex := (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')
+		if !hex {
+			return false
+		}
+	}
+	return true
+}
+
 // doRequest sends an HTTP request with the given method and returns the response body.
 func (p *HTTPProvider) doRequest(ctx context.Context, method, path string, body interface{}) (string, error) {
 	url := p.baseURL + path
-	serviceName := "AZMK_" + strings.ToUpper(strings.Trim(path, "/"))
+	serviceName := azmkServiceName(path) // PR #431: ID seqmentlərindən təmizlənmiş sabit ad
 
 	var reqBodyStr string
 	var reqBody *strings.Reader
@@ -501,7 +541,7 @@ func (p *HTTPProvider) doGet(ctx context.Context, path string) (string, error) {
 // cədvəlini hər 3 saniyədən bir şişirtməsin; Loki-də 6 ay retention var).
 func (p *HTTPProvider) doGetVariant(ctx context.Context, path string, dbAudit bool) (string, error) {
 	url := p.baseURL + path
-	serviceName := "AZMK_" + strings.ToUpper(strings.Trim(path, "/"))
+	serviceName := azmkServiceName(path) // PR #431: ID seqmentlərindən təmizlənmiş sabit ad
 	audit := p.auditLog
 	if !dbAudit {
 		audit = p.auditLogLokiOnly // PR #374

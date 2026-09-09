@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"rdc-source/internal/model"
 	"rdc-source/internal/service"
 )
 
@@ -17,16 +18,28 @@ type PartnerVideoFinder interface {
 	GetVideoStreamURLByPINAndDate(ctx context.Context, pin, day string) (*service.PartnerVideoInfo, error)
 }
 
+// PartnerAuditWriter — PR #431: service_audit_logs-a yazma interfeysi
+// (*repository.ServiceAuditLogRepo satisfy edir; testlərdə fake).
+type PartnerAuditWriter interface {
+	Insert(ctx context.Context, log *model.ServiceAuditLog) error
+}
+
 // PartnerVideoHandler — PR #427: LW (partner) üçün video stream URL endpoint-i.
 // Auth və rate limit router-da middleware kimi sarılır:
 // RequirePartnerAPIKey (X-API-Key) + RateLimit(partnerVideoLimiter).
+//
+// PR #431: hər çağırış service_audit_logs-a yazılır (PARTNER_VIDEO_URL) —
+// sağlamlıq panelində LW çağırışlarının sayı/uğursuzluqları görünür.
+// Qeyd: 401 (açar yanlış) və 429 (rate limit) middleware-də bloklanır və
+// audit-ə DÜŞMÜR — yalnız handler-ə çatan sorğular (200/400/404/500) yazılır.
 type PartnerVideoHandler struct {
-	svc PartnerVideoFinder
+	svc   PartnerVideoFinder
+	audit PartnerAuditWriter // nil = audit yazılmır (testlər)
 }
 
-// NewPartnerVideoHandler — appService (və ya testdə fake) qəbul edir.
-func NewPartnerVideoHandler(svc PartnerVideoFinder) *PartnerVideoHandler {
-	return &PartnerVideoHandler{svc: svc}
+// NewPartnerVideoHandler — appService + audit repo (PR #431).
+func NewPartnerVideoHandler(svc PartnerVideoFinder, audit PartnerAuditWriter) *PartnerVideoHandler {
+	return &PartnerVideoHandler{svc: svc, audit: audit}
 }
 
 // GetVideoURL handles GET /api/partner/video-url/{pin}/{date}.
@@ -36,18 +49,21 @@ func NewPartnerVideoHandler(svc PartnerVideoFinder) *PartnerVideoHandler {
 //   - date: müraciətin yaradıldığı gün (yyyy-mm-dd, DB server lokal vaxtı)
 //
 // Cavab (200): app_id, stream_url, recorded, application_created_at,
-// video_created_at. LW tərəfi stream_url-i brauzerdə açır (video servisin
-// öz auth-u var).
+// video_created_at. LW tərəfi stream_url-i brauzerdə açır.
 func (h *PartnerVideoHandler) GetVideoURL(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
 	pin := r.PathValue("pin")
 	dayStr := r.PathValue("date")
 
 	if !isValidPIN(pin) {
 		writeError(w, http.StatusBadRequest, "PIN formatı yanlışdır (7 hərf/rəqəm)")
+		h.writeAudit(r, http.StatusBadRequest, start, "PIN formatı yanlışdır", nil)
 		return
 	}
 	if _, err := time.Parse("2006-01-02", dayStr); err != nil {
 		writeError(w, http.StatusBadRequest, "tarix formatı yanlışdır (yyyy-mm-dd)")
+		h.writeAudit(r, http.StatusBadRequest, start, "tarix formatı yanlışdır", nil)
 		return
 	}
 
@@ -56,16 +72,43 @@ func (h *PartnerVideoHandler) GetVideoURL(w http.ResponseWriter, r *http.Request
 		switch {
 		case errors.Is(err, service.ErrApplicationNotFound):
 			writeError(w, http.StatusNotFound, "bu gündə bu PIN-lə müraciət tapılmadı")
+			h.writeAudit(r, http.StatusNotFound, start, "müraciət tapılmadı", nil)
 		case errors.Is(err, service.ErrVideoRecordNotFound):
 			writeError(w, http.StatusNotFound, "bu müraciət üçün video record yoxdur")
+			h.writeAudit(r, http.StatusNotFound, start, "video record yoxdur", nil)
 		case errors.Is(err, service.ErrVideoNotRecorded):
 			writeError(w, http.StatusNotFound, "video hələ çəkilməyib — stream mövcud deyil")
+			h.writeAudit(r, http.StatusNotFound, start, "video hələ çəkilməyib", nil)
 		default:
 			slog.Error("partner video url failed", "pin", pin, "error", err)
 			writeError(w, http.StatusInternalServerError, "daxili xəta")
+			h.writeAudit(r, http.StatusInternalServerError, start, err.Error(), nil)
 		}
 		return
 	}
 
 	writeJSON(w, http.StatusOK, info)
+	appID := info.ApplicationID
+	h.writeAudit(r, http.StatusOK, start, "", &appID)
+}
+
+// writeAudit — PR #431: PARTNER_VIDEO_URL sətiri service_audit_logs-a.
+// application_id yalnız uğurlu çağırışda məlumdur (xəta halında nil).
+func (h *PartnerVideoHandler) writeAudit(r *http.Request, status int, start time.Time, errMsg string, appID *int) {
+	if h.audit == nil {
+		return
+	}
+	durationMs := int(time.Since(start).Milliseconds())
+	entry := &model.ServiceAuditLog{
+		ApplicationID: appID,
+		ServiceName:   "PARTNER_VIDEO_URL",
+		Method:        "GET",
+		URL:           r.URL.Path,
+		StatusCode:    &status,
+		DurationMs:    &durationMs,
+		Error:         errMsg,
+	}
+	if err := h.audit.Insert(r.Context(), entry); err != nil {
+		slog.Warn("PR #431: partner video url audit write failed", "error", err)
+	}
 }

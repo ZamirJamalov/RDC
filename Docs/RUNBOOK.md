@@ -127,7 +127,11 @@ Servislər: **AZMK/LW** (`web.azmk.az:7077`), **SMS** (`gw.soft-line.az`),
 - **Retry avtomatikdir** (PR #420): müvəqqəti xətalarda (5xx/timeout) idempotent
   əməliyyatlar 3 cəhd + backoff ilə təkrarlanır
 - **Sağlamlıq paneli** (PR #421/#422): dashboard → admin → hər xarici servisin son
-  uğur/uğursuzluq vaxtı + gecikmə (API: `GET /api/admin/service-health`)
+  uğur/uğursuzluq vaxtı + gecikmə (API: `GET /api/admin/service-health`).
+  PR #431: panel service_audit_logs-dakı BÜTÜN servisleri əhatə edir — LW-nin
+  çağırığı olan `PARTNER_VIDEO_URL` də daxil (401/429 middleware-də bloklanır,
+  audit-ə düşmür). AZMK adları sabitləşdirilib: `AZMK_PARTNER_PHONES`,
+  `AZMK_CARD`, `AZMK_APPLICATION_STATUS` (əvvəl ID-li dinamik adlar idi).
 
 | Servis down | Təsir | Nə etməli |
 |---|---|---|
