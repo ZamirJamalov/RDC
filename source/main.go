@@ -303,6 +303,15 @@ func main() {
 		os.Exit(1)
 	}
 	fileServer := http.FileServer(http.FS(webFS))
+	// PR #445: HTML səhifələr no-cache — deploy-dən sonra browser-in keşlədiyi
+	// köhnə səhifə (məs. köhnə redirect) göstərilməsin. Asset-lər (/assets,
+	// .js, şəkillər) keşlənə qalır — yalnız .html revalidasiya olunur.
+	fileServerNoCacheHTML := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, ".html") {
+			w.Header().Set("Cache-Control", "no-cache")
+		}
+		fileServer.ServeHTTP(w, r)
+	})
 	httpHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			router.ServeHTTP(w, r)
@@ -332,10 +341,11 @@ func main() {
 				return
 			}
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-cache") // PR #445: keşlənmiş köhnə HTML-in qarşısı
 			w.Write(data)
 			return
 		}
-		fileServer.ServeHTTP(w, r)
+		fileServerNoCacheHTML.ServeHTTP(w, r)
 	})
 
 	// PR #292: middleware zənciri router-in içinə deyil, ROOT handler-ə tətbiq olunur.
