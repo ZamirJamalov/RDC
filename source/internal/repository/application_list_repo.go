@@ -120,25 +120,42 @@ func (r *ApplicationRepo) FindLatestByPINAndDate(ctx context.Context, pin, day s
 	return &app, nil
 }
 
-// FindLatestAppIDByPINWithRecordedVideo — PR #432: PIN-lə axtarış (tarixsiz).
-// Həmin PIN-in ÇƏKİLMİŞ (recorded=1) videolu ƏN SON müraciətinin ID-sini
-// qaytarır. Yeni müraciətlərdə video hələ çəkilməyibsə onlar ötürülür —
-// LW "müştərinin videosunu göstər" sorğusunda ən son İZLƏNİLƏ BİLƏN videonu
-// alır. Tapılmayanda 0 qaytarır.
+// FindLatestAppIDByPINWithRecordedVideo — PR #432 (PR #433 ilə əvəz olundu —
+// ListAppIDsByPINWithRecordedVideo bax). Tapılmayanda 0 qaytarır.
 func (r *ApplicationRepo) FindLatestAppIDByPINWithRecordedVideo(ctx context.Context, pin string) (int, error) {
-	var appID int
-	err := r.db.QueryRowContext(ctx, `
-		SELECT TOP 1 a.id
+	ids, err := r.ListAppIDsByPINWithRecordedVideo(ctx, pin)
+	if err != nil {
+		return 0, err
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	return ids[0], nil
+}
+
+// ListAppIDsByPINWithRecordedVideo — PR #433: PIN-in ÇƏKİLMİŞ (recorded=1)
+// videolu BÜTÜN müraciətlərinin ID-ləri (yeni → köhnə sıra ilə).
+// Partner video-url endpoint-inin PIN-only forması bu siyahını qaytarır.
+func (r *ApplicationRepo) ListAppIDsByPINWithRecordedVideo(ctx context.Context, pin string) ([]int, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT DISTINCT a.id
 		FROM loan_applications a
 		WHERE a.customer_pin = ?
 		  AND EXISTS (SELECT 1 FROM video_records v
 		              WHERE v.application_id = a.id AND v.recorded = 1)
-		ORDER BY a.id DESC`, pin).Scan(&appID)
+		ORDER BY a.id DESC`, pin)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return 0, nil
-		}
-		return 0, fmt.Errorf("failed to lookup application by pin (recorded video): %w", err)
+		return nil, fmt.Errorf("failed to lookup applications by pin (recorded video): %w", err)
 	}
-	return appID, nil
+	defer rows.Close()
+
+	var ids []int
+	for rows.Next() {
+		var id int
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("failed to scan application id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
 }

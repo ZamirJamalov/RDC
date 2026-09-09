@@ -17,8 +17,8 @@ type fakePartnerVideoFinder struct {
 	info *service.PartnerVideoInfo
 	err  error
 
-	// PR #432: PIN-only axını ayrıca konfiqurasiya olunur
-	pinOnlyInfo *service.PartnerVideoInfo
+	// PR #433: PIN-only axını ayrıca konfiqurasiya olunur (siyahı)
+	pinOnlyList []*service.PartnerVideoInfo
 	pinOnlyErr  error
 
 	lastPIN      string
@@ -37,13 +37,13 @@ func (f *fakePartnerVideoFinder) GetVideoStreamURLByPINAndDate(_ context.Context
 	return f.info, nil
 }
 
-func (f *fakePartnerVideoFinder) GetVideoStreamURLByPIN(_ context.Context, pin string) (*service.PartnerVideoInfo, error) {
+func (f *fakePartnerVideoFinder) ListVideoStreamURLsByPIN(_ context.Context, pin string) ([]*service.PartnerVideoInfo, error) {
 	f.pinOnlyCalls++
 	f.lastPIN = pin
 	if f.pinOnlyErr != nil {
 		return nil, f.pinOnlyErr
 	}
-	return f.pinOnlyInfo, nil
+	return f.pinOnlyList, nil
 }
 
 // doPartnerRequest — handler-i birbaşa deyil, ServeMux üzərindən çağırır:
@@ -229,13 +229,20 @@ func TestPartnerVideoHandler_AuditWrittenOnFailure(t *testing.T) {
 	}
 }
 
-// PR #432: PIN-lə axtarış (tarixsiz) — uğur, xəta və 404 halları.
+// PR #433: PIN-lə axtarış (tarixsiz) — BÜTÜN videoların siyahısı.
 func TestPartnerVideoHandler_PinOnly_Success(t *testing.T) {
 	fake := &fakePartnerVideoFinder{
-		pinOnlyInfo: &service.PartnerVideoInfo{
-			AppID:     "b7d57b9e-071a-4819-8dbb-26f25539f29d",
-			StreamURL: "https://rec.azmk.az:8699/video/b7d57b9e-071a-4819-8dbb-26f25539f29d/stream",
-			Recorded:  true,
+		pinOnlyList: []*service.PartnerVideoInfo{
+			{
+				AppID:     "b7d57b9e-071a-4819-8dbb-26f25539f29d",
+				StreamURL: "https://rec.azmk.az:8699/video/b7d57b9e-071a-4819-8dbb-26f25539f29d/stream",
+				Recorded:  true,
+			},
+			{
+				AppID:     "c8241a89-0038-4b8f-9b28-b2bbc7892b24",
+				StreamURL: "https://rec.azmk.az:8699/video/c8241a89-0038-4b8f-9b28-b2bbc7892b24/stream",
+				Recorded:  true,
+			},
 		},
 	}
 	h := NewPartnerVideoHandler(fake, nil)
@@ -251,8 +258,23 @@ func TestPartnerVideoHandler_PinOnly_Success(t *testing.T) {
 	if fake.calls != 0 {
 		t.Errorf("dated calls = %d, want 0 (PIN-only axını işləməli idi)", fake.calls)
 	}
-	if !strings.Contains(w.Body.String(), "b7d57b9e") {
-		t.Errorf("body should contain app_id: %s", w.Body.String())
+	body := w.Body.String()
+	if !strings.Contains(body, "videos") {
+		t.Errorf("body should contain videos wrapper: %s", body)
+	}
+	if !strings.Contains(body, "b7d57b9e") || !strings.Contains(body, "c8241a89") {
+		t.Errorf("body should contain BOTH app_ids: %s", body)
+	}
+}
+
+// PR #433: boş siyahı → 404 (LW düyməsi üçün sadə məntiq).
+func TestPartnerVideoHandler_PinOnly_EmptyListIs404(t *testing.T) {
+	h := NewPartnerVideoHandler(&fakePartnerVideoFinder{pinOnlyList: nil}, nil)
+
+	w := doPartnerRequest(h, "/api/partner/video-url/29G00GF")
+
+	if w.Code != 404 {
+		t.Errorf("status = %d, want 404 for empty list", w.Code)
 	}
 }
 
