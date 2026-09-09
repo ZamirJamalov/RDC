@@ -267,7 +267,7 @@ func (e *CreditEngine) resolveCustomerAge(ctx context.Context, customerPIN, seri
 // the metrics required by PR #52 rejection rules.
 //
 // Populates the following loanAnalytics fields:
-//   - delayRatio:            sum(OverdueDays in last 24 months) / active months
+//   - delayRatio:            max(max(daysInterestOverdue, daysMainSumOverdue) / months) per liability (PR #446: history cəmi YOX)
 //   - activeMaxDelayDays:    max(DaysMainSumOverdue) across active liabilities
 //   - maxDelayLast3Months:   max OverdueDays in last 3 months (>= 20 → reject)
 //   - maxDelayLast6Months:   max OverdueDays in last 6 months (>= 30 → reject)
@@ -321,11 +321,11 @@ func (e *CreditEngine) resolveAkbHistory(ctx context.Context, customerPIN, seria
 	window24m := now.AddDate(0, -24, 0)
 
 	var (
-		totalDelay24m            int
 		activeMonths             int
 		max3, max6, max12, max18 int
 		totalMonthly             float64
 		maxActiveDelay           int
+		maxLibRatio              float64 // PR #446: liability başına ratio-nun maksimumu
 	)
 
 	for _, lib := range liabilities {
@@ -343,6 +343,10 @@ func (e *CreditEngine) resolveAkbHistory(ctx context.Context, customerPIN, seria
 		if lib.History == nil {
 			continue
 		}
+		// PR #446: gecikmə əmsalı üçün kumulativ history overdueDays-lər TOPLANMIR —
+		// liability-nin cari teg dəyəri max(daysInterestOverdue, daysMainSumOverdue)
+		// götürülür və 24 aydakı ay sayına bölünür (customer_data.go DelayRatio ilə eyni).
+		libMonths := 0
 		for _, h := range lib.History.HistoryItem {
 			period, err := time.Parse("2006-01", h.ReportingPeriod)
 			if err != nil {
@@ -351,8 +355,7 @@ func (e *CreditEngine) resolveAkbHistory(ctx context.Context, customerPIN, seria
 			}
 			// Active month = any month the liability had a reporting entry within last 24m.
 			if period.After(window24m) {
-				activeMonths++
-				totalDelay24m += h.OverdueDays
+				libMonths++
 			}
 			if period.After(window3m) && h.OverdueDays > max3 {
 				max3 = h.OverdueDays
@@ -367,12 +370,18 @@ func (e *CreditEngine) resolveAkbHistory(ctx context.Context, customerPIN, seria
 				max18 = h.OverdueDays
 			}
 		}
+		if libMonths > 0 {
+			r := float64(lib.CurrentDelayDays()) / float64(libMonths)
+			if r > maxLibRatio {
+				maxLibRatio = r
+			}
+			activeMonths++
+		}
 	}
 
 	if activeMonths > 0 {
 		// Round to 2 decimals to avoid floating-point noise.
-		ratio := float64(totalDelay24m) / float64(activeMonths)
-		analytics.delayRatio = math.Round(ratio*100) / 100
+		analytics.delayRatio = math.Round(maxLibRatio*100) / 100
 	}
 	analytics.activeMaxDelayDays = maxActiveDelay
 	analytics.maxDelayLast3Months = max3

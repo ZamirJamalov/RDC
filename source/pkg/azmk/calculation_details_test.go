@@ -16,9 +16,9 @@ import (
 
 // buildTestCreditHistory test üçün nümunə kredit tarixçəsi qurur.
 //
-//   - Liability #1677: aktiv (007), cari gecikmə 10 gün, history-də 70 gün cəmi gecikmə, 10 ay ödəniş → ratio 7.00
-//   - Liability #1544: bağlı (001), cari gecikmə 0 gün, history-də 1 gün cəmi gecikmə, 14 ay ödəniş → ratio 0.07
-//   - Liability #7662: aktiv (007), cari gecikmə 0 gün, aylıq ödəniş 143.33 AZN
+//   - Liability #1677: aktiv (007), cari teglər 10/5 → currentDelay 10 gün, 10 ay ödəniş → ratio 1.00
+//   - Liability #1544: bağlı (001), cari teglər 0/0 → ratio 0.00
+//   - Liability #7662: aktiv (007), cari teglər 0/0, aylıq ödəniş 143.33 AZN
 func buildTestCreditHistory() *CreditHistory {
 	return &CreditHistory{
 		Inquiry: &InquiryResult{
@@ -113,15 +113,15 @@ func TestMaxDelayRatioDetail_JSON(t *testing.T) {
 		t.Error("formula should not be empty")
 	}
 
-	// Liability #1677: 70 delay / 10 months = 7.00
-	// Liability #1544: 1 delay / 14 months = 0.07 (connected but still in list)
-	// Liability #7662: 0 delay / 2 months = 0.00
-	// Max ratio = 7.00
+	// Liability #1677: cari teg max(10,5) = 10 / 10 months = 1.00
+	// Liability #1544: cari teg max(0,0) = 0 / 14 months = 0.00 (connected but still in list)
+	// Liability #7662: 0 / 2 months = 0.00
+	// Max ratio = 1.00 (PR #446: history cəmi yox, cari teg dəyəri)
 	if len(detail.Liabilities) != 3 {
 		t.Errorf("liabilities count = %d, want 3 (all with history)", len(detail.Liabilities))
 	}
-	if detail.MaxRatio != 7.00 {
-		t.Errorf("max_ratio = %.2f, want 7.00", detail.MaxRatio)
+	if detail.MaxRatio != 1.00 {
+		t.Errorf("max_ratio = %.2f, want 1.00", detail.MaxRatio)
 	}
 
 	// Verify first liability values
@@ -129,14 +129,20 @@ func TestMaxDelayRatioDetail_JSON(t *testing.T) {
 	if first.ID != "1677" {
 		t.Errorf("first liability id = %q, want 1677", first.ID)
 	}
-	if first.TotalDelayDays != 70 {
-		t.Errorf("first liability total_delay_days = %d, want 70", first.TotalDelayDays)
+	if first.DaysInterestOverdue != 10 {
+		t.Errorf("first liability days_interest_overdue = %d, want 10", first.DaysInterestOverdue)
+	}
+	if first.DaysMainSumOverdue != 5 {
+		t.Errorf("first liability days_main_sum_overdue = %d, want 5", first.DaysMainSumOverdue)
+	}
+	if first.CurrentDelayDays != 10 {
+		t.Errorf("first liability current_delay_days = %d, want 10 (max of tags)", first.CurrentDelayDays)
 	}
 	if first.PaymentMonths != 10 {
 		t.Errorf("first liability payment_months = %d, want 10", first.PaymentMonths)
 	}
-	if first.DelayRatio != 7.00 {
-		t.Errorf("first liability delay_ratio = %.2f, want 7.00", first.DelayRatio)
+	if first.DelayRatio != 1.00 {
+		t.Errorf("first liability delay_ratio = %.2f, want 1.00", first.DelayRatio)
 	}
 	if first.BankName != "Kapital Bank" {
 		t.Errorf("first liability bank_name = %q, want 'Kapital Bank'", first.BankName)
@@ -343,7 +349,7 @@ func TestJSON_OutputContainsExpectedKeys(t *testing.T) {
 			t.Errorf("MaxDelayRatioDetail JSON missing key %q\nraw: %s", key, out)
 		}
 	}
-	for _, key := range []string{"id", "bank_name", "credit_status", "total_delay_days", "payment_months", "delay_ratio"} {
+	for _, key := range []string{"id", "bank_name", "credit_status", "days_interest_overdue", "days_main_sum_overdue", "current_delay_days", "payment_months", "delay_ratio"} {
 		if !strings.Contains(out, "\""+key+"\"") {
 			t.Errorf("MaxDelayRatioDetail JSON missing liability key %q\nraw: %s", key, out)
 		}
