@@ -1680,6 +1680,9 @@
                         this.actionMessage = 'Muraciet imtina edildi.';
                         this.stopTimer(); // PR #134: imtina uğurlu — timer dayan
                         await this.load();
+                        // PR #442: imtinadan sonra birbaşa "İmtina olunmuş" siyahısına
+                        // yönləndir — mesajın görünməsi üçün 800ms gözlə
+                        setTimeout(() => window.location.href = '/index?tab=rejected', 800);
                     } catch (e) {
                         this.actionError = e.message;
                     } finally {
