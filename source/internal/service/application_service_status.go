@@ -15,6 +15,9 @@ type UpdateStatusRequest struct {
 	Status          string `json:"status"`           // "approved" or "rejected"
 	CreditLevel     string `json:"credit_level"`     // required when status is "approved" (e.g. "new", "trusted", "valuable", "elite")
 	RejectionReason string `json:"rejection_reason"` // PR #258/#287: MANUAL_* cutoff code (məs: MANUAL_VIDEO_MISMATCH)
+	// PR #441: disburse_failed statusundan REJECT yalnız admin hüququnda mümkündür.
+	// Handler-lər principal-dan doldurur (müştəri API-lərindən gəlmir).
+	IsAdmin bool `json:"-"`
 }
 
 // UpdateStatus manually sets an application's status.
@@ -53,7 +56,17 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
 	// Validate that the application is awaiting expert review.
 	// PR #226: pending_expert (PR #221 customer-confirm flow) və pending_approval
 	// (legacy engine flow) — hər ikisində ekspert approve/reject edə bilər.
-	if app.Status != model.StatusPendingApproval && app.Status != model.StatusPendingExpert {
+	// PR #441: disburse_failed statusundan YALNIZ REJECT mümkündür və yalnız
+	// admin hüququnda (köçürmə xətasının son qərarı admin-ə aiddir; approve/
+	// retry ayrı mexanizmdir — disburse təkrarı sistem tərəfindən EDİLMİR).
+	if app.Status == model.StatusDisburseFailed {
+		if req.Status != model.StatusRejected {
+			return nil, fmt.Errorf("disburse_failed statusunda yalnız imtina mümkündür — köçürmə xətasının həlli üçün AZMK ilə yoxlayın")
+		}
+		if !req.IsAdmin {
+			return nil, fmt.Errorf("disburse xətası olan müraciəti yalnız admin imtina edə bilər")
+		}
+	} else if app.Status != model.StatusPendingApproval && app.Status != model.StatusPendingExpert {
 		return nil, fmt.Errorf("application status is '%s', expected '%s' or '%s' — only applications awaiting expert review can be updated",
 			app.Status, model.StatusPendingExpert, model.StatusPendingApproval)
 	}
