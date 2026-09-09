@@ -68,11 +68,10 @@ func (s *ApplicationService) UpdateStatus(ctx context.Context, id int, req *Upda
 		return nil, fmt.Errorf("credit_level must be one of new/trusted/valuable/elite, got '%s'", req.CreditLevel)
 	}
 
-	// PR #436/#438: approve video gate — videoOrderGate (ortaq helper):
-	//   - son order çəkilməyibsə (recorded=0) blok
-	//   - order-dan 60 san keçməyibsə blok (PR #438 min-gözləmə)
-	// Ekspert yeni "Video müraciət" göndəribsə, köhnə videoya baxılmış olsa
-	// belə status reset olunur və YENİ video çəkilənə qədər qadağa qalır.
+	// PR #436/#438/#439: approve video gate — videoOrderGate (ortaq helper):
+	// son order çəkilməyibsə (recorded=0) blok. Hər order öz unikal UUID-si ilə
+	// göndərildiyindən (PR #438) recorded=true yalnız YENİ video çəkiləndə olur —
+	// yaş/min-gözləmə yoxlamasına ehtiyac yoxdur (PR #439-də silindi).
 	// Video deaktiv olanda (və ya repo əlaqələnməyibsə) qadağa yoxdur.
 	if req.Status == model.StatusApproved && s.videoRecordEnabled {
 		if gerr := s.videoOrderGate(ctx, id); gerr != nil {
