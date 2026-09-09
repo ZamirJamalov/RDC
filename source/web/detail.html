@@ -151,15 +151,7 @@
             background: linear-gradient(135deg, rgba(45,156,219,.15), rgba(242,201,76,.15));
             display: flex; align-items: center; justify-content: center; font-size: 17px; }
 
-        /* Video verifikasiya banneri — narıncı, mərkəzləşdirilmiş (640px) */
-        .video-banner { max-width: 640px; margin: 24px auto 0; padding: 20px 24px;
-            background: linear-gradient(135deg, #FEF3E2 0%, #FEEBC8 100%);
-            border-radius: 16px; box-shadow: 0 4px 12px rgba(237,137,54,.15); }
-        .video-banner .vb-title { font-size: 24px; font-weight: 700; color: #C05621; letter-spacing: .02em; }
-        .video-banner .vb-sub { font-size: 14px; color: #DD6B20; }
-        [data-theme="dark"] .video-banner { background: linear-gradient(135deg, rgba(237,137,54,.16) 0%, rgba(254,235,192,.07) 100%); box-shadow: none; }
-        [data-theme="dark"] .video-banner .vb-title { color: #F6AD55; }
-        [data-theme="dark"] .video-banner .vb-sub { color: #ECC94B; }
+        /* PR #447: video-banner CSS silindi — toolbar banner-i əvəz etdi */
 
         /* Kredit stat qutuları — rəngli fonlar */
         .stat-box { border-radius: 8px; padding: 12px; text-align: center; }
@@ -361,34 +353,151 @@
                  SOL: Müştəri | ORTA: Kredit + MyGov + Komplayans | SAĞ: Əlaqə + Qərar -->
             <div x-show="!loading && !error && app" class="detail-wrap">
 
-                <!-- PR #443: Video Verifikasiya — narıncı banner (640px, mərkəzdə) -->
-                <section class="video-banner flex flex-col sm:flex-row items-center gap-4">
-                    <span class="text-5xl shrink-0" style="font-size:64px; line-height:1">📹</span>
-                    <div class="flex-1 min-w-0 text-center sm:text-left">
-                        <div class="vb-title">VİDEO VERİFİKASİYA</div>
-                        <!-- PR #440: gözləmə vəziyyəti üstünlük təşkil edir -->
-                        <p class="vb-sub mt-0.5"
-                           x-text="videoPendingNew
-                                ? '⏳ Yeni video hələ çəkilməyib — baxış və təsdiq bloklanıb'
-                                : (videoError ? (videoMessage || 'Videya bax → video çəkilməyibsə SMS göndər') : 'Təhlükəsizliyi üçün video təsdiqi tələb olunur')"></p>
+                <!-- PR #447: TOOLBAR — bütün əməliyyat düymələri bir yerdə
+                     (video banner, MyGov, Komplayns, Qərar bölmələrini əvəz edir) -->
+                <section class="panel p-3 mt-6 flex flex-col gap-2">
+                    <div class="flex flex-wrap items-end gap-x-5 gap-y-3">
+
+                        <!-- ===== VIDEO qrupu ===== -->
+                        <div class="flex flex-col gap-1">
+                            <span class="text-[10px] uppercase tracking-wide text-gray-400 font-semibold">🎥 Video</span>
+                            <div class="flex gap-2">
+                                <button @click="openVideoDialog()"
+                                        :disabled="videoStreamLoading"
+                                        class="text-white px-3 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition"
+                                        style="background:#805AD5">
+                                    <span x-show="!videoStreamLoading"><span x-show="videoWatched" class="text-emerald-300 mr-1 font-bold">✓</span>▶ Videoya bax</span>
+                                    <span x-show="videoStreamLoading">Açılır...</span>
+                                </button>
+                                <!-- PR #437: yalnız pending_expert statusunda aktiv -->
+                                <button @click="videoRequest()"
+                                        :disabled="videoLoading || app?.status !== 'pending_expert'"
+                                        :title="app?.status !== 'pending_expert' ? 'Video müraciət yalnız «Ekspert gözləyir» statusunda göndərilə bilər' : 'SMS ilə video çəkilmə linki göndər'"
+                                        class="text-white px-3 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition"
+                                        style="background:#38B2AC">
+                                    <span x-show="!videoLoading"><span x-show="videoOrderSent" class="text-emerald-300 mr-1 font-bold">✓</span>📤 Video müraciət göndər</span>
+                                    <span x-show="videoLoading">Göndərilir...</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- PR #447/A2: ===== KOMPLAYNS qrupu (yalnız pending statuslarda) ===== -->
+                        <div class="flex flex-col gap-1" x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert'">
+                            <span class="text-[10px] uppercase tracking-wide text-gray-400 font-semibold">🔍 Komplayns</span>
+                            <div class="flex gap-2">
+                                <button @click="complianceChecked = true; copyToClipboard(app?.customer_full_name); markDone('compliance_name')"
+                                        :title="app?.customer_full_name || ''"
+                                        class="sub-card !py-1.5 px-3 rounded-md text-xs font-medium hover:border-teal-300 transition inline-flex items-center gap-1.5">
+                                    📋 Adı kopyala
+                                    <span x-show="compliance.name" class="text-emerald-500 font-bold">✓</span>
+                                </button>
+                                <a href="https://hms.gov.az/" target="_blank" rel="noopener noreferrer"
+                                   @click="markDone('compliance_hms')"
+                                   class="sub-card !py-1.5 px-3 rounded-md text-xs font-medium hover:border-teal-300 transition inline-flex items-center gap-1.5 no-underline">
+                                    HMS
+                                    <span x-show="compliance.hms" class="text-emerald-500 font-bold">✓</span>
+                                </a>
+                                <a href="https://www.opensanctions.org/" target="_blank" rel="noopener noreferrer"
+                                   @click="markDone('compliance_os')"
+                                   class="sub-card !py-1.5 px-3 rounded-md text-xs font-medium hover:border-teal-300 transition inline-flex items-center gap-1.5 no-underline">
+                                    OpenSanctions
+                                    <span x-show="compliance.os" class="text-emerald-500 font-bold">✓</span>
+                                </a>
+                            </div>
+                        </div>
+                        <!-- PR #447/A3: ===== MYGOV qrupu (yalnız pending statuslarda) ===== -->
+                        <div class="flex flex-col gap-1" x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert'">
+                            <span class="text-[10px] uppercase tracking-wide text-gray-400 font-semibold">🏛️ MyGov</span>
+                            <div class="flex flex-wrap gap-2 items-center">
+                                <!-- İş yeri: Sorgu + Yoxla (PR #415 cooldown, 'passed' olanda deaktiv) -->
+                                <div class="flex gap-1.5 items-center">
+                                    <span class="text-[10px] text-gray-400 font-medium">İş yeri:</span>
+                                    <button @click="employmentRequest()"
+                                            :disabled="employmentLoading || employmentResult === 'passed' || mygovCooldown.empReq > 0"
+                                            class="alpul-btn text-white px-2.5 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition">
+                                        <span x-show="!employmentLoading && mygovCooldown.empReq <= 0"><span x-show="employmentSMSDone" class="text-emerald-300 mr-0.5 font-bold">✓</span>📤 Sorgu</span>
+                                        <span x-show="employmentLoading">...</span>
+                                        <span x-show="!employmentLoading && mygovCooldown.empReq > 0" x-text="'⏳ ' + mygovCooldown.empReq + ' san'"></span>
+                                    </button>
+                                    <button @click="employmentVerify()"
+                                            :disabled="employmentVerifying || employmentResult === 'passed' || mygovCooldown.empVerify > 0"
+                                            class="bg-indigo-600 text-white px-2.5 py-1.5 rounded-md text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition">
+                                        <span x-show="!employmentVerifying && mygovCooldown.empVerify <= 0"><span x-show="employmentVerified" class="text-emerald-300 mr-0.5 font-bold">✓</span>Yoxla</span>
+                                        <span x-show="employmentVerifying">...</span>
+                                        <span x-show="!employmentVerifying && mygovCooldown.empVerify > 0" x-text="'⏳ ' + mygovCooldown.empVerify + ' san'"></span>
+                                    </button>
+                                    <span x-show="employmentResult" class="badge text-[10px] px-2 py-0.5"
+                                          :class="{'bg-emerald-100 text-emerald-700': employmentResult === 'passed', 'bg-rose-100 text-rose-700': employmentResult === 'rejected'}"
+                                          x-text="employmentResult === 'passed' ? '✓ Keçdi' : '✗ İmtina'"></span>
+                                </div>
+
+                                <!-- Pensiya: Sorgu + Yoxla (eyni cooldown məntiqi) -->
+                                <div class="flex gap-1.5 items-center">
+                                    <span class="text-[10px] text-gray-400 font-medium">Pensiya:</span>
+                                    <button @click="pensionRequest()"
+                                            :disabled="pensionLoading || pensionResult === 'passed' || mygovCooldown.penReq > 0"
+                                            class="alpul-btn text-white px-2.5 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition">
+                                        <span x-show="!pensionLoading && mygovCooldown.penReq <= 0"><span x-show="pensionSMSDone" class="text-emerald-300 mr-0.5 font-bold">✓</span>📤 Sorgu</span>
+                                        <span x-show="pensionLoading">...</span>
+                                        <span x-show="!pensionLoading && mygovCooldown.penReq > 0" x-text="'⏳ ' + mygovCooldown.penReq + ' san'"></span>
+                                    </button>
+                                    <button @click="pensionVerify()"
+                                            :disabled="pensionVerifying || pensionResult === 'passed' || mygovCooldown.penVerify > 0"
+                                            class="bg-indigo-600 text-white px-2.5 py-1.5 rounded-md text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition">
+                                        <span x-show="!pensionVerifying && mygovCooldown.penVerify <= 0"><span x-show="pensionVerified" class="text-emerald-300 mr-0.5 font-bold">✓</span>Yoxla</span>
+                                        <span x-show="pensionVerifying">...</span>
+                                        <span x-show="!pensionVerifying && mygovCooldown.penVerify > 0" x-text="'⏳ ' + mygovCooldown.penVerify + ' san'"></span>
+                                    </button>
+                                    <span x-show="pensionResult" class="badge text-[10px] px-2 py-0.5"
+                                          :class="{'bg-emerald-100 text-emerald-700': pensionResult === 'passed', 'bg-rose-100 text-rose-700': pensionResult === 'rejected'}"
+                                          x-text="pensionResult === 'passed' ? '✓ Keçdi' : '✗ İmtina'"></span>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- PR #447/A4: ===== QƏRAR qrupu (pending + disburse_failed admin) ===== -->
+                        <div class="flex flex-col gap-1" x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert' || (app?.status === 'disburse_failed' && currentUser?.role === 'admin')">
+                            <span class="text-[10px] uppercase tracking-wide text-gray-400 font-semibold" x-text="app?.status === 'disburse_failed' ? '⚖️ Admin Qərarı' : '⚖️ Qərar'"></span>
+                            <div class="flex flex-wrap gap-2 items-center">
+                                <!-- Təsdiq (PR #441: disburse_failed-də YOX — yalnız imtina mümkündür) -->
+                                <button x-show="app?.status !== 'disburse_failed'" @click="approve()"
+                                        class="bg-emerald-600 text-white px-4 py-1.5 rounded-md text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition inline-flex items-center gap-1.5"
+                                        :disabled="actionLoading">
+                                    <svg x-show="!actionLoading" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                                    <svg x-show="actionLoading" class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                    <span x-text="actionLoading ? 'Əməliyyat...' : 'Təsdiq Et'"></span>
+                                </button>
+
+                                <!-- İmtina səbəbi (PR #441: disburse_failed-də yalnız MANUAL_DISBURSE_FAILED) -->
+                                <select x-model="rejectReason" class="field-input !py-1.5 text-xs w-auto max-w-[240px]">
+                                    <option value="">İmtina səbəbini seçin...</option>
+                                    <template x-for="opt in rejectOptions" :key="opt.value">
+                                        <option :value="opt.value" x-text="opt.label"></option>
+                                    </template>
+                                </select>
+
+                                <button @click="reject()"
+                                        class="btn-reject px-4 py-1.5 rounded-md text-xs font-semibold transition disabled:opacity-50 inline-flex items-center gap-1.5"
+                                        :disabled="actionLoading || !rejectReason">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    <span x-text="actionLoading ? 'Əməliyyat...' : 'İmtina Et'"></span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
-                    <div class="flex flex-col sm:flex-row gap-2 shrink-0 w-full sm:w-auto">
-                        <button @click="openVideoDialog()"
-                                :disabled="videoStreamLoading"
-                                class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg text-sm font-semibold disabled:opacity-50 transition"
-                                style="background:#805AD5">
-                            <span x-show="!videoStreamLoading"><span x-show="videoWatched" class="text-emerald-300 mr-1 font-bold">✓</span>▶ Videoya bax</span>
-                            <span x-show="videoStreamLoading">Açılır...</span>
-                        </button>
-                        <!-- PR #437: yalnız pending_expert statusunda aktiv -->
-                        <button @click="videoRequest()"
-                                :disabled="videoLoading || app?.status !== 'pending_expert'"
-                                :title="app?.status !== 'pending_expert' ? 'Video müraciət yalnız «Ekspert gözləyir» statusunda göndərilə bilər' : 'SMS ilə video çəkilmə linki göndər'"
-                                class="text-white px-6 py-3 rounded-lg text-sm font-semibold disabled:opacity-50 transition"
-                                style="background:#38B2AC">
-                            <span x-show="!videoLoading"><span x-show="videoOrderSent" class="text-emerald-300 mr-1 font-bold">✓</span>📤 Video müraciət göndər</span>
-                            <span x-show="videoLoading">Göndərilir...</span>
-                        </button>
+                    <!-- PR #447/A4: status zolağı — dinamik mesajlar (yalnız dolu olanda görünür) -->
+                    <div class="border-t pt-2 flex flex-col gap-0.5 text-[11px]">
+                        <!-- PR #440: yeni video gözlənilir -->
+                        <p x-show="videoPendingNew" class="text-amber-600 font-semibold">⏳ Yeni video hələ çəkilməyib — baxış və təsdiq bloklanıb</p>
+                        <!-- Video xətası -->
+                        <p x-show="videoError && !videoPendingNew" class="text-rose-600" x-text="videoMessage"></p>
+                        <!-- MyGov mesajları -->
+                        <p x-show="employmentMessage" :class="employmentResult === 'rejected' ? 'text-rose-600' : 'text-gray-500'" x-text="'İş yeri: ' + employmentMessage"></p>
+                        <p x-show="pensionMessage" :class="pensionResult === 'rejected' ? 'text-rose-600' : 'text-gray-500'" x-text="'Pensiya: ' + pensionMessage"></p>
+                        <!-- Qərar nəticələri -->
+                        <p x-show="actionMessage" class="text-emerald-600 font-semibold" x-text="actionMessage"></p>
+                        <p x-show="actionError" class="text-rose-600 font-semibold" x-text="actionError"></p>
+                        <!-- Auto-reject səbəbi (rejected statusda) -->
+                        <p x-show="app?.status === 'rejected' && app?.rejection_reason" class="text-rose-600">⚠ Müraciət avtomatik imtina edildi: <span x-text="app?.rejection_reason"></span></p>
                     </div>
                 </section>
 
@@ -563,147 +672,9 @@
                     </div>
                 </section>
 
-                <!-- MyGov Təsdiqi -->
-                <section x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert'" class="panel p-6 flex flex-col">
-                    <div class="card-head justify-between">
-                        <div class="flex items-center gap-2">
-                            <span class="icon-chip">🏛️</span>
-                            <h2 class="panel-title">MyGov Təsdiqi</h2>
-                        </div>
-                        <span class="text-[11px] text-gray-400 shrink-0">Sorgu göndər → yoxla</span>
-                    </div>
+                <!-- PR #447/B1: MyGov Təsdiqi bölməsi silindi — toolbar-a (A3) köçürüldü -->
 
-                    <div class="grid grid-cols-1 gap-3 flex-1">
-                        <!-- İş Yeri -->
-                        <div class="sub-card flex flex-col">
-                            <div class="flex items-center justify-between mb-2">
-                                <h3 class="sub-card-title">İş Yeri</h3>
-                                <span x-show="employmentResult" class="badge text-[10px] px-2 py-0.5"
-                                      :class="{'bg-emerald-100 text-emerald-700': employmentResult === 'passed', 'bg-rose-100 text-rose-700': employmentResult === 'rejected'}"
-                                      x-text="employmentResult === 'passed' ? '✓ Keçdi' : '✗ İmtina'"></span>
-                            </div>
-                            <div class="flex gap-2 mb-2">
-                                <!-- PR #415: klikdən sonra 10 san cooldown (geri sayım düymənin üstündə);
-                                     'passed' nəticəsində Sorgu + Yoxla hər ikisi tam deaktiv qalır -->
-                                <button @click="employmentRequest()"
-                                        :disabled="employmentLoading || employmentResult === 'passed' || mygovCooldown.empReq > 0"
-                                        class="flex-1 alpul-btn text-white px-2 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition">
-                                    <span x-show="!employmentLoading && mygovCooldown.empReq <= 0"><span x-show="employmentSMSDone" class="text-emerald-300 mr-0.5 font-bold">✓</span>📤 Sorgu</span>
-                                    <span x-show="employmentLoading">...</span>
-                                    <span x-show="!employmentLoading && mygovCooldown.empReq > 0" x-text="'⏳ ' + mygovCooldown.empReq + ' san'"></span>
-                                </button>
-                                <button @click="employmentVerify()"
-                                        :disabled="employmentVerifying || employmentResult === 'passed' || mygovCooldown.empVerify > 0"
-                                        class="flex-1 bg-indigo-600 text-white px-2 py-1.5 rounded-md text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition">
-                                    <span x-show="!employmentVerifying && mygovCooldown.empVerify <= 0"><span x-show="employmentVerified" class="text-emerald-300 mr-0.5 font-bold">✓</span>Yoxla</span>
-                                    <span x-show="employmentVerifying">...</span>
-                                    <span x-show="!employmentVerifying && mygovCooldown.empVerify > 0" x-text="'⏳ ' + mygovCooldown.empVerify + ' san'"></span>
-                                </button>
-                            </div>
-                            <p class="text-[11px] mt-auto" :class="employmentResult === 'rejected' ? 'text-rose-600' : 'text-gray-500'" x-text="employmentMessage"></p>
-                        </div>
-
-                        <!-- Pensiya -->
-                        <div class="sub-card flex flex-col">
-                            <div class="flex items-center justify-between mb-2">
-                                <h3 class="sub-card-title">Pensiya</h3>
-                                <span x-show="pensionResult" class="badge text-[10px] px-2 py-0.5"
-                                      :class="{'bg-emerald-100 text-emerald-700': pensionResult === 'passed', 'bg-rose-100 text-rose-700': pensionResult === 'rejected'}"
-                                      x-text="pensionResult === 'passed' ? '✓ Keçdi' : '✗ İmtina'"></span>
-                            </div>
-                            <div class="flex gap-2 mb-2">
-                                <!-- PR #415: iş yeri ilə eyni cooldown məntiqi -->
-                                <button @click="pensionRequest()"
-                                        :disabled="pensionLoading || pensionResult === 'passed' || mygovCooldown.penReq > 0"
-                                        class="flex-1 alpul-btn text-white px-2 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition">
-                                    <span x-show="!pensionLoading && mygovCooldown.penReq <= 0"><span x-show="pensionSMSDone" class="text-emerald-300 mr-0.5 font-bold">✓</span>📤 Sorgu</span>
-                                    <span x-show="pensionLoading">...</span>
-                                    <span x-show="!pensionLoading && mygovCooldown.penReq > 0" x-text="'⏳ ' + mygovCooldown.penReq + ' san'"></span>
-                                </button>
-                                <button @click="pensionVerify()"
-                                        :disabled="pensionVerifying || pensionResult === 'passed' || mygovCooldown.penVerify > 0"
-                                        class="flex-1 bg-indigo-600 text-white px-2 py-1.5 rounded-md text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition">
-                                    <span x-show="!pensionVerifying && mygovCooldown.penVerify <= 0"><span x-show="pensionVerified" class="text-emerald-300 mr-0.5 font-bold">✓</span>Yoxla</span>
-                                    <span x-show="pensionVerifying">...</span>
-                                    <span x-show="!pensionVerifying && mygovCooldown.penVerify > 0" x-text="'⏳ ' + mygovCooldown.penVerify + ' san'"></span>
-                                </button>
-                            </div>
-                            <p class="text-[11px] mt-auto" :class="pensionResult === 'rejected' ? 'text-rose-600' : 'text-gray-500'" x-text="pensionMessage"></p>
-                        </div>
-                    </div>
-
-                    <!-- Auto-reject warning -->
-                    <div x-show="app?.status === 'rejected' && app?.rejection_reason" class="mt-3 bg-rose-50 border border-rose-200 rounded-lg p-3">
-                        <div class="text-xs font-bold text-rose-700 mb-0.5">⚠ Müraciət Avtomatik İmtina Edildi</div>
-                        <div class="text-xs text-rose-600" x-text="app?.rejection_reason"></div>
-                    </div>
-                </section>
-
-                <!-- PR #276: Komplyans Yoxlaması — ortada (Ekspert Qərarı sağda) -->
-                <!-- PR #275: row 2-də 4 cols (full-width row 3 silindi) -->
-                <!-- PR #226: pending_expert üçün də göstər — complianceChecked düyməsi bu bölmədədir -->
-                <section x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert'" class="panel p-6 flex flex-col">
-                    <div class="card-head">
-                        <span class="icon-chip">🔍</span>
-                        <h2 class="panel-title">Komplyans Yoxlaması</h2>
-                    </div>
-                    <div class="grid grid-cols-1 gap-2 flex-1">
-                        <!-- Copy düyməsi -->
-                        <button @click="complianceChecked = true; copyToClipboard(app?.customer_full_name); markDone('compliance_name')"
-                                class="sub-card flex items-center gap-3 p-2.5 text-left hover:border-teal-300 transition group">
-                            <div class="w-8 h-8 rounded-lg bg-teal-500/10 flex items-center justify-center group-hover:bg-teal-500/20 transition shrink-0">
-                                <svg class="w-4 h-4 text-teal-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                                </svg>
-                            </div>
-                            <div class="min-w-0">
-                                <div class="sub-card-title text-xs">1. Adı kopyala</div>
-                                <div class="text-[11px] text-gray-500 truncate" x-text="app?.customer_full_name || '—'"></div>
-                            </div>
-                            <!-- PR #402: addım görülübsə yaşıl ✓ -->
-                            <span x-show="compliance.name" class="ml-auto text-emerald-500 font-bold shrink-0">✓</span>
-                        </button>
-
-                        <!-- HMS.gov.az -->
-                        <a href="https://hms.gov.az/" target="_blank" rel="noopener noreferrer"
-                           @click="markDone('compliance_hms')"
-                           class="sub-card flex items-center gap-3 p-2.5 text-left hover:border-teal-300 transition group no-underline">
-                            <div class="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center group-hover:bg-indigo-500/20 transition shrink-0">
-                                <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                                </svg>
-                            </div>
-                            <div class="min-w-0">
-                                <div class="sub-card-title text-xs">2. HMS yoxla</div>
-                                <div class="text-[11px] text-gray-500 truncate">hms.gov.az</div>
-                            </div>
-                            <!-- PR #402: addım görülübsə yaşıl ✓ -->
-                            <span x-show="compliance.hms" class="ml-auto text-emerald-500 font-bold shrink-0">✓</span>
-                        </a>
-
-                        <!-- OpenSanctions.org -->
-                        <a href="https://www.opensanctions.org/" target="_blank" rel="noopener noreferrer"
-                           @click="markDone('compliance_os')"
-                           class="sub-card flex items-center gap-3 p-2.5 text-left hover:border-teal-300 transition group no-underline">
-                            <div class="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center group-hover:bg-amber-500/20 transition shrink-0">
-                                <svg class="w-4 h-4 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
-                                </svg>
-                            </div>
-                            <div class="min-w-0">
-                                <div class="sub-card-title text-xs">3. OpenSanctions yoxla</div>
-                                <div class="text-[11px] text-gray-500 truncate">opensanctions.org</div>
-                            </div>
-                            <!-- PR #402: addım görülübsə yaşıl ✓ -->
-                            <span x-show="compliance.os" class="ml-auto text-emerald-500 font-bold shrink-0">✓</span>
-                        </a>
-                    </div>
-                    <!-- PR #443: sarı xəbərdarlıq banneri (spec) -->
-                    <div class="note-yellow note-warn mt-3">
-                        Yoxlama nəticələri şəxsi daxili geridə saxlanılır. Uğursuz olarsa,
-                        "Ekspert Qərarı" → <strong>"Komplyans uğursuzluğu"</strong> seçin.
-                    </div>
-                </section>
+                <!-- PR #447/B2: Komplayns Yoxlaması bölməsi silindi — toolbar-a (A2) köçürüldü -->
 
                 </div><!-- /ORTA SÜTUN -->
 
@@ -822,51 +793,7 @@
                     </div>
                 </section>
 
-                <!-- PR #276: Ekspert Qərarı — en sağda -->
-                <!-- PR #441: disburse_failed statusunda da görünür, amma YALNIZ ADMIN üçün
-                     (yalnız imtina — disburse xətasına görə, 0 gün gözləmə). -->
-                <section x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert' || (app?.status === 'disburse_failed' && currentUser?.role === 'admin')" class="panel p-6 flex flex-col">
-                    <div class="card-head">
-                        <span class="icon-chip">⚖️</span>
-                        <h2 class="panel-title" x-text="app?.status === 'disburse_failed' ? 'Admin Qərarı — Disburse Xətası' : 'Ekspert Qərarı'"></h2>
-                    </div>
-
-                    <div class="space-y-2.5 flex-1 flex flex-col">
-                        <!-- Təsdiq (PR #441: disburse_failed-də YOX — yalnız imtina mümkündür) -->
-                        <button x-show="app?.status !== 'disburse_failed'" @click="approve()" class="w-full bg-emerald-600 text-white px-3 py-2.5 rounded-lg hover:bg-emerald-700 font-semibold text-sm transition disabled:opacity-50 flex items-center justify-center gap-2"
-                                :disabled="actionLoading">
-                            <svg x-show="!actionLoading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                            <svg x-show="actionLoading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                            <span x-text="actionLoading ? 'Əməliyyat...' : 'Təsdiq Et'"></span>
-                        </button>
-
-                        <!-- İmtina: dropdown (PR #441: disburse_failed-də yalnız bir səbəb —
-                             MANUAL_DISBURSE_FAILED, 0 gün gözləmə; rejectOptions getter-ə bax) -->
-                        <select x-model="rejectReason" class="field-input text-sm">
-                            <option value="">İmtina səbəbini seçin...</option>
-                            <template x-for="opt in rejectOptions" :key="opt.value">
-                                <option :value="opt.value" x-text="opt.label"></option>
-                            </template>
-                        </select>
-
-                        <!-- İmtina button — PR #443: açıq qırmızı (spec: bg #FEB2B2, text #C53030, 2px kənar) -->
-                        <button @click="reject()" class="btn-reject w-full px-3 py-2.5 rounded-lg font-semibold text-sm transition disabled:opacity-50 flex items-center justify-center gap-2"
-                                :disabled="actionLoading || !rejectReason">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
-                            <span x-text="actionLoading ? 'Əməliyyat...' : 'İmtina Et'"></span>
-                        </button>
-
-                        <!-- PR #443: qırmızı xəbərdarlıq (spec) -->
-                        <div class="note-red note-warn">
-                            İmtina qərarı qanunvericiliyə əsasən müştərinin razılığı olmadan
-                            yekunlaşdırılır və gözləmə müddəti səbəbdən asılı olaraq fərqlənir.
-                        </div>
-
-                        <!-- Messages -->
-                        <div x-show="actionMessage" class="bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-2 rounded-md text-xs mt-auto" x-text="actionMessage"></div>
-                        <div x-show="actionError" class="bg-rose-50 border border-rose-200 text-rose-700 px-3 py-2 rounded-md text-xs mt-auto" x-text="actionError"></div>
-                    </div>
-                </section>
+                <!-- PR #447/B3: Ekspert Qərarı bölməsi silindi — toolbar-a (A4) köçürüldü -->
                 </div><!-- /SAĞ SÜTUN -->
                 </div><!-- /detail-grid -->
 
