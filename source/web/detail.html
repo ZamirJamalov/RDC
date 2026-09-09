@@ -306,8 +306,11 @@
                             <span x-show="!videoStreamLoading"><span x-show="videoWatched" class="text-emerald-300 mr-1 font-bold">✓</span>▶ Videya bax</span>
                             <span x-show="videoStreamLoading">Açılır...</span>
                         </button>
+                        <!-- PR #437: “Video müraciət göndər” yalnız "Ekspert gözləyir"
+                             (pending_expert) statusunda aktivdir — digər statuslarda deaktiv. -->
                         <button @click="videoRequest()"
-                                :disabled="videoLoading"
+                                :disabled="videoLoading || app?.status !== 'pending_expert'"
+                                :title="app?.status !== 'pending_expert' ? 'Video müraciət yalnız «Ekspert gözləyir» statusunda göndərilə bilər' : 'SMS ilə video çəkilmə linki göndər'"
                                 class="flex-1 sm:flex-none alpul-btn text-white px-4 py-2 rounded-md text-xs font-medium disabled:opacity-50 transition">
                             <span x-show="!videoLoading"><span x-show="videoOrderSent" class="text-emerald-300 mr-1 font-bold">✓</span>📤 Video müraciət göndər</span>
                             <span x-show="videoLoading">Göndərilir...</span>

@@ -204,10 +204,7 @@ func (s *ApplicationService) GetVideoRecordRedirectURL(ctx context.Context, appI
 // OTP-təsdiqli nömrəsinə SMS ilə göndərir (movcud SMS provider üzərindən).
 // SMS mətni maksimum 160 simvol (GSM-7) saxlanılır.
 func (s *ApplicationService) SendVideoRecordSMS(ctx context.Context, appID int) (string, error) {
-	if !s.IsVideoRecordEnabled() {
-		return "", fmt.Errorf("video record deaktiv")
-	}
-
+	// 1. Fetch application
 	app, err := s.repo.GetApplicationByID(ctx, appID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get application: %w", err)
@@ -215,6 +212,20 @@ func (s *ApplicationService) SendVideoRecordSMS(ctx context.Context, appID int) 
 	if app == nil {
 		return "", fmt.Errorf("application not found: %d", appID)
 	}
+
+	// PR #437: video müraciət yalnız "Ekspert gözləyir" (pending_expert)
+	// statusunda göndərilə bilər. Dashboard-da düymə bu statusda deaktiv
+	// göstərilir; API səviyyəsində də eyni qadağa işləyir (birbaşa çağırışların
+	// qarşısını alır). Yoxlama video-enabled check-dən ƏVVƏLDIR — status
+	// yanlışsa konfiqurasiyadan asılı olmayaraq rədd olunur.
+	if app.Status != model.StatusPendingExpert {
+		return "", fmt.Errorf("video müraciət yalnız 'Ekspert gözləyir' statusunda göndərilə bilər (cari status: %s)", app.Status)
+	}
+
+	if !s.IsVideoRecordEnabled() {
+		return "", fmt.Errorf("video record deaktiv")
+	}
+
 	if app.CustomerPhone == "" {
 		return "", fmt.Errorf("customer_phone tapılmadı — müraciətdə OTP-təsdiqli nömrə yoxdur")
 	}
