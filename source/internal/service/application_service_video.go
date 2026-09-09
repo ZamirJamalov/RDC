@@ -275,9 +275,24 @@ func truncateVideoField(s string, maxRunes int) string {
 // GetVideoStreamURL — PR #399: dashboard "Videya bax" dialoqu üçün stream linki.
 // {VIDEO_URL}/video/{video_application_id}/stream formatında qurulur;
 // video_application_id = video service-ə göndərilən app_id (= app.PublicID).
+//
+// PR #436: dialoq hər açılışda video service-dən AKTUAL status çəkilir
+// (dashboard-da statusu yeniləyən başqa poll yoxdur). Son order hələ
+// çəkilməyibsə (recorded=0) stream URL qaytarılmır — köhnə video
+// "yeni" kimi baxıla bilməz və approve qadağası ilə uzlaşır.
 func (s *ApplicationService) GetVideoStreamURL(ctx context.Context, appID int) (string, error) {
 	if s.videoStreamBaseURL == "" {
 		return "", fmt.Errorf("video stream base URL konfiqurasiya olunmayıb")
+	}
+
+	// PR #436: status refresh — xəta olsa fail-soft (DB-dəki statusla davam).
+	// "order tapılmadı" xətası da fail-soft-dur: aşağıdakı GetByApplication
+	// öz anlaşılır mesajını qaytarır.
+	if s.IsVideoRecordEnabled() {
+		if _, cerr := s.CheckVideoRecordStatus(ctx, appID); cerr != nil {
+			slog.Warn("PR #436: video status refresh failed — fail-soft",
+				"application_id", appID, "error", cerr)
+		}
 	}
 
 	vr, err := s.videoRecordRepo.GetByApplication(ctx, appID)
@@ -286,6 +301,9 @@ func (s *ApplicationService) GetVideoStreamURL(ctx context.Context, appID int) (
 	}
 	if vr == nil {
 		return "", fmt.Errorf("video order tapılmadı — əvvəlcə \"Video müraciət göndər\" düyməsini işlədin")
+	}
+	if !vr.Recorded {
+		return "", fmt.Errorf("yeni video hələ çəkilməyib — müştəri video çəkənə qədər gözləyin")
 	}
 
 	return strings.TrimRight(s.videoStreamBaseURL, "/") + "/video/" + vr.AppIDExternal + "/stream", nil

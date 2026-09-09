@@ -1166,8 +1166,12 @@
                     // PR #405: video baxışı tələb olunur — yalnız backend video_required=true
                     // olanda (video deaktiv olanda approve bloklanmır). ✓ yalnız video
                     // real yüklənəndə qoyulur (loadeddata), ona görə baxılmayan video approve-i blokluyur.
+                    // PR #436: yeni video order göndərilibsə videoWatched reset olunur —
+                    // yeni video çəkilənə qədər approve qadağası qalır.
                     if (this.videoBackendRequired && !this.videoWatched) {
-                        errors.push('Video: əvvəlcə “Videya bax” düyməsi ilə videoya baxılmalıdır');
+                        errors.push(this.videoOrderSent
+                            ? 'Video: yeni video çəkilənə qədər gözləməlisiniz (baxış statusu sıfırlanıb)'
+                            : 'Video: əvvəlcə “Videya bax” düyməsi ilə videoya baxılmalıdır');
                     }
                     return errors;
                 },
@@ -1758,6 +1762,13 @@
                         if (!resp.ok) throw new Error(data.error || 'SMS gonderilmedi');
                         this.videoMessage = 'SMS gonderildi — musteri linke kecid ederek video cekecek.';
                         this.videoOrderSent = true; // PR #405: ✓ yalnız klikdə (session-only)
+                        // PR #436: yeni order göndərildi — baxış statusu RESET olunur.
+                        // Köhnə videoya baxılmış olsa belə yeni video çəkilənə qədər
+                        // approve bloklanır (videoWatched yalnız yeni video REAL
+                        // yüklənəndə — loadeddata — true olur).
+                        this.videoWatched = false;
+                        this.videoStreamUrl = '';
+                        this.videoStreamError = '';
                     } catch (e) {
                         this.videoMessage = 'Xeta: ' + e.message;
                         this.videoError = true;
