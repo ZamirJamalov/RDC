@@ -77,55 +77,53 @@ func (s *ApplicationService) GetVideoStreamURLByPINAndDate(ctx context.Context, 
 	return info, nil
 }
 
-// GetVideoStreamURLByPIN — PR #432: PIN-lə axtarış (tarix YOX).
-// Həmin PIN-in ÇƏKİLMİŞ (recorded=1) videolu ən son müraciətini tapır və
-// stream URL qurur. Yeni müraciətlərdə video hələ çəkilməyibsə onlar ötürülür —
-// LW "müştərinin videosunu göstər" sorğusunda ən son İZLƏNİLƏ BİLƏN video
-// qayıdır (müraciətin hansı gündə yaradıldığını bilmək lazım deyil).
-func (s *ApplicationService) GetVideoStreamURLByPIN(ctx context.Context, pin string) (*PartnerVideoInfo, error) {
+// GetVideoStreamURLByPIN — PR #432 → PR #433: PIN-lə axtarış (tarix YOX).
+// Həmin PIN-in ÇƏKİLMİŞ (recorded=1) videolu BÜTÜN müraciətlərini qaytarır
+// (yeni → köhnə). Hər müraciət üçün onun ƏN SON çəkilmiş videosu götürülür —
+// ekspert təkrar video sifarişi göndəribsə (son sətir recorded=0), köhnə çəkilmiş
+// video itmir. Müraciətin hansı gündə yaradıldığını bilmək lazım deyil.
+// Boş siyahı = heç bir çəkilmiş video yoxdur (handler 404 çevirir).
+func (s *ApplicationService) ListVideoStreamURLsByPIN(ctx context.Context, pin string) ([]*PartnerVideoInfo, error) {
 	if s.videoStreamBaseURL == "" {
 		return nil, fmt.Errorf("video stream base URL konfiqurasiya olunmayıb")
 	}
 
-	appID, err := s.repo.FindLatestAppIDByPINWithRecordedVideo(ctx, pin)
+	appIDs, err := s.repo.ListAppIDsByPINWithRecordedVideo(ctx, pin)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find application by pin: %w", err)
-	}
-	if appID == 0 {
-		return nil, ErrVideoRecordNotFound
+		return nil, fmt.Errorf("failed to find applications by pin: %w", err)
 	}
 
-	app, err := s.repo.GetApplicationByID(ctx, appID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get application: %w", err)
-	}
-	if app == nil {
-		return nil, ErrApplicationNotFound
+	var videos []*PartnerVideoInfo
+	for _, appID := range appIDs {
+		app, err := s.repo.GetApplicationByID(ctx, appID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get application %d: %w", appID, err)
+		}
+		if app == nil {
+			continue // defensive — silinmiş sətir
+		}
+
+		vr, err := s.videoRecordRepo.GetLatestRecordedByApplication(ctx, appID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get video record %d: %w", appID, err)
+		}
+		if vr == nil {
+			continue // defensive — EXISTS keçdi, amma sətir yoxdur
+		}
+
+		videos = append(videos, &PartnerVideoInfo{
+			AppID:                vr.AppIDExternal,
+			StreamURL:            strings.TrimRight(s.videoStreamBaseURL, "/") + "/video/" + vr.AppIDExternal + "/stream",
+			Recorded:             true, // GetLatestRecordedByApplication yalnız recorded=1 qaytarır
+			ApplicationCreatedAt: app.CreatedAt,
+			VideoCreatedAt:       vr.CreatedAt,
+			ApplicationID:        app.ID, // PR #431: audit üçün (JSON-da yox)
+		})
 	}
 
-	// PR #432: yalnız ÇƏKİLMİŞ videolar — ekspert yeni (çəkilməmiş) sifariş
-	// göndəribsə köhnə çəkilmiş video itmir (GetLatestRecordedByApplication).
-	vr, err := s.videoRecordRepo.GetLatestRecordedByApplication(ctx, appID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get video record: %w", err)
-	}
-	if vr == nil {
-		return nil, ErrVideoRecordNotFound
-	}
-
-	info := &PartnerVideoInfo{
-		AppID:                vr.AppIDExternal,
-		StreamURL:            strings.TrimRight(s.videoStreamBaseURL, "/") + "/video/" + vr.AppIDExternal + "/stream",
-		Recorded:             true, // GetLatestRecordedByApplication yalnız recorded=1 qaytarır
-		ApplicationCreatedAt: app.CreatedAt,
-		VideoCreatedAt:       vr.CreatedAt,
-		ApplicationID:        app.ID, // PR #431: audit üçün (JSON-da yox)
-	}
-
-	slog.Info("partner video url served (pin-only)",
+	slog.Info("partner video urls served (pin-only)",
 		"pin", pin,
-		"application_id", app.ID,
-		"app_id_external", vr.AppIDExternal)
+		"applications", len(videos))
 
-	return info, nil
+	return videos, nil
 }

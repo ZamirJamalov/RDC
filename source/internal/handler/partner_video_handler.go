@@ -16,8 +16,8 @@ import (
 // *service.ApplicationService isə structurally satisfy edir.
 type PartnerVideoFinder interface {
 	GetVideoStreamURLByPINAndDate(ctx context.Context, pin, day string) (*service.PartnerVideoInfo, error)
-	// PR #432: PIN-lə axtarış (tarixsiz) — ən son çəkilmiş video.
-	GetVideoStreamURLByPIN(ctx context.Context, pin string) (*service.PartnerVideoInfo, error)
+	// PR #433: PIN-lə axtarış (tarixsiz) — BÜTÜN çəkilmiş videoların siyahısı.
+	ListVideoStreamURLsByPIN(ctx context.Context, pin string) ([]*service.PartnerVideoInfo, error)
 }
 
 // PartnerAuditWriter — PR #431: service_audit_logs-a yazma interfeysi
@@ -67,12 +67,16 @@ func (h *PartnerVideoHandler) GetVideoURL(w http.ResponseWriter, r *http.Request
 	}
 
 	var (
-		info *service.PartnerVideoInfo
-		err  error
+		info  *service.PartnerVideoInfo
+		infos []*service.PartnerVideoInfo
+		err   error
 	)
 	if dayStr == "" {
-		// PR #432: PIN-lə axtarış — ən son çəkilmiş video
-		info, err = h.svc.GetVideoStreamURLByPIN(r.Context(), pin)
+		// PR #433: PIN-lə axtarış — BÜTÜN çəkilmiş videolar (yeni → köhnə)
+		infos, err = h.svc.ListVideoStreamURLsByPIN(r.Context(), pin)
+		if err == nil && len(infos) == 0 {
+			err = service.ErrVideoRecordNotFound // boş siyahı → 404 (LW düyməsi üçün sadə məntiq)
+		}
 	} else {
 		if _, perr := time.Parse("2006-01-02", dayStr); perr != nil {
 			writeError(w, http.StatusBadRequest, "tarix formatı yanlışdır (yyyy-mm-dd)")
@@ -100,9 +104,20 @@ func (h *PartnerVideoHandler) GetVideoURL(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	writeJSON(w, http.StatusOK, info)
-	appID := info.ApplicationID
-	h.writeAudit(r, http.StatusOK, start, "", &appID)
+	// Uğurlu cavab: PIN-only → {"videos": [...]} (PR #433), tarixli → tək obyekt.
+	var auditAppID *int
+	if dayStr == "" {
+		writeJSON(w, http.StatusOK, map[string]interface{}{"videos": infos})
+		if len(infos) > 0 {
+			id := infos[0].ApplicationID // ən yeni müraciət — audit üçün
+			auditAppID = &id
+		}
+	} else {
+		writeJSON(w, http.StatusOK, info)
+		id := info.ApplicationID
+		auditAppID = &id
+	}
+	h.writeAudit(r, http.StatusOK, start, "", auditAppID)
 }
 
 // writeAudit — PR #431: PARTNER_VIDEO_URL sətiri service_audit_logs-a.
