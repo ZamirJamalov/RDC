@@ -16,6 +16,8 @@ import (
 // *service.ApplicationService isə structurally satisfy edir.
 type PartnerVideoFinder interface {
 	GetVideoStreamURLByPINAndDate(ctx context.Context, pin, day string) (*service.PartnerVideoInfo, error)
+	// PR #432: PIN-lə axtarış (tarixsiz) — ən son çəkilmiş video.
+	GetVideoStreamURLByPIN(ctx context.Context, pin string) (*service.PartnerVideoInfo, error)
 }
 
 // PartnerAuditWriter — PR #431: service_audit_logs-a yazma interfeysi
@@ -42,11 +44,13 @@ func NewPartnerVideoHandler(svc PartnerVideoFinder, audit PartnerAuditWriter) *P
 	return &PartnerVideoHandler{svc: svc, audit: audit}
 }
 
-// GetVideoURL handles GET /api/partner/video-url/{pin}/{date}.
+// GetVideoURL handles GET /api/partner/video-url/{pin} and
+// GET /api/partner/video-url/{pin}/{date} (PR #432: hər ikisi bu handler-də).
 //
 // Path parametrləri:
 //   - pin:  müştərinin FIN kodu (7 hərf/rəqəm)
-//   - date: müraciətin yaradıldığı gün (yyyy-mm-dd, DB server lokal vaxtı)
+//   - date: müraciətin yaradıldığı gün (yyyy-mm-dd, DB server lokal vaxtı) —
+//     VERİLMƏSƏ (PR #432): PIN-in ən son ÇƏKİLMİŞ videosu qaytarılır
 //
 // Cavab (200): app_id, stream_url, recorded, application_created_at,
 // video_created_at. LW tərəfi stream_url-i brauzerdə açır.
@@ -54,28 +58,37 @@ func (h *PartnerVideoHandler) GetVideoURL(w http.ResponseWriter, r *http.Request
 	start := time.Now()
 
 	pin := r.PathValue("pin")
-	dayStr := r.PathValue("date")
+	dayStr := r.PathValue("date") // PIN-only route-da boşdur (PR #432)
 
 	if !isValidPIN(pin) {
 		writeError(w, http.StatusBadRequest, "PIN formatı yanlışdır (7 hərf/rəqəm)")
 		h.writeAudit(r, http.StatusBadRequest, start, "PIN formatı yanlışdır", nil)
 		return
 	}
-	if _, err := time.Parse("2006-01-02", dayStr); err != nil {
-		writeError(w, http.StatusBadRequest, "tarix formatı yanlışdır (yyyy-mm-dd)")
-		h.writeAudit(r, http.StatusBadRequest, start, "tarix formatı yanlışdır", nil)
-		return
-	}
 
-	info, err := h.svc.GetVideoStreamURLByPINAndDate(r.Context(), pin, dayStr)
+	var (
+		info *service.PartnerVideoInfo
+		err  error
+	)
+	if dayStr == "" {
+		// PR #432: PIN-lə axtarış — ən son çəkilmiş video
+		info, err = h.svc.GetVideoStreamURLByPIN(r.Context(), pin)
+	} else {
+		if _, perr := time.Parse("2006-01-02", dayStr); perr != nil {
+			writeError(w, http.StatusBadRequest, "tarix formatı yanlışdır (yyyy-mm-dd)")
+			h.writeAudit(r, http.StatusBadRequest, start, "tarix formatı yanlışdır", nil)
+			return
+		}
+		info, err = h.svc.GetVideoStreamURLByPINAndDate(r.Context(), pin, dayStr)
+	}
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrApplicationNotFound):
 			writeError(w, http.StatusNotFound, "bu gündə bu PIN-lə müraciət tapılmadı")
 			h.writeAudit(r, http.StatusNotFound, start, "müraciət tapılmadı", nil)
 		case errors.Is(err, service.ErrVideoRecordNotFound):
-			writeError(w, http.StatusNotFound, "bu müraciət üçün video record yoxdur")
-			h.writeAudit(r, http.StatusNotFound, start, "video record yoxdur", nil)
+			writeError(w, http.StatusNotFound, "bu PIN üçün çəkilmiş video tapılmadı")
+			h.writeAudit(r, http.StatusNotFound, start, "video tapılmadı", nil)
 		case errors.Is(err, service.ErrVideoNotRecorded):
 			writeError(w, http.StatusNotFound, "video hələ çəkilməyib — stream mövcud deyil")
 			h.writeAudit(r, http.StatusNotFound, start, "video hələ çəkilməyib", nil)

@@ -47,6 +47,10 @@ type ApplicationStore interface {
 	// PR #427: LW partner video-url endpoint — PIN + müraciət günü ilə axtarış.
 	FindLatestByPINAndDate(ctx context.Context, pin, day string) (*model.LoanApplication, error)
 
+	// FindLatestAppIDByPINWithRecordedVideo — PR #432: PIN-in çəkilmiş videolu
+	// ən son müraciətinin ID-si (0 = yoxdur). Tarixsiz axtarış üçün.
+	FindLatestAppIDByPINWithRecordedVideo(ctx context.Context, pin string) (int, error)
+
 	// UpdateApplicationStatus updates only the status field of an application.
 	// Used by the credit engine to transition pending → checking.
 	UpdateApplicationStatus(ctx context.Context, id int, status string) error

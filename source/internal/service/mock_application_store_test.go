@@ -32,6 +32,10 @@ type mockApplicationStore struct {
 	appByPINDate    *model.LoanApplication
 	appByPINDateErr error
 
+	// FindLatestAppIDByPINWithRecordedVideo (PR #432)
+	appIDByPINVideo    int
+	appIDByPINVideoErr error
+
 	// CreateApplication
 	createErr error
 
@@ -157,6 +161,14 @@ func (m *mockApplicationStore) FindLatestByPINAndDate(_ context.Context, pin, da
 		return &copied, nil
 	}
 	return nil, nil
+}
+
+// FindLatestAppIDByPINWithRecordedVideo — PR #432: mock.
+func (m *mockApplicationStore) FindLatestAppIDByPINWithRecordedVideo(_ context.Context, pin string) (int, error) {
+	if m.appIDByPINVideoErr != nil {
+		return 0, m.appIDByPINVideoErr
+	}
+	return m.appIDByPINVideo, nil
 }
 
 func (m *mockApplicationStore) UpdateApplicationStatus(_ context.Context, id int, status string) error {
