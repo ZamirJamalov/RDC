@@ -138,9 +138,12 @@ func scanVideoRow(row *sql.Row) (*model.VideoRecord, error) {
 	return &vr, nil
 }
 
-// UpdateStatus updates the recorded flag, status response body, and status_checked_at.
-// PR #188: status poll nəticəsini saxlayır.
-func (r *VideoRecordRepo) UpdateStatus(ctx context.Context, appID int, recorded bool, statusReqBody, statusRespBody string) error {
+// UpdateStatusByID updates the recorded flag, status response body, and
+// status_checked_at of a SPECIFIC video_records row (by row id).
+// PR #438: hər order-in öz unikal app_id_external UUID-si var — status nəticəsi
+// yalnız HƏMİN order-in sətrinə yazılır. Köhnə order-lərin tarixçəsi (recorded,
+// status body) saxlanılır — smearing yoxdur.
+func (r *VideoRecordRepo) UpdateStatusByID(ctx context.Context, id int, recorded bool, statusReqBody, statusRespBody string) error {
 	_, err := r.db.ExecContext(ctx, `
                 UPDATE video_records
                 SET recorded = ?,
@@ -148,8 +151,8 @@ func (r *VideoRecordRepo) UpdateStatus(ctx context.Context, appID int, recorded 
                     status_response_body = ?,
                     status_checked_at = GETDATE(),
                     updated_at = GETDATE()
-                WHERE application_id = ?`,
-		recorded, statusReqBody, statusRespBody, appID,
+                WHERE id = ?`,
+		recorded, statusReqBody, statusRespBody, id,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update video record status: %w", err)

@@ -1763,7 +1763,7 @@
                         const resp = await fetch('/api/applications/' + this.internalId + '/video-request', { method: 'POST' });
                         const data = await resp.json();
                         if (!resp.ok) throw new Error(data.error || 'SMS gonderilmedi');
-                        this.videoMessage = 'SMS gonderildi — musteri linke kecid ederek video cekecek.';
+                        this.videoMessage = 'SMS göndərildi — müştəri linke keçid edərək yeni video çəkəcək. Yeni video çəkilənə qədər video baxışı və təsdiq bloklanır.';
                         this.videoOrderSent = true; // PR #405: ✓ yalnız klikdə (session-only)
                         // PR #436: yeni order göndərildi — baxış statusu RESET olunur.
                         // Köhnə videoya baxılmış olsa belə yeni video çəkilənə qədər
@@ -1798,7 +1798,10 @@
                         // PR #405: ✓ BURADA yox — video elementinin loadeddata
                         // hadisəsində qoyulur (video REAL yüklənib oxunanda)
                     } catch (e) {
-                        this.videoStreamError = 'Video acila bilmedi: ' + e.message;
+                        // PR #438: backend mesajları istifadəçi-dostludur
+                        // ("yeni video hələ çəkilməyib", "1 dəqiqə gözləyin" və s.)
+                        // — birbaşa göstərilir.
+                        this.videoStreamError = e.message || 'Video açıla bilmədi';
                     } finally {
                         this.videoStreamLoading = false;
                     }
