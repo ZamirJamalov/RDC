@@ -292,7 +292,7 @@ func main() {
 	// PR #421: ServiceAuditLogRepo — servis sağlamlıq paneli üçün
 	serviceAuditLogRepo := repository.NewServiceAuditLogRepo(db)
 	serviceHealthHandler := handler.NewServiceHealthHandler(serviceAuditLogRepo)
-	partnerVideoHandler := handler.NewPartnerVideoHandler(appService) // PR #427: LW video-url endpoint
+	partnerVideoHandler := handler.NewPartnerVideoHandler(appService, serviceAuditLogRepo) // PR #427/#431: LW video-url endpoint + audit
 	router := handler.NewRouter(appHandler, lwMockHandler, lwRouterHandler, lwCallbackHandler, otpHandler, mygovHandler, expertHandler, lwLoanStatusHandler, discountCodeHandler, featureFlagHandler, authHandler, userHandler, serviceHealthHandler, partnerVideoHandler, authService, cfg.AllowedOrigin, apiLimiter, otpLimiter, discountLimiter, loginLimiter, cfg.PartnerVideoAPIKey, partnerVideoLimiter, cfg.ExpertWorkStartHour, cfg.ExpertWorkEndHour)
 
 	// UI: serve embedded static files from web/ directory.

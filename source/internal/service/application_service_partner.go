@@ -24,6 +24,9 @@ type PartnerVideoInfo struct {
 	Recorded             bool      `json:"recorded"`               // video çəkilibmi (status check-dən)
 	ApplicationCreatedAt string    `json:"application_created_at"` // müraciətin yaradılma vaxtı (DB string format)
 	VideoCreatedAt       time.Time `json:"video_created_at"`       // video order-in yaradılma vaxtı
+
+	// ApplicationID — daxili INT id (PR #431: yalnız audit üçün, cavabda GÖRÜNMÜR).
+	ApplicationID int `json:"-"`
 }
 
 // GetVideoStreamURLByPINAndDate — PR #427: LW partner endpoint-i üçün.
@@ -62,6 +65,7 @@ func (s *ApplicationService) GetVideoStreamURLByPINAndDate(ctx context.Context, 
 		Recorded:             vr.Recorded,
 		ApplicationCreatedAt: app.CreatedAt,
 		VideoCreatedAt:       vr.CreatedAt,
+		ApplicationID:        app.ID, // PR #431: audit üçün (JSON-da yox)
 	}
 
 	slog.Info("partner video url served",
