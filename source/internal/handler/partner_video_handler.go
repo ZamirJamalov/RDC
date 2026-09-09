@@ -14,10 +14,9 @@ import (
 // PartnerVideoFinder — PR #427: handler-in service asılılığı. Kiçik interfeys
 // (lwRouterHandler pattern-i kimi) — testlərdə fake inject olunur,
 // *service.ApplicationService isə structurally satisfy edir.
+// PR #435: axtarış kredit müqavilə nömrəsi ilə (köhnə PIN/PIN+tarix silindi).
 type PartnerVideoFinder interface {
-	GetVideoStreamURLByPINAndDate(ctx context.Context, pin, day string) (*service.PartnerVideoInfo, error)
-	// PR #433: PIN-lə axtarış (tarixsiz) — BÜTÜN çəkilmiş videoların siyahısı.
-	ListVideoStreamURLsByPIN(ctx context.Context, pin string) ([]*service.PartnerVideoInfo, error)
+	ListVideoStreamURLsByAzmkLoanID(ctx context.Context, azmkLoanID string) ([]*service.PartnerVideoInfo, error)
 }
 
 // PartnerAuditWriter — PR #431: service_audit_logs-a yazma interfeysi
@@ -44,77 +43,53 @@ func NewPartnerVideoHandler(svc PartnerVideoFinder, audit PartnerAuditWriter) *P
 	return &PartnerVideoHandler{svc: svc, audit: audit}
 }
 
-// GetVideoURL handles GET /api/partner/video-url/{pin} and
-// GET /api/partner/video-url/{pin}/{date} (PR #432: hər ikisi bu handler-də).
+// GetVideoURL handles GET /api/partner/video-url/{loanId} (PR #435).
 //
-// Path parametrləri:
-//   - pin:  müştərinin FIN kodu (7 hərf/rəqəm)
-//   - date: müraciətin yaradıldığı gün (yyyy-mm-dd, DB server lokal vaxtı) —
-//     VERİLMƏSƏ (PR #432): PIN-in ən son ÇƏKİLMİŞ videosu qaytarılır
+// Path parametri:
+//   - loanId: LW-dən gələn kredit müqavilə nömrəsi (loan_applications.azmk_loan_id,
+//     məs. "HO0030210") — GET /application/{id}/status cavabından saxlanılır
 //
-// Cavab (200): app_id, stream_url, recorded, application_created_at,
-// video_created_at. LW tərəfi stream_url-i brauzerdə açır.
+// Cavab (200): {"videos": [...]} — həmin müqaviləyə uyğun müraciətin ÇƏKİLMİŞ
+// videoları (yeni → köhnə). Hər element: app_id, stream_url, recorded,
+// application_created_at, video_created_at. LW tərəfi stream_url-i brauzerdə açır.
 func (h *PartnerVideoHandler) GetVideoURL(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
-	pin := r.PathValue("pin")
-	dayStr := r.PathValue("date") // PIN-only route-da boşdur (PR #432)
+	loanID := r.PathValue("loanId")
 
-	if !isValidPIN(pin) {
-		writeError(w, http.StatusBadRequest, "PIN formatı yanlışdır (7 hərf/rəqəm)")
-		h.writeAudit(r, http.StatusBadRequest, start, "PIN formatı yanlışdır", nil)
+	if !isValidAzmkLoanID(loanID) {
+		writeError(w, http.StatusBadRequest, "kredit müqavilə nömrəsi formatı yanlışdır")
+		h.writeAudit(r, http.StatusBadRequest, start, "loan id formatı yanlışdır", nil)
 		return
 	}
 
-	var (
-		info  *service.PartnerVideoInfo
-		infos []*service.PartnerVideoInfo
-		err   error
-	)
-	if dayStr == "" {
-		// PR #433: PIN-lə axtarış — BÜTÜN çəkilmiş videolar (yeni → köhnə)
-		infos, err = h.svc.ListVideoStreamURLsByPIN(r.Context(), pin)
-		if err == nil && len(infos) == 0 {
-			err = service.ErrVideoRecordNotFound // boş siyahı → 404 (LW düyməsi üçün sadə məntiq)
-		}
-	} else {
-		if _, perr := time.Parse("2006-01-02", dayStr); perr != nil {
-			writeError(w, http.StatusBadRequest, "tarix formatı yanlışdır (yyyy-mm-dd)")
-			h.writeAudit(r, http.StatusBadRequest, start, "tarix formatı yanlışdır", nil)
-			return
-		}
-		info, err = h.svc.GetVideoStreamURLByPINAndDate(r.Context(), pin, dayStr)
+	videos, err := h.svc.ListVideoStreamURLsByAzmkLoanID(r.Context(), loanID)
+	if err == nil && len(videos) == 0 {
+		// Müdafiəçi hal — service boş siyahı yerinə ErrVideoRecordNotFound qaytarır,
+		// amma gələcəkdə dəyişsə LW düyməsi üçün sadə məntiq qorunur.
+		err = service.ErrVideoRecordNotFound
 	}
 	if err != nil {
 		switch {
 		case errors.Is(err, service.ErrApplicationNotFound):
-			writeError(w, http.StatusNotFound, "bu gündə bu PIN-lə müraciət tapılmadı")
+			writeError(w, http.StatusNotFound, "bu kredit müqavilə nömrəsi ilə müraciət tapılmadı")
 			h.writeAudit(r, http.StatusNotFound, start, "müraciət tapılmadı", nil)
 		case errors.Is(err, service.ErrVideoRecordNotFound):
-			writeError(w, http.StatusNotFound, "bu PIN üçün çəkilmiş video tapılmadı")
+			writeError(w, http.StatusNotFound, "bu kredit müqaviləsi üçün çəkilmiş video tapılmadı")
 			h.writeAudit(r, http.StatusNotFound, start, "video tapılmadı", nil)
-		case errors.Is(err, service.ErrVideoNotRecorded):
-			writeError(w, http.StatusNotFound, "video hələ çəkilməyib — stream mövcud deyil")
-			h.writeAudit(r, http.StatusNotFound, start, "video hələ çəkilməyib", nil)
 		default:
-			slog.Error("partner video url failed", "pin", pin, "error", err)
+			slog.Error("partner video url failed", "azmk_loan_id", loanID, "error", err)
 			writeError(w, http.StatusInternalServerError, "daxili xəta")
 			h.writeAudit(r, http.StatusInternalServerError, start, err.Error(), nil)
 		}
 		return
 	}
 
-	// Uğurlu cavab: PIN-only → {"videos": [...]} (PR #433), tarixli → tək obyekt.
+	// Uğurlu cavab: {"videos": [...]} (PR #433 formatı qorunur).
+	writeJSON(w, http.StatusOK, map[string]interface{}{"videos": videos})
 	var auditAppID *int
-	if dayStr == "" {
-		writeJSON(w, http.StatusOK, map[string]interface{}{"videos": infos})
-		if len(infos) > 0 {
-			id := infos[0].ApplicationID // ən yeni müraciət — audit üçün
-			auditAppID = &id
-		}
-	} else {
-		writeJSON(w, http.StatusOK, info)
-		id := info.ApplicationID
+	if len(videos) > 0 {
+		id := videos[0].ApplicationID // ən yeni video — audit üçün
 		auditAppID = &id
 	}
 	h.writeAudit(r, http.StatusOK, start, "", auditAppID)

@@ -47,22 +47,63 @@ func (r *VideoRecordRepo) GetByApplication(ctx context.Context, appID int) (*mod
 	return scanVideoRow(row)
 }
 
-// GetLatestRecordedByApplication — PR #432: müraciətin ÇƏKİLMİŞ videolarından
-// ən sonun qaytarır (recorded=1). PIN-lə axtarışda istifadə olunur — ekspert
-// yeni video sifarişi göndəribsə (son sətir recorded=0), köhnə çəkilmiş video
-// itmir. Tapılmayanda nil qaytarır.
-func (r *VideoRecordRepo) GetLatestRecordedByApplication(ctx context.Context, appID int) (*model.VideoRecord, error) {
-	row := r.db.QueryRowContext(ctx, `
-		SELECT TOP 1 id, application_id, app_id_external, order_redirect_url, phone, amount,
+// ListRecordedByApplication — PR #435: müraciətin ÇƏKİLMİŞ (recorded=1)
+// videolarının hamısı (yeni → köhnə). Partner (LW) endpoint-i kredit müqavilə
+// nömrəsi ilə axtaranda istifadə olunur — ekspert təkrar video sifarişi
+// göndəribsə (yeni sətirlər recorded=0), köhnə çəkilmiş videolar itmir.
+func (r *VideoRecordRepo) ListRecordedByApplication(ctx context.Context, appID int) ([]model.VideoRecord, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT id, application_id, app_id_external, order_redirect_url, phone, amount,
 		       customer_name, request_body, response_body, status_request_body, status_response_body,
 		   recorded, status_checked_at, created_at, updated_at
 		FROM video_records
 		WHERE application_id = ? AND recorded = 1
 		ORDER BY id DESC`, appID)
-	return scanVideoRow(row)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list recorded video records: %w", err)
+	}
+	defer rows.Close()
+	return scanVideoRows(rows)
 }
 
-// scanVideoRow — GetByApplication/GetLatestRecordedByApplication üçün ortaq scan.
+// scanVideoRows — siyahı sorğuları (ListRecordedByApplication,
+// ListByApplication) üçün ortaq scan döngüsü.
+func scanVideoRows(rows *sql.Rows) ([]model.VideoRecord, error) {
+	var results []model.VideoRecord
+	for rows.Next() {
+		var vr model.VideoRecord
+		var orderRedirectURL, phone, customerName, requestBody, responseBody, statusReqBody, statusRespBody sql.NullString
+		var amount sql.NullFloat64
+		var statusCheckedAt sql.NullTime
+
+		if err := rows.Scan(
+			&vr.ID, &vr.ApplicationID, &vr.AppIDExternal, &orderRedirectURL, &phone, &amount,
+			&customerName, &requestBody, &responseBody, &statusReqBody, &statusRespBody,
+			&vr.Recorded, &statusCheckedAt, &vr.CreatedAt, &vr.UpdatedAt,
+		); err != nil {
+			return nil, fmt.Errorf("failed to scan video record: %w", err)
+		}
+
+		vr.OrderRedirectURL = orderRedirectURL.String
+		vr.Phone = phone.String
+		if amount.Valid {
+			vr.Amount = amount.Float64
+		}
+		vr.CustomerName = customerName.String
+		vr.RequestBody = requestBody.String
+		vr.ResponseBody = responseBody.String
+		vr.StatusRequestBody = statusReqBody.String
+		vr.StatusResponseBody = statusRespBody.String
+		if statusCheckedAt.Valid {
+			t := statusCheckedAt.Time
+			vr.StatusCheckedAt = &t
+		}
+		results = append(results, vr)
+	}
+	return results, rows.Err()
+}
+
+// scanVideoRow — GetByApplication üçün tək-sətir scan helper-i.
 func scanVideoRow(row *sql.Row) (*model.VideoRecord, error) {
 	var vr model.VideoRecord
 	var orderRedirectURL, phone, customerName, requestBody, responseBody, statusReqBody, statusRespBody sql.NullString
@@ -146,37 +187,5 @@ func (r *VideoRecordRepo) ListByApplication(ctx context.Context, appID int) ([]m
 		return nil, fmt.Errorf("failed to list video records: %w", err)
 	}
 	defer rows.Close()
-
-	var results []model.VideoRecord
-	for rows.Next() {
-		var vr model.VideoRecord
-		var orderRedirectURL, phone, customerName, requestBody, responseBody, statusReqBody, statusRespBody sql.NullString
-		var amount sql.NullFloat64
-		var statusCheckedAt sql.NullTime
-
-		if err := rows.Scan(
-			&vr.ID, &vr.ApplicationID, &vr.AppIDExternal, &orderRedirectURL, &phone, &amount,
-			&customerName, &requestBody, &responseBody, &statusReqBody, &statusRespBody,
-			&vr.Recorded, &statusCheckedAt, &vr.CreatedAt, &vr.UpdatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("failed to scan video record: %w", err)
-		}
-
-		vr.OrderRedirectURL = orderRedirectURL.String
-		vr.Phone = phone.String
-		if amount.Valid {
-			vr.Amount = amount.Float64
-		}
-		vr.CustomerName = customerName.String
-		vr.RequestBody = requestBody.String
-		vr.ResponseBody = responseBody.String
-		vr.StatusRequestBody = statusReqBody.String
-		vr.StatusResponseBody = statusRespBody.String
-		if statusCheckedAt.Valid {
-			t := statusCheckedAt.Time
-			vr.StatusCheckedAt = &t
-		}
-		results = append(results, vr)
-	}
-	return results, rows.Err()
+	return scanVideoRows(rows)
 }
