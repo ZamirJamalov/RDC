@@ -530,26 +530,33 @@ afterOwnerData: // PR #205: cache hit halında bura jump edilir
 			point := mkrScore.Score.Point
 			resp := strings.ToUpper(mkrScore.Score.Response)
 
-			// Kesim #1: Skor < 200
-			scorePassed := !(point > 0 && point < 200)
-			s.logCutoff(ctx, appID, "AKB_SCORE_LOW", "Skor balı 200-dən aşağı olduqda imtina", "AZMK_GET_MKR_SCORE", true, scorePassed,
-				fmt.Sprintf("point = %d", point), "point >= 200", fmt.Sprintf("response = %s", resp))
-			if !scorePassed {
-				setRejection("AKB_SCORE_LOW")
+			// PR #434: Stop-faktor (Kesim #4) ƏVVƏL yoxlanılır. AZMK stop-faktorlu
+			// müştəriyə Point=1 (placeholder) göndərir — köhnə sıralamada AKB_SCORE_LOW
+			// (2 gün) AKB_STOP_FACTOR (30 gün) əvəzinə işə düşürdü. Konvensiya:
+			// resolveAkbScoreAndStopFactors (credit_engine.go) Point=1-i stop-faktor
+			// kimi qəbul edir.
+			stopFactor := resp == "AB" || resp == "NI" || resp == "NU" || resp == "TY"
+			s.logCutoff(ctx, appID, "AKB_STOP_FACTOR", "AKB stop faktoruna düşən müştərilərə imtina", "AZMK_GET_MKR_SCORE", true, !stopFactor,
+				fmt.Sprintf("response = %s", resp), "response ∉ {AB,NI,NU,TY}", fmt.Sprintf("point = %d", point))
+			if stopFactor {
+				setRejection(fmt.Sprintf("AKB_STOP_FACTOR:%s", resp))
 			}
 
 			if !shouldReturn() {
-				// Kesim #4: Stop-faktor
-				stopFactor := resp == "AB" || resp == "NI" || resp == "NU" || resp == "TY"
-				s.logCutoff(ctx, appID, "AKB_STOP_FACTOR", "AKB stop faktoruna düşən müştərilərə imtina", "AZMK_GET_MKR_SCORE", true, !stopFactor,
-					fmt.Sprintf("response = %s", resp), "response ∉ {AB,NI,NU,TY}", fmt.Sprintf("point = %d", point))
-				if stopFactor {
-					setRejection(fmt.Sprintf("AKB_STOP_FACTOR:%s", resp))
+				// Kesim #1: Skor < 200
+				scorePassed := !(point > 0 && point < 200)
+				s.logCutoff(ctx, appID, "AKB_SCORE_LOW", "Skor balı 200-dən aşağı olduqda imtina", "AZMK_GET_MKR_SCORE", true, scorePassed,
+					fmt.Sprintf("point = %d", point), "point >= 200", fmt.Sprintf("response = %s", resp))
+				if !scorePassed {
+					setRejection("AKB_SCORE_LOW")
 				}
 			}
 			// PR #228: AZMK AKB score-u app.AkbScore-ə saxla və DB-yə yaz
-			// ki customer-confirm-də GetOffer düzgün credit level hesablasın
-			if point > 0 {
+			// ki customer-confirm-də GetOffer düzgün credit level hesablasın.
+			// PR #434: Point=1 stop-faktor placeholder-idir — real skor deyil;
+			// yazsaq DB cache (GetRecentAkbScore, dbScore > 0 → "stop-faktor
+			// yoxdur") sonrakı aşkarlanmanı gizlədərdi.
+			if point > 1 {
 				app.AkbScore = point
 				if err := s.repo.UpdateAkbScore(ctx, appID, point); err != nil {
 					slog.Warn("failed to save AKB score to DB", "error", err)
