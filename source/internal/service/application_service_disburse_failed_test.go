@@ -45,6 +45,24 @@ func TestUpdateStatus_DisburseFailed_AdminReject_Allowed(t *testing.T) {
 	if app.Status != model.StatusRejected {
 		t.Errorf("status = %q, want rejected", app.Status)
 	}
+
+	// PR #442: reject-dən sonra müraciət "İmtina olunmuş" siyahısında görünməlidir
+	rejected, err := svc.ListRejected(ctx)
+	if err != nil {
+		t.Fatalf("ListRejected failed: %v", err)
+	}
+	found := false
+	for _, r := range rejected {
+		if r.ID == 1 {
+			found = true
+			if r.RejectionReason != "MANUAL_DISBURSE_FAILED" {
+				t.Errorf("rejection_reason = %q, want MANUAL_DISBURSE_FAILED", r.RejectionReason)
+			}
+		}
+	}
+	if !found {
+		t.Error("rejected list-də app #1 tapılmadı — İmtina olunmuşlar siyahısına düşməlidir")
+	}
 }
 
 // Ekspert (admin deyil) reject edə BİLMƏZ.

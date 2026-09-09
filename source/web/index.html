@@ -236,6 +236,10 @@
 
                 async init() {
                     this.initTheme();
+                    // PR #442: URL-dən tab parametri (?tab=rejected kimi) —
+                    // reject-dən sonra birbaşa imtina siyahısına yönləndirmə üçün
+                    const t = new URLSearchParams(location.search).get('tab');
+                    if (['pending', 'rejected', 'approved'].includes(t)) this.tab = t;
                     // PR #142: Check auth before loading
                     await this.checkAuth();
                     if (this.currentUser) {
