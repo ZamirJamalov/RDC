@@ -180,7 +180,14 @@
                     <!-- PR #405: ✓ yalnız video REAL yüklənəndə (ilk kadr oxunanda) -->
                     <video id="videoVerifyPlayer" x-show="videoStreamUrl" :src="videoStreamUrl" controls playsinline @loadeddata="videoWatched = true" class="w-full h-full"></video>
                     <div x-show="!videoStreamUrl && !videoStreamError" class="text-gray-400 text-sm animate-pulse">Yüklənir...</div>
-                    <div x-show="videoStreamError" class="text-rose-400 text-sm px-4 text-center" x-text="videoStreamError"></div>
+                    <!-- PR #440: xəta/gözləmə mesajı — görünən blok (ikon + rəng):
+                         amber = yeni video gözlənilir, rose = digər xətalar -->
+                    <div x-show="videoStreamError" class="px-6 py-8 text-center">
+                        <div class="text-3xl mb-2" x-text="videoPendingNew ? '⏳' : '⚠️'"></div>
+                        <div class="text-sm font-semibold px-2"
+                             :class="videoPendingNew ? 'text-amber-400' : 'text-rose-400'"
+                             x-text="videoStreamError"></div>
+                    </div>
                 </div>
                 <p x-show="videoStreamUrl" class="text-[10px] text-gray-400 mt-2 break-all" x-text="videoStreamUrl"></p>
             </div>
@@ -296,9 +303,13 @@
                         <span class="icon-chip">🎥</span>
                         <h2 class="panel-title text-sm font-bold tracking-wide uppercase">Video Verifikasiya</h2>
                     </div>
+                    <!-- PR #440: gözləmə vəziyyəti üstünlük təşkil edir — yeni order
+                         göndərilib, video hələ çəkilməyib (amber xəbərdarlıq). -->
                     <p class="flex-1 min-w-0 truncate text-[11px]"
-                       :class="videoError ? 'text-rose-600' : 'text-gray-400'"
-                       x-text="videoMessage || 'Videya bax → video çəkilməyibsə SMS göndər'"></p>
+                       :class="videoPendingNew ? 'text-amber-600 dark:text-amber-400 font-semibold' : (videoError ? 'text-rose-600' : 'text-gray-400')"
+                       x-text="videoPendingNew
+                            ? '⏳ Yeni video hələ çəkilməyib — müştəri video çəkənə qədər baxış və təsdiq bloklanıb'
+                            : (videoMessage || 'Videya bax → video çəkilməyibsə SMS göndər')"></p>
                     <div class="flex flex-col sm:flex-row gap-2 shrink-0">
                         <button @click="openVideoDialog()"
                                 :disabled="videoStreamLoading"
@@ -903,6 +914,10 @@
                 //! göstərmir). Komplayans/MyGov ✓-ləri localStorage-da qalır.
                 videoOrderSent: false,   // "Video müraciət göndər" kliklənib (bu sessiya)
                 videoWatched: false,     // video REAL yüklənib (loadeddata hadisəsi)
+                // PR #440: yeni video order gözləyir (çəkilməyib) — panel xəbərdarlığı.
+                // Set: videoRequest() ugurunda, dialoq xətasinda ("çəkilməyib"),
+                // sehife yuklenende (DB statusundan). Reset: dialoq ugurunda.
+                videoPendingNew: false,
                 videoBackendRequired: false, // PR #405: backend video_required — approve qadağası üçün
                 compliance: { name: false, hms: false, os: false },
                 employmentSMSDone: false,
@@ -1558,7 +1573,14 @@
                         if (this.app.public_id) {
                             fetch('/api/applications/' + this.app.public_id + '/video-record')
                                 .then(r => r.ok ? r.json() : null)
-                                .then(d => { if (d) this.videoBackendRequired = !!d.video_required; })
+                                .then(d => {
+                                    if (!d) return;
+                                    this.videoBackendRequired = !!d.video_required;
+                                    // PR #440: DB statusundan gözləmə vəziyyəti — son order
+                                    // hələ çəkilməyibsə panel xəbərdarlığı göstərilir
+                                    // (dəqiq status dialoq açılanda service-dən yenilənir).
+                                    this.videoPendingNew = !!d.video_required && !d.recorded;
+                                })
                                 .catch(() => { /* fail-soft */ });
                         }
 
@@ -1772,6 +1794,8 @@
                         this.videoWatched = false;
                         this.videoStreamUrl = '';
                         this.videoStreamError = '';
+                        // PR #440: panel xəbərdarlığı — yeni video gözlənilir
+                        this.videoPendingNew = true;
                     } catch (e) {
                         this.videoMessage = 'Xeta: ' + e.message;
                         this.videoError = true;
@@ -1795,13 +1819,17 @@
                         const data = await resp.json();
                         if (!resp.ok) throw new Error(data.error || 'Video tapilmadi');
                         this.videoStreamUrl = data.stream_url;
+                        // PR #440: yeni video hazırdır — gözləmə xəbərdarlığı götürülür
+                        this.videoPendingNew = false;
                         // PR #405: ✓ BURADA yox — video elementinin loadeddata
                         // hadisəsində qoyulur (video REAL yüklənib oxunanda)
                     } catch (e) {
                         // PR #438: backend mesajları istifadəçi-dostludur
-                        // ("yeni video hələ çəkilməyib", "1 dəqiqə gözləyin" və s.)
-                        // — birbaşa göstərilir.
+                        // ("yeni video hələ çəkilməyib" və s.) — birbaşa göstərilir.
                         this.videoStreamError = e.message || 'Video açıla bilmədi';
+                        // PR #440: "çəkilməyib" xətası = yeni video gözlənilir —
+                        // panel xəbərdarlığını da qaldır (dialoq bağlananda qalsın)
+                        if ((e.message || '').includes('çəkilməyib')) this.videoPendingNew = true;
                     } finally {
                         this.videoStreamLoading = false;
                     }
