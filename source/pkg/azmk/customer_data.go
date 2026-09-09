@@ -1230,7 +1230,7 @@ var defaultFinScenarios = map[string]string{
 
 	// PR #160: MKR skor ssenariləri
 	"SCR0150": "low_score",   // point=150 → AKB_SCORE_LOW (< 200)
-	"SCR0500": "stop_factor", // response="AB" → AKB_STOP_FACTOR
+	"SCR0500": "stop_factor", // point=1 (placeholder) + response="AB" → AKB_STOP_FACTOR (PR #434: real AZMK davranışı)
 	"SCR0839": "good_score",  // point=839, response="B" → keçir
 
 	// PR #165: Kredit tarixçəsi kesim ssenariləri
@@ -1394,7 +1394,9 @@ func (m *MockCustomerDataProvider) GetMkrScore(_ context.Context, finCode, seria
 	case "stop_factor":
 		return &MkrScore{
 			Score: MkrScoreDetail{
-				Point:      500,
+				// PR #434: real AZMK stop-faktorda Point=1 placeholder göndərir
+				// (stub TEST111 ilə eyni, credit_engine.go konvensiyası).
+				Point:      1,
 				Response:   "AB", // stop-faktor → AKB_STOP_FACTOR
 				PdRate:     0.45,
 				Calculated: true,
