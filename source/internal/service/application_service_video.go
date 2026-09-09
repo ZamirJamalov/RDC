@@ -336,11 +336,31 @@ func (s *ApplicationService) GetVideoStreamURL(ctx context.Context, appID int) (
 		return "", fmt.Errorf("video stream base URL konfiqurasiya olunmayıb")
 	}
 
-	// PR #436: status refresh — xəta olsa fail-soft (DB-dəki statusla davam).
-	if s.IsVideoRecordEnabled() {
+	// PR #449: əvvəlcə DB-dən oxu. Video ARTIQ recorded-dırsa xarici status
+	// çağırışını KEÇ — hər "Videoya bax" klikində sinxron HTTP roundtrip
+	// (saniyələr) gecikmə yaradırdı. Recorded terminal haldır — təzədən
+	// yoxlamaq lazım deyil. Refresh yalnız hələ çəkilməyibsə lazımdır.
+	// Müdafiəçi hal: repo inject olunmayıbsa (yalnız test wiring) — panic yox,
+	// istifadəçi-dostu xəta (köhnə davranışla uyğun).
+	if s.videoRecordRepo == nil {
+		return "", fmt.Errorf("video order tapılmadı — əvvəlcə \"Video müraciət göndər\" düyməsini işlədin")
+	}
+	vr, err := s.videoRecordRepo.GetByApplication(ctx, appID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get video record: %w", err)
+	}
+
+	// PR #436: status refresh — yalnız video hələ çəkilməyibsə (PR #449).
+	// Xəta olsa fail-soft (DB-dəki statusla davam).
+	if s.IsVideoRecordEnabled() && (vr == nil || !vr.Recorded) {
 		if _, cerr := s.CheckVideoRecordStatus(ctx, appID); cerr != nil {
 			slog.Warn("PR #436: video status refresh failed — fail-soft",
 				"application_id", appID, "error", cerr)
+		}
+		// refresh-dən sonra yenidən oxu (recorded true ola bilər)
+		vr, err = s.videoRecordRepo.GetByApplication(ctx, appID)
+		if err != nil {
+			return "", fmt.Errorf("failed to get video record: %w", err)
 		}
 	}
 
@@ -352,10 +372,6 @@ func (s *ApplicationService) GetVideoStreamURL(ctx context.Context, appID int) (
 		}
 	}
 
-	vr, err := s.videoRecordRepo.GetByApplication(ctx, appID)
-	if err != nil {
-		return "", fmt.Errorf("failed to get video record: %w", err)
-	}
 	if vr == nil {
 		return "", fmt.Errorf("video order tapılmadı — əvvəlcə \"Video müraciət göndər\" düyməsini işlədin")
 	}
