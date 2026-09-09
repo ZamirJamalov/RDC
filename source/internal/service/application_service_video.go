@@ -6,10 +6,53 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
 	"rdc-source/internal/model"
 	"rdc-source/pkg/videorecord"
+
+	"github.com/google/uuid"
 )
+
+// videoMinWaitAfterOrder — PR #438: yeni video order göndərildikdən sonra
+// video baxışı və approve üçün minimal gözləmə. Məqsəd: müştəri real olaraq
+// video çəkməyə vaxt tapmazdan əvvəl ekspertin köhnə statusu "fix" edib
+// təsdiq göndərməsinin qarşısını almaq (1 dəqiqə).
+const videoMinWaitAfterOrder = 60 * time.Second
+
+// videoOrderState — PR #438: son video order-in gate üçün vəziyyəti.
+type videoOrderState struct {
+	Exists    bool      // order sətri varmı
+	Recorded  bool      // son order-in video'su çəkilibmi
+	CreatedAt time.Time // order-in yaradılma vaxtı (min-gözləmə üçün)
+}
+
+// videoOrderGate — PR #438: approve və "Videya bax" üçün ortaq video qapısı.
+// Qadağa halları:
+//   - status oxuna bilmədi → fail-closed (blok)
+//   - order yoxdur → "video order tapılmadı"
+//   - son order recorded=0 → "yeni video hələ çəkilməyib"
+//   - order-dan 60 san keçməyib → "ən azı 1 dəqiqə gözləyin" (video service-in
+//     köhnə statusu tez qaytarması hallarına qarşı qoruma)
+func (s *ApplicationService) videoOrderGate(ctx context.Context, appID int) error {
+	if s.videoOrderStateFn == nil {
+		return nil // repo əlaqələndirilməyib — qadağa yoxdur
+	}
+	st, err := s.videoOrderStateFn(ctx, appID)
+	if err != nil {
+		return fmt.Errorf("video status yoxlana bilmədi: %w", err)
+	}
+	if st == nil || !st.Exists {
+		return fmt.Errorf("video order tapılmadı — əvvəlcə \"Video müraciət göndər\" düyməsini işlədin")
+	}
+	if !st.Recorded {
+		return fmt.Errorf("yeni video hələ çəkilməyib — müştəri video çəkənə qədər gözləyin")
+	}
+	if time.Since(st.CreatedAt) < videoMinWaitAfterOrder {
+		return fmt.Errorf("yeni video order göndərilib — video baxışı üçün ən azı 1 dəqiqə gözləyin")
+	}
+	return nil
+}
 
 // StartVideoRecord creates a video record order for the application.
 // PR #188: müştəri kredit təsdiq etməzdən əvvəl video identifikasiya keçməlidir.
@@ -51,8 +94,12 @@ func (s *ApplicationService) StartVideoRecord(ctx context.Context, appID int, am
 	}
 
 	// 3. Build request to video service — PR #189: amount frontend-dən gəlir
-	// PR #191: appIDExternal artıq UUID (app.PublicID) — numeric INT deyil
-	appIDExternal := app.PublicID
+	// PR #438: hər order üçün YENİ UUID generasiya olunur (əvvəl: app.PublicID).
+	// Video service sessiyanı app_id ilə açır — təzə UUID = təmiz sessiya:
+	//   - status poll-u yalnız YENİ order-i yoxlayır (köhnə recording qarışmır)
+	//   - stream URL yalnız yeni video varsa işləyir
+	//   - köhnə videolar öz UUID-ləri altında tarixçədə qalır (audit/LW)
+	appIDExternal := uuid.NewString()
 	videoReq := &model.CreateVideoOrderRequest{
 		AppID:       appIDExternal,
 		Phone:       app.CustomerPhone,
@@ -158,8 +205,9 @@ func (s *ApplicationService) CheckVideoRecordStatus(ctx context.Context, appID i
 		}
 	}
 
-	// Update DB
-	if err := s.videoRecordRepo.UpdateStatus(ctx, appID, recorded, string(reqBodyJSON), string(respBodyJSON)); err != nil {
+	// Update DB — PR #438: yalnız poll olunan sətir (hər order-in öz UUID-si
+	// var; köhnə sətirlərin tarixçəsi saxlanılır).
+	if err := s.videoRecordRepo.UpdateStatusByID(ctx, vr.ID, recorded, string(reqBodyJSON), string(respBodyJSON)); err != nil {
 		slog.Warn("video record: failed to update status", "error", err)
 	}
 
@@ -284,25 +332,31 @@ func truncateVideoField(s string, maxRunes int) string {
 }
 
 // GetVideoStreamURL — PR #399: dashboard "Videya bax" dialoqu üçün stream linki.
-// {VIDEO_URL}/video/{video_application_id}/stream formatında qurulur;
-// video_application_id = video service-ə göndərilən app_id (= app.PublicID).
+// {VIDEO_URL}/video/{video_application_id}/stream formatında qurulur.
 //
-// PR #436: dialoq hər açılışda video service-dən AKTUAL status çəkilir
-// (dashboard-da statusu yeniləyən başqa poll yoxdur). Son order hələ
-// çəkilməyibsə (recorded=0) stream URL qaytarılmır — köhnə video
-// "yeni" kimi baxıla bilməz və approve qadağası ilə uzlaşır.
+// PR #438: video_application_id = son order-in öz UUID-si (hər order üçün
+// yeni uuid.NewString()). Dialoq açılışda video service-dən aktual status
+// çəkilir (PR #436) və videoOrderGate yoxlanılır: yalnız YENİ order-in
+// çəkilmiş videosu göstərilir — köhnə video başqa UUID altında qalır və
+// "yeni" kimi baxıla bilməz. Order-dan 60 san keçməyibsə gözləmə mesajı.
 func (s *ApplicationService) GetVideoStreamURL(ctx context.Context, appID int) (string, error) {
 	if s.videoStreamBaseURL == "" {
 		return "", fmt.Errorf("video stream base URL konfiqurasiya olunmayıb")
 	}
 
 	// PR #436: status refresh — xəta olsa fail-soft (DB-dəki statusla davam).
-	// "order tapılmadı" xətası da fail-soft-dur: aşağıdakı GetByApplication
-	// öz anlaşılır mesajını qaytarır.
 	if s.IsVideoRecordEnabled() {
 		if _, cerr := s.CheckVideoRecordStatus(ctx, appID); cerr != nil {
 			slog.Warn("PR #436: video status refresh failed — fail-soft",
 				"application_id", appID, "error", cerr)
+		}
+	}
+
+	// PR #438: ortaq qapı — order yoxdur / çəkilməyib / 60 san gözləmə.
+	// (video deaktiv olanda qapı yoxdur — köhnə davranış.)
+	if s.videoRecordEnabled {
+		if gerr := s.videoOrderGate(ctx, appID); gerr != nil {
+			return "", gerr
 		}
 	}
 
@@ -312,9 +366,6 @@ func (s *ApplicationService) GetVideoStreamURL(ctx context.Context, appID int) (
 	}
 	if vr == nil {
 		return "", fmt.Errorf("video order tapılmadı — əvvəlcə \"Video müraciət göndər\" düyməsini işlədin")
-	}
-	if !vr.Recorded {
-		return "", fmt.Errorf("yeni video hələ çəkilməyib — müştəri video çəkənə qədər gözləyin")
 	}
 
 	return strings.TrimRight(s.videoStreamBaseURL, "/") + "/video/" + vr.AppIDExternal + "/stream", nil
