@@ -1,6 +1,6 @@
 # Pre-Referal Kod Planı (Referal kod sistemi — gələcək implementasiya planı)
 
-> Status: **PLAN — R1+R4 implementasiya olundu (PR #319), R2 gələcək işdir** ·
+> Status: **İMPLEMENTASIYA OLUNDU — R1+R4 (PR #319), R3 (hazır idi), R2 (PR #450)** ·
 > Tarix: 2026-08-26 · Müəllif: Zamir ·
 > Əlaqəli analiz: 2026-08-26 disburse log analizi (run 1 fee=0 xətası + `sql: no rows` zənciri)
 
@@ -14,7 +14,56 @@ Disburse **success** olan hər müştəri üçün onun FIN-ninə bağlı unikal 
 2. **Kod istifadəçisi (redeemer):** kodu `apply.html`-də yazan yeni müştəri də
    faiz endirimi alır.
 
-Hər iki benefit **gələcək işdir** — bu sənəd yalnız plan səviyyəsindədir.
+Hər iki benefit implementasiya olunub: redeemer (R3) kodu `apply.html`-də yazaraq,
+owner (R2, PR #450) isə növbəti kreditinin approvunda endirimi **avtomatik** alır.
+
+## Ardıcıllıq sxemi (sequence diagram)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant OW as Kod sahibi (owner)
+    participant RD as Dost (redeemer)
+    participant UI as apply.html
+    participant AS as RDC ApplicationService
+    participant DS as DiscountCodeService
+    participant DB as discount_codes (DB)
+    participant SM as SMS
+
+    Note over OW,SM: R1 + R4 — kodun yaranması (disburse success, PR #319)
+    AS->>DS: GetByApplicationID (idempotentlik — kod varsa yenidən yaranmır)
+    AS->>DS: GenerateForApplicationWithValue(customer, REFERRAL_DISCOUNT_PERCENT)
+    DS->>DB: INSERT ALPUL-XXXXXX (status=active, percent=5%)
+    AS->>SM: sendReferralSMSWithCode (R4)
+    SM->>OW: "Endirim kodunu dostunla paylaş... Kod: ALPUL-XXXXXX"
+
+    Note over RD,DB: R3 — redeemer yolu (apply-də kod yazılır)
+    RD->>UI: endirim kodunu daxil edir
+    UI->>AS: GET /api/discount-codes/validate (real-zaman)
+    AS->>DS: ValidateForCustomer
+    DS->>DB: active? self-use? expired?
+    DS-->>UI: keçərlidir / səbəb
+    RD->>UI: təsdiq (confirm) — app.DiscountCode saxlanılır
+
+    Note over OW,DB: Approve (UpdateStatus) — endirimin tətbiqi (PR #109: faizdən)
+    OW->>UI: yeni müraciət göndərir (kod sahəsi boş)
+    alt app.DiscountCode doludur (manual — R3)
+        AS->>DS: validateAndComputeDiscount (race qorunması)
+        DS-->>AS: discount = interestAmount x value%
+    else manual kod yoxdur, owner-ın aktiv kodu var (R2 — PR #450)
+        AS->>DS: applyOwnerReferralDiscount → FindActiveOwnedCode
+        DS->>DB: GetByOwnerCustomerID → ən YENİ aktiv kod
+        DS-->>AS: discount = interestAmount x value%
+    else heç bir kod yoxdur
+        AS->>AS: endirimsiz approve (fail-soft)
+    end
+    AS->>DB: UPDATE loan_applications SET discount_code, discount_amount
+    AS->>DS: MarkUsed(codeID, appID) — single-use
+    DS->>DB: status=used, used_by_application_id
+
+    Note over OW,RD: Kod birdəfəlikdir — ya owner, ya redeemer istifadə edir (ilk gələn alır).
+    Note over OW,RD: İmtina olunan müraciət kodu yandırmır — kod yalnız approve zamanı bağlanır.
+```
 
 ## Arxaplan — mövcud infrastruktur (yenidən qurulmur, tamamlanır)
 
@@ -59,7 +108,7 @@ feature-u işləmir (disburse-a təsiri yoxdur — non-fatal).
 - İdempotentlik: eyni application üçün ikinci kod yaranmasın
   (`GetByApplicationID` mövcuddursa skip)
 
-### R2 — Owner benefit: növbəti level endirimi (gələcək)
+### R2 — Owner benefit: növbəti level endirimi (PR #450 ilə implementasiya olundu)
 
 - Kod sahibi növbəti credit level-ə adladıqda (mövcud `credit_levels` /
   `CountApprovedAtLevel` / unlockPhase mexanizmi) faiz endirimi avtomatik
