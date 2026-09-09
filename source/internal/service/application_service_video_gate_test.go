@@ -4,17 +4,17 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"rdc-source/internal/model"
 )
 
-// --- PR #436/#438 tests: approve video gate ---
+// --- PR #436/#438/#439 tests: approve video gate ---
 //
 // Yeni video order göndərildikdən sonra (son video_records sətri recorded=0)
 // müraciət təsdiqə göndərilə BİLMƏZ — müştəri yeni video çəkənə qədər.
-// PR #438: əlavə olaraq order-dan 60 san keçməyibsə də blok (min-gözləmə —
-// video service-in köhnə statusu tez qaytarması hallarına qarşı).
+// PR #438: hər order öz unikal UUID-si ilə göndərilir — recorded=true yalnız
+// YENİ video çəkiləndə mümkündür. PR #439: 60 san-lıq min-gözləmə silindi
+// (unikal ID sayəsində köhnə video yeni order-in statusuna sızya bilmez).
 // VideoRecordRepo konkret tip olduğundan gate test üçün videoOrderStateFn
 // seam-i ilə əvəz olunur (prod-da GetByApplication-dən qurulur).
 
@@ -48,7 +48,7 @@ func newVideoGateApp(store *mockApplicationStore) *model.LoanApplication {
 func TestUpdateStatus_VideoGate_NewOrderPending_BlocksApproval(t *testing.T) {
 	ctx := context.Background()
 	store := newMockStore()
-	svc, calls := newVideoGateServiceWithState(store, &videoOrderState{Exists: true, Recorded: false, CreatedAt: time.Now().Add(-5 * time.Minute)}, nil)
+	svc, calls := newVideoGateServiceWithState(store, &videoOrderState{Exists: true, Recorded: false}, nil)
 	newVideoGateApp(store)
 
 	_, err := svc.UpdateStatus(ctx, 1, &UpdateStatusRequest{Status: model.StatusApproved, CreditLevel: model.CreditLevelNew})
@@ -66,11 +66,12 @@ func TestUpdateStatus_VideoGate_NewOrderPending_BlocksApproval(t *testing.T) {
 	}
 }
 
-// Video çəkilib (recorded=true) və order köhnədir (>60 san) → approve keçir.
-func TestUpdateStatus_VideoGate_RecordedOldOrder_AllowsApproval(t *testing.T) {
+// Video çəkilib (recorded=true) → approve keçir (PR #439: yaş yoxlaması yoxdur —
+// unikal UUID ilə recorded=true yalnız real yeni video çəkiləndə olur).
+func TestUpdateStatus_VideoGate_Recorded_AllowsApproval(t *testing.T) {
 	ctx := context.Background()
 	store := newMockStore()
-	svc, _ := newVideoGateServiceWithState(store, &videoOrderState{Exists: true, Recorded: true, CreatedAt: time.Now().Add(-5 * time.Minute)}, nil)
+	svc, _ := newVideoGateServiceWithState(store, &videoOrderState{Exists: true, Recorded: true}, nil)
 	newVideoGateApp(store)
 
 	app, err := svc.UpdateStatus(ctx, 1, &UpdateStatusRequest{Status: model.StatusApproved, CreditLevel: model.CreditLevelNew})
@@ -79,26 +80,6 @@ func TestUpdateStatus_VideoGate_RecordedOldOrder_AllowsApproval(t *testing.T) {
 	}
 	if app.Status != model.StatusApproved {
 		t.Errorf("status = %q, want approved", app.Status)
-	}
-}
-
-// PR #438: order CAVDIR (<60 san) — recorded=true olsa belə bloklanır
-// (min-gözləmə: müştəri real olaraq video çəkməyə vaxt tapmamışdır).
-func TestUpdateStatus_VideoGate_FreshOrder_BlocksApproval(t *testing.T) {
-	ctx := context.Background()
-	store := newMockStore()
-	svc, _ := newVideoGateServiceWithState(store, &videoOrderState{Exists: true, Recorded: true, CreatedAt: time.Now().Add(-10 * time.Second)}, nil)
-	newVideoGateApp(store)
-
-	_, err := svc.UpdateStatus(ctx, 1, &UpdateStatusRequest{Status: model.StatusApproved, CreditLevel: model.CreditLevelNew})
-	if err == nil {
-		t.Fatal("expected error (1 dəqiqə gözləmə), got nil")
-	}
-	if !contains(err.Error(), "1 dəqiqə") {
-		t.Errorf("error = %v, want 'ən azı 1 dəqiqə gözləyin' mesajı", err)
-	}
-	if store.appByID[1].Status != model.StatusPendingExpert {
-		t.Errorf("status = %q, want pending_expert (approve keçməməli idi)", store.appByID[1].Status)
 	}
 }
 
@@ -181,26 +162,26 @@ func TestUpdateStatus_VideoGate_RejectNotAffected(t *testing.T) {
 	}
 }
 
-// PR #438: videoOrderGate — birbaşa helper səviyyəsində sərhəd testləri.
-func TestVideoOrderGate_Boundaries(t *testing.T) {
+// PR #439: videoOrderGate — birbaşa helper səviyyəsində.
+func TestVideoOrderGate_States(t *testing.T) {
 	ctx := context.Background()
 	store := newMockStore()
 	svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
 
-	// 59 san → blok
+	// recorded=true → keçir
 	svc.videoOrderStateFn = func(_ context.Context, _ int) (*videoOrderState, error) {
-		return &videoOrderState{Exists: true, Recorded: true, CreatedAt: time.Now().Add(-59 * time.Second)}, nil
-	}
-	if err := svc.videoOrderGate(ctx, 1); err == nil {
-		t.Error("59 san: expected block, got nil")
-	}
-
-	// 61 san → keçir
-	svc.videoOrderStateFn = func(_ context.Context, _ int) (*videoOrderState, error) {
-		return &videoOrderState{Exists: true, Recorded: true, CreatedAt: time.Now().Add(-61 * time.Second)}, nil
+		return &videoOrderState{Exists: true, Recorded: true}, nil
 	}
 	if err := svc.videoOrderGate(ctx, 1); err != nil {
-		t.Errorf("61 san: expected pass, got %v", err)
+		t.Errorf("recorded: expected pass, got %v", err)
+	}
+
+	// recorded=false → blok
+	svc.videoOrderStateFn = func(_ context.Context, _ int) (*videoOrderState, error) {
+		return &videoOrderState{Exists: true, Recorded: false}, nil
+	}
+	if err := svc.videoOrderGate(ctx, 1); err == nil {
+		t.Error("not recorded: expected block, got nil")
 	}
 
 	// nil state (seam nil qaytardı) → Exists=false kimi blok

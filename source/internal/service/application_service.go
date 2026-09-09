@@ -56,8 +56,6 @@ type ApplicationService struct {
 	videoStreamBaseURL string
 	// PR #436/#438: approve video gate — son video order-in vəziyyətini oxuyan
 	// seam (prod: videoRecordRepo.GetByApplication; test: əvəz olunur).
-	// PR #438: yalnız recorded deyil, order-in yaradılma vaxtını da qaytarır
-	// (60 saniyəlik min-gözləmə qadası üçün).
 	videoOrderStateFn func(ctx context.Context, appID int) (*videoOrderState, error)
 
 	// PR #205: Service cache (service_audit_logs üzərindən)
@@ -192,7 +190,7 @@ func (s *ApplicationService) SetVideoRecordRepo(repo *repository.VideoRecordRepo
 		if vr == nil {
 			return &videoOrderState{Exists: false}, nil
 		}
-		return &videoOrderState{Exists: true, Recorded: vr.Recorded, CreatedAt: vr.CreatedAt}, nil
+		return &videoOrderState{Exists: true, Recorded: vr.Recorded}, nil
 	}
 }
 

@@ -6,34 +6,30 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"time"
+
+	"github.com/google/uuid"
 
 	"rdc-source/internal/model"
 	"rdc-source/pkg/videorecord"
-
-	"github.com/google/uuid"
 )
 
-// videoMinWaitAfterOrder — PR #438: yeni video order göndərildikdən sonra
-// video baxışı və approve üçün minimal gözləmə. Məqsəd: müştəri real olaraq
-// video çəkməyə vaxt tapmazdan əvvəl ekspertin köhnə statusu "fix" edib
-// təsdiq göndərməsinin qarşısını almaq (1 dəqiqə).
-const videoMinWaitAfterOrder = 60 * time.Second
-
-// videoOrderState — PR #438: son video order-in gate üçün vəziyyəti.
+// videoOrderState — PR #438/#439: son video order-in gate üçün vəziyyəti.
 type videoOrderState struct {
-	Exists    bool      // order sətri varmı
-	Recorded  bool      // son order-in video'su çəkilibmi
-	CreatedAt time.Time // order-in yaradılma vaxtı (min-gözləmə üçün)
+	Exists   bool // order sətri varmı
+	Recorded bool // son order-in video'su çəkilibmi
 }
 
-// videoOrderGate — PR #438: approve və "Videya bax" üçün ortaq video qapısı.
+// videoOrderGate — PR #438/#439: approve və "Videya bax" üçün ortaq video qapısı.
 // Qadağa halları:
 //   - status oxuna bilmədi → fail-closed (blok)
 //   - order yoxdur → "video order tapılmadı"
 //   - son order recorded=0 → "yeni video hələ çəkilməyib"
-//   - order-dan 60 san keçməyib → "ən azı 1 dəqiqə gözləyin" (video service-in
-//     köhnə statusu tez qaytarması hallarına qarşı qoruma)
+//
+// PR #439: 60 saniyəlik min-gözləmə SİLİNDİ — hər order öz unikal UUID-si ilə
+// göndərildiyindən (PR #438) video service-də təmiz sessiya açılır: yeni
+// UUID-nin recorded=true OLA BİLMƏZ, müştəri yeni video çəkənə qədər.
+// Köhnə video yeni order-in statusuna sızması mümkün deyil — yaş yoxlamasına
+// ehtiyac qalmadı.
 func (s *ApplicationService) videoOrderGate(ctx context.Context, appID int) error {
 	if s.videoOrderStateFn == nil {
 		return nil // repo əlaqələndirilməyib — qadağa yoxdur
@@ -47,9 +43,6 @@ func (s *ApplicationService) videoOrderGate(ctx context.Context, appID int) erro
 	}
 	if !st.Recorded {
 		return fmt.Errorf("yeni video hələ çəkilməyib — müştəri video çəkənə qədər gözləyin")
-	}
-	if time.Since(st.CreatedAt) < videoMinWaitAfterOrder {
-		return fmt.Errorf("yeni video order göndərilib — video baxışı üçün ən azı 1 dəqiqə gözləyin")
 	}
 	return nil
 }
@@ -334,11 +327,10 @@ func truncateVideoField(s string, maxRunes int) string {
 // GetVideoStreamURL — PR #399: dashboard "Videya bax" dialoqu üçün stream linki.
 // {VIDEO_URL}/video/{video_application_id}/stream formatında qurulur.
 //
-// PR #438: video_application_id = son order-in öz UUID-si (hər order üçün
-// yeni uuid.NewString()). Dialoq açılışda video service-dən aktual status
-// çəkilir (PR #436) və videoOrderGate yoxlanılır: yalnız YENİ order-in
-// çəkilmiş videosu göstərilir — köhnə video başqa UUID altında qalır və
-// "yeni" kimi baxıla bilməz. Order-dan 60 san keçməyibsə gözləmə mesajı.
+// PR #438/#439: video_application_id = son order-in öz UUID-si (hər order üçün
+// yeni uuid.NewString()). Dialoq açılışda video service-dən aktual status çəkilir
+// (PR #436) və videoOrderGate yoxlanılır: yalnız YENİ order-in çəkilmiş videosu
+// göstərilir — köhnə video başqa UUID altında qalır və "yeni" kimi baxıla bilməz.
 func (s *ApplicationService) GetVideoStreamURL(ctx context.Context, appID int) (string, error) {
 	if s.videoStreamBaseURL == "" {
 		return "", fmt.Errorf("video stream base URL konfiqurasiya olunmayıb")
