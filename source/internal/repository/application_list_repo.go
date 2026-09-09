@@ -93,69 +93,23 @@ func (r *ApplicationRepo) GetApplicationByPublicID(ctx context.Context, publicID
 	return r.GetApplicationByID(ctx, id)
 }
 
-// FindLatestByPINAndDate fetches the most recent application created on the
-// given day for the given customer PIN. PR #427: LW partner video-url endpoint.
-// day formatı yyyy-mm-dd-dir; CONVERT(date, created_at) müqayisəsi DB serverin
-// LOKAL vaxtına görədir — app server başqa timezone-da işləsə belə gün
-// sərhədi düzgün hesablanır (PIN filtrı seçici olduğundan CONVERT-in index
-// istifadə etməməsi problema deyil).
-// Eyni PIN + gündə bir neçə müraciət varsa ən yenisi (id DESC) qaytarılır.
-// Tapılmayanda (nil, nil) qaytarır.
-func (r *ApplicationRepo) FindLatestByPINAndDate(ctx context.Context, pin, day string) (*model.LoanApplication, error) {
-	row := r.db.QueryRowContext(ctx, `
-                		SELECT TOP 1 id, public_id, customer_pin, created_at
-                		FROM loan_applications
-                		WHERE customer_pin = ? AND CONVERT(date, created_at) = ?
-                		ORDER BY id DESC`, pin, day)
-
-	var app model.LoanApplication
-	var rawPublicID mssql.UniqueIdentifier
-	if err := row.Scan(&app.ID, &rawPublicID, &app.CustomerPIN, &app.CreatedAt); err != nil {
+// FindAppIDByAzmkLoanID — PR #435: LW (AZMK) kredit müqavilə nömrəsi ilə
+// müraciətin ID-si. azmk_loan_id sütunu GET /application/{id}/status
+// cavabından gələn loanId-dir (məs. "HO0030210") — imzalanmış müqaviləyə
+// birebir uyğun gəlir. Müdafiə məqsədilə TOP 1 (dublikat nəzəriyyətə yaxın
+// olsa da unique index yoxdur). Tapılmayanda 0 qaytarır.
+func (r *ApplicationRepo) FindAppIDByAzmkLoanID(ctx context.Context, azmkLoanID string) (int, error) {
+	var id int
+	err := r.db.QueryRowContext(ctx, `
+			SELECT TOP 1 id
+			FROM loan_applications
+			WHERE azmk_loan_id = ?
+			ORDER BY id DESC`, azmkLoanID).Scan(&id)
+	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, nil
+			return 0, nil
 		}
-		return nil, fmt.Errorf("failed to lookup application by pin+date: %w", err)
+		return 0, fmt.Errorf("failed to lookup application by azmk_loan_id: %w", err)
 	}
-	app.PublicID = uuid.UUID(rawPublicID).String() // PR #194
-	return &app, nil
-}
-
-// FindLatestAppIDByPINWithRecordedVideo — PR #432 (PR #433 ilə əvəz olundu —
-// ListAppIDsByPINWithRecordedVideo bax). Tapılmayanda 0 qaytarır.
-func (r *ApplicationRepo) FindLatestAppIDByPINWithRecordedVideo(ctx context.Context, pin string) (int, error) {
-	ids, err := r.ListAppIDsByPINWithRecordedVideo(ctx, pin)
-	if err != nil {
-		return 0, err
-	}
-	if len(ids) == 0 {
-		return 0, nil
-	}
-	return ids[0], nil
-}
-
-// ListAppIDsByPINWithRecordedVideo — PR #433: PIN-in ÇƏKİLMİŞ (recorded=1)
-// videolu BÜTÜN müraciətlərinin ID-ləri (yeni → köhnə sıra ilə).
-// Partner video-url endpoint-inin PIN-only forması bu siyahını qaytarır.
-func (r *ApplicationRepo) ListAppIDsByPINWithRecordedVideo(ctx context.Context, pin string) ([]int, error) {
-	rows, err := r.db.QueryContext(ctx, `
-		SELECT DISTINCT a.id
-		FROM loan_applications a
-		WHERE a.customer_pin = ?
-		  AND EXISTS (SELECT 1 FROM video_records v
-		              WHERE v.application_id = a.id AND v.recorded = 1)
-		ORDER BY a.id DESC`, pin)
-	if err != nil {
-		return nil, fmt.Errorf("failed to lookup applications by pin (recorded video): %w", err)
-	}
-	defer rows.Close()
-
-	var ids []int
-	for rows.Next() {
-		var id int
-		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("failed to scan application id: %w", err)
-		}
-		ids = append(ids, id)
-	}
-	return ids, rows.Err()
+	return id, nil
 }

@@ -28,17 +28,9 @@ type mockApplicationStore struct {
 	appByID    map[int]*model.LoanApplication
 	appByIDErr error // returned for every call if set (overrides map lookup)
 
-	// FindLatestByPINAndDate (PR #427)
-	appByPINDate    *model.LoanApplication
-	appByPINDateErr error
-
-	// FindLatestAppIDByPINWithRecordedVideo (PR #432)
-	appIDByPINVideo    int
-	appIDByPINVideoErr error
-
-	// ListAppIDsByPINWithRecordedVideo (PR #433)
-	appIDsByPINVideo    []int
-	appIDsByPINVideoErr error
+	// FindAppIDByAzmkLoanID (PR #435)
+	appIDByAzmkLoanID    int
+	appIDByAzmkLoanIDErr error
 
 	// CreateApplication
 	createErr error
@@ -154,33 +146,13 @@ func (m *mockApplicationStore) GetApplicationByPublicID(_ context.Context, publi
 	return nil, errNotFound
 }
 
-// FindLatestByPINAndDate — PR #427: mock (pin/day arqumentləri nəzərə alınmır —
-// testlər appByPINDate sahəsini konfiqurasiya edir).
-func (m *mockApplicationStore) FindLatestByPINAndDate(_ context.Context, pin, day string) (*model.LoanApplication, error) {
-	if m.appByPINDateErr != nil {
-		return nil, m.appByPINDateErr
+// FindAppIDByAzmkLoanID — PR #435 (mock). loanID arqumenti nəzərə alınmır —
+// testlər appIDByAzmkLoanID sahəsini konfiqurasiya edir.
+func (m *mockApplicationStore) FindAppIDByAzmkLoanID(_ context.Context, azmkLoanID string) (int, error) {
+	if m.appIDByAzmkLoanIDErr != nil {
+		return 0, m.appIDByAzmkLoanIDErr
 	}
-	if m.appByPINDate != nil {
-		copied := *m.appByPINDate
-		return &copied, nil
-	}
-	return nil, nil
-}
-
-// FindLatestAppIDByPINWithRecordedVideo — PR #432 (mock).
-func (m *mockApplicationStore) FindLatestAppIDByPINWithRecordedVideo(_ context.Context, pin string) (int, error) {
-	if m.appIDByPINVideoErr != nil {
-		return 0, m.appIDByPINVideoErr
-	}
-	return m.appIDByPINVideo, nil
-}
-
-// ListAppIDsByPINWithRecordedVideo — PR #433 (mock).
-func (m *mockApplicationStore) ListAppIDsByPINWithRecordedVideo(_ context.Context, pin string) ([]int, error) {
-	if m.appIDsByPINVideoErr != nil {
-		return nil, m.appIDsByPINVideoErr
-	}
-	return m.appIDsByPINVideo, nil
+	return m.appIDByAzmkLoanID, nil
 }
 
 func (m *mockApplicationStore) UpdateApplicationStatus(_ context.Context, id int, status string) error {

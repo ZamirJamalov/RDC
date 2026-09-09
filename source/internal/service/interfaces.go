@@ -42,17 +42,9 @@ type ApplicationStore interface {
 	// PR #191: xarici API və UI public_id UUID istifadə edir.
 	GetApplicationByPublicID(ctx context.Context, publicID string) (*model.LoanApplication, error)
 
-	// FindLatestByPINAndDate fetches the most recent application created on the
-	// given day (yyyy-mm-dd, DB server local time) for the given customer PIN.
-	// PR #427: LW partner video-url endpoint — PIN + müraciət günü ilə axtarış.
-	FindLatestByPINAndDate(ctx context.Context, pin, day string) (*model.LoanApplication, error)
-
-	// FindLatestAppIDByPINWithRecordedVideo (PR #432)
-	FindLatestAppIDByPINWithRecordedVideo(ctx context.Context, pin string) (int, error)
-
-	// ListAppIDsByPINWithRecordedVideo — PR #433: PIN-in çəkilmiş videolu
-	// BÜTÜN müraciətlərinin ID-ləri (yeni → köhnə).
-	ListAppIDsByPINWithRecordedVideo(ctx context.Context, pin string) ([]int, error)
+	// FindAppIDByAzmkLoanID — PR #435: LW (AZMK) kredit müqavilə nömrəsi
+	// (azmk_loan_id, məs. "HO0030210") ilə müraciətin ID-si. Tapılmayanda 0.
+	FindAppIDByAzmkLoanID(ctx context.Context, azmkLoanID string) (int, error)
 
 	// UpdateApplicationStatus updates only the status field of an application.
 	// Used by the credit engine to transition pending → checking.

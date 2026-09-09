@@ -177,14 +177,12 @@ func NewRouter(
 	mux.Handle("GET /api/admin/service-health", protectedAuth(adminAuth(http.HandlerFunc(serviceHealthHandler.GetServiceHealth))))
 
 	// --- PR #427: Partner (LW) video URL — server-to-server, API key ilə qorunur ---
-	// LW-dəki düymə PIN (+ istəyə görə tarix) göndərir, cavabda stream_url
-	// qayıdır (LW onu brauzerdə açır).
-	// PR #432: iki forma — {pin} (ən son çəkilmiş video) və {pin}/{date}
-	// (həmin günün müraciəti). DİQQƏT: video servisin stream URL-də auth YOXDUR —
-	// yeganə qapı bu endpoint-in API açarıdır.
-	mux.Handle("GET /api/partner/video-url/{pin}",
-		middleware.RateLimit(partnerVideoLimiter)(middleware.RequirePartnerAPIKey(partnerVideoAPIKey)(http.HandlerFunc(partnerVideoHandler.GetVideoURL))))
-	mux.Handle("GET /api/partner/video-url/{pin}/{date}",
+	// PR #435: LW kredit müqavilə nömrəsini (azmk_loan_id, məs. "HO0030210")
+	// göndərir, cavabda həmin müraciətin çəkilmiş videolarının stream_url
+	// siyahısı qayıdır (LW onları brauzerdə açır).
+	// DİQQƏT: video servisin stream URL-də auth YOXDUR — yeganə qapı bu
+	// endpoint-in API açarıdır.
+	mux.Handle("GET /api/partner/video-url/{loanId}",
 		middleware.RateLimit(partnerVideoLimiter)(middleware.RequirePartnerAPIKey(partnerVideoAPIKey)(http.HandlerFunc(partnerVideoHandler.GetVideoURL))))
 
 	// --- PR #98: Feature flag management (admin endpoints) — now protected ---

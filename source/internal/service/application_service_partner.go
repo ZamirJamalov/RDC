@@ -8,14 +8,10 @@ import (
 	"time"
 )
 
-// ErrVideoRecordNotFound — PR #427: müraciət tapıldı, amma video order yoxdur
-// (müraciət üçün video record yaradılmayıb).
-var ErrVideoRecordNotFound = fmt.Errorf("video record tapılmadı")
-
-// ErrVideoNotRecorded — PR #427: video order var, amma müştəri hələ çəkməyib
-// (recorded=false). Stream URL bu halda "ölü" olduğundan 404 qaytarılır —
-// LW ölü link açmır, "video var amma çəkilməyib" məlumatı xaricə çıxmır.
-var ErrVideoNotRecorded = fmt.Errorf("video hələ çəkilməyib")
+// ErrVideoRecordNotFound — PR #427: müraciət tapıldı, amma ÇƏKİLMİŞ video yoxdur
+// (recorded=1 sətri yoxdur). PR #435: köhnə "video order yoxdur" halı da buna
+// düşür — partner cavabında fərq etmək lazım deyil, LW üçün nəticə eynidir: 404.
+var ErrVideoRecordNotFound = fmt.Errorf("çəkilmiş video tapılmadı")
 
 // PartnerVideoInfo — PR #427: LW partner endpoint-inin cavabı.
 type PartnerVideoInfo struct {
@@ -29,101 +25,62 @@ type PartnerVideoInfo struct {
 	ApplicationID int `json:"-"`
 }
 
-// GetVideoStreamURLByPINAndDate — PR #427: LW partner endpoint-i üçün.
-// PIN + müraciətin yaradıldığı gün (yyyy-mm-dd) ilə həmin günün ən son
-// müraciətini tapır və video_records-dən stream URL-i qurur.
+// ListVideoStreamURLsByAzmkLoanID — PR #435: LW partner endpoint-i üçün.
+// Kredit müqavilə nömrəsi (azmk_loan_id — GET /application/{id}/status
+// cavabından gələn loanId, məs. "HO0030210") ilə müraciəti tapır və həmin
+// müraciətin ÇƏKİLMİŞ (recorded=1) videolarının hamısını qaytarır
+// (yeni → köhnə). Bir müqavilə bir müraciətə uyğun gəlir; ekspert təkrar
+// video sifarişi göndəribsə belə köhnə çəkilmiş videolar itmir.
 //
-// Eyni PIN + eyni gündə bir neçə müraciət varsa ən yenisi qaytarılır
-// (repo tərəfində ORDER BY id DESC). Hər çağırış Loki-yə loglanır (audit).
-func (s *ApplicationService) GetVideoStreamURLByPINAndDate(ctx context.Context, pin, day string) (*PartnerVideoInfo, error) {
+// Əvvəlki PIN / PIN+tarix axtarışları (PR #427/#432/#433) bu PR ilə silindi —
+// LW artıq kredit müqavilə nömrəsi ilə sorğur.
+func (s *ApplicationService) ListVideoStreamURLsByAzmkLoanID(ctx context.Context, azmkLoanID string) ([]*PartnerVideoInfo, error) {
 	if s.videoStreamBaseURL == "" {
 		return nil, fmt.Errorf("video stream base URL konfiqurasiya olunmayıb")
 	}
 
-	app, err := s.repo.FindLatestByPINAndDate(ctx, pin, day)
+	appID, err := s.repo.FindAppIDByAzmkLoanID(ctx, azmkLoanID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find application: %w", err)
+		return nil, fmt.Errorf("failed to find application by azmk_loan_id: %w", err)
 	}
-	if app == nil {
+	if appID == 0 {
 		return nil, ErrApplicationNotFound
 	}
 
-	vr, err := s.videoRecordRepo.GetByApplication(ctx, app.ID)
+	app, err := s.repo.GetApplicationByID(ctx, appID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get video record: %w", err)
+		return nil, fmt.Errorf("failed to get application %d: %w", appID, err)
 	}
-	if vr == nil {
+	if app == nil {
+		return nil, ErrApplicationNotFound // defensive — silinmiş sətir
+	}
+
+	vrs, err := s.videoRecordRepo.ListRecordedByApplication(ctx, appID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list video records %d: %w", appID, err)
+	}
+	if len(vrs) == 0 {
 		return nil, ErrVideoRecordNotFound
 	}
-	if !vr.Recorded {
-		return nil, ErrVideoNotRecorded
-	}
 
-	info := &PartnerVideoInfo{
-		AppID:                vr.AppIDExternal,
-		StreamURL:            strings.TrimRight(s.videoStreamBaseURL, "/") + "/video/" + vr.AppIDExternal + "/stream",
-		Recorded:             vr.Recorded,
-		ApplicationCreatedAt: app.CreatedAt,
-		VideoCreatedAt:       vr.CreatedAt,
-		ApplicationID:        app.ID, // PR #431: audit üçün (JSON-da yox)
-	}
-
-	slog.Info("partner video url served",
-		"pin", pin,
-		"application_id", app.ID,
-		"app_id_external", vr.AppIDExternal,
-		"recorded", vr.Recorded)
-
-	return info, nil
-}
-
-// GetVideoStreamURLByPIN — PR #432 → PR #433: PIN-lə axtarış (tarix YOX).
-// Həmin PIN-in ÇƏKİLMİŞ (recorded=1) videolu BÜTÜN müraciətlərini qaytarır
-// (yeni → köhnə). Hər müraciət üçün onun ƏN SON çəkilmiş videosu götürülür —
-// ekspert təkrar video sifarişi göndəribsə (son sətir recorded=0), köhnə çəkilmiş
-// video itmir. Müraciətin hansı gündə yaradıldığını bilmək lazım deyil.
-// Boş siyahı = heç bir çəkilmiş video yoxdur (handler 404 çevirir).
-func (s *ApplicationService) ListVideoStreamURLsByPIN(ctx context.Context, pin string) ([]*PartnerVideoInfo, error) {
-	if s.videoStreamBaseURL == "" {
-		return nil, fmt.Errorf("video stream base URL konfiqurasiya olunmayıb")
-	}
-
-	appIDs, err := s.repo.ListAppIDsByPINWithRecordedVideo(ctx, pin)
-	if err != nil {
-		return nil, fmt.Errorf("failed to find applications by pin: %w", err)
-	}
-
-	var videos []*PartnerVideoInfo
-	for _, appID := range appIDs {
-		app, err := s.repo.GetApplicationByID(ctx, appID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get application %d: %w", appID, err)
-		}
-		if app == nil {
-			continue // defensive — silinmiş sətir
-		}
-
-		vr, err := s.videoRecordRepo.GetLatestRecordedByApplication(ctx, appID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get video record %d: %w", appID, err)
-		}
-		if vr == nil {
-			continue // defensive — EXISTS keçdi, amma sətir yoxdur
-		}
-
+	base := strings.TrimRight(s.videoStreamBaseURL, "/")
+	videos := make([]*PartnerVideoInfo, 0, len(vrs))
+	for i := range vrs {
+		vr := &vrs[i]
 		videos = append(videos, &PartnerVideoInfo{
 			AppID:                vr.AppIDExternal,
-			StreamURL:            strings.TrimRight(s.videoStreamBaseURL, "/") + "/video/" + vr.AppIDExternal + "/stream",
-			Recorded:             true, // GetLatestRecordedByApplication yalnız recorded=1 qaytarır
+			StreamURL:            base + "/video/" + vr.AppIDExternal + "/stream",
+			Recorded:             true, // ListRecordedByApplication yalnız recorded=1 qaytarır
 			ApplicationCreatedAt: app.CreatedAt,
 			VideoCreatedAt:       vr.CreatedAt,
 			ApplicationID:        app.ID, // PR #431: audit üçün (JSON-da yox)
 		})
 	}
 
-	slog.Info("partner video urls served (pin-only)",
-		"pin", pin,
-		"applications", len(videos))
+	slog.Info("partner video urls served (by azmk_loan_id)",
+		"azmk_loan_id", azmkLoanID,
+		"application_id", app.ID,
+		"videos", len(videos))
 
 	return videos, nil
 }
