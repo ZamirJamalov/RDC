@@ -317,6 +317,7 @@ func main() {
 			"/":          "/landing.html",
 			"/login":     "/login.html",
 			"/dashboard": "/index.html",
+			"/index":     "/index.html", // PR #444: /index?tab=rejected redirect-i 404 verirdi
 			"/admin":     "/admin.html",
 			"/detail":    "/detail.html",
 			"/apply":     "/apply.html",
