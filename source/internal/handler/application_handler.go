@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"rdc-source/internal/middleware"
 	"rdc-source/internal/model"
 	"rdc-source/internal/service"
 )
@@ -96,6 +97,12 @@ func (h *ApplicationHandler) UpdateStatus(w http.ResponseWriter, r *http.Request
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
 		return
+	}
+
+	// PR #441: disburse_failed reject yalnız admin — rolu principal-dan doldur
+	// (IsAdmin JSON-da "-" olduğundan body-dən gələ bilməz).
+	if user := middleware.PrincipalFromContext(r.Context()); user != nil {
+		req.IsAdmin = user.Role == model.RoleAdmin
 	}
 
 	app, err := h.service.UpdateStatus(r.Context(), id, &req)

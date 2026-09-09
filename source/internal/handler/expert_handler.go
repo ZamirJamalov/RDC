@@ -1,14 +1,14 @@
 package handler
 
 import (
-        "encoding/json"
-        "log/slog"
-        "net/http"
-        "strconv"
+	"encoding/json"
+	"log/slog"
+	"net/http"
+	"strconv"
 
-        "rdc-source/internal/middleware"
-        "rdc-source/internal/model"
-        "rdc-source/internal/service"
+	"rdc-source/internal/middleware"
+	"rdc-source/internal/model"
+	"rdc-source/internal/service"
 )
 
 // ExpertHandler handles HTTP requests for the credit expert (operator) panel (T-5.7).
@@ -19,12 +19,12 @@ import (
 //   - PUT  /api/expert/{id}/approve      — approve with MyGov data
 //   - PUT  /api/expert/{id}/reject       — reject with reason
 type ExpertHandler struct {
-        appSvc *service.ApplicationService
+	appSvc *service.ApplicationService
 }
 
 // NewExpertHandler creates a new ExpertHandler.
 func NewExpertHandler(appSvc *service.ApplicationService) *ExpertHandler {
-        return &ExpertHandler{appSvc: appSvc}
+	return &ExpertHandler{appSvc: appSvc}
 }
 
 // Queue handles GET /api/expert/queue.
@@ -36,182 +36,188 @@ func NewExpertHandler(appSvc *service.ApplicationService) *ExpertHandler {
 // "Imtina olunmus" tabi). Yenisi evvelde, rejection_reason daxildir.
 // PR #376: ?status=approved → uğurla verilmiş (approved + disbursed) muracietler.
 func (h *ExpertHandler) Queue(w http.ResponseWriter, r *http.Request) {
-        if r.URL.Query().Get("status") == model.StatusRejected {
-                apps, err := h.appSvc.ListRejected(r.Context())
-                if err != nil {
-                        slog.Error("expert queue: failed to list rejected applications", "error", err)
-                        writeExpertError(w, http.StatusInternalServerError, "failed to list rejected applications")
-                        return
-                }
-                writeExpertJSON(w, http.StatusOK, map[string]interface{}{
-                        "status":       model.StatusRejected,
-                        "count":        len(apps),
-                        "applications": apps,
-                })
-                return
-        }
+	if r.URL.Query().Get("status") == model.StatusRejected {
+		apps, err := h.appSvc.ListRejected(r.Context())
+		if err != nil {
+			slog.Error("expert queue: failed to list rejected applications", "error", err)
+			writeExpertError(w, http.StatusInternalServerError, "failed to list rejected applications")
+			return
+		}
+		writeExpertJSON(w, http.StatusOK, map[string]interface{}{
+			"status":       model.StatusRejected,
+			"count":        len(apps),
+			"applications": apps,
+		})
+		return
+	}
 
-        // PR #376: ?status=approved → uğurla verilmiş müraciətlər (approved +
-        // disbursed) — RDC dashboard "Uğurla verilənlər" tabı. Yenisi evvelde.
-        if r.URL.Query().Get("status") == model.StatusApproved {
-                apps, err := h.appSvc.ListIssued(r.Context())
-                if err != nil {
-                        slog.Error("expert queue: failed to list issued applications", "error", err)
-                        writeExpertError(w, http.StatusInternalServerError, "failed to list issued applications")
-                        return
-                }
-                writeExpertJSON(w, http.StatusOK, map[string]interface{}{
-                        "status":       "issued",
-                        "count":        len(apps),
-                        "applications": apps,
-                })
-                return
-        }
+	// PR #376: ?status=approved → uğurla verilmiş müraciətlər (approved +
+	// disbursed) — RDC dashboard "Uğurla verilənlər" tabı. Yenisi evvelde.
+	if r.URL.Query().Get("status") == model.StatusApproved {
+		apps, err := h.appSvc.ListIssued(r.Context())
+		if err != nil {
+			slog.Error("expert queue: failed to list issued applications", "error", err)
+			writeExpertError(w, http.StatusInternalServerError, "failed to list issued applications")
+			return
+		}
+		writeExpertJSON(w, http.StatusOK, map[string]interface{}{
+			"status":       "issued",
+			"count":        len(apps),
+			"applications": apps,
+		})
+		return
+	}
 
-        apps, err := h.appSvc.ListPendingApproval(r.Context())
-        if err != nil {
-                slog.Error("expert queue: failed to list pending applications", "error", err)
-                writeExpertError(w, http.StatusInternalServerError, "failed to list pending applications")
-                return
-        }
+	apps, err := h.appSvc.ListPendingApproval(r.Context())
+	if err != nil {
+		slog.Error("expert queue: failed to list pending applications", "error", err)
+		writeExpertError(w, http.StatusInternalServerError, "failed to list pending applications")
+		return
+	}
 
-        writeExpertJSON(w, http.StatusOK, map[string]interface{}{
-                "status":       "pending_approval",
-                "count":        len(apps),
-                "applications": apps,
-        })
+	writeExpertJSON(w, http.StatusOK, map[string]interface{}{
+		"status":       "pending_approval",
+		"count":        len(apps),
+		"applications": apps,
+	})
 }
 
 // GetApplication handles GET /api/expert/{id}.
 // Returns full application details for the expert to review.
 func (h *ExpertHandler) GetApplication(w http.ResponseWriter, r *http.Request) {
-        id, err := strconv.Atoi(r.PathValue("id"))
-        if err != nil || id <= 0 {
-                writeExpertError(w, http.StatusBadRequest, "invalid application id")
-                return
-        }
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || id <= 0 {
+		writeExpertError(w, http.StatusBadRequest, "invalid application id")
+		return
+	}
 
-        app, err := h.appSvc.GetApplication(r.Context(), id)
-        if err != nil {
-                writeExpertError(w, http.StatusNotFound, err.Error())
-                return
-        }
+	app, err := h.appSvc.GetApplication(r.Context(), id)
+	if err != nil {
+		writeExpertError(w, http.StatusNotFound, err.Error())
+		return
+	}
 
-        writeExpertJSON(w, http.StatusOK, app)
+	writeExpertJSON(w, http.StatusOK, app)
 }
 
 // ApproveRequest is the body for PUT /api/expert/{id}/approve.
 type ApproveRequest struct {
-        CreditLevel string `json:"credit_level"` // required: new/trusted/valuable/elite
+	CreditLevel string `json:"credit_level"` // required: new/trusted/valuable/elite
 }
 
 // Approve handles PUT /api/expert/{id}/approve.
 // Approves a pending_approval application. Requires credit_level in the body.
 // PR #142: records which dashboard user approved the application.
 func (h *ExpertHandler) Approve(w http.ResponseWriter, r *http.Request) {
-        id, err := strconv.Atoi(r.PathValue("id"))
-        if err != nil || id <= 0 {
-                writeExpertError(w, http.StatusBadRequest, "invalid application id")
-                return
-        }
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || id <= 0 {
+		writeExpertError(w, http.StatusBadRequest, "invalid application id")
+		return
+	}
 
-        var req ApproveRequest
-        if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-                writeExpertError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
-                return
-        }
+	var req ApproveRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeExpertError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		return
+	}
 
-        if req.CreditLevel == "" {
-                writeExpertError(w, http.StatusBadRequest, "credit_level is required")
-                return
-        }
+	if req.CreditLevel == "" {
+		writeExpertError(w, http.StatusBadRequest, "credit_level is required")
+		return
+	}
 
-        if !model.IsValidCreditLevel(req.CreditLevel) {
-                writeExpertError(w, http.StatusBadRequest, "credit_level must be one of: new, trusted, valuable, elite")
-                return
-        }
+	if !model.IsValidCreditLevel(req.CreditLevel) {
+		writeExpertError(w, http.StatusBadRequest, "credit_level must be one of: new, trusted, valuable, elite")
+		return
+	}
 
-        // Reuse the existing UpdateStatus service method
-        app, err := h.appSvc.UpdateStatus(r.Context(), id, &service.UpdateStatusRequest{
-                Status:      model.StatusApproved,
-                CreditLevel: req.CreditLevel,
-        })
-        if err != nil {
-                slog.Error("expert approve failed", "application_id", id, "error", err)
-                writeExpertError(w, http.StatusBadRequest, err.Error())
-                return
-        }
+	// Reuse the existing UpdateStatus service method
+	app, err := h.appSvc.UpdateStatus(r.Context(), id, &service.UpdateStatusRequest{
+		Status:      model.StatusApproved,
+		CreditLevel: req.CreditLevel,
+	})
+	if err != nil {
+		slog.Error("expert approve failed", "application_id", id, "error", err)
+		writeExpertError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
-        // PR #142: record which user approved this application
-        if user := middleware.PrincipalFromContext(r.Context()); user != nil {
-                if err := h.appSvc.SetProcessedBy(r.Context(), id, user.ID, user.Username); err != nil {
-                        slog.Error("failed to set processed_by", "application_id", id, "error", err)
-                }
-        }
+	// PR #142: record which user approved this application
+	if user := middleware.PrincipalFromContext(r.Context()); user != nil {
+		if err := h.appSvc.SetProcessedBy(r.Context(), id, user.ID, user.Username); err != nil {
+			slog.Error("failed to set processed_by", "application_id", id, "error", err)
+		}
+	}
 
-        slog.Info("application approved by expert", "application_id", id, "credit_level", req.CreditLevel)
-        writeExpertJSON(w, http.StatusOK, app)
+	slog.Info("application approved by expert", "application_id", id, "credit_level", req.CreditLevel)
+	writeExpertJSON(w, http.StatusOK, app)
 }
 
 // RejectRequest is the body for PUT /api/expert/{id}/reject.
 type RejectRequest struct {
-        Reason string `json:"reason"` // optional: rejection reason
+	Reason string `json:"reason"` // optional: rejection reason
 }
 
 // Reject handles PUT /api/expert/{id}/reject.
 // Rejects a pending_approval application.
 // PR #142: records which dashboard user rejected the application.
 func (h *ExpertHandler) Reject(w http.ResponseWriter, r *http.Request) {
-        id, err := strconv.Atoi(r.PathValue("id"))
-        if err != nil || id <= 0 {
-                writeExpertError(w, http.StatusBadRequest, "invalid application id")
-                return
-        }
+	id, err := strconv.Atoi(r.PathValue("id"))
+	if err != nil || id <= 0 {
+		writeExpertError(w, http.StatusBadRequest, "invalid application id")
+		return
+	}
 
-        var req RejectRequest
-        // Body is optional — if not provided, defaults to "Manually rejected"
-        if r.ContentLength > 0 {
-                if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-                        writeExpertError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
-                        return
-                }
-        }
+	var req RejectRequest
+	// Body is optional — if not provided, defaults to "Manually rejected"
+	if r.ContentLength > 0 {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeExpertError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+			return
+		}
+	}
 
-        // PR #258: MANUAL_* reason-i UpdateStatus-a ötür ki cutoff_results-a yazılsın
-        app, err := h.appSvc.UpdateStatus(r.Context(), id, &service.UpdateStatusRequest{
-                Status:          model.StatusRejected,
-                RejectionReason: req.Reason,
-        })
-        if err != nil {
-                slog.Error("expert reject failed", "application_id", id, "error", err)
-                writeExpertError(w, http.StatusBadRequest, err.Error())
-                return
-        }
+	// PR #258: MANUAL_* reason-i UpdateStatus-a ötür ki cutoff_results-a yazılsın
+	// PR #441: disburse_failed reject yalnız admin — rolu ötür
+	isAdmin := false
+	if user := middleware.PrincipalFromContext(r.Context()); user != nil {
+		isAdmin = user.Role == model.RoleAdmin
+	}
+	app, err := h.appSvc.UpdateStatus(r.Context(), id, &service.UpdateStatusRequest{
+		Status:          model.StatusRejected,
+		RejectionReason: req.Reason,
+		IsAdmin:         isAdmin,
+	})
+	if err != nil {
+		slog.Error("expert reject failed", "application_id", id, "error", err)
+		writeExpertError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 
-        // PR #142: record which user rejected this application
-        if user := middleware.PrincipalFromContext(r.Context()); user != nil {
-                if err := h.appSvc.SetProcessedBy(r.Context(), id, user.ID, user.Username); err != nil {
-                        slog.Error("failed to set processed_by", "application_id", id, "error", err)
-                }
-        }
+	// PR #142: record which user rejected this application
+	if user := middleware.PrincipalFromContext(r.Context()); user != nil {
+		if err := h.appSvc.SetProcessedBy(r.Context(), id, user.ID, user.Username); err != nil {
+			slog.Error("failed to set processed_by", "application_id", id, "error", err)
+		}
+	}
 
-        reason := req.Reason
-        if reason == "" {
-                reason = "Manually rejected by expert"
-        }
-        slog.Info("application rejected by expert", "application_id", id, "reason", reason)
-        writeExpertJSON(w, http.StatusOK, app)
+	reason := req.Reason
+	if reason == "" {
+		reason = "Manually rejected by expert"
+	}
+	slog.Info("application rejected by expert", "application_id", id, "reason", reason)
+	writeExpertJSON(w, http.StatusOK, app)
 }
 
 // --- Helpers ---
 
 func writeExpertJSON(w http.ResponseWriter, code int, data interface{}) {
-        w.Header().Set("Content-Type", "application/json")
-        w.WriteHeader(code)
-        json.NewEncoder(w).Encode(data)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(data)
 }
 
 func writeExpertError(w http.ResponseWriter, code int, message string) {
-        slog.Warn("expert handler error", "status_code", code, "message", message)
-        writeExpertJSON(w, code, map[string]string{"error": message})
+	slog.Warn("expert handler error", "status_code", code, "message", message)
+	writeExpertJSON(w, code, map[string]string{"error": message})
 }

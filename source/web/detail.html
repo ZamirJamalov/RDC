@@ -796,32 +796,30 @@
                 </section>
 
                 <!-- PR #276: Ekspert Qərarı — en sağda -->
-                <section x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert'" class="panel p-4 col-span-12 lg:col-span-4 flex flex-col">
+                <!-- PR #441: disburse_failed statusunda da görünür, amma YALNIZ ADMIN üçün
+                     (yalnız imtina — disburse xətasına görə, 0 gün gözləmə). -->
+                <section x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert' || (app?.status === 'disburse_failed' && currentUser?.role === 'admin')" class="panel p-4 col-span-12 lg:col-span-4 flex flex-col">
                     <div class="flex items-center gap-2 mb-3">
                         <span class="icon-chip">⚖️</span>
-                        <h2 class="panel-title text-sm font-bold tracking-wide uppercase">Ekspert Qərarı</h2>
+                        <h2 class="panel-title text-sm font-bold tracking-wide uppercase" x-text="app?.status === 'disburse_failed' ? 'Admin Qərarı — Disburse Xətası' : 'Ekspert Qərarı'"></h2>
                     </div>
 
                     <div class="space-y-2.5 flex-1 flex flex-col">
-                        <!-- Təsdiq -->
-                        <button @click="approve()" class="w-full bg-emerald-600 text-white px-3 py-2.5 rounded-lg hover:bg-emerald-700 font-semibold text-sm transition disabled:opacity-50 flex items-center justify-center gap-2"
+                        <!-- Təsdiq (PR #441: disburse_failed-də YOX — yalnız imtina mümkündür) -->
+                        <button x-show="app?.status !== 'disburse_failed'" @click="approve()" class="w-full bg-emerald-600 text-white px-3 py-2.5 rounded-lg hover:bg-emerald-700 font-semibold text-sm transition disabled:opacity-50 flex items-center justify-center gap-2"
                                 :disabled="actionLoading">
                             <svg x-show="!actionLoading" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                             <svg x-show="actionLoading" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                             <span x-text="actionLoading ? 'Əməliyyat...' : 'Təsdiq Et'"></span>
                         </button>
 
-                        <!-- İmtina: dropdown -->
+                        <!-- İmtina: dropdown (PR #441: disburse_failed-də yalnız bir səbəb —
+                             MANUAL_DISBURSE_FAILED, 0 gün gözləmə; rejectOptions getter-ə bax) -->
                         <select x-model="rejectReason" class="field-input text-sm">
                             <option value="">İmtina səbəbini seçin...</option>
-                            <option value="MANUAL_VIDEO_MISMATCH">Video uyğunsuzluq (1 gün gözləmə)</option>
-                            <option value="MANUAL_COMPLIANCE_FAILED">Open Sanction və HMS yoxlama (daimi — təkrar müraciət mümkün deyil)</option>
-                            <option value="MANUAL_NUMBER_NOT_PROVIDED">Nömrə təqdim etmir (24 saat)</option>
-                            <option value="MANUAL_CONTACTS_NEGATIVE">Əlaqə nömrələrindən mənfi rəy (14 gün)</option>
-                            <option value="MANUAL_ROUGH_BEHAVIOR">Müştərinin kobud rəftarı (10 gün)</option>
-                            <option value="MANUAL_CALL_INTERFERENCE">Zəng zamanı kənar müdaxilə (0 gün)</option>
-                            <option value="MANUAL_WRONG_INFO">Yanlış məlumat (10 gün gözləmə)</option>
-                            <option value="MANUAL_GETCONTACT_NEGATIVE">GetContact — mənfi taq (30 gün)</option>
+                            <template x-for="opt in rejectOptions" :key="opt.value">
+                                <option :value="opt.value" x-text="opt.label"></option>
+                            </template>
                         </select>
 
                         <!-- İmtina button -->
@@ -1454,6 +1452,27 @@
                 // PR #191: internalId — INT id (ekspert API call-lar üçün), app yüklənəndə set olunur
                 get internalId() {
                     return this.app?.id || '';
+                },
+
+                // PR #441: imtina səbəbləri — statusa görə. disburse_failed-də
+                // (yalnız admin görür — bölmənin x-show şərti) TƏKCƏ disburse
+                // xətası səbəbi var, 0 gün gözləmə ilə.
+                get rejectOptions() {
+                    if (this.app?.status === 'disburse_failed') {
+                        return [
+                            { value: 'MANUAL_DISBURSE_FAILED', label: 'Disburse xətası — köçürmə alınmadı (0 gün gözləmə)' },
+                        ];
+                    }
+                    return [
+                        { value: 'MANUAL_VIDEO_MISMATCH', label: 'Video uyğunsuzluq (1 gün gözləmə)' },
+                        { value: 'MANUAL_COMPLIANCE_FAILED', label: 'Open Sanction və HMS yoxlama (daimi — təkrar müraciət mümkün deyil)' },
+                        { value: 'MANUAL_NUMBER_NOT_PROVIDED', label: 'Nömrə təqdim etmir (24 saat)' },
+                        { value: 'MANUAL_CONTACTS_NEGATIVE', label: 'Əlaqə nömrələrindən mənfi rəy (14 gün)' },
+                        { value: 'MANUAL_ROUGH_BEHAVIOR', label: 'Müştərinin kobud rəftarı (10 gün)' },
+                        { value: 'MANUAL_CALL_INTERFERENCE', label: 'Zəng zamanı kənar müdaxilə (0 gün)' },
+                        { value: 'MANUAL_WRONG_INFO', label: 'Yanlış məlumat (10 gün gözləmə)' },
+                        { value: 'MANUAL_GETCONTACT_NEGATIVE', label: 'GetContact — mənfi taq (30 gün)' },
+                    ];
                 },
 
                 // PR #402: ekspert addım checkmark-ları — localStorage-da app-a görə saxlanılır.
