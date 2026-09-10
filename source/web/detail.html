@@ -604,9 +604,52 @@
                     </div>
                 </section>
 
-                <div class="detail-grid"> <!-- PR #465: alt-alta — Müştəri → Nömrələr → Kredit -->
+                <div class="detail-grid"> <!-- PR #473: alt-alta — Kredit → Müştəri → Nömrələr -->
 
-                <!-- Müştəri Məlumatları (1-ci grid) — PR #467: Nömrələr kimi APEX-grid,
+                <!-- PR #473: Kredit (1-ci grid) — Müştəridən ƏVVƏL -->
+                <section class="panel p-6 flex flex-col">
+                    <div class="card-head">
+                        <span class="icon-chip">💳</span>
+                        <h2 class="panel-title">Kredit</h2>
+                        <span x-show="app?.credit_level" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700" x-text="levelAz(app?.credit_level)"></span>
+                    </div>
+                    <!-- PR #472: klassik table — tək sətir, 6 göstərici -->
+                    <div class="tbl-wrap" @mousemove.window="onColResize($event)" @mouseup.window="endColResize()">
+                        <table class="apl-table">
+                            <colgroup>
+                                <col :style="'width:' + colWidths.kredit[0] + 'px'">
+                                <col :style="'width:' + colWidths.kredit[1] + 'px'">
+                                <col :style="'width:' + colWidths.kredit[2] + 'px'">
+                                <col :style="'width:' + colWidths.kredit[3] + 'px'">
+                                <col :style="'width:' + colWidths.kredit[4] + 'px'">
+                                <col :style="'width:' + colWidths.kredit[5] + 'px'">
+                            </colgroup>
+                            <thead>
+                                <tr>
+                                    <th>Məbləğ<span class="th-rs" @mousedown.prevent="startColResize('kredit', 0, $event)"></span></th>
+                                    <th>Müddət<span class="th-rs" @mousedown.prevent="startColResize('kredit', 1, $event)"></span></th>
+                                    <th>Komissiya<span class="th-rs" @mousedown.prevent="startColResize('kredit', 2, $event)"></span></th>
+                                    <th>Ümumi (komissiya ilə)<span class="th-rs" @mousedown.prevent="startColResize('kredit', 3, $event)"></span></th>
+                                    <th>Karta köçürülən<span class="th-rs" @mousedown.prevent="startColResize('kredit', 4, $event)"></span></th>
+                                    <th>İllik faiz<span class="th-rs" @mousedown.prevent="startColResize('kredit', 5, $event)"></span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="((app?.total_amount || app?.amount) ?? '-') + ' AZN'"></span></td>
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.term_months ?? '-') + ' ay'"></span></td>
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.approved_rate !== undefined && app?.approved_rate !== null) ? app.approved_rate + '%' : '-'"></span></td>
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.total_amount ?? '-') + ' AZN'"></span></td>
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.amount ?? '-') + ' AZN'"></span></td>
+                                    <!-- PR #348: illik faiz qırmızı -->
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap rate-red" x-text="app?.annual_interest_rate ? app.annual_interest_rate + '%' : '-'"></span></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Müştəri Məlumatları (2-ci grid) — PR #467: Nömrələr kimi APEX-grid,
                      şəkil header-də (PR #465), audit → header zəngi (PR #467) -->
                 <section class="panel p-6 flex flex-col">
                     <div class="card-head">
@@ -687,7 +730,7 @@
                 <!-- PR #467: Audit sətirləri (Təsdiq/İmtina, Kontaktlar, Timer, MyGov, Ünvan)
                      header-dəki zəng popover-inə keçirildi (auditEntries) -->
 
-                <!-- PR #465: Əlaqə Nömrələri (2-ci grid) — Müştəridən sonra -->
+                <!-- PR #465/#473: Əlaqə Nömrələri (3-cü grid) — Müştəridən sonra -->
                 <section class="panel p-6 flex flex-col">
                     <div class="card-head">
                         <span class="icon-chip">📞</span>
@@ -814,49 +857,6 @@
                                     </td>
                                 </tr>
                             </template>
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-
-                <!-- PR #465: Kredit (3-cü grid) — Nömrələrdən SONRA -->
-                <section class="panel p-6 flex flex-col">
-                    <div class="card-head">
-                        <span class="icon-chip">💳</span>
-                        <h2 class="panel-title">Kredit</h2>
-                        <span x-show="app?.credit_level" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700" x-text="levelAz(app?.credit_level)"></span>
-                    </div>
-                    <!-- PR #472: klassik table — tək sətir, 6 göstərici -->
-                    <div class="tbl-wrap" @mousemove.window="onColResize($event)" @mouseup.window="endColResize()">
-                        <table class="apl-table">
-                            <colgroup>
-                                <col :style="'width:' + colWidths.kredit[0] + 'px'">
-                                <col :style="'width:' + colWidths.kredit[1] + 'px'">
-                                <col :style="'width:' + colWidths.kredit[2] + 'px'">
-                                <col :style="'width:' + colWidths.kredit[3] + 'px'">
-                                <col :style="'width:' + colWidths.kredit[4] + 'px'">
-                                <col :style="'width:' + colWidths.kredit[5] + 'px'">
-                            </colgroup>
-                            <thead>
-                                <tr>
-                                    <th>Məbləğ<span class="th-rs" @mousedown.prevent="startColResize('kredit', 0, $event)"></span></th>
-                                    <th>Müddət<span class="th-rs" @mousedown.prevent="startColResize('kredit', 1, $event)"></span></th>
-                                    <th>Komissiya<span class="th-rs" @mousedown.prevent="startColResize('kredit', 2, $event)"></span></th>
-                                    <th>Ümumi (komissiya ilə)<span class="th-rs" @mousedown.prevent="startColResize('kredit', 3, $event)"></span></th>
-                                    <th>Karta köçürülən<span class="th-rs" @mousedown.prevent="startColResize('kredit', 4, $event)"></span></th>
-                                    <th>İllik faiz<span class="th-rs" @mousedown.prevent="startColResize('kredit', 5, $event)"></span></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="((app?.total_amount || app?.amount) ?? '-') + ' AZN'"></span></td>
-                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.term_months ?? '-') + ' ay'"></span></td>
-                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.approved_rate !== undefined && app?.approved_rate !== null) ? app.approved_rate + '%' : '-'"></span></td>
-                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.total_amount ?? '-') + ' AZN'"></span></td>
-                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.amount ?? '-') + ' AZN'"></span></td>
-                                    <!-- PR #348: illik faiz qırmızı -->
-                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap rate-red" x-text="app?.annual_interest_rate ? app.annual_interest_rate + '%' : '-'"></span></td>
-                                </tr>
                             </tbody>
                         </table>
                     </div>
