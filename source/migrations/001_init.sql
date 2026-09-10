@@ -175,66 +175,78 @@ GO
 -- ============================================================
 -- Seed data: credit levels (39 rate rows from business rules document)
 -- Rates are percentages for the full loan term
--- PR #478: COL_LENGTH guard — rate sütunu yoxdursa (021 rename artıq tətbiq
--- olunub) seed-i SKIP et; 021 öz commission seed-ini yenidən qoyur.
--- Boş cədvəl + köhnə (rate-siz) şema kombinasiyasında “Invalid column
--- name 'rate'” ilə migration partlayıb app başlamırdı (502).
+-- PR #478: bu seed yalnız FRESH DB-də (rate sütunu var) işləsin.
+-- MÜHÜM: SQL Server bütün batch-i icradan ƏVVƏL COMPILE edir — IF guard-i
+-- false olsa belə, mövcud cədvəldə olmayan 'rate' sütununa istinad
+-- compile-time xəta verir (deferred resolution yalnız olmayan CƏDVƏL
+-- adlarına aiddir, sütunlara YOX). Ona görə INSERT-lər EXEC (dinamik SQL)
+-- daxilindədir: IF false olanda EXEC çağrılmır → compile də baş vermir.
+-- rate yoxdursa (021 rename artıq tətbiq olunub) seed skip olunur —
+-- 021 öz commission seed-ini yenidən qoyur.
 -- ============================================================
 
 IF NOT EXISTS (SELECT 1 FROM credit_levels) AND COL_LENGTH('credit_levels', 'rate') IS NOT NULL
 BEGIN
     -- New Level: 2 ranges, only 3-month term (all phase 1 — starting level)
+    EXEC('
     INSERT INTO credit_levels (level_name, min_amount, max_amount, term_months, rate, unlock_phase, is_active) VALUES
-    ('new', 100, 300, 3, 30.00, 1, 1),
-    ('new', 301, 500, 3, 30.00, 1, 1);
+    (''new'', 100, 300, 3, 30.00, 1, 1),
+    (''new'', 301, 500, 3, 30.00, 1, 1);
+    ');
 
     -- Trusted Level: 4 ranges, 3 and 6-month terms
     -- Phase 1 (1st loan): 100-700 AZN | Phase 2 (after 1 approved loan): + 701-900 AZN
+    EXEC('
     INSERT INTO credit_levels (level_name, min_amount, max_amount, term_months, rate, unlock_phase, is_active) VALUES
-    ('trusted', 100, 300, 3, 29.00, 1, 1),
-    ('trusted', 301, 500, 3, 28.00, 1, 1),
-    ('trusted', 501, 700, 3, 27.00, 1, 1),
-    ('trusted', 501, 700, 6, 29.00, 1, 1),
-    ('trusted', 701, 900, 3, 27.00, 2, 1),
-    ('trusted', 701, 900, 6, 29.00, 2, 1);
+    (''trusted'', 100, 300, 3, 29.00, 1, 1),
+    (''trusted'', 301, 500, 3, 28.00, 1, 1),
+    (''trusted'', 501, 700, 3, 27.00, 1, 1),
+    (''trusted'', 501, 700, 6, 29.00, 1, 1),
+    (''trusted'', 701, 900, 3, 27.00, 2, 1),
+    (''trusted'', 701, 900, 6, 29.00, 2, 1);
+    ');
 
     -- Valuable Level: 6 ranges, 3, 6, 9-month terms
     -- Phase 1 (1st loan): 100-1100 AZN | Phase 2 (after 1 approved loan): + 1101-1300 AZN
+    EXEC('
     INSERT INTO credit_levels (level_name, min_amount, max_amount, term_months, rate, unlock_phase, is_active) VALUES
-    ('valuable', 100, 300, 3, 28.00, 1, 1),
-    ('valuable', 301, 500, 3, 27.00, 1, 1),
-    ('valuable', 501, 700, 3, 26.00, 1, 1),
-    ('valuable', 501, 700, 6, 28.00, 1, 1),
-    ('valuable', 701, 900, 3, 26.00, 1, 1),
-    ('valuable', 701, 900, 6, 28.00, 1, 1),
-    ('valuable', 901, 1100, 6, 26.00, 1, 1),
-    ('valuable', 901, 1100, 9, 28.00, 1, 1),
-    ('valuable', 1101, 1300, 6, 25.00, 2, 1),
-    ('valuable', 1101, 1300, 9, 27.00, 2, 1);
+    (''valuable'', 100, 300, 3, 28.00, 1, 1),
+    (''valuable'', 301, 500, 3, 27.00, 1, 1),
+    (''valuable'', 501, 700, 3, 26.00, 1, 1),
+    (''valuable'', 501, 700, 6, 28.00, 1, 1),
+    (''valuable'', 701, 900, 3, 26.00, 1, 1),
+    (''valuable'', 701, 900, 6, 28.00, 1, 1),
+    (''valuable'', 901, 1100, 6, 26.00, 1, 1),
+    (''valuable'', 901, 1100, 9, 28.00, 1, 1),
+    (''valuable'', 1101, 1300, 6, 25.00, 2, 1),
+    (''valuable'', 1101, 1300, 9, 27.00, 2, 1);
+    ');
 
     -- Elite Level: 10 ranges, 3, 6, 9, 12-month terms
     -- Phase 1 (1st loan): 100-1500 AZN | Phase 2 (after 1 approved loan): + 1501-3000 AZN
+    EXEC('
     INSERT INTO credit_levels (level_name, min_amount, max_amount, term_months, rate, unlock_phase, is_active) VALUES
-    ('elite', 100, 300, 3, 27.00, 1, 1),
-    ('elite', 301, 500, 3, 26.00, 1, 1),
-    ('elite', 501, 700, 3, 25.00, 1, 1),
-    ('elite', 501, 700, 6, 27.00, 1, 1),
-    ('elite', 701, 900, 3, 25.00, 1, 1),
-    ('elite', 701, 900, 6, 27.00, 1, 1),
-    ('elite', 901, 1100, 6, 25.00, 1, 1),
-    ('elite', 901, 1100, 9, 27.00, 1, 1),
-    ('elite', 1101, 1300, 6, 24.00, 1, 1),
-    ('elite', 1101, 1300, 9, 26.00, 1, 1),
-    ('elite', 1301, 1500, 6, 22.00, 1, 1),
-    ('elite', 1301, 1500, 9, 24.00, 1, 1),
-    ('elite', 1301, 1500, 12, 26.00, 1, 1),
-    ('elite', 1501, 2000, 6, 21.00, 2, 1),
-    ('elite', 1501, 2000, 9, 23.00, 2, 1),
-    ('elite', 1501, 2000, 12, 25.00, 2, 1),
-    ('elite', 2001, 2500, 6, 20.00, 2, 1),
-    ('elite', 2001, 2500, 9, 22.00, 2, 1),
-    ('elite', 2001, 2500, 12, 24.00, 2, 1),
-    ('elite', 2501, 3000, 9, 22.00, 2, 1),
-    ('elite', 2501, 3000, 12, 21.00, 2, 1);
+    (''elite'', 100, 300, 3, 27.00, 1, 1),
+    (''elite'', 301, 500, 3, 26.00, 1, 1),
+    (''elite'', 501, 700, 3, 25.00, 1, 1),
+    (''elite'', 501, 700, 6, 27.00, 1, 1),
+    (''elite'', 701, 900, 3, 25.00, 1, 1),
+    (''elite'', 701, 900, 6, 27.00, 1, 1),
+    (''elite'', 901, 1100, 6, 25.00, 1, 1),
+    (''elite'', 901, 1100, 9, 27.00, 1, 1),
+    (''elite'', 1101, 1300, 6, 24.00, 1, 1),
+    (''elite'', 1101, 1300, 9, 26.00, 1, 1),
+    (''elite'', 1301, 1500, 6, 22.00, 1, 1),
+    (''elite'', 1301, 1500, 9, 24.00, 1, 1),
+    (''elite'', 1301, 1500, 12, 26.00, 1, 1),
+    (''elite'', 1501, 2000, 6, 21.00, 2, 1),
+    (''elite'', 1501, 2000, 9, 23.00, 2, 1),
+    (''elite'', 1501, 2000, 12, 25.00, 2, 1),
+    (''elite'', 2001, 2500, 6, 20.00, 2, 1),
+    (''elite'', 2001, 2500, 9, 22.00, 2, 1),
+    (''elite'', 2001, 2500, 12, 24.00, 2, 1),
+    (''elite'', 2501, 3000, 9, 22.00, 2, 1),
+    (''elite'', 2501, 3000, 12, 21.00, 2, 1);
+    ');
 END;
 GO
