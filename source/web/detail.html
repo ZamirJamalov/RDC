@@ -172,7 +172,7 @@
         }
         [data-theme="dark"] .contacts-thead { background: #0d2444; }
         .contacts-thead > span {
-            padding: 7px 8px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+            padding: 7px 8px; font-size: 12px; font-weight: 600; text-transform: uppercase;
             letter-spacing: 0.04em; color: var(--text-soft); white-space: nowrap;
         }
         .contact-row {
@@ -182,11 +182,12 @@
         /* PR #467: Müştəri cədvəli sütunları artıq JS-dən idarə olunur (PR #468 resize) */
         .contact-row > * { padding: 3px 6px; min-width: 0; border-left: 1px solid var(--border); display: flex; align-items: center; }
         .contact-row > *:first-child { border-left: none; justify-content: center; }
-        /* PR #468: sütun resize tutacağı — başlıq hücrəsinin sağ kənarı */
-        .contacts-thead > span { position: relative; }
-        .th-rs { position: absolute; right: -3px; top: 0; bottom: 0; width: 7px; cursor: col-resize; user-select: none; z-index: 2; }
+        /* PR #468/#469: sütun resize tutacağı — başlıq hücrəsinin sağ kənarı (DAAXİLƏDƏ,
+           clip olunmasın deyə; geniş tutum üçün 9px) */
+        .contacts-thead > span { position: relative; padding-right: 14px !important; }
+        .th-rs { position: absolute; right: 0; top: 0; bottom: 0; width: 9px; cursor: col-resize; user-select: none; z-index: 2; }
         .th-rs::after { content: ''; position: absolute; right: 3px; top: 8px; bottom: 8px; width: 2px; border-radius: 1px; background: var(--border); }
-        .contacts-thead > span:hover .th-rs::after { background: #2D9CDB; }
+        .contacts-thead > span:hover .th-rs::after, .th-rs:hover::after { background: #2D9CDB; }
         .ct-zebra { background: rgba(100, 116, 139, 0.05); }
         [data-theme="dark"] .ct-zebra { background: rgba(255, 255, 255, 0.03); }
         .ct-group:hover { background: rgba(45, 156, 219, 0.06); }
@@ -353,26 +354,20 @@
                     <h1 class="text-base font-bold text-gray-800 truncate flex items-center gap-2" :class="{'panel-title': true}">
                         <span x-text="app?.customer_full_name || 'Müraciət'"></span>
                     </h1>
-                    <!-- PR #468: PIN (copy) | Seriya | Telefon 0-formatda (copy) -->
+                    <!-- PR #468/#469: PIN | Seriya | Telefon 0-formatda — dəyərin ÖZÜNƏ kliklə copy -->
                     <div class="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs hidden sm:flex" x-show="app">
-                        <span class="inline-flex items-center gap-1" title="PIN">
-                            <span class="font-mono font-semibold text-gray-600 dark:text-gray-300" x-text="app?.customer_pin || '-'"></span>
-                            <button x-show="app?.customer_pin" @click="copyToClipboard(app?.customer_pin)"
-                                    class="text-teal-500 hover:text-teal-700 transition" title="PIN-i kopyala">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                            </button>
-                        </span>
+                        <span class="inline-flex items-center gap-1 cursor-pointer hover:text-teal-600 transition"
+                              title="PIN — kopyalamaq üçün klikləyin"
+                              @click="copyToClipboard(app?.customer_pin)"
+                              x-text="app?.customer_pin || '-'"></span>
                         <span class="text-gray-300 dark:text-gray-600">·</span>
-                        <span class="inline-flex items-center gap-1 font-semibold text-gray-600 dark:text-gray-300" title="Seriya"
+                        <span class="font-semibold text-gray-600 dark:text-gray-300" title="Seriya"
                               x-text="app?.customer_serial || '-'"></span>
                         <span class="text-gray-300 dark:text-gray-600">·</span>
-                        <span class="inline-flex items-center gap-1" title="Telefon (lokal format)">
-                            <span class="font-mono font-semibold text-gray-600 dark:text-gray-300" x-text="phoneLocal(app?.customer_phone)"></span>
-                            <button x-show="app?.customer_phone" @click="copyPhoneLocal(app?.customer_phone)"
-                                    class="text-teal-500 hover:text-teal-700 transition" title="Nömrəni kopyala (0 ilə)">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                            </button>
-                        </span>
+                        <span class="inline-flex items-center gap-1 font-mono font-semibold text-gray-600 dark:text-gray-300 cursor-pointer hover:text-teal-600 transition"
+                              title="Nömrəni kopyala (0-formatda)"
+                              @click="copyPhoneLocal(app?.customer_phone)"
+                              x-text="phoneLocal(app?.customer_phone)"></span>
                     </div>
                     <p class="text-xs text-gray-500 sm:hidden" x-text="app?.customer_pin || ''"></p>
                 </div>
@@ -641,7 +636,7 @@
                         </div>
                         <div class="contact-row" :style="gridTpl('cust')">
                             <div class="justify-between gap-1 !justify-start">
-                                <span class="value-strong font-semibold text-xs truncate" :title="app?.customer_full_name || ''"
+                                <span class="value-strong font-semibold text-sm truncate" :title="app?.customer_full_name || ''"
                                       x-text="trunc(app?.customer_full_name, 35)"></span>
                                 <button x-show="app?.customer_full_name" @click="copyToClipboard(app?.customer_full_name)"
                                         class="text-teal-500 hover:text-teal-700 transition shrink-0" title="Kopyala">
@@ -650,11 +645,11 @@
                                     </svg>
                                 </button>
                             </div>
-                            <div><span class="value-strong font-semibold text-xs whitespace-nowrap" x-text="app?.card_number ? '**** ' + app.card_number.slice(-4) : '-'"></span></div>
-                            <!-- PR #468: Qeydiyyat ünvanı — qısaldılmış sütun -->
+                            <div><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="app?.card_number ? '**** ' + app.card_number.slice(-4) : '-'"></span></div>
+                            <!-- PR #468/#469: Qeydiyyat ünvanı — qısaldılmış sütun (min 100 simvol) -->
                             <div class="justify-between gap-1">
-                                <span class="value-strong text-xs truncate" :title="app?.registration_address || ''"
-                                      x-text="trunc(app?.registration_address, 45)"></span>
+                                <span class="value-strong text-sm truncate" :title="app?.registration_address || ''"
+                                      x-text="trunc(app?.registration_address, 100)"></span>
                                 <button x-show="app?.registration_address" @click="copyToClipboard(app?.registration_address)"
                                         class="text-teal-500 hover:text-teal-700 transition shrink-0" title="Kopyala">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -667,7 +662,7 @@
                                 <div class="flex items-center justify-between gap-1 w-full min-w-0">
                                     <span class="flex items-center gap-1 min-w-0">
                                         <span x-show="app?.actual_address_updated_by_username || app?.actual_address_updated_at" class="text-emerald-500 font-bold shrink-0">✓</span>
-                                        <span class="value-strong text-xs truncate" :title="app?.actual_address || ''"
+                                        <span class="value-strong text-sm truncate" :title="app?.actual_address || ''"
                                               x-text="trunc(app?.actual_address, 45)"></span>
                                     </span>
                                     <button x-show="!isReadOnly && !addressEditing" @click="startAddressEdit()"
@@ -680,7 +675,7 @@
                                 <div x-show="addressEditing" class="w-full">
                                     <textarea x-model="addressDraft" rows="2" maxlength="500"
                                               placeholder="Faktiki ünvanı daxil edin..."
-                                              class="field-input !py-1.5 w-full text-xs resize-none"></textarea>
+                                              class="field-input !py-1.5 w-full text-sm resize-none"></textarea>
                                     <div class="flex items-center gap-2 mt-1">
                                         <span x-show="addressDraft.trim().length" class="text-[10px] text-gray-400"
                                               x-text="addressDraft.trim().length + '/500'"></span>
@@ -720,13 +715,13 @@
                             <div class="ct-group" :class="idx % 2 === 1 ? 'ct-zebra' : ''">
                                 <!-- PR #465/#468: üfüqi sətir gridi — № | Əlaqə | Telefon | Ad | Status | Qeyd -->
                                 <div class="contact-row" :style="gridTpl('contacts')">
-                                    <span class="text-xs font-bold text-gray-400 text-center" x-text="(idx+1)"></span>
+                                    <span class="text-sm font-bold text-gray-400 text-center" x-text="(idx+1)"></span>
                                     <div class="min-w-0">
                                         <!-- PR #467: qohumluq birbaşa seçilir (edit düyməsi lazımsız — blur-da save) -->
                                         <select x-model="contact.relation"
                                                 @blur="onRelationBlur(idx)"
                                                 :disabled="isReadOnly"
-                                                class="field-input !py-1.5 !px-2 w-full text-xs disabled:opacity-60 disabled:cursor-not-allowed">
+                                                class="field-input !py-1.5 !px-2 w-full text-sm disabled:opacity-60 disabled:cursor-not-allowed">
                                             <option value="">Əlaqə *</option>
                                             <!-- PR #136: yeni oxunaqlı relation adları + unique məhdudiyyət (Atası/Anası/Qayınatası/Qayınanası) -->
                                             <template x-for="opt in ['Atası','Anası','Qayınatası','Qayınanası','Əri','Arvadı','Oğlu','Qızı','Qardaşı','Bacısı','Bacanağı','Yeznəsi','Baldızı','Qayını','Dostu','Qohumu','Qonşusu','Həmkarı','Digər']" :key="opt">
@@ -745,7 +740,7 @@
                                                maxlength="17"
                                                placeholder="+994 XX XXX XX XX"
                                                :class="(contact.phone && !isPhoneComplete(contact.phone)) ? 'border-rose-400 focus:border-rose-500 bg-rose-50' : ''"
-                                               class="field-input !py-1.5 w-full text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100">
+                                               class="field-input !py-1.5 w-full text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100">
                                         <!-- PR #138: nömrə tam deyil xəbərdarlıq ikonu -->
                                         <span x-show="contact.phone && !isPhoneComplete(contact.phone)"
                                               class="absolute right-2 top-1/2 -translate-y-1/2 text-rose-500"
@@ -761,7 +756,7 @@
                                                maxlength="35"
                                                placeholder="Ad Soyad"
                                                :class="isNameUsedByOther(idx, contact.name) ? 'border-rose-400 focus:border-rose-500 bg-rose-50' : ''"
-                                               class="field-input !py-1.5 w-full text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100">
+                                               class="field-input !py-1.5 w-full text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100">
                                         <!-- PR #137: təkrar ad xəbərdarlıq ikonu -->
                                         <span x-show="isNameUsedByOther(idx, contact.name)"
                                               class="absolute right-2 top-1/2 -translate-y-1/2 text-rose-500"
@@ -774,9 +769,9 @@
                                         <span x-show="contact.saving" class="text-xs text-gray-400 animate-pulse shrink-0">...</span>
                                         <svg x-show="contact.saved && !contact.saving" class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                                         <!-- Verified badge -->
-                                        <span x-show="contact.verified === true" class="badge text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-700 shrink-0">✓ Təsdiq</span>
-                                    <span x-show="contact.verified === false" class="badge text-[10px] px-2 py-0.5 bg-rose-100 text-rose-700 shrink-0">✗ İmtina</span>
-                                    <span x-show="contact.verified === null || contact.verified === undefined" class="badge text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 shrink-0">Yoxlanılmayıb</span>
+                                        <span x-show="contact.verified === true" class="badge text-[11px] px-2 py-0.5 bg-emerald-100 text-emerald-700 shrink-0">✓ Təsdiq</span>
+                                    <span x-show="contact.verified === false" class="badge text-[11px] px-2 py-0.5 bg-rose-100 text-rose-700 shrink-0">✗ İmtina</span>
+                                    <span x-show="contact.verified === null || contact.verified === undefined" class="badge text-[11px] px-2 py-0.5 bg-gray-100 text-gray-500 shrink-0">Yoxlanılmayıb</span>
 
                                     <!-- Verify/reject buttons — read-only olanda və ya əlaqə/telefon yoxdanda disabled -->
                                     <button x-show="!isReadOnly"
@@ -803,11 +798,11 @@
                                                   :disabled="isReadOnly"
                                                   rows="2" maxlength="1000"
                                                   placeholder="Zəng qeydi..."
-                                                  class="field-input !py-1 w-full text-xs resize-none disabled:opacity-50 disabled:cursor-not-allowed"></textarea>
+                                                  class="field-input !py-1 w-full text-sm resize-none disabled:opacity-50 disabled:cursor-not-allowed"></textarea>
                                         <div class="flex items-center justify-between">
-                                            <span class="text-[9px] text-gray-400" x-show="contact.noteSaving">Saxlanılır...</span>
-                                            <span class="text-[9px] text-emerald-500" x-show="contact.noteSaved && !contact.noteSaving">✓ Saxlanıldı</span>
-                                            <span class="text-[9px] text-gray-400 ml-auto" x-text="(contact.callNote || '').length + '/1000'"></span>
+                                            <span class="text-[10px] text-gray-400" x-show="contact.noteSaving">Saxlanılır...</span>
+                                            <span class="text-[10px] text-emerald-500" x-show="contact.noteSaved && !contact.noteSaving">✓ Saxlanıldı</span>
+                                            <span class="text-[10px] text-gray-400 ml-auto" x-text="(contact.callNote || '').length + '/1000'"></span>
                                         </div>
                                     </div>
                                 </div>
@@ -1080,21 +1075,27 @@
                     return entries;
                 },
 
-                // PR #468: resizable sütunlar — hər cədvəlin başlanğıc enləri (px)
+                // PR #468/#469: resizable sütunlar — hər cədvəlin başlanğıc MINIMUM enləri (px)
                 colWidths: {
-                    cust: [230, 110, 260, 260],
-                    contacts: [28, 128, 165, 180, 205, 240],
+                    // PR #469: qeydiyyat ünvanı min 100 simvol üçün en başlanğıc 300
+                    cust: [230, 110, 300, 260],
+                    contacts: [28, 130, 165, 180, 200, 240],
                     kredit: [150, 110, 130, 190, 180, 140],
                 },
                 colResize: { table: null, idx: -1, startX: 0, startW: 0 },
-                // grid-template sətri: bütün sütunlar px, sonuncu minmax(px, 1fr) — tam eni doldurur
+                // PR #469: trek heç vaxt məzmundan dar olmasın deyə minmax(px, max-content).
+                // Sonuncu sütun minmax(px, 1fr) — qalan eni doldurur. Üst-üstə düşmə qeyri-mümkündür.
                 gridTpl(name) {
                     const w = this.colWidths[name] || [];
                     if (!w.length) return '';
-                    return w.slice(0, -1).map(x => x + 'px').join(' ') + ' minmax(' + w[w.length - 1] + 'px, 1fr)';
+                    return w.map((x, i) =>
+                        (i === w.length - 1 ? 'minmax(' : 'minmax(') + x + 'px, ' + (i === w.length - 1 ? '1fr)' : 'max-content)')
+                    ).join(' ');
                 },
                 startColResize(table, idx, e) {
                     this.colResize = { table, idx, startX: e.clientX, startW: this.colWidths[table][idx] };
+                    document.body.style.userSelect = 'none';
+                    document.body.style.cursor = 'col-resize';
                 },
                 onColResize(e) {
                     const r = this.colResize;
@@ -1103,6 +1104,8 @@
                 },
                 endColResize() {
                     this.colResize = { table: null, idx: -1, startX: 0, startW: 0 };
+                    document.body.style.userSelect = '';
+                    document.body.style.cursor = '';
                 },
 
                 // PR #468: telefonu 0-formatda göstər (+994501234567 → 0501234567)
