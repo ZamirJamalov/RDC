@@ -863,7 +863,8 @@
                 <div class="text-xs uppercase tracking-wider font-semibold mb-2" style="color: var(--alpul-text-soft)">Kredit xülasəsi</div>
 
                 <!-- Kartın ÜZƏRİNDƏ landing məlumatları: səviyyə adı, komissiya %,
-                     məbləğ aralığı, illik faiz, müddət (offer-dən dinamik) -->
+                     seçilmiş məbləğ (karta köçürüləcək), illik faiz, müddət —
+                     offer-dən və slider-dən dinamik -->
                 <div class="level-card" :class="offer?.credit_level">
                     <div class="card-chip"></div>
                     <div class="card-level-name" x-text="levelNameAz(offer?.credit_level)"></div>
@@ -872,7 +873,7 @@
                         <div class="card-commission-value whitespace-nowrap"><span x-text="selectedRange?.commission?.toFixed(0) || '—'"></span>%</div>
                     </div>
                     <div class="card-details">
-                        <div class="card-detail-row whitespace-nowrap"><span x-text="rangeMin"></span> — <span x-text="rangeMax"></span> ₼</div>
+                        <div class="card-detail-row whitespace-nowrap">Köçürüləcək: <span x-text="form.amount"></span> ₼</div>
                         <div class="card-detail-row whitespace-nowrap">İllik <span x-text="selectedRange?.annual_interest_rate?.toFixed(0) || '—'"></span>%</div>
                         <div class="card-detail-row whitespace-nowrap"><span x-text="selectedRange?.term_months || '—'"></span> ay</div>
                     </div>
