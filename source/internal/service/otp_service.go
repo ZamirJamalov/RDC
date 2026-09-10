@@ -125,7 +125,7 @@ func (s *OTPService) SendOTP(ctx context.Context, phone string) (*model.OTPSendR
         }
 
         // Send via SMS provider — construct the OTP message here
-        otpMessage := fmt.Sprintf("Bu kodu təqdim etməklə siz, fərdi məlumatlarınızın və kredit tarixçənizin sorğulanmasına razılıq verirsiniz. OTP: %s", code)
+        otpMessage := fmt.Sprintf("Bu kodu teqdim etmekle siz, ferdi melumatlarinizin ve kredit tarixcenizin sorgulanmasina raziliq verirsiniz. OTP: %s", code)
         if err := s.provider.Send(ctx, phone, otpMessage); err != nil {
                 slog.Error("failed to send OTP SMS",
                         "phone", phone,
