@@ -478,7 +478,7 @@ func (s *ApplicationService) sendRejectionSMS(ctx context.Context, app *model.Lo
 
 	// PR #460: yeni imtina mətni (auto-reject SMS ilə eyni) + AZ hərfləri
 	// transliterasiya olunub (GSM-7 uyğunluğu üçün)
-	msg := "Hormetli musteri,taessuf ki,daxili sertlerimize esasen hazirda kredit elde etmeniz mumkun deyil."
+	msg := "Hormetli musteri,teessuf ki,daxili sertlerimize esasen hazirda kredit elde etmeniz mumkun deyil."
 	if err := s.smsProvider.Send(ctx, app.CustomerPhone, msg); err != nil {
 		slog.Error("PR #362: failed to send rejection SMS (non-fatal)",
 			"application_id", app.ID,
