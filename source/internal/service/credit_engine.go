@@ -49,7 +49,8 @@ func (e *CreditEngine) SetServiceCacheLookup(l serviceCacheLookup) {
 // checks service_cache_config.cache_days, reads the last fresh successful
 // response from service_audit_logs and writes the method='CACHE' marker row.
 // appID ctx-dən oxunur (yoxdursa marker NULL app ilə yazılır).
-func (e *CreditEngine) cachedBody(ctx context.Context, serviceName, customerPIN string) (string, bool) {
+// PR #486: customerSerial parametri — cache açarı PIN + serial ikilisinə bağlandı.
+func (e *CreditEngine) cachedBody(ctx context.Context, serviceName, customerPIN, customerSerial string) (string, bool) {
 	if e.cacheLookup == nil {
 		return "", false // cache deaktiv
 	}
@@ -57,7 +58,7 @@ func (e *CreditEngine) cachedBody(ctx context.Context, serviceName, customerPIN 
 	if err != nil || days <= 0 {
 		return "", false
 	}
-	body, found, err := e.cacheLookup.GetCachedResponse(ctx, serviceName, customerPIN, days)
+	body, found, err := e.cacheLookup.GetCachedResponse(ctx, serviceName, customerPIN, customerSerial, days)
 	if err != nil || !found {
 		return "", false
 	}
@@ -86,7 +87,7 @@ func (e *CreditEngine) PreValidate(ctx context.Context, customerPIN, customerSer
 			// PR #380: 3 günlük cache — HIT olsa fiziki çağırış edilmir
 			// (pre-app çağırışdır — marker row NULL app_id ilə yazılır)
 			var history *azmk.CreditHistory
-			if cached, ok := e.cachedBody(ctx, "AZMK_INQUIRE_BY_ID_CARD", customerPIN); ok {
+			if cached, ok := e.cachedBody(ctx, "AZMK_INQUIRE_BY_ID_CARD", customerPIN, customerSerial); ok {
 				history = creditHistoryFromCache(cached)
 			}
 			if history == nil {
@@ -220,7 +221,7 @@ func (e *CreditEngine) resolveCustomerAge(ctx context.Context, customerPIN, seri
 	// PR #379: cache yoxlaması — HIT olsa AZMK çağırılmır.
 	if e.cacheLookup != nil {
 		if days, derr := e.cacheLookup.GetCacheDays(ctx, "AZMK_GET_PERSONAL_INFO"); derr == nil && days > 0 {
-			if body, found, _ := e.cacheLookup.GetCachedResponse(ctx, "AZMK_GET_PERSONAL_INFO", customerPIN, days); found {
+			if body, found, _ := e.cacheLookup.GetCachedResponse(ctx, "AZMK_GET_PERSONAL_INFO", customerPIN, serial, days); found {
 				var cdResp azmk.CustomerDataResponse
 				if jerr := json.Unmarshal([]byte(body), &cdResp); jerr == nil && cdResp.Data != nil {
 					appID := azmk.AppIDFromContext(ctx)
@@ -290,7 +291,7 @@ func (e *CreditEngine) resolveAkbHistory(ctx context.Context, customerPIN, seria
 	}
 	// PR #380: 3 günlük cache — HIT olsa fiziki çağırış edilmir
 	var resp *azmk.CreditHistory
-	if cached, ok := e.cachedBody(ctx, "AZMK_INQUIRE_BY_ID_CARD", customerPIN); ok {
+	if cached, ok := e.cachedBody(ctx, "AZMK_INQUIRE_BY_ID_CARD", customerPIN, serial); ok {
 		resp = creditHistoryFromCache(cached)
 	}
 	if resp == nil {
@@ -432,7 +433,7 @@ func (e *CreditEngine) ProcessApplication(ctx context.Context, appID int) error 
 	if e.customerDataProvider != nil {
 		// PR #380: 3 günlük cache — HIT olsa fiziki çağırış edilmir
 		var history *azmk.CreditHistory
-		if cached, ok := e.cachedBody(ctx, "AZMK_INQUIRE_BY_ID_CARD", app.CustomerPIN); ok {
+		if cached, ok := e.cachedBody(ctx, "AZMK_INQUIRE_BY_ID_CARD", app.CustomerPIN, app.CustomerSerial); ok {
 			history = creditHistoryFromCache(cached)
 		}
 		if history == nil {

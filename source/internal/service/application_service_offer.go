@@ -32,7 +32,7 @@ func (s *ApplicationService) GetOffer(ctx context.Context, customerPIN, customer
 		// PR #380: 3 günlük cache — HIT olsa fiziki çağırış edilmir
 		// (app-agnostik çağırışdır — marker row NULL app_id ilə yazılır)
 		var history *azmk.CreditHistory
-		if cached, ok := s.GetCachedServiceResponse(ctx, azmk.AppIDFromContext(ctx), "AZMK_INQUIRE_BY_ID_CARD", customerPIN); ok {
+		if cached, ok := s.GetCachedServiceResponse(ctx, azmk.AppIDFromContext(ctx), "AZMK_INQUIRE_BY_ID_CARD", customerPIN, customerSerial); ok {
 			history = creditHistoryFromCache(cached)
 		}
 		if history == nil {

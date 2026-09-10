@@ -36,12 +36,14 @@ func (r *ServiceCacheRepo) GetCacheDays(ctx context.Context, serviceName string)
 // GetCachedResponse returns the most recent successful response_body for a service
 // for the given customer_pin, if it was logged within cacheDays.
 // PR #205: customer_pin ilə axtarır (eyni müştərinin əvvəlki sorğusu).
+// PR #486: customer_serial də açara daxil edildi — PIN düz, seriya sehv olsa
+// köhnə cache istifadə oluna bilmir (identity yoxlaması gücləndirilir).
 //
 // Returns:
 //   - (response_body, true, nil) if cached response found within cacheDays
 //   - ("", false, nil) if no cached response or expired
 //   - ("", false, err) on DB error
-func (r *ServiceCacheRepo) GetCachedResponse(ctx context.Context, serviceName, customerPIN string, cacheDays int) (string, bool, error) {
+func (r *ServiceCacheRepo) GetCachedResponse(ctx context.Context, serviceName, customerPIN, customerSerial string, cacheDays int) (string, bool, error) {
 	if cacheDays <= 0 {
 		return "", false, nil
 	}
@@ -53,19 +55,20 @@ func (r *ServiceCacheRepo) GetCachedResponse(ctx context.Context, serviceName, c
 	cutoffTime := time.Now().AddDate(0, 0, -cacheDays)
 
 	// service_audit_logs-dan son uğurlu (error boş və response_body dolu) row oxu
-	// eyni customer_pin-li müraciətlər üçün
+	// eyni customer_pin + customer_serial-li müraciətlər üçün (PR #486)
 	err := r.db.QueryRowContext(ctx, `
 		SELECT TOP 1 sal.response_body
 		FROM service_audit_logs sal
 		INNER JOIN loan_applications la ON sal.application_id = la.id
 		WHERE sal.service_name = ?
 		  AND la.customer_pin = ?
+		  AND la.customer_serial = ?
 		  AND (sal.error IS NULL OR sal.error = '')
 		  AND sal.response_body IS NOT NULL
 		  AND LEN(sal.response_body) > 0
 		  AND sal.created_at >= ?
 		ORDER BY sal.created_at DESC`,
-		serviceName, customerPIN, cutoffTime,
+		serviceName, customerPIN, customerSerial, cutoffTime,
 	).Scan(&responseBody)
 
 	if err != nil {

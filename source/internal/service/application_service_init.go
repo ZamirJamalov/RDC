@@ -422,6 +422,19 @@ func (s *ApplicationService) runAzmkKycAndPartner(ctx context.Context, app *mode
 	return nil
 }
 
+// serialMatches compares the AZMK document seria (məs. "AZE1234567") with the
+// serial entered by the customer (prefix + 7 rəqəm). PR #486.
+// Case-insensitive, boşluq və defislər nəzərə alınmır.
+func serialMatches(azmkSeria, enteredSerial string) bool {
+	norm := func(s string) string {
+		s = strings.ToUpper(strings.TrimSpace(s))
+		s = strings.ReplaceAll(s, " ", "")
+		s = strings.ReplaceAll(s, "-", "")
+		return s
+	}
+	return norm(azmkSeria) == norm(enteredSerial)
+}
+
 // runEarlyCutoffChecks performs AUTO cutoff checks after OTP verification,
 // before the customer sees the credit offer.
 //
@@ -471,7 +484,7 @@ func (s *ApplicationService) runEarlyCutoffChecks(ctx context.Context, app *mode
 	// 1. Qara siyahı və aktiv kredit yoxlaması (AZMK getOwnerData)
 	if s.customerDataProvider != nil {
 		// PR #205: cache yoxlaması (PR #379: appID — cache HIT marker row üçün)
-		cachedResp, cacheHit := s.GetCachedServiceResponse(ctx, &appID, "AZMK_GET_OWNER_DATA", customerPIN)
+		cachedResp, cacheHit := s.GetCachedServiceResponse(ctx, &appID, "AZMK_GET_OWNER_DATA", customerPIN, serial)
 		if cacheHit {
 			slog.Info("early cutoff: AZMK getOwnerData — using cached response", "application_id", appID, "customer_pin", customerPIN)
 			// Cache-dən gələn response-u parse et
@@ -534,7 +547,7 @@ afterOwnerData: // PR #205: cache hit halında bura jump edilir
 		slog.Info("early cutoff: calling AZMK getMkrScore", "application_id", appID, "customer_pin", customerPIN)
 		// PR #380: 3 günlük cache — HIT olsa fiziki çağırış edilmir
 		var mkrScore *azmk.MkrScore
-		if cached, ok := s.GetCachedServiceResponse(ctx, &appID, "AZMK_GET_MKR_SCORE", customerPIN); ok {
+		if cached, ok := s.GetCachedServiceResponse(ctx, &appID, "AZMK_GET_MKR_SCORE", customerPIN, serial); ok {
 			mkrScore = mkrScoreFromCache(cached)
 		}
 		var err error
@@ -609,7 +622,7 @@ afterOwnerData: // PR #205: cache hit halında bura jump edilir
 		// çağırış edilmir. Cached body tam cavabdır: yaş (BirthDate), fullName
 		// və qeydiyyat ünvanı (PR #243/#245) eynilə cached cavabdan oxunur.
 		var data *azmk.CustomerData
-		if cached, ok := s.GetCachedServiceResponse(ctx, &appID, "AZMK_GET_PERSONAL_INFO", customerPIN); ok {
+		if cached, ok := s.GetCachedServiceResponse(ctx, &appID, "AZMK_GET_PERSONAL_INFO", customerPIN, serial); ok {
 			data = customerDataFromCache(cached)
 		}
 		if data == nil {
@@ -617,6 +630,21 @@ afterOwnerData: // PR #205: cache hit halında bura jump edilir
 		}
 		var fullName string
 		if data != nil {
+			// PR #486 (Mərhələ B): AZMK cavabındakı DocumentSeriaNumber daxil edilən
+			// seriya ilə müqayisə olunur — uyğunsuzluqda müraciət rədd edilir.
+			// Bu, həm cache-dən, həm canlı cavabdan gələn dataya aiddir və AZMK
+			// özü FIN-lə axtarıb seriyanı ignore etsə belə deşii bağlayır.
+			if serial != "" && data.DocumentSeriaNumber != "" && !serialMatches(data.DocumentSeriaNumber, serial) {
+				slog.Error("PR #486: serial mismatch — AZMK document seria does not match entered serial",
+					"application_id", appID, "customer_pin", customerPIN,
+					"azmk_seria", data.DocumentSeriaNumber, "entered_serial", serial)
+				s.logCutoff(ctx, appID, "SERIAL_MISMATCH", "Sənəd seriyası FIN kodu ilə uyğun gəlmir", "AZMK_GET_PERSONAL_INFO", true, false,
+					fmt.Sprintf("azmk = %s, entered = %s", data.DocumentSeriaNumber, serial), "seriya uyğun", "")
+				setRejection("SERIAL_MISMATCH")
+				if shouldReturn() {
+					return firstRejection, nil
+				}
+			}
 			age = data.Age()
 			fullName = data.FullName()
 			slog.Info("customer data resolved from AZMK",
@@ -660,7 +688,7 @@ afterOwnerData: // PR #205: cache hit halında bura jump edilir
 		slog.Info("early cutoff: calling AZMK inquireByIdCard", "application_id", appID, "customer_pin", customerPIN)
 		// PR #380: 3 günlük cache — HIT olsa fiziki çağırış edilmir
 		var creditHistory *azmk.CreditHistory
-		if cached, ok := s.GetCachedServiceResponse(ctx, &appID, "AZMK_INQUIRE_BY_ID_CARD", customerPIN); ok {
+		if cached, ok := s.GetCachedServiceResponse(ctx, &appID, "AZMK_INQUIRE_BY_ID_CARD", customerPIN, serial); ok {
 			creditHistory = creditHistoryFromCache(cached)
 		}
 		var err error

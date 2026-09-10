@@ -224,8 +224,9 @@ func (s *ApplicationService) SetServiceCacheRepo(repo *repository.ServiceCacheRe
 // PR #379: appID parametri əlavə olundu — cache HIT olanda service_audit_logs-a
 // method='CACHE' marker row yazılır (cədvəldə cache istifadəsi görünür).
 // PR #380: appID *int edildi — app-agnostik çağırış yerlərində (GetOffer) NULL marker.
+// PR #486: customerSerial parametri — cache açarı PIN + serial ikilisinə bağlandı.
 // Returns (response_body, true) if cache hit, ("", false) if cache miss.
-func (s *ApplicationService) GetCachedServiceResponse(ctx context.Context, appID *int, serviceName, customerPIN string) (string, bool) {
+func (s *ApplicationService) GetCachedServiceResponse(ctx context.Context, appID *int, serviceName, customerPIN, customerSerial string) (string, bool) {
 	if s.serviceCacheRepo == nil {
 		return "", false // cache deaktiv
 	}
@@ -237,7 +238,7 @@ func (s *ApplicationService) GetCachedServiceResponse(ctx context.Context, appID
 	if cacheDays <= 0 {
 		return "", false // cache_days=0 → birbaşa servisi çağır (məs. AZMK_GET_OWNER_DATA)
 	}
-	responseBody, found, err := s.serviceCacheRepo.GetCachedResponse(ctx, serviceName, customerPIN, cacheDays)
+	responseBody, found, err := s.serviceCacheRepo.GetCachedResponse(ctx, serviceName, customerPIN, customerSerial, cacheDays)
 	if err != nil {
 		slog.Warn("service cache: failed to get cached response", "service", serviceName, "error", err)
 		return "", false
@@ -492,7 +493,8 @@ func (s *ApplicationService) GetCustomerPhoto(ctx context.Context, appID int) (s
 	}
 
 	// 1) Cache (PR #381 mexanizmi) — cached raw JSON-də Image tagı var.
-	if cached, ok := s.GetCachedServiceResponse(ctx, &appID, "AZMK_GET_PERSONAL_INFO", app.CustomerPIN); ok {
+	// PR #486: cache açarı PIN + serial.
+	if cached, ok := s.GetCachedServiceResponse(ctx, &appID, "AZMK_GET_PERSONAL_INFO", app.CustomerPIN, app.CustomerSerial); ok {
 		if data := customerDataFromCache(cached); data != nil && data.Image != "" {
 			return data.Image, nil
 		}
