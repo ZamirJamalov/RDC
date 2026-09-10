@@ -250,12 +250,30 @@
             .level-card-flip { width: 340px; }
         }
 
-        /* PR #462: pilləkən effekti — hər səviyyə əvvəlkindən bir az yuxarıda
-           (YENİ ən altda, ELİT ən yuxarıda). Addım kiçik saxlanılıb — vizual xoş olsun. */
-        .level-card-flip.stair-1 { margin-top: 54px; }
-        .level-card-flip.stair-2 { margin-top: 36px; }
-        .level-card-flip.stair-3 { margin-top: 18px; }
-        .level-card-flip.stair-4 { margin-top: 0; }
+        /* PR #462/#464: pilləkən effekti — hər səviyyə əvvəlkindən bir az yuxarıda
+           (YENİ ən altda, ELİT ən yuxarıda). Addım kiçik saxlanılıb — vizual xoş olsun.
+           PR #464: ilk görüşdə hamısı eyni səviyyədə (YENİnin mövqeyində) başlayır,
+           bölmə görünəndə kartlar öz pilləkən mövqeyinə QALXIR və elə qalır
+           (reveal observer .visible-i silmir). */
+        .level-card-flip.stair-1,
+        .level-card-flip.stair-2,
+        .level-card-flip.stair-3,
+        .level-card-flip.stair-4 {
+            margin-top: 54px; /* ilkin: hamısı eyni səviyyədə */
+            transition: margin-top 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .level-cards-scroll.visible .level-card-flip.stair-1 { margin-top: 54px; }
+        .level-cards-scroll.visible .level-card-flip.stair-2 { margin-top: 36px; transition-delay: 0.15s; }
+        .level-cards-scroll.visible .level-card-flip.stair-3 { margin-top: 18px; transition-delay: 0.3s; }
+        .level-cards-scroll.visible .level-card-flip.stair-4 { margin-top: 0; transition-delay: 0.45s; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .level-card-flip.stair-1, .level-card-flip.stair-2,
+            .level-card-flip.stair-3, .level-card-flip.stair-4 {
+                transition: none;
+                transition-delay: 0s;
+            }
+        }
 
         .level-card-inner {
             position: absolute;
