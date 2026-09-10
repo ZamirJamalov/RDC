@@ -457,7 +457,8 @@ func (s *ApplicationService) sendDisburseApprovalSMS(ctx context.Context, app *m
 }
 
 // sendRejectionSMS — PR #362: müraciət rejected olanda müştəriyə imtina SMS-i.
-// Reject nöqtələri: early cutoff, KYC fail, AKB stop factor, ekspert reject,
+// Reject nöqtələri: early cutoff, KYC fail (PR #477: TEXNİKİ KYC xətası YOX —
+// yalnız müştərinin özündən asılı imtina), AKB stop factor, ekspert reject,
 // imza timeout (sign worker). PR #421: AZMK create rollback (texniki xəta,
 // PR #283) siyahıdan ÇIXARILDI — müvəqqəti AZMK xətasında müştəriyə “imtina”
 // SMS-i getmir (müraciət yenidən təsdiq edilə bilər).

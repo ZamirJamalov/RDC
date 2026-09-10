@@ -26,6 +26,8 @@ type fakeAzmkOnlineProvider struct {
 	registerPartnerErr error // PR #357: partner re-register xətasını simulyasiya etmək üçün
 	sendPhonesErr      error // PR #404: partner phones xətasını simulyasiya etmək üçün
 	createAppErr       error // PR #421: approve rollback path-i üçün (AZMK create xətası)
+	kycErr             error // PR #477: KYC create xətası (servis xətası sentinel testi)
+	verifyKycErr       error // PR #477: KYC verify çağırış xətası (sentinel testi)
 	getCards           int
 	registerCard       int
 	createAppReq       *azmk.ApplicationCreateRequest // PR #353: son create request-i (assert üçün)
@@ -35,9 +37,15 @@ type fakeAzmkOnlineProvider struct {
 }
 
 func (f *fakeAzmkOnlineProvider) KYC(context.Context, *azmk.KYCRequest) (string, error) {
+	if f.kycErr != nil {
+		return "", f.kycErr
+	}
 	return "FAKE-KYC-1", nil
 }
 func (f *fakeAzmkOnlineProvider) VerifyKYC(context.Context, string) (bool, error) {
+	if f.verifyKycErr != nil {
+		return false, f.verifyKycErr
+	}
 	return true, nil
 }
 func (f *fakeAzmkOnlineProvider) RegisterPartner(_ context.Context, req *azmk.PartnerRequest) (string, error) {
