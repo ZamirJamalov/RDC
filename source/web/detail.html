@@ -172,7 +172,7 @@
         }
         [data-theme="dark"] .contacts-thead { background: #0d2444; }
         .contacts-thead > span {
-            padding: 7px 8px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+            padding: 7px 8px; font-size: 12px; font-weight: 600; text-transform: uppercase;
             letter-spacing: 0.04em; color: var(--text-soft); white-space: nowrap;
         }
         .contact-row {
@@ -636,7 +636,7 @@
                         </div>
                         <div class="contact-row" :style="gridTpl('cust')">
                             <div class="justify-between gap-1 !justify-start">
-                                <span class="value-strong font-semibold text-xs truncate" :title="app?.customer_full_name || ''"
+                                <span class="value-strong font-semibold text-sm truncate" :title="app?.customer_full_name || ''"
                                       x-text="trunc(app?.customer_full_name, 35)"></span>
                                 <button x-show="app?.customer_full_name" @click="copyToClipboard(app?.customer_full_name)"
                                         class="text-teal-500 hover:text-teal-700 transition shrink-0" title="Kopyala">
@@ -645,10 +645,10 @@
                                     </svg>
                                 </button>
                             </div>
-                            <div><span class="value-strong font-semibold text-xs whitespace-nowrap" x-text="app?.card_number ? '**** ' + app.card_number.slice(-4) : '-'"></span></div>
+                            <div><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="app?.card_number ? '**** ' + app.card_number.slice(-4) : '-'"></span></div>
                             <!-- PR #468/#469: Qeydiyyat ünvanı — qısaldılmış sütun (min 100 simvol) -->
                             <div class="justify-between gap-1">
-                                <span class="value-strong text-xs truncate" :title="app?.registration_address || ''"
+                                <span class="value-strong text-sm truncate" :title="app?.registration_address || ''"
                                       x-text="trunc(app?.registration_address, 100)"></span>
                                 <button x-show="app?.registration_address" @click="copyToClipboard(app?.registration_address)"
                                         class="text-teal-500 hover:text-teal-700 transition shrink-0" title="Kopyala">
@@ -662,7 +662,7 @@
                                 <div class="flex items-center justify-between gap-1 w-full min-w-0">
                                     <span class="flex items-center gap-1 min-w-0">
                                         <span x-show="app?.actual_address_updated_by_username || app?.actual_address_updated_at" class="text-emerald-500 font-bold shrink-0">✓</span>
-                                        <span class="value-strong text-xs truncate" :title="app?.actual_address || ''"
+                                        <span class="value-strong text-sm truncate" :title="app?.actual_address || ''"
                                               x-text="trunc(app?.actual_address, 45)"></span>
                                     </span>
                                     <button x-show="!isReadOnly && !addressEditing" @click="startAddressEdit()"
@@ -675,7 +675,7 @@
                                 <div x-show="addressEditing" class="w-full">
                                     <textarea x-model="addressDraft" rows="2" maxlength="500"
                                               placeholder="Faktiki ünvanı daxil edin..."
-                                              class="field-input !py-1.5 w-full text-xs resize-none"></textarea>
+                                              class="field-input !py-1.5 w-full text-sm resize-none"></textarea>
                                     <div class="flex items-center gap-2 mt-1">
                                         <span x-show="addressDraft.trim().length" class="text-[10px] text-gray-400"
                                               x-text="addressDraft.trim().length + '/500'"></span>
@@ -715,13 +715,13 @@
                             <div class="ct-group" :class="idx % 2 === 1 ? 'ct-zebra' : ''">
                                 <!-- PR #465/#468: üfüqi sətir gridi — № | Əlaqə | Telefon | Ad | Status | Qeyd -->
                                 <div class="contact-row" :style="gridTpl('contacts')">
-                                    <span class="text-xs font-bold text-gray-400 text-center" x-text="(idx+1)"></span>
+                                    <span class="text-sm font-bold text-gray-400 text-center" x-text="(idx+1)"></span>
                                     <div class="min-w-0">
                                         <!-- PR #467: qohumluq birbaşa seçilir (edit düyməsi lazımsız — blur-da save) -->
                                         <select x-model="contact.relation"
                                                 @blur="onRelationBlur(idx)"
                                                 :disabled="isReadOnly"
-                                                class="field-input !py-1.5 !px-2 w-full text-xs disabled:opacity-60 disabled:cursor-not-allowed">
+                                                class="field-input !py-1.5 !px-2 w-full text-sm disabled:opacity-60 disabled:cursor-not-allowed">
                                             <option value="">Əlaqə *</option>
                                             <!-- PR #136: yeni oxunaqlı relation adları + unique məhdudiyyət (Atası/Anası/Qayınatası/Qayınanası) -->
                                             <template x-for="opt in ['Atası','Anası','Qayınatası','Qayınanası','Əri','Arvadı','Oğlu','Qızı','Qardaşı','Bacısı','Bacanağı','Yeznəsi','Baldızı','Qayını','Dostu','Qohumu','Qonşusu','Həmkarı','Digər']" :key="opt">
@@ -740,7 +740,7 @@
                                                maxlength="17"
                                                placeholder="+994 XX XXX XX XX"
                                                :class="(contact.phone && !isPhoneComplete(contact.phone)) ? 'border-rose-400 focus:border-rose-500 bg-rose-50' : ''"
-                                               class="field-input !py-1.5 w-full text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100">
+                                               class="field-input !py-1.5 w-full text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100">
                                         <!-- PR #138: nömrə tam deyil xəbərdarlıq ikonu -->
                                         <span x-show="contact.phone && !isPhoneComplete(contact.phone)"
                                               class="absolute right-2 top-1/2 -translate-y-1/2 text-rose-500"
@@ -756,7 +756,7 @@
                                                maxlength="35"
                                                placeholder="Ad Soyad"
                                                :class="isNameUsedByOther(idx, contact.name) ? 'border-rose-400 focus:border-rose-500 bg-rose-50' : ''"
-                                               class="field-input !py-1.5 w-full text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100">
+                                               class="field-input !py-1.5 w-full text-sm disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100">
                                         <!-- PR #137: təkrar ad xəbərdarlıq ikonu -->
                                         <span x-show="isNameUsedByOther(idx, contact.name)"
                                               class="absolute right-2 top-1/2 -translate-y-1/2 text-rose-500"
@@ -769,9 +769,9 @@
                                         <span x-show="contact.saving" class="text-xs text-gray-400 animate-pulse shrink-0">...</span>
                                         <svg x-show="contact.saved && !contact.saving" class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                                         <!-- Verified badge -->
-                                        <span x-show="contact.verified === true" class="badge text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-700 shrink-0">✓ Təsdiq</span>
-                                    <span x-show="contact.verified === false" class="badge text-[10px] px-2 py-0.5 bg-rose-100 text-rose-700 shrink-0">✗ İmtina</span>
-                                    <span x-show="contact.verified === null || contact.verified === undefined" class="badge text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 shrink-0">Yoxlanılmayıb</span>
+                                        <span x-show="contact.verified === true" class="badge text-[11px] px-2 py-0.5 bg-emerald-100 text-emerald-700 shrink-0">✓ Təsdiq</span>
+                                    <span x-show="contact.verified === false" class="badge text-[11px] px-2 py-0.5 bg-rose-100 text-rose-700 shrink-0">✗ İmtina</span>
+                                    <span x-show="contact.verified === null || contact.verified === undefined" class="badge text-[11px] px-2 py-0.5 bg-gray-100 text-gray-500 shrink-0">Yoxlanılmayıb</span>
 
                                     <!-- Verify/reject buttons — read-only olanda və ya əlaqə/telefon yoxdanda disabled -->
                                     <button x-show="!isReadOnly"
@@ -798,11 +798,11 @@
                                                   :disabled="isReadOnly"
                                                   rows="2" maxlength="1000"
                                                   placeholder="Zəng qeydi..."
-                                                  class="field-input !py-1 w-full text-xs resize-none disabled:opacity-50 disabled:cursor-not-allowed"></textarea>
+                                                  class="field-input !py-1 w-full text-sm resize-none disabled:opacity-50 disabled:cursor-not-allowed"></textarea>
                                         <div class="flex items-center justify-between">
-                                            <span class="text-[9px] text-gray-400" x-show="contact.noteSaving">Saxlanılır...</span>
-                                            <span class="text-[9px] text-emerald-500" x-show="contact.noteSaved && !contact.noteSaving">✓ Saxlanıldı</span>
-                                            <span class="text-[9px] text-gray-400 ml-auto" x-text="(contact.callNote || '').length + '/1000'"></span>
+                                            <span class="text-[10px] text-gray-400" x-show="contact.noteSaving">Saxlanılır...</span>
+                                            <span class="text-[10px] text-emerald-500" x-show="contact.noteSaved && !contact.noteSaving">✓ Saxlanıldı</span>
+                                            <span class="text-[10px] text-gray-400 ml-auto" x-text="(contact.callNote || '').length + '/1000'"></span>
                                         </div>
                                     </div>
                                 </div>
