@@ -629,22 +629,12 @@
                     <div class="contacts-table" @mousemove.window="onColResize($event)" @mouseup.window="endColResize()">
                         <!-- PR #468: PIN/Seriya/Telefon header-ə keçdi; ünvanlar sütun oldu -->
                         <div class="contacts-thead" :style="gridTpl('cust')">
-                            <span>Ad Soyad Ata adı<span class="th-rs" @mousedown.prevent="startColResize('cust', 0, $event)"></span></span>
-                            <span>Kart<span class="th-rs" @mousedown.prevent="startColResize('cust', 1, $event)"></span></span>
-                            <span>Qeydiyyat ünvanı<span class="th-rs" @mousedown.prevent="startColResize('cust', 2, $event)"></span></span>
-                            <span>Faktiki ünvan<span class="th-rs" @mousedown.prevent="startColResize('cust', 3, $event)"></span></span>
+                            <!-- PR #470: Ad Soyad sütunu silindi — ad header-də (h1) var -->
+                            <span>Kart<span class="th-rs" @mousedown.prevent="startColResize('cust', 0, $event)"></span></span>
+                            <span>Qeydiyyat ünvanı<span class="th-rs" @mousedown.prevent="startColResize('cust', 1, $event)"></span></span>
+                            <span>Faktiki ünvan<span class="th-rs" @mousedown.prevent="startColResize('cust', 2, $event)"></span></span>
                         </div>
                         <div class="contact-row" :style="gridTpl('cust')">
-                            <div class="justify-between gap-1 !justify-start">
-                                <span class="value-strong font-semibold text-sm truncate" :title="app?.customer_full_name || ''"
-                                      x-text="trunc(app?.customer_full_name, 35)"></span>
-                                <button x-show="app?.customer_full_name" @click="copyToClipboard(app?.customer_full_name)"
-                                        class="text-teal-500 hover:text-teal-700 transition shrink-0" title="Kopyala">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                                    </svg>
-                                </button>
-                            </div>
                             <div><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="app?.card_number ? '**** ' + app.card_number.slice(-4) : '-'"></span></div>
                             <!-- PR #468/#469: Qeydiyyat ünvanı — qısaldılmış sütun (min 100 simvol) -->
                             <div class="justify-between gap-1">
@@ -1075,21 +1065,23 @@
                     return entries;
                 },
 
-                // PR #468/#469: resizable sütunlar — hər cədvəlin başlanğıc MINIMUM enləri (px)
+                // PR #468/#470: resizable sütunlar — sabit px enlər.
+                // Qeydiyyat ünvanı ~700px (100 simvol @14px), Ümumi başlığı 210px.
                 colWidths: {
-                    // PR #469: qeydiyyat ünvanı min 100 simvol üçün en başlanğıc 300
-                    cust: [230, 110, 300, 260],
+                    cust: [110, 700, 320],
                     contacts: [28, 130, 165, 180, 200, 240],
-                    kredit: [150, 110, 130, 190, 180, 140],
+                    kredit: [150, 110, 130, 210, 180, 140],
                 },
                 colResize: { table: null, idx: -1, startX: 0, startW: 0 },
-                // PR #469: trek heç vaxt məzmundan dar olmasın deyə minmax(px, max-content).
-                // Sonuncu sütun minmax(px, 1fr) — qalan eni doldurur. Üst-üstə düşmə qeyri-mümkündür.
+                // PR #470: thead və sətirlər AYRI grid-lərdir — max-content hər griddə
+                // öz məzmunundan hesablanıb başlıqları datadan kaydırırdı (üst-üstə düşmə).
+                // Trek-lər sabit px olanda (yalnız sonuncu minmax(px,1fr)) hər iki grid
+                // eyni ölçülür — başlıqlar sütunlarla dəqiq uyğunlaşır, resize-da da qalır.
                 gridTpl(name) {
                     const w = this.colWidths[name] || [];
                     if (!w.length) return '';
                     return w.map((x, i) =>
-                        (i === w.length - 1 ? 'minmax(' : 'minmax(') + x + 'px, ' + (i === w.length - 1 ? '1fr)' : 'max-content)')
+                        (i === w.length - 1 ? 'minmax(' + x + 'px, 1fr)' : x + 'px')
                     ).join(' ');
                 },
                 startColResize(table, idx, e) {
