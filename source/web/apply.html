@@ -168,6 +168,114 @@
         .cta-btn:active:not(:disabled) { transform: translateY(0); }
         .cta-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+        /* PR #456: Offer bölməsi — demo dizayn sinifləri (--alpul dəyişənləri ilə,
+           light theme ilə uyğun). Mənbə: istehsalçı demo HTML (Aurora Dark). */
+        .card {
+            background: var(--alpul-card);
+            border: 1px solid var(--alpul-border);
+            border-radius: 16px;
+        }
+        .card-inset {
+            background: var(--alpul-bg-soft);
+            border: 1px solid var(--alpul-border);
+            border-radius: 12px;
+        }
+        .divider { height: 1px; background: var(--alpul-border); margin: 16px 0; }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--alpul-text-soft);
+            margin-bottom: 8px;
+        }
+        .form-input {
+            width: 100%;
+            background: var(--alpul-input-bg);
+            border: 1px solid var(--alpul-border);
+            color: var(--alpul-text);
+            padding: 12px 14px;
+            border-radius: 10px;
+            font-size: 15px;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .form-input::placeholder { color: var(--alpul-text-soft); opacity: 0.6; }
+        .form-input:focus {
+            outline: none;
+            border-color: var(--alpul-accent);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+        }
+        .form-input.is-invalid { border-color: var(--alpul-error); }
+
+        .term-btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            background: var(--alpul-bg-soft);
+            color: var(--alpul-text-soft);
+            border: 1px solid var(--alpul-border);
+            transition: all 0.15s ease;
+            cursor: pointer;
+        }
+        .term-btn:hover:not(.active) { border-color: var(--alpul-text-soft); color: var(--alpul-text); }
+        .term-btn.active {
+            background: var(--alpul-card);
+            color: var(--alpul-accent);
+            border-color: var(--alpul-accent);
+        }
+
+        .level-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .level-new { background: rgba(161, 161, 170, 0.12); color: #71717A; border: 1px solid rgba(161, 161, 170, 0.3); }
+        .level-trusted { background: rgba(59, 130, 246, 0.1); color: #2563EB; border: 1px solid rgba(59, 130, 246, 0.25); }
+        .level-valuable { background: rgba(245, 158, 11, 0.1); color: #B45309; border: 1px solid rgba(245, 158, 11, 0.3); }
+        .level-elite { background: rgba(16, 185, 129, 0.1); color: #047857; border: 1px solid rgba(16, 185, 129, 0.3); }
+
+        .summary-panel {
+            position: sticky;
+            top: 88px;
+            max-height: calc(100vh - 104px);
+            overflow-y: auto;
+        }
+        .summary-panel::-webkit-scrollbar { width: 4px; }
+        .summary-panel::-webkit-scrollbar-track { background: transparent; }
+        .summary-panel::-webkit-scrollbar-thumb { background: var(--alpul-border); border-radius: 2px; }
+
+        .checkbox-wrapper {
+            display: flex;
+            gap: 12px;
+            align-items: flex-start;
+            cursor: pointer;
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--alpul-border);
+            background: var(--alpul-bg-soft);
+            transition: all 0.15s ease;
+        }
+        .checkbox-wrapper:hover { border-color: var(--alpul-text-soft); }
+        .checkbox-wrapper.checked {
+            border-color: rgba(16, 185, 129, 0.45);
+            background: rgba(16, 185, 129, 0.08);
+        }
+        .checkbox-wrapper input[type="checkbox"] {
+            margin-top: 2px;
+            width: 18px;
+            height: 18px;
+            accent-color: var(--alpul-accent);
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+
         .step-dot {
             transition: all 0.3s ease;
         }
@@ -438,185 +546,129 @@
         <!-- STEP 3: Offer + Customer Confirm -->
         <!-- PR #413: padding/aralıqlar sıxıldı — səhifə ekrana sığarkən zoom az kiçilsin,
              yazılar oxunaqlı qalsın (fit floor-u 0.8 ilə birlikdə) -->
-        <div x-show="currentStep === 2" x-transition class="card-glow rounded-3xl p-4 sm:p-6">
-            <h2 class="text-2xl sm:text-3xl font-bold mb-2">Təklif</h2>
-            <p class="text-gray-400 mb-5">Sizin <span class="font-semibold text-white" x-text="levelNameAz(offer?.credit_level)"></span> kredit səviyyənizə uyğun təklif aşağıdadır.</p>
+        <!-- PR #456: Offer — demo dizayn: sol form kartı + SAĞDA ayrıca sticky xülasə paneli -->
+        <div x-show="currentStep === 2" x-transition class="grid lg:grid-cols-[1fr,300px] gap-6 items-start">
 
-            <div x-show="offer" class="grid md:grid-cols-5 gap-6">
-
-                <!-- LEFT: Credit Summary Panel (2/5 width) -->
-                <div class="md:col-span-2 bg-black/30 border border-white/5 rounded-xl p-5 space-y-3">
-                    <h3 class="text-sm font-semibold text-gray-400 uppercase tracking-wide mb-3">Kredit Xülasəsi</h3>
-
-                    <!-- Aylıq ödəniş + Ümumi qaytarılacaq (yan-yana, böyük, fərqli rəng) -->
-                    <div class="grid grid-cols-2 gap-3 mb-3">
-                        <div class="bg-black/40 rounded-lg p-3 text-center">
-                            <div class="text-xs text-gray-400 mb-1">Aylıq ödəniş</div>
-                            <div class="text-2xl font-extrabold text-emerald-400">
-                                <span x-text="monthlyPayment"></span> ₼
-                            </div>
-                        </div>
-                        <div class="bg-black/40 rounded-lg p-3 text-center">
-                            <div class="text-xs text-gray-400 mb-1">Ümumi qaytarılacaq</div>
-                            <div class="text-2xl font-extrabold text-emerald-400 whitespace-nowrap">
-                                <span x-text="totalRepayment"></span> ₼
-                            </div>
-                        </div>
+            <!-- LEFT: form kartı -->
+            <div class="card p-5 sm:p-7 space-y-6">
+                <div>
+                    <div class="flex items-center gap-2.5 mb-1 flex-wrap">
+                        <h2 class="text-2xl font-bold">Təklifiniz hazırdır</h2>
+                        <span class="level-badge" :class="levelBadgeClass(offer?.credit_level)" x-text="levelNameAz(offer?.credit_level)"></span>
                     </div>
-
-                    <!-- Ard-arda: Kredit məbləği, Komissiya, Köçürüləcək, İllik faiz (kiçik, eyni stil) -->
-                    <div class="space-y-2">
-                        <!-- Kredit məbləği -->
-                        <div class="flex justify-between items-baseline">
-                            <span class="text-xs text-gray-400">Kredit məbləği</span>
-                            <span class="text-sm font-semibold text-gray-300">
-                                <span x-text="creditAmount"></span> ₼
-                            </span>
-                        </div>
-
-                        <!-- Komissiya (faiz dərəcəsi ilə) -->
-                        <div class="flex justify-between items-baseline">
-                            <span class="text-xs text-gray-400">Komissiya (<span x-text="selectedRange?.commission?.toFixed(0)"></span>%)</span>
-                            <span class="text-sm font-semibold text-gray-300">
-                                <span x-text="commissionAmount"></span> ₼
-                            </span>
-                        </div>
-
-                        <!-- Köçürüləcək məbləğ -->
-                        <div class="flex justify-between items-baseline">
-                            <span class="text-xs text-gray-400">Köçürüləcək məbləğ</span>
-                            <span class="text-sm font-semibold text-gray-300">
-                                <span x-text="form.amount.toFixed(2)"></span> ₼
-                            </span>
-                        </div>
-
-                        <!-- İllik faiz dərəcəsi -->
-                        <div class="flex justify-between items-baseline">
-                            <span class="text-xs text-gray-400">İllik faiz dərəcəsi</span>
-                            <span class="text-sm font-semibold text-gray-300">
-                                <span x-text="selectedRange?.annual_interest_rate?.toFixed(0) || '—'"></span>%
-                            </span>
-                        </div>
-
-                        <!-- Müddət -->
-                        <div class="flex justify-between items-baseline">
-                            <span class="text-xs text-gray-400">Müddət</span>
-                            <span class="text-sm font-semibold text-gray-300">
-                                <span x-text="selectedRange?.term_months || '—'"></span> ay
-                            </span>
-                        </div>
-                    </div>
+                    <p class="text-sm" style="color: var(--alpul-text-soft)">Məbləğ və müddəti seçin, kartınızı əlavə edin.</p>
                 </div>
 
-                <!-- RIGHT: Amount slider + card + address (3/5 width) -->
-                <div class="md:col-span-3 space-y-5">
-                    <!-- Amount slider -->
-                    <div>
-                        <div class="flex justify-between items-baseline mb-3">
-                            <label class="text-sm text-gray-400">Köçürüləcək məbləği seçin</label>
-                            <div class="text-2xl sm:text-3xl font-extrabold">
-                                <span x-text="form.amount"></span>
-                                <span class="text-base text-gray-400">AZN</span>
-                            </div>
-                        </div>
-                        <input type="range" min="0" :max="amountTicks.length - 1" step="1" x-model.number="amountIdx"
-                               @input="onAmountSlider()"
-                               :style="`--range-fill: ${amountTicks.length > 1 ? (amountIdx / (amountTicks.length - 1)) * 100 : 0}%`">
-                        <div class="flex justify-between text-xs text-gray-500 mt-2">
-                            <span><span x-text="rangeMin"></span> AZN</span>
-                            <span><span x-text="rangeMax"></span> AZN</span>
-                        </div>
-                        <!-- PR #230: Term seçimi — əgər bir neçə term varsa, button-larla göstər -->
-                        <div x-show="availableTerms.length > 1" x-cloak class="mt-3">
-                            <label class="text-xs text-gray-400 mb-2 block">Müddət seçin</label>
-                            <div class="flex gap-2 flex-wrap">
-                                <template x-for="t in availableTerms" :key="t">
-                                    <button @click="selectTerm(t)"
-                                            :class="form.term === t ? 'gradient-accent text-white' : 'bg-black/30 text-gray-400 border border-white/10'"
-                                            class="px-4 py-2 rounded-xl text-sm font-semibold transition"
-                                            x-text="t + ' ay'">
-                                    </button>
-                                </template>
-                            </div>
-                        </div>
-                        <p x-show="availableTerms.length <= 1" class="text-xs text-gray-500 mt-2">Müddət: <span x-text="selectedRange?.term_months || '—'"></span> ay</p>
-                    </div>
+                <div x-show="!offer && !loading" class="card-inset p-8 text-center">
+                    <p class="text-sm" style="color: var(--alpul-text-soft)">Təklif yüklənə bilmədi. Zəhmət olmasa səhifəni yeniləyin.</p>
+                </div>
 
-                <!-- PR #313: Kart seçimi — AZMK-da qeydiyyatda olan kartlar (maskalı) və ya yeni kart -->
+                <div x-show="offer" class="space-y-6">
+                <!-- Amount slider + number input (demo dizayn) -->
                 <div>
-                    <label x-show="savedCards.length > 0" class="text-sm text-gray-400 mb-2 block">
-                        Kart <span class="text-red-400">*</span>
-                        <span x-show="cardsLoading" class="text-xs text-gray-500 ml-2">yüklənir...</span>
-                    </label>
-
-                    <!-- PR #316: köhnə kartlar radio siyahısı → dropdown (kart çox olanda uzun siyahı pis görünürdü).
-                         Yalnız maskalı kod göstərilir; son seçim "yeni kart daxil et" (value="") → klassik axın. -->
-                    <div x-show="savedCards.length > 0" x-cloak class="mb-3">
-                        <div class="relative">
-                            <select x-model="selectedCardId"
-                                    class="input-field w-full px-4 py-3 pr-10 rounded-xl text-base font-mono tracking-wider cursor-pointer appearance-none">
-                                <template x-for="card in savedCards" :key="card.id">
-                                    <option :value="card.id" x-text="card.code"></option>
-                                </template>
-                                <option value="">Başqa kart istifadə edəcəyəm (yeni kart daxil et)</option>
-                            </select>
-                            <svg class="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4" style="color: var(--alpul-text-soft)" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-                            </svg>
+                    <div class="flex justify-between items-center mb-3 gap-3">
+                        <label class="form-label mb-0">Köçürüləcək məbləğ</label>
+                        <div class="flex items-baseline gap-1">
+                            <input type="number" x-model.number="form.amount"
+                                   @input="syncAmountIndex(); updateSelectedRange()"
+                                   class="form-input w-24 text-right font-mono font-bold text-lg py-1.5 px-2"
+                                   :min="rangeMin" :max="rangeMax">
+                            <span class="text-sm" style="color: var(--alpul-text-soft)">AZN</span>
                         </div>
                     </div>
+                    <input type="range" min="0" :max="amountTicks.length - 1" step="1" x-model.number="amountIdx"
+                           @input="onAmountSlider()"
+                           :style="`--range-fill: ${amountTicks.length > 1 ? (amountIdx / (amountTicks.length - 1)) * 100 : 0}%`">
+                    <div class="flex justify-between text-xs mt-2 font-mono" style="color: var(--alpul-text-soft)">
+                        <span><span x-text="rangeMin"></span> AZN</span>
+                        <span><span x-text="rangeMax"></span> AZN</span>
+                    </div>
+                    <!-- PR #230: Term seçimi — əgər bir neçə term varsa, button-larla göstər -->
+                    <div x-show="availableTerms.length > 1" x-cloak class="mt-3">
+                        <label class="form-label mb-2">Müddət seçin</label>
+                        <div class="flex gap-2 flex-wrap">
+                            <template x-for="t in availableTerms" :key="t">
+                                <button @click="selectTerm(t)"
+                                        class="term-btn"
+                                        :class="{ 'active': form.term === t }"
+                                        x-text="t + ' ay'">
+                                </button>
+                            </template>
+                        </div>
+                    </div>
+                    <p x-show="availableTerms.length <= 1" class="text-xs mt-2" style="color: var(--alpul-text-soft)">Müddət: <span x-text="selectedRange?.term_months || '—'"></span> ay</p>
+                </div>
 
-                    <!-- Yeni kart daxiletmə: kartlar yoxdursa HƏMİŞƏ; kartlar varsa yalnız "yeni kart" seçiləndə -->
-                    <div x-show="savedCards.length === 0 || selectedCardId === ''" class="mt-2">
-                        <label class="text-sm text-gray-400 mb-2 block">Kart nömrəsi (16 rəqəm) <span class="text-red-400">*</span></label>
+                <div class="divider"></div>
+
+                <!-- PR #313/#316: Kart seçimi — dropdown (maskalı köhnə kartlar) və ya yeni kart -->
+                <div>
+                    <label class="form-label">
+                        Ödəniş kartı <span class="text-red-400">*</span>
+                        <span x-show="cardsLoading" class="text-xs ml-1" style="color: var(--alpul-text-soft)">yüklənir...</span>
+                    </label>
+                    <div x-show="savedCards.length > 0" x-cloak class="mb-3">
+                        <select x-model="selectedCardId" class="form-input font-mono">
+                            <template x-for="card in savedCards" :key="card.id">
+                                <option :value="card.id" x-text="card.code"></option>
+                            </template>
+                            <option value="">Başqa kart istifadə edəcəyəm (yeni kart daxil et)</option>
+                        </select>
+                    </div>
+                    <div x-show="savedCards.length === 0 || selectedCardId === ''">
                         <input type="text" x-model="form.cardNumber" maxlength="19" placeholder="4169 7312 3456 7890"
-                               class="input-field w-full px-4 py-3 rounded-xl text-lg font-mono tracking-wider"
+                               class="form-input font-mono text-lg tracking-wider"
+                               :class="{ 'is-invalid': form.cardNumber && form.cardNumber.replace(/\s/g,'').length !== 16 }"
                                @input="formatCardNumber()">
                     </div>
+                    <label class="checkbox-wrapper mt-3" :class="{ 'checked': form.cardConfirmed }">
+                        <input type="checkbox" x-model="form.cardConfirmed">
+                        <span class="text-xs leading-relaxed" style="color: var(--alpul-text-soft)"
+                              x-text="(savedCards.length > 0 && selectedCardId)
+                                  ? 'Seçdiyim kartın mənim kartım olduğunu və bu kartın kredit məqsədilə istifadəsinə razılığımı təsdiq edirəm.'
+                                  : 'Bu kart məlumatının mən tərəfimdən daxil edilməsini təsdiq edirəm.'"></span>
+                    </label>
                 </div>
-
-                <!-- Card ownership checkbox -->
-                <label class="flex items-start gap-3 cursor-pointer p-3 rounded-xl hover:bg-white/5 transition">
-                    <input type="checkbox" x-model="form.cardConfirmed"
-                           class="mt-0.5 w-5 h-5 rounded accent-emerald-500 flex-shrink-0">
-                    <span class="text-xs text-gray-300 font-semibold leading-tight"
-                          x-text="(savedCards.length > 0 && selectedCardId)
-                              ? 'Seçdiyim kartın mənim kartım olduğunu və bu kartın kredit məqsədilə istifadəsinə razılığımı təsdiq edirəm.'
-                              : 'Bu kart məlumatının mən tərəfimdən daxil edilməsini təsdiq edirəm.'"></span>
-                </label>
 
                 <!-- Address -->
                 <div>
-                    <label class="text-sm text-gray-400 mb-2 block">Faktiki yaşayış ünvanı <span class="text-red-400">*</span></label>
-                    <textarea x-model="form.address" rows="2" placeholder="Məs: Bakı, Nizami r., Murtuza Muxtarov 12, m. 34"
-                              class="input-field w-full px-4 py-3 rounded-xl resize-none"></textarea>
+                    <label class="form-label">Faktiki yaşayış ünvanı <span class="text-red-400">*</span></label>
+                    <textarea x-model="form.address" rows="2" placeholder="Bakı, Nizami r., Murtuza Muxtarov 12, m. 34"
+                              class="form-input resize-none"></textarea>
                 </div>
 
                 <!-- PR #96: Discount code -->
                 <div>
-                    <label class="text-sm text-gray-400 mb-2 block">
-                        Endirim kodu
-                    </label>
-                    <div class="relative">
+                    <label class="form-label">Endirim kodu <span class="font-normal" style="color: var(--alpul-text-soft)">(opsiyonel)</span></label>
+                    <div class="flex gap-2">
                         <input type="text"
                                x-model="form.discountCode"
                                @input="formatDiscountCode()"
                                placeholder="ALPUL-XXXXXX"
                                maxlength="12"
-                               class="input-field w-full px-4 py-3 rounded-xl uppercase tracking-wider font-mono">
+                               class="form-input font-mono uppercase tracking-wider flex-1"
+                               :class="{
+                                    'is-invalid': discountValid === 'invalid',
+                                    'border-[var(--alpul-accent)]': discountValid === 'valid'
+                               }">
+                        <div x-show="discountValid === 'checking'" class="flex items-center px-2">
+                            <span class="inline-block w-4 h-4 border-2 border-[var(--alpul-border)] border-t-[var(--alpul-accent)] rounded-full animate-spin"></span>
+                        </div>
+                        <div x-show="discountValid === 'valid'" class="flex items-center gap-1 px-2" style="color: var(--alpul-accent)">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                        </div>
                     </div>
-                    <p x-show="discountValid === 'invalid'" class="text-xs text-rose-400 mt-1.5 font-medium">
+                    <p x-show="discountValid === 'invalid'" class="text-xs mt-1.5 font-medium text-rose-500">
                         ✗ Yanlış və ya artıq istifadə olunmuş kod.
                     </p>
                 </div>
 
-                <!-- PR #92: Internal rules confirmation checkbox -->
-                <label class="flex items-start gap-3 cursor-pointer p-3 rounded-xl hover:bg-white/5 transition">
-                    <input type="checkbox" x-model="form.rulesConfirmed"
-                           class="mt-0.5 w-5 h-5 rounded accent-emerald-500 flex-shrink-0">
-                    <span class="text-xs text-gray-300 font-semibold leading-relaxed">
+                <!-- PR #92: Internal rules confirmation (demo checkbox-wrapper stili) -->
+                <label class="checkbox-wrapper" :class="{ 'checked': form.rulesConfirmed }">
+                    <input type="checkbox" x-model="form.rulesConfirmed">
+                    <span class="text-xs leading-relaxed" style="color: var(--alpul-text-soft)">
                         Daxili <button type="button" @click="rulesModalOpen = true"
-                                class="text-emerald-400 hover:text-emerald-300 underline underline-offset-2 decoration-emerald-400/50 hover:decoration-emerald-300 font-semibold transition">
+                                class="text-emerald-600 hover:text-emerald-500 underline underline-offset-2 decoration-emerald-500/50 font-semibold transition">
                             qaydalarla
                         </button> tanış olduğumu və məlumatların düzgünlüyünə görə məsuliyyət daşıdığımı təsdiq edirəm.
                     </span>
@@ -648,17 +700,17 @@
                 <button @click="confirmApplication"
                         x-ref="confirmBtn"
                         :disabled="loading || !form.amount || !cardSelectionValid || !form.cardConfirmed || !form.address || !form.rulesConfirmed || discountValid === 'invalid' || (videoRequired && !videoRecorded)"
-                        class="cta-btn w-full font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
+                        class="cta-btn w-full font-semibold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2">
                     <span x-show="!loading">Təsdiq edirəm →</span>
                     <span x-show="loading" class="flex items-center gap-2">
-                        <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                        <span class="inline-block w-4 h-4 border-2 border-black/20 border-t-black rounded-full animate-spin"></span>
                         Göndərilir...
                     </span>
                 </button>
 
                 <!-- PR #105: confirm xətası birbaşa düymə altında (scroll etmədən görünür) -->
                 <div x-show="confirmError" x-transition
-                     class="mt-3 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 flex items-start gap-2.5">
+                     class="mt-3 p-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-600 flex items-start gap-2.5">
                     <svg class="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/>
                     </svg>
@@ -669,16 +721,74 @@
                 </div>
 
                 <!-- PR #106: endirim kodu etibarsız olanda düymə disabled olur -->
-                <p x-show="discountValid === 'invalid'" class="text-xs text-rose-400 mt-2 text-center">
+                <p x-show="discountValid === 'invalid'" class="text-xs mt-2 text-center font-medium" style="color: var(--alpul-error)">
                     Endirim kodu etibarsızdır — düzəldin və ya silin.
                 </p>
-                </div><!-- /right column -->
-            </div><!-- /grid -->
+                </div><!-- /offer (x-show) -->
+            </div><!-- /LEFT form kartı -->
 
-            <div x-show="!offer && !loading" class="text-center py-8">
-                <p class="text-gray-400">Təklif yüklənə bilmədi. Zəhmət olmasa səhifəni yeniləyin.</p>
-            </div>
-        </div>
+            <!-- RIGHT: PR #456 — Kredit xülasəsi paneli (sticky, demo dizayn) -->
+            <aside x-show="offer" class="summary-panel hidden lg:block">
+                <div class="card p-5 space-y-4">
+                    <div>
+                        <div class="text-xs uppercase tracking-wider font-semibold mb-1.5" style="color: var(--alpul-text-soft)">Kredit xülasəsi</div>
+                        <div class="flex items-baseline gap-2">
+                            <span class="text-3xl font-bold" x-text="form.amount"></span>
+                            <span class="text-sm" style="color: var(--alpul-text-soft)">AZN</span>
+                        </div>
+                        <span class="level-badge mt-2" :class="levelBadgeClass(offer?.credit_level)"
+                              x-text="levelNameAz(offer?.credit_level) + ' səviyyə'"></span>
+                    </div>
+
+                    <div class="divider"></div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="card-inset p-3">
+                            <div class="text-xs mb-1" style="color: var(--alpul-text-soft)">Aylıq ödəniş</div>
+                            <div class="text-xl font-bold font-mono" style="color: var(--alpul-accent)">
+                                <span x-text="monthlyPayment"></span> ₼
+                            </div>
+                        </div>
+                        <div class="card-inset p-3">
+                            <div class="text-xs mb-1" style="color: var(--alpul-text-soft)">Ümumi qaytarılacaq</div>
+                            <div class="text-xl font-bold font-mono">
+                                <span x-text="totalRepayment"></span> ₼
+                            </div>
+                        </div>
+                    </div>
+
+                    <dl class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <dt style="color: var(--alpul-text-soft)">Kredit məbləği</dt>
+                            <dd class="font-mono font-medium"><span x-text="creditAmount"></span> ₼</dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt style="color: var(--alpul-text-soft)">Komissiya (<span x-text="selectedRange?.commission?.toFixed(0)"></span>%)</dt>
+                            <dd class="font-mono font-medium"><span x-text="commissionAmount"></span> ₼</dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt style="color: var(--alpul-text-soft)">Köçürüləcək</dt>
+                            <dd class="font-mono font-medium"><span x-text="form.amount.toFixed(2)"></span> ₼</dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt style="color: var(--alpul-text-soft)">İllik faiz</dt>
+                            <dd class="font-mono font-medium"><span x-text="selectedRange?.annual_interest_rate?.toFixed(0) || '—'"></span>%</dd>
+                        </div>
+                        <div class="flex justify-between">
+                            <dt style="color: var(--alpul-text-soft)">Müddət</dt>
+                            <dd class="font-mono font-medium"><span x-text="selectedRange?.term_months || '—'"></span> ay</dd>
+                        </div>
+                    </dl>
+
+                    <div x-show="discountValid === 'valid'" class="card-inset p-3" style="background: rgba(16,185,129,0.08); border-color: rgba(16,185,129,0.35);">
+                        <div class="flex items-center gap-2 text-xs">
+                            <svg class="w-4 h-4" style="color: var(--alpul-accent)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                            <span class="font-medium" style="color: var(--alpul-accent)" x-text="discountPreview || 'Endirim kodu tətbiq olunacaq'"></span>
+                        </div>
+                    </div>
+                </div>
+            </aside>
+        </div><!-- /STEP 2 grid -->
 
         <!-- STEP 4: Result (success / rejection / pending) — PR #63 Variant B -->
         <div x-show="currentStep === 3" x-transition class="card-glow rounded-3xl p-6 sm:p-12 text-center">
@@ -1054,6 +1164,17 @@ function applyApp() {
                 'elite': 'ELİT',
             };
             return map[level] || (level || '').toUpperCase();
+        },
+
+        // PR #456: level badge CSS klası — offer başlığında və xülasə panelində istifadə olunur
+        levelBadgeClass(level) {
+            const map = {
+                'new': 'level-new',
+                'trusted': 'level-trusted',
+                'valuable': 'level-valuable',
+                'elite': 'level-elite',
+            };
+            return map[level] || 'level-new';
         },
 
         // PR #78 / PR #246: Backend-driven credit summary computed from selectedRange
