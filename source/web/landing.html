@@ -246,6 +246,13 @@
             .level-card-flip { width: 340px; }
         }
 
+        /* PR #462: pilləkən effekti — hər səviyyə əvvəlkindən bir az yuxarıda
+           (YENİ ən altda, ELİT ən yuxarıda). Addım kiçik saxlanılıb — vizual xoş olsun. */
+        .level-card-flip.stair-1 { margin-top: 54px; }
+        .level-card-flip.stair-2 { margin-top: 36px; }
+        .level-card-flip.stair-3 { margin-top: 18px; }
+        .level-card-flip.stair-4 { margin-top: 0; }
+
         .level-card-inner {
             position: absolute;
             inset: 0;
@@ -603,8 +610,9 @@
     <div class="level-cards-scroll reveal" style="transition-delay: 0.1s">
         <div class="flex-none w-4 sm:w-8 lg:w-16"></div>
 
-        <!-- YENİ (başlanğıc — şərt yoxdur). PR #461: hover-da arxasına çevrilir -->
-        <div class="level-card-flip">
+        <!-- YENİ (başlanğıc — şərt yoxdur). PR #461: hover-da arxasına çevrilir.
+             PR #462: pilləkən — ən altda -->
+        <div class="level-card-flip stair-1">
             <div class="level-card-inner">
                 <div class="level-card new">
                     <div class="card-chip"></div>
@@ -627,8 +635,9 @@
             </div>
         </div>
 
-        <!-- ETİBARLI (YENİ-də 2 kredit). PR #461: hover-da arxasına çevrilir -->
-        <div class="level-card-flip">
+        <!-- ETİBARLI (YENİ-də 2 kredit). PR #461: hover-da arxasına çevrilir.
+             PR #462: pilləkən — 2-ci addım -->
+        <div class="level-card-flip stair-2">
             <div class="level-card-inner">
                 <div class="level-card trusted">
                     <div class="card-chip"></div>
@@ -655,8 +664,9 @@
             </div>
         </div>
 
-        <!-- DƏYƏRLİ (ETİBARLI-da 2 kredit). PR #461: hover-da arxasına çevrilir -->
-        <div class="level-card-flip">
+        <!-- DƏYƏRLİ (ETİBARLI-da 2 kredit). PR #461: hover-da arxasına çevrilir.
+             PR #462: pilləkən — 3-cü addım -->
+        <div class="level-card-flip stair-3">
             <div class="level-card-inner">
                 <div class="level-card valuable">
                     <div class="card-chip"></div>
@@ -683,8 +693,9 @@
             </div>
         </div>
 
-        <!-- ELİT (DƏYƏRLİ-də 2 kredit). PR #461: hover-da arxasına çevrilir -->
-        <div class="level-card-flip">
+        <!-- ELİT (DƏYƏRLİ-də 2 kredit). PR #461: hover-da arxasına çevrilir.
+             PR #462: pilləkən — ən yuxarıda -->
+        <div class="level-card-flip stair-4">
             <div class="level-card-inner">
                 <div class="level-card elite">
                     <div class="card-chip"></div>
