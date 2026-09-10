@@ -379,8 +379,10 @@
         </div>
     </div>
 
-    <!-- Main content — PR #455: desktop-da məzmun + şaquli stepper (sağda) yan-yana -->
-    <div class="flex-1 max-w-6xl mx-auto w-full px-6 py-6 flex gap-8 items-start">
+    <!-- Main content — PR #455: desktop-da məzmun + şaquli stepper (sağda).
+         PR #457: konteyner genişləndirildi (max-w-6xl → 7xl), stepper şaquli
+         mərkəzdə (top-1/2), xülasə paneli 320px. -->
+    <div class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 flex gap-6 items-start">
     <main class="flex-1 min-w-0">
 
         <!-- Error banner -->
@@ -413,9 +415,9 @@
                     <div class="flex gap-2">
                         <select x-model="form.serialPrefix" :disabled="otpSent"
                                 class="input-field w-20 sm:w-24 px-2 sm:px-3 py-3 sm:py-3.5 rounded-xl text-base sm:text-lg font-semibold shrink-0">
-                            <option value="AZE">AZE</option>
                             <option value="AA">AA</option>
                             <option value="AB">AB</option>
+                            <option value="AZE">AZE</option>
                         </select>
                         <input type="text" x-model="form.serialNumber" placeholder="1234567" maxlength="7"
                                class="input-field flex-1 min-w-0 px-3 sm:px-4 py-3 sm:py-3.5 rounded-xl text-base sm:text-lg font-semibold"
@@ -546,8 +548,8 @@
         <!-- STEP 3: Offer + Customer Confirm -->
         <!-- PR #413: padding/aralıqlar sıxıldı — səhifə ekrana sığarkən zoom az kiçilsin,
              yazılar oxunaqlı qalsın (fit floor-u 0.8 ilə birlikdə) -->
-        <!-- PR #456: Offer — demo dizayn: sol form kartı + SAĞDA ayrıca sticky xülasə paneli -->
-        <div x-show="currentStep === 2" x-transition class="grid lg:grid-cols-[1fr,300px] gap-6 items-start">
+        <!-- PR #456: Offer — demo dizayn. PR #457: xülasə 320px, geniş form. -->
+        <div x-show="currentStep === 2" x-transition class="grid lg:grid-cols-[1fr,320px] gap-6 items-start">
 
             <!-- LEFT: form kartı -->
             <div class="card p-5 sm:p-7 space-y-6">
@@ -564,15 +566,16 @@
                 </div>
 
                 <div x-show="offer" class="space-y-6">
-                <!-- Amount slider + number input (demo dizayn) -->
+                <!-- Amount slider + readonly göstərici (PR #457: number input silindi —
+                     əvəzində slider hərəkət edəndə köçürüləcək məbləğ readonly göstərilir,
+                     bu da rəqəm genişliyi dəyişməsin ki, fit-zoom titrəməsin) -->
                 <div>
                     <div class="flex justify-between items-center mb-3 gap-3">
                         <label class="form-label mb-0">Köçürüləcək məbləğ</label>
-                        <div class="flex items-baseline gap-1">
-                            <input type="number" x-model.number="form.amount"
-                                   @input="syncAmountIndex(); updateSelectedRange()"
-                                   class="form-input w-24 text-right font-mono font-bold text-lg py-1.5 px-2"
-                                   :min="rangeMin" :max="rangeMax">
+                        <div class="flex items-baseline gap-1 whitespace-nowrap">
+                            <input type="text" :value="form.amount" readonly tabindex="-1"
+                                   class="form-input w-28 text-right font-mono font-bold text-lg py-1.5 px-2"
+                                   style="cursor: default; opacity: 1;">
                             <span class="text-sm" style="color: var(--alpul-text-soft)">AZN</span>
                         </div>
                     </div>
@@ -630,49 +633,46 @@
                     </label>
                 </div>
 
-                <!-- Address -->
-                <div>
-                    <label class="form-label">Faktiki yaşayış ünvanı <span class="text-red-400">*</span></label>
-                    <textarea x-model="form.address" rows="2" placeholder="Bakı, Nizami r., Murtuza Muxtarov 12, m. 34"
-                              class="form-input resize-none"></textarea>
-                </div>
+                <!-- PR #457: Faktiki yaşayış ünvanı sahəsi GİZLƏDİLDİ (istifadəçi
+                     tələbi). Backend actual_address məcburi tələb etdiyindən (L82:
+                     "actual_address is required") confirm zamanı boşdursa '-'
+                     göndərilir — ekspert detail.html-də ünvanı yeniləyə bilər
+                     (UpdateActualAddress). UI-da göstərilmir.
+                     JS: confirmApplication → actual_address: this.form.address || '-' -->
 
-                <!-- PR #96: Discount code -->
+                <!-- PR #96/#457: Discount code — defolt olaraq GİZLİDİR (gözə dəyməsin),
+                     "Endirim kodum var" linki ilə açılır. Kod daxil edilibsə həmişə açıq. -->
                 <div>
-                    <label class="form-label">Endirim kodu <span class="font-normal" style="color: var(--alpul-text-soft)">(opsiyonel)</span></label>
-                    <div class="flex gap-2">
-                        <input type="text"
-                               x-model="form.discountCode"
-                               @input="formatDiscountCode()"
-                               placeholder="ALPUL-XXXXXX"
-                               maxlength="12"
-                               class="form-input font-mono uppercase tracking-wider flex-1"
-                               :class="{
-                                    'is-invalid': discountValid === 'invalid',
-                                    'border-[var(--alpul-accent)]': discountValid === 'valid'
-                               }">
-                        <div x-show="discountValid === 'checking'" class="flex items-center px-2">
-                            <span class="inline-block w-4 h-4 border-2 border-[var(--alpul-border)] border-t-[var(--alpul-accent)] rounded-full animate-spin"></span>
+                    <button x-show="!discountExpanded && !form.discountCode" type="button"
+                            @click="discountExpanded = true"
+                            class="text-xs font-medium hover:underline transition" style="color: var(--alpul-text-soft)">
+                        + Endirim kodum var
+                    </button>
+                    <div x-show="discountExpanded || form.discountCode" x-cloak>
+                        <label class="form-label">Endirim kodu <span class="font-normal" style="color: var(--alpul-text-soft)">(opsiyonel)</span></label>
+                        <div class="flex gap-2">
+                            <input type="text"
+                                   x-model="form.discountCode"
+                                   @input="formatDiscountCode()"
+                                   placeholder="ALPUL-XXXXXX"
+                                   maxlength="12"
+                                   class="form-input font-mono uppercase tracking-wider flex-1"
+                                   :class="{
+                                        'is-invalid': discountValid === 'invalid',
+                                        'border-[var(--alpul-accent)]': discountValid === 'valid'
+                                   }">
+                            <div x-show="discountValid === 'checking'" class="flex items-center px-2">
+                                <span class="inline-block w-4 h-4 border-2 border-[var(--alpul-border)] border-t-[var(--alpul-accent)] rounded-full animate-spin"></span>
+                            </div>
+                            <div x-show="discountValid === 'valid'" class="flex items-center gap-1 px-2" style="color: var(--alpul-accent)">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                            </div>
                         </div>
-                        <div x-show="discountValid === 'valid'" class="flex items-center gap-1 px-2" style="color: var(--alpul-accent)">
-                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                        </div>
+                        <p x-show="discountValid === 'invalid'" class="text-xs mt-1.5 font-medium text-rose-500">
+                            ✗ Yanlış və ya artıq istifadə olunmuş kod.
+                        </p>
                     </div>
-                    <p x-show="discountValid === 'invalid'" class="text-xs mt-1.5 font-medium text-rose-500">
-                        ✗ Yanlış və ya artıq istifadə olunmuş kod.
-                    </p>
                 </div>
-
-                <!-- PR #92: Internal rules confirmation (demo checkbox-wrapper stili) -->
-                <label class="checkbox-wrapper" :class="{ 'checked': form.rulesConfirmed }">
-                    <input type="checkbox" x-model="form.rulesConfirmed">
-                    <span class="text-xs leading-relaxed" style="color: var(--alpul-text-soft)">
-                        Daxili <button type="button" @click="rulesModalOpen = true"
-                                class="text-emerald-600 hover:text-emerald-500 underline underline-offset-2 decoration-emerald-500/50 font-semibold transition">
-                            qaydalarla
-                        </button> tanış olduğumu və məlumatların düzgünlüyünə görə məsuliyyət daşıdığımı təsdiq edirəm.
-                    </span>
-                </label>
 
                 <!-- PR #188/#232/#233: Video record button (yalnız videoRequired=true olanda görünür) -->
                 <div x-show="videoRequired" x-cloak class="mb-3">
@@ -696,10 +696,21 @@
                     <p x-show="videoError" x-text="videoError" class="mt-2 text-sm text-red-400"></p>
                 </div>
 
+                <!-- PR #92: Internal rules confirmation (PR #457: video qeydindən SONRA göstərilir) -->
+                <label class="checkbox-wrapper" :class="{ 'checked': form.rulesConfirmed }">
+                    <input type="checkbox" x-model="form.rulesConfirmed">
+                    <span class="text-xs leading-relaxed" style="color: var(--alpul-text-soft)">
+                        Daxili <button type="button" @click="rulesModalOpen = true"
+                                class="text-emerald-600 hover:text-emerald-500 underline underline-offset-2 decoration-emerald-500/50 font-semibold transition">
+                            qaydalarla
+                        </button> tanış olduğumu və məlumatların düzgünlüyünə görə məsuliyyət daşıdığımı təsdiq edirəm.
+                    </span>
+                </label>
+
                 <!-- Confirm button -->
                 <button @click="confirmApplication"
                         x-ref="confirmBtn"
-                        :disabled="loading || !form.amount || !cardSelectionValid || !form.cardConfirmed || !form.address || !form.rulesConfirmed || discountValid === 'invalid' || (videoRequired && !videoRecorded)"
+                        :disabled="loading || !form.amount || !cardSelectionValid || !form.cardConfirmed || !form.rulesConfirmed || discountValid === 'invalid' || (videoRequired && !videoRecorded)"
                         class="cta-btn w-full font-semibold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2">
                     <span x-show="!loading">Təsdiq edirəm →</span>
                     <span x-show="loading" class="flex items-center gap-2">
@@ -733,7 +744,7 @@
                     <div>
                         <div class="text-xs uppercase tracking-wider font-semibold mb-1.5" style="color: var(--alpul-text-soft)">Kredit xülasəsi</div>
                         <div class="flex items-baseline gap-2">
-                            <span class="text-3xl font-bold" x-text="form.amount"></span>
+                            <span class="text-3xl font-bold whitespace-nowrap tabular-nums" x-text="form.amount"></span>
                             <span class="text-sm" style="color: var(--alpul-text-soft)">AZN</span>
                         </div>
                         <span class="level-badge mt-2" :class="levelBadgeClass(offer?.credit_level)"
@@ -745,13 +756,13 @@
                     <div class="grid grid-cols-2 gap-3">
                         <div class="card-inset p-3">
                             <div class="text-xs mb-1" style="color: var(--alpul-text-soft)">Aylıq ödəniş</div>
-                            <div class="text-xl font-bold font-mono" style="color: var(--alpul-accent)">
+                            <div class="text-xl font-bold font-mono whitespace-nowrap" style="color: var(--alpul-accent)">
                                 <span x-text="monthlyPayment"></span> ₼
                             </div>
                         </div>
                         <div class="card-inset p-3">
                             <div class="text-xs mb-1" style="color: var(--alpul-text-soft)">Ümumi qaytarılacaq</div>
-                            <div class="text-xl font-bold font-mono">
+                            <div class="text-xl font-bold font-mono whitespace-nowrap">
                                 <span x-text="totalRepayment"></span> ₼
                             </div>
                         </div>
@@ -760,23 +771,23 @@
                     <dl class="space-y-2 text-sm">
                         <div class="flex justify-between">
                             <dt style="color: var(--alpul-text-soft)">Kredit məbləği</dt>
-                            <dd class="font-mono font-medium"><span x-text="creditAmount"></span> ₼</dd>
+                            <dd class="font-mono font-medium whitespace-nowrap"><span x-text="creditAmount"></span> ₼</dd>
                         </div>
                         <div class="flex justify-between">
                             <dt style="color: var(--alpul-text-soft)">Komissiya (<span x-text="selectedRange?.commission?.toFixed(0)"></span>%)</dt>
-                            <dd class="font-mono font-medium"><span x-text="commissionAmount"></span> ₼</dd>
+                            <dd class="font-mono font-medium whitespace-nowrap"><span x-text="commissionAmount"></span> ₼</dd>
                         </div>
                         <div class="flex justify-between">
                             <dt style="color: var(--alpul-text-soft)">Köçürüləcək</dt>
-                            <dd class="font-mono font-medium"><span x-text="form.amount.toFixed(2)"></span> ₼</dd>
+                            <dd class="font-mono font-medium whitespace-nowrap"><span x-text="form.amount.toFixed(2)"></span> ₼</dd>
                         </div>
                         <div class="flex justify-between">
                             <dt style="color: var(--alpul-text-soft)">İllik faiz</dt>
-                            <dd class="font-mono font-medium"><span x-text="selectedRange?.annual_interest_rate?.toFixed(0) || '—'"></span>%</dd>
+                            <dd class="font-mono font-medium whitespace-nowrap"><span x-text="selectedRange?.annual_interest_rate?.toFixed(0) || '—'"></span>%</dd>
                         </div>
                         <div class="flex justify-between">
                             <dt style="color: var(--alpul-text-soft)">Müddət</dt>
-                            <dd class="font-mono font-medium"><span x-text="selectedRange?.term_months || '—'"></span> ay</dd>
+                            <dd class="font-mono font-medium whitespace-nowrap"><span x-text="selectedRange?.term_months || '—'"></span> ay</dd>
                         </div>
                     </dl>
 
@@ -908,9 +919,9 @@
 
     </main>
 
-    <!-- PR #455: şaquli stepper — desktop-da SAĞ tərəfdə (lg+). Mobil/plansetdə
-         yuxarıdakı üfüqi stepper görünür (lg:hidden), bu blok gizlidir. -->
-    <aside class="hidden lg:flex flex-col w-48 shrink-0 sticky top-24 pt-1">
+    <!-- PR #455: şaquli stepper — desktop-da SAĞ tərəfdə (lg+). PR #457: ekranın
+         şaquli mərkəzində (sticky top-1/2). Mobil/plansetdə yuxarıdakı üfüqi stepper. -->
+    <aside class="hidden lg:flex flex-col w-44 shrink-0 sticky top-1/2 -translate-y-1/2">
         <template x-for="(step, idx) in steps" :key="idx">
             <div class="flex items-start gap-3" :class="idx < steps.length - 1 ? 'min-h-[76px]' : ''">
                 <div class="flex flex-col items-center">
@@ -981,7 +992,7 @@ function applyApp() {
         // Form fields
         form: {
             fin: '',
-            serialPrefix: 'AZE',
+            serialPrefix: 'AA', // PR #457: seriya sırası AA, AB, AZE
             serialNumber: '',
             phone: '',
             hasOfficialIncome: null,  // PR #271: true=bəli, false=xeyr, null=seçilməyib
@@ -1001,6 +1012,7 @@ function applyApp() {
         // PR #96: Discount code real-time validation
         // 'valid' | 'invalid' | 'checking' | '' (empty = not yet validated)
         discountValid: '',
+        discountExpanded: false, // PR #457: endirim sahəsi defolt gizlidir, linklə açılır
         discountPreview: '',
         _discountValidateTimer: null,
 
@@ -1435,9 +1447,9 @@ function applyApp() {
             // PR #271: incomeRejected və hasOfficialIncome sıfırla
             this.incomeRejected = false;
             this.form.hasOfficialIncome = null;
-            // PR #373: şəxs məlumatlarını tam təmizlə (serialPrefix default AZE qalır)
+            // PR #373: şəxs məlumatlarını tam təmizlə (serialPrefix default AA qalır — PR #457)
             this.form.fin = '';
-            this.form.serialPrefix = 'AZE';
+            this.form.serialPrefix = 'AA';
             this.form.serialNumber = '';
             this.form.phone = '';
             // PR #256: blockedRejectionDays sıfırla
@@ -1466,6 +1478,7 @@ function applyApp() {
             this.form.rulesConfirmed = false;
             this.form.discountCode = '';
             this.discountValid = '';
+            this.discountExpanded = false; // PR #457
             this.discountPreview = '';
             this.videoRequired = false;
             this.videoRecorded = false;
@@ -1862,7 +1875,7 @@ function applyApp() {
                         term_months: this.form.term || this.selectedRange?.term_months, // PR #230
                         card_number: this.selectedCardId ? '' : this.form.cardNumber.replace(/\s/g, ''), // PR #70/#313: köhnə kart seçilibsə boş göndər
                         selected_card_id: this.selectedCardId || '', // PR #313: köhnə kart seçilibsə AZMK card ID
-                        actual_address: this.form.address,
+                        actual_address: this.form.address || '-', // PR #457: UI-da gizli, backend məcburi tələb
                         card_ownership_confirmed: this.form.cardConfirmed,
                         rules_confirmed: this.form.rulesConfirmed, // PR #92: internal rules ack
                         discount_code: this.form.discountCode.trim(), // PR #96: endirim kodu
