@@ -163,50 +163,38 @@
         .photo-float { position: fixed; z-index: 70; width: 320px; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.35); }
         .photo-float-handle { cursor: move; user-select: none; }
 
-        /* ============ PR #466/#467: APEX-grid cədvəllər ============ */
-        .contacts-table { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; overflow-x: auto; }
-        /* PR #471: KÖK HƏLL — cədvəl TƏK grid-dir; thead / contact-row / ct-group
-           display:contents ilə hüceyrələri ümumi gridə qatır. Trek eni (max-content)
-           başlıq VƏ data məzmununu BİRLİKDƏ nəzərə alır → başlıqlar sütunlardan
-           sürüşüb üst-üstə düşə bilməz (əvvəl thead/setir ayrı grid idi). */
-        .contacts-table { display: grid; }
-        .contacts-thead, .contact-row, .ct-group { display: contents; }
-        .contacts-thead > span {
-            padding: 7px 8px; font-size: 12px; font-weight: 600; text-transform: uppercase;
+        /* ============ PR #472: KLASSİK table-lar — th/td, colgroup ============ */
+        /* Wrapper: border + radius + üfüqi scroll (dar ekranda) */
+        .tbl-wrap { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; overflow-x: auto; }
+        /* table-layout:auto — sütun eni = max(col width, məzmun) → üst-üstə düşmə
+           mümkünsüz; width:100% qalan eni sütunlara paylayır (klassik davranış) */
+        .apl-table { width: 100%; border-collapse: collapse; table-layout: auto; }
+        .apl-table th {
+            position: relative; padding: 7px 8px; padding-right: 16px;
+            font-size: 12px; font-weight: 600; text-transform: uppercase;
             letter-spacing: 0.04em; color: var(--text-soft); white-space: nowrap;
-            background: #F1F5F9; border-bottom: 2px solid var(--border);
+            text-align: left; background: #F1F5F9; border-bottom: 2px solid var(--border);
         }
-        [data-theme="dark"] .contacts-thead > span { background: #0d2444; }
-        .contact-row > * { padding: 3px 6px; min-width: 0; border-left: 1px solid var(--border); border-bottom: 1px solid var(--border); display: flex; align-items: center; }
-        .contact-row > *:first-child { border-left: none; justify-content: center; }
-        /* PR #468/#469: sütun resize tutacağı — başlıq hücrəsinin sağ kənarı (DAAXİLƏDƏ,
-           clip olunmasın deyə; geniş tutum üçün 9px) */
-        .contacts-thead > span { position: relative; padding-right: 14px !important; }
+        [data-theme="dark"] .apl-table th { background: #0d2444; }
+        .apl-table td { padding: 3px 6px; border-left: 1px solid var(--border); border-bottom: 1px solid var(--border); vertical-align: middle; }
+        .apl-table td:first-child, .apl-table th:first-child { border-left: none; }
+        .apl-table tbody tr:last-child td { border-bottom: none; }
+        /* zebra + hover — nth-child (PR #472: ct-zebra sinifsiz) */
+        .apl-table tbody tr:nth-child(even) { background: rgba(100, 116, 139, 0.05); }
+        [data-theme="dark"] .apl-table tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.03); }
+        .apl-table tbody tr:hover { background: rgba(45, 156, 219, 0.06); }
+        [data-theme="dark"] .apl-table tbody tr:hover { background: rgba(45, 156, 219, 0.1); }
+        /* PR #468/#469: sütun resize tutacağı — th sağ kənarında */
         .th-rs { position: absolute; right: 0; top: 0; bottom: 0; width: 9px; cursor: col-resize; user-select: none; z-index: 2; }
         .th-rs::after { content: ''; position: absolute; right: 3px; top: 8px; bottom: 8px; width: 2px; border-radius: 1px; background: var(--border); }
-        .contacts-thead > span:hover .th-rs::after, .th-rs:hover::after { background: #2D9CDB; }
-        /* PR #471: zebra/hover — display:contents qruplar fon boyamır, hücrələrə keçib */
-        .ct-zebra .contact-row > * { background: rgba(100, 116, 139, 0.05); }
-        [data-theme="dark"] .ct-zebra .contact-row > * { background: rgba(255, 255, 255, 0.03); }
-        .contact-row > *:hover { background: rgba(45, 156, 219, 0.06); }
-        [data-theme="dark"] .contact-row > *:hover { background: rgba(45, 156, 219, 0.1); }
+        .apl-table th:hover .th-rs::after, .th-rs:hover::after { background: #2D9CDB; }
         /* hücrə-dolduran inputlar — APEX üslubu (PR #467: textarea da daxil) */
-        .contacts-table .field-input {
+        .apl-table .field-input {
             border-color: transparent; background: transparent; border-radius: 0;
         }
-        .contacts-table .field-input:not(.bg-rose-50):not(:disabled):hover { border-color: var(--border); }
-        .contacts-table .field-input:focus { border-color: #2D9CDB; background: #FFFFFF; }
-        .contacts-table .field-input.bg-rose-50 { background: #FFF1F2; border-color: #FDA4AF; }
-        .ct-note { padding: 5px 8px 8px 34px; }
-        @media (max-width: 767px) {
-            /* PR #471: mobil — ümumi grid əvəzinə blok düzülüş, sütunlar alt-alta */
-            .contacts-table { display: block; }
-            .contacts-thead { display: none; }
-            .ct-group, .contact-row { display: block; }
-            .th-rs { display: none; }
-            .contact-row > * { border-left: none; border-bottom: 1px dashed var(--border); justify-content: flex-start; }
-            .ct-note { padding-left: 8px; }
-        }
+        .apl-table .field-input:not(.bg-rose-50):not(:disabled):hover { border-color: var(--border); }
+        .apl-table .field-input:focus { border-color: #2D9CDB; background: #FFFFFF; }
+        .apl-table .field-input.bg-rose-50 { background: #FFF1F2; border-color: #FDA4AF; }
 
         /* PR #447: video-banner CSS silindi — toolbar banner-i əvəz etdi */
 
@@ -625,59 +613,74 @@
                         <span class="icon-chip">👤</span>
                         <h2 class="panel-title">Müştəri</h2>
                     </div>
-                    <div class="contacts-table" :style="gridTpl('cust')" @mousemove.window="onColResize($event)" @mouseup.window="endColResize()">
-                        <!-- PR #468: PIN/Seriya/Telefon header-ə keçdi; ünvanlar sütun oldu -->
-                        <div class="contacts-thead">
-                            <!-- PR #470: Ad Soyad sütunu silindi — ad header-də (h1) var -->
-                            <span>Kart<span class="th-rs" @mousedown.prevent="startColResize('cust', 0, $event)"></span></span>
-                            <span>Qeydiyyat ünvanı<span class="th-rs" @mousedown.prevent="startColResize('cust', 1, $event)"></span></span>
-                            <span>Faktiki ünvan<span class="th-rs" @mousedown.prevent="startColResize('cust', 2, $event)"></span></span>
-                        </div>
-                        <div class="contact-row">
-                            <div><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="app?.card_number ? '**** ' + app.card_number.slice(-4) : '-'"></span></div>
-                            <!-- PR #468/#469: Qeydiyyat ünvanı — qısaldılmış sütun (min 100 simvol) -->
-                            <div class="justify-between gap-1">
-                                <span class="value-strong text-sm truncate" :title="app?.registration_address || ''"
-                                      x-text="trunc(app?.registration_address, 100)"></span>
-                                <button x-show="app?.registration_address" @click="copyToClipboard(app?.registration_address)"
-                                        class="text-teal-500 hover:text-teal-700 transition shrink-0" title="Kopyala">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                                    </svg>
-                                </button>
-                            </div>
-                            <!-- PR #468: Faktiki ünvan — qısaldılmış sütun + redaktə -->
-                            <div class="flex-col items-stretch !justify-start gap-1">
-                                <div class="flex items-center justify-between gap-1 w-full min-w-0">
-                                    <span class="flex items-center gap-1 min-w-0">
-                                        <span x-show="app?.actual_address_updated_by_username || app?.actual_address_updated_at" class="text-emerald-500 font-bold shrink-0">✓</span>
-                                        <span class="value-strong text-sm truncate" :title="app?.actual_address || ''"
-                                              x-text="trunc(app?.actual_address, 45)"></span>
-                                    </span>
-                                    <button x-show="!isReadOnly && !addressEditing" @click="startAddressEdit()"
-                                            class="text-gray-400 hover:text-teal-600 transition shrink-0" title="Dəyiş">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
-                                        </svg>
-                                    </button>
-                                </div>
-                                <div x-show="addressEditing" class="w-full">
-                                    <textarea x-model="addressDraft" rows="2" maxlength="500"
-                                              placeholder="Faktiki ünvanı daxil edin..."
-                                              class="field-input !py-1.5 w-full text-sm resize-none"></textarea>
-                                    <div class="flex items-center gap-2 mt-1">
-                                        <span x-show="addressDraft.trim().length" class="text-[10px] text-gray-400"
-                                              x-text="addressDraft.trim().length + '/500'"></span>
-                                        <span class="flex-1"></span>
-                                        <button @click="cancelAddressEdit()"
-                                                class="text-xs px-2.5 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 transition">Ləğv et</button>
-                                        <button @click="saveAddress()" :disabled="addressSaving || !addressDraft.trim()"
-                                                class="text-xs px-2.5 py-1 rounded-md bg-teal-600 text-white hover:bg-teal-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                                                x-text="addressSaving ? 'Saxlanılır...' : 'Yadda saxla'"></button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <!-- PR #472: klassik table — colgroup (resize enləri) + th/td -->
+                    <div class="tbl-wrap" @mousemove.window="onColResize($event)" @mouseup.window="endColResize()">
+                        <table class="apl-table">
+                            <colgroup>
+                                <col :style="'width:' + colWidths.cust[0] + 'px'">
+                                <col :style="'width:' + colWidths.cust[1] + 'px'">
+                                <col :style="'width:' + colWidths.cust[2] + 'px'">
+                            </colgroup>
+                            <thead>
+                                <tr>
+                                    <!-- PR #470: Ad Soyad sütunu silindi — ad header-də (h1) var -->
+                                    <th>Kart<span class="th-rs" @mousedown.prevent="startColResize('cust', 0, $event)"></span></th>
+                                    <th>Qeydiyyat ünvanı<span class="th-rs" @mousedown.prevent="startColResize('cust', 1, $event)"></span></th>
+                                    <th>Faktiki ünvan<span class="th-rs" @mousedown.prevent="startColResize('cust', 2, $event)"></span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="app?.card_number ? '**** ' + app.card_number.slice(-4) : '-'"></span></td>
+                                    <!-- PR #468/#469: Qeydiyyat ünvanı — qısaldılmış sütun (min 100 simvol) -->
+                                    <td>
+                                        <div class="flex justify-between gap-1">
+                                            <span class="value-strong text-sm truncate block" :title="app?.registration_address || ''"
+                                                  x-text="trunc(app?.registration_address, 100)"></span>
+                                            <button x-show="app?.registration_address" @click="copyToClipboard(app?.registration_address)"
+                                                    class="text-teal-500 hover:text-teal-700 transition shrink-0" title="Kopyala">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </td>
+                                    <!-- PR #468: Faktiki ünvan — qısaldılmış sütun + redaktə -->
+                                    <td>
+                                        <div class="flex flex-col items-stretch gap-1">
+                                            <div class="flex items-center justify-between gap-1 w-full min-w-0">
+                                                <span class="flex items-center gap-1 min-w-0">
+                                                    <span x-show="app?.actual_address_updated_by_username || app?.actual_address_updated_at" class="text-emerald-500 font-bold shrink-0">✓</span>
+                                                    <span class="value-strong text-sm truncate block" :title="app?.actual_address || ''"
+                                                          x-text="trunc(app?.actual_address, 45)"></span>
+                                                </span>
+                                                <button x-show="!isReadOnly && !addressEditing" @click="startAddressEdit()"
+                                                        class="text-gray-400 hover:text-teal-600 transition shrink-0" title="Dəyiş">
+                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                                                    </svg>
+                                                </button>
+                                            </div>
+                                            <div x-show="addressEditing" class="w-full">
+                                                <textarea x-model="addressDraft" rows="2" maxlength="500"
+                                                          placeholder="Faktiki ünvanı daxil edin..."
+                                                          class="field-input !py-1.5 w-full text-sm resize-none"></textarea>
+                                                <div class="flex items-center gap-2 mt-1">
+                                                    <span x-show="addressDraft.trim().length" class="text-[10px] text-gray-400"
+                                                          x-text="addressDraft.trim().length + '/500'"></span>
+                                                    <span class="flex-1"></span>
+                                                    <button @click="cancelAddressEdit()"
+                                                            class="text-xs px-2.5 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100 transition">Ləğv et</button>
+                                                    <button @click="saveAddress()" :disabled="addressSaving || !addressDraft.trim()"
+                                                            class="text-xs px-2.5 py-1 rounded-md bg-teal-600 text-white hover:bg-teal-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                                            x-text="addressSaving ? 'Saxlanılır...' : 'Yadda saxla'"></button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </section>
 
@@ -690,22 +693,33 @@
                         <span class="icon-chip">📞</span>
                         <h2 class="panel-title">Əlaqə Nömrələri</h2>
                     </div>
-                    <!-- PR #466/#468: APEX-grid + resizable sütunlar -->
-                    <div class="contacts-table flex-1" :style="gridTpl('contacts')" @mousemove.window="onColResize($event)" @mouseup.window="endColResize()">
-                        <div class="contacts-thead">
-                            <span>№<span class="th-rs" @mousedown.prevent="startColResize('contacts', 0, $event)"></span></span>
-                            <span>Əlaqə<span class="th-rs" @mousedown.prevent="startColResize('contacts', 1, $event)"></span></span>
-                            <span>Telefon<span class="th-rs" @mousedown.prevent="startColResize('contacts', 2, $event)"></span></span>
-                            <span>Ad Soyad<span class="th-rs" @mousedown.prevent="startColResize('contacts', 3, $event)"></span></span>
-                            <span>Status<span class="th-rs" @mousedown.prevent="startColResize('contacts', 4, $event)"></span></span>
-                            <span>Qeyd<span class="th-rs" @mousedown.prevent="startColResize('contacts', 5, $event)"></span></span>
-                        </div>
-                        <template x-for="(contact, idx) in contacts" :key="idx">
-                            <div class="ct-group" :class="idx % 2 === 1 ? 'ct-zebra' : ''">
-                                <!-- PR #465/#468: üfüqi sətir gridi — № | Əlaqə | Telefon | Ad | Status | Qeyd -->
-                                <div class="contact-row">
-                                    <span class="text-sm font-bold text-gray-400 text-center" x-text="(idx+1)"></span>
-                                    <div class="min-w-0">
+                    <!-- PR #472: klassik table — colgroup (resize enləri) + th/td; zebra nth-child ilə -->
+                    <div class="tbl-wrap flex-1" @mousemove.window="onColResize($event)" @mouseup.window="endColResize()">
+                        <table class="apl-table">
+                            <colgroup>
+                                <col :style="'width:' + colWidths.contacts[0] + 'px'">
+                                <col :style="'width:' + colWidths.contacts[1] + 'px'">
+                                <col :style="'width:' + colWidths.contacts[2] + 'px'">
+                                <col :style="'width:' + colWidths.contacts[3] + 'px'">
+                                <col :style="'width:' + colWidths.contacts[4] + 'px'">
+                                <col :style="'width:' + colWidths.contacts[5] + 'px'">
+                            </colgroup>
+                            <thead>
+                                <tr>
+                                    <th class="text-center">№<span class="th-rs" @mousedown.prevent="startColResize('contacts', 0, $event)"></span></th>
+                                    <th>Əlaqə<span class="th-rs" @mousedown.prevent="startColResize('contacts', 1, $event)"></span></th>
+                                    <th>Telefon<span class="th-rs" @mousedown.prevent="startColResize('contacts', 2, $event)"></span></th>
+                                    <th>Ad Soyad<span class="th-rs" @mousedown.prevent="startColResize('contacts', 3, $event)"></span></th>
+                                    <th>Status<span class="th-rs" @mousedown.prevent="startColResize('contacts', 4, $event)"></span></th>
+                                    <th>Qeyd<span class="th-rs" @mousedown.prevent="startColResize('contacts', 5, $event)"></span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            <template x-for="(contact, idx) in contacts" :key="idx">
+                                <!-- PR #472: hər kontakt klassik <tr> — № | Əlaqə | Telefon | Ad | Status | Qeyd -->
+                                <tr>
+                                    <td class="text-center"><span class="text-sm font-bold text-gray-400" x-text="(idx+1)"></span></td>
+                                    <td class="min-w-0">
                                         <!-- PR #467: qohumluq birbaşa seçilir (edit düyməsi lazımsız — blur-da save) -->
                                         <select x-model="contact.relation"
                                                 @blur="onRelationBlur(idx)"
@@ -719,8 +733,8 @@
                                                         :class="isUniqueRelationUsedByOther(idx, opt) ? 'text-gray-300' : ''"></option>
                                             </template>
                                         </select>
-                                    </div>
-                                    <div class="relative min-w-0">
+                                    </td>
+                                    <td class="relative min-w-0">
                                         <input type="text"
                                                x-model="contact.phone"
                                                @input="contact.phone = formatPhone(contact.phone)"
@@ -736,8 +750,8 @@
                                               title="Nömrə tam deyil — format: +994 XX XXX XX XX">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                         </span>
-                                    </div>
-                                    <div class="relative min-w-0">
+                                    </td>
+                                    <td class="relative min-w-0">
                                         <input type="text"
                                                x-model.trim="contact.name"
                                                @blur="saveContactIfChanged(idx)"
@@ -752,8 +766,9 @@
                                               title="Bu ad digər əlaqədə artıq istifadə olunub">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                         </span>
-                                    </div>
-                                    <div class="flex gap-1.5 items-center shrink-0">
+                                    </td>
+                                    <td>
+                                        <div class="flex gap-1.5 items-center shrink-0">
                                         <!-- Save indicator (PR #465: status hücrəsinə keçirilib) -->
                                         <span x-show="contact.saving" class="text-xs text-gray-400 animate-pulse shrink-0">...</span>
                                         <svg x-show="contact.saved && !contact.saving" class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
@@ -780,8 +795,10 @@
                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
                                     </button>
                                     </div>
+                                    </td>
                                     <!-- PR #467: Qeyd — yeni SÜTUN (alt-sətir əvəzinə) -->
-                                    <div class="flex-col items-stretch !justify-start gap-0.5">
+                                    <td>
+                                        <div class="flex flex-col items-stretch gap-0.5">
                                         <textarea x-model="contact.callNote"
                                                   @blur="saveContactNote(idx)"
                                                   :disabled="isReadOnly"
@@ -793,10 +810,12 @@
                                             <span class="text-[10px] text-emerald-500" x-show="contact.noteSaved && !contact.noteSaving">✓ Saxlanıldı</span>
                                             <span class="text-[10px] text-gray-400 ml-auto" x-text="(contact.callNote || '').length + '/1000'"></span>
                                         </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </template>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </template>
+                            </tbody>
+                        </table>
                     </div>
                 </section>
 
@@ -807,25 +826,39 @@
                         <h2 class="panel-title">Kredit</h2>
                         <span x-show="app?.credit_level" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700" x-text="levelAz(app?.credit_level)"></span>
                     </div>
-                    <!-- PR #468: Kredit də APEX-table — tək sətir, 6 göstərici -->
-                    <div class="contacts-table" :style="gridTpl('kredit')" @mousemove.window="onColResize($event)" @mouseup.window="endColResize()">
-                        <div class="contacts-thead">
-                            <span>Məbləğ<span class="th-rs" @mousedown.prevent="startColResize('kredit', 0, $event)"></span></span>
-                            <span>Müddət<span class="th-rs" @mousedown.prevent="startColResize('kredit', 1, $event)"></span></span>
-                            <span>Komissiya<span class="th-rs" @mousedown.prevent="startColResize('kredit', 2, $event)"></span></span>
-                            <span>Ümumi (komissiya ilə)<span class="th-rs" @mousedown.prevent="startColResize('kredit', 3, $event)"></span></span>
-                            <span>Karta köçürülən<span class="th-rs" @mousedown.prevent="startColResize('kredit', 4, $event)"></span></span>
-                            <span>İllik faiz<span class="th-rs" @mousedown.prevent="startColResize('kredit', 5, $event)"></span></span>
-                        </div>
-                        <div class="contact-row">
-                            <div><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="((app?.total_amount || app?.amount) ?? '-') + ' AZN'"></span></div>
-                            <div><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.term_months ?? '-') + ' ay'"></span></div>
-                            <div><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.approved_rate !== undefined && app?.approved_rate !== null) ? app.approved_rate + '%' : '-'"></span></div>
-                            <div><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.total_amount ?? '-') + ' AZN'"></span></div>
-                            <div><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.amount ?? '-') + ' AZN'"></span></div>
-                            <!-- PR #348: illik faiz qırmızı -->
-                            <div><span class="value-strong font-semibold text-sm whitespace-nowrap rate-red" x-text="app?.annual_interest_rate ? app.annual_interest_rate + '%' : '-'"></span></div>
-                        </div>
+                    <!-- PR #472: klassik table — tək sətir, 6 göstərici -->
+                    <div class="tbl-wrap" @mousemove.window="onColResize($event)" @mouseup.window="endColResize()">
+                        <table class="apl-table">
+                            <colgroup>
+                                <col :style="'width:' + colWidths.kredit[0] + 'px'">
+                                <col :style="'width:' + colWidths.kredit[1] + 'px'">
+                                <col :style="'width:' + colWidths.kredit[2] + 'px'">
+                                <col :style="'width:' + colWidths.kredit[3] + 'px'">
+                                <col :style="'width:' + colWidths.kredit[4] + 'px'">
+                                <col :style="'width:' + colWidths.kredit[5] + 'px'">
+                            </colgroup>
+                            <thead>
+                                <tr>
+                                    <th>Məbləğ<span class="th-rs" @mousedown.prevent="startColResize('kredit', 0, $event)"></span></th>
+                                    <th>Müddət<span class="th-rs" @mousedown.prevent="startColResize('kredit', 1, $event)"></span></th>
+                                    <th>Komissiya<span class="th-rs" @mousedown.prevent="startColResize('kredit', 2, $event)"></span></th>
+                                    <th>Ümumi (komissiya ilə)<span class="th-rs" @mousedown.prevent="startColResize('kredit', 3, $event)"></span></th>
+                                    <th>Karta köçürülən<span class="th-rs" @mousedown.prevent="startColResize('kredit', 4, $event)"></span></th>
+                                    <th>İllik faiz<span class="th-rs" @mousedown.prevent="startColResize('kredit', 5, $event)"></span></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="((app?.total_amount || app?.amount) ?? '-') + ' AZN'"></span></td>
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.term_months ?? '-') + ' ay'"></span></td>
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.approved_rate !== undefined && app?.approved_rate !== null) ? app.approved_rate + '%' : '-'"></span></td>
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.total_amount ?? '-') + ' AZN'"></span></td>
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.amount ?? '-') + ' AZN'"></span></td>
+                                    <!-- PR #348: illik faiz qırmızı -->
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap rate-red" x-text="app?.annual_interest_rate ? app.annual_interest_rate + '%' : '-'"></span></td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </section>
 
@@ -1064,25 +1097,15 @@
                     return entries;
                 },
 
-                // PR #468/#471: resizable sütunlar — MINIMUM enlər (px); cədvəl tək grid
-                // olduğundan max-content trek-lər başlıq+data məzmununa görə avtomatik
-                // genişlənir, colWidths yalnız aşağı həddi müəyyən edir.
+                // PR #468/#472: resizable sütunlar — colgroup <col> enləri (minimum).
+                // table-layout:auto: məzmun geniş olsa sütun avtomatik genişlənir —
+                // üst-üstə düşmə mümkünsüz, colWidths yalnız başlanğıc/en aşağı həddidir.
                 colWidths: {
                     cust: [110, 700, 320],
                     contacts: [28, 130, 165, 180, 200, 240],
                     kredit: [150, 110, 130, 210, 180, 140],
                 },
                 colResize: { table: null, idx: -1, startX: 0, startW: 0 },
-                // PR #471: cədvəl TƏK grid-dir (thead/setir display:contents) — max-content
-                // həm başlığı, həm datanı birlikdə nəzərə alır, trek məzmundan dar ola bilməz;
-                // sonuncu trek qalan eni (1fr) alır.
-                gridTpl(name) {
-                    const w = this.colWidths[name] || [];
-                    if (!w.length) return '';
-                    return w.map((x, i) =>
-                        'minmax(' + x + 'px, ' + (i === w.length - 1 ? '1fr)' : 'max-content)')
-                    ).join(' ');
-                },
                 startColResize(table, idx, e) {
                     this.colResize = { table, idx, startX: e.clientX, startW: this.colWidths[table][idx] };
                     document.body.style.userSelect = 'none';
