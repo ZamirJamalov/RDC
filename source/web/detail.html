@@ -164,9 +164,41 @@
         .row-full { grid-column: 1 / -1; }
         .photo-cell { width: 84px; height: 104px; object-fit: cover; border: 2px solid var(--border); border-radius: 8px; cursor: zoom-in; flex-shrink: 0; }
 
-        /* PR #465: kontakt sətri — üfüqi grid (№ | Əlaqə | Telefon | Ad | Status) */
-        .contact-row { display: grid; grid-template-columns: 22px 140px minmax(170px, 1.1fr) minmax(150px, 1fr) auto; gap: 8px; align-items: center; }
-        @media (max-width: 767px) { .contact-row { grid-template-columns: 1fr; } }
+        /* ============ PR #466: Nömrələr — APEX-grid cədvəl ============ */
+        .contacts-table { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; overflow-x: auto; }
+        .contacts-thead {
+            display: grid; grid-template-columns: 28px 150px minmax(170px, 1.1fr) minmax(150px, 1fr) 240px;
+            background: #F1F5F9; border-bottom: 2px solid var(--border);
+        }
+        [data-theme="dark"] .contacts-thead { background: #0d2444; }
+        .contacts-thead > span {
+            padding: 7px 8px; font-size: 11px; font-weight: 600; text-transform: uppercase;
+            letter-spacing: 0.04em; color: var(--text-soft); white-space: nowrap;
+        }
+        .contact-row {
+            display: grid; grid-template-columns: 28px 150px minmax(170px, 1.1fr) minmax(150px, 1fr) 240px;
+            align-items: stretch; border-bottom: 1px solid var(--border);
+        }
+        .contact-row > * { padding: 3px 6px; min-width: 0; border-left: 1px solid var(--border); display: flex; align-items: center; }
+        .contact-row > *:first-child { border-left: none; justify-content: center; }
+        .ct-zebra { background: rgba(100, 116, 139, 0.05); }
+        [data-theme="dark"] .ct-zebra { background: rgba(255, 255, 255, 0.03); }
+        .ct-group:hover { background: rgba(45, 156, 219, 0.06); }
+        [data-theme="dark"] .ct-group:hover { background: rgba(45, 156, 219, 0.1); }
+        /* hücrə-dolduran inputlar — APEX üslubu (sərhədsiz, focus-da işıqlı) */
+        .contacts-table .field-input:not(textarea) {
+            border-color: transparent; background: transparent; border-radius: 0;
+        }
+        .contacts-table .field-input:not(textarea):not(.bg-rose-50):not(:disabled):hover { border-color: var(--border); }
+        .contacts-table .field-input:not(textarea):focus { border-color: #2D9CDB; background: #FFFFFF; }
+        .contacts-table .field-input:not(textarea).bg-rose-50 { background: #FFF1F2; border-color: #FDA4AF; }
+        .ct-note { padding: 5px 8px 8px 34px; }
+        @media (max-width: 767px) {
+            .contacts-thead { display: none; }
+            .contact-row { grid-template-columns: 1fr; }
+            .contact-row > * { border-left: none; border-bottom: 1px dashed var(--border); justify-content: flex-start; }
+            .ct-note { padding-left: 8px; }
+        }
 
         /* PR #447: video-banner CSS silindi — toolbar banner-i əvəz etdi */
 
@@ -663,9 +695,17 @@
                         <span class="icon-chip">📞</span>
                         <h2 class="panel-title">Əlaqə Nömrələri</h2>
                     </div>
-                    <div class="space-y-3 flex-1">
+                    <!-- PR #466: APEX-grid — başlıq sətri + sərhədli hücrələr + zebra -->
+                    <div class="contacts-table flex-1">
+                        <div class="contacts-thead">
+                            <span>№</span>
+                            <span>Əlaqə</span>
+                            <span>Telefon</span>
+                            <span>Ad Soyad</span>
+                            <span>Status</span>
+                        </div>
                         <template x-for="(contact, idx) in contacts" :key="idx">
-                            <div class="contact-block">
+                            <div class="ct-group" :class="idx % 2 === 1 ? 'ct-zebra' : ''">
                                 <!-- PR #465: üfüqi sətir gridi — № | Əlaqə | Telefon | Ad | Status + düymələr -->
                                 <div class="contact-row">
                                     <span class="text-xs font-bold text-gray-400 text-center" x-text="(idx+1)"></span>
@@ -750,8 +790,8 @@
                                     </button>
                                     </div>
                                 </div>
-                                <!-- PR #266: Zəng qeydi — blur olanda avtomatik save olunur (PR #465: tam en) -->
-                                <div class="mt-1.5">
+                                <!-- PR #266: Zəng qeydi — blur olanda avtomatik save olunur (PR #465: tam en, PR #466: alt-sətir) -->
+                                <div class="ct-note">
                                     <textarea x-model="contact.callNote"
                                               @blur="saveContactNote(idx)"
                                               :disabled="isReadOnly"
