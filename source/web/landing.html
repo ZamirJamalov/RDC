@@ -8,7 +8,8 @@
     - Final CTA altında FAQ keçidi → /faq.html
     - Soft10.io chat widget
   Yeni dizaynda OLMAYAN (silinən): kalkulyator (PR #74 v3), theme toggle (dark-only),
-  scroll-snap, alpul-logo.png şəkli ("A" hərfi loqosu ilə əvəz olunub).
+  scroll-snap. PR #453: alpul-logo.png bərpa edildi, scroll göstəriciləri silindi,
+  "faizin düşür" → "daha sərfəli", alt-mətn böyüdüldü.
 -->
 <html lang="az">
 <head>
@@ -402,27 +403,6 @@
         }
         .card-detail-row + .card-detail-row { margin-top: 0.15rem; }
 
-        /* ============ SCROLL HINT ============ */
-        .scroll-hint {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            border-radius: 999px;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            font-size: 0.75rem;
-            color: var(--alpul-text-soft);
-        }
-        .scroll-hint-arrow {
-            display: inline-block;
-            animation: swipe 2s ease-in-out infinite;
-        }
-        @keyframes swipe {
-            0%, 100% { transform: translateX(0); opacity: 0.5; }
-            50% { transform: translateX(6px); opacity: 1; }
-        }
-
         /* ============ SCROLL ANIMATIONS ============ */
         .reveal {
             opacity: 0;
@@ -454,7 +434,8 @@
 <nav class="fixed top-0 inset-x-0 z-50 backdrop-blur-xl bg-black/60 border-b border-white/5">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
         <a href="/index.html" class="flex items-center gap-3 magnetic-btn" data-magnetic>
-            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-violet-500 flex items-center justify-center font-black text-lg text-black">A</div>
+            <!-- PR #453: alpul-logo.png bərpa edildi ("A" hərfi div əvəzinə) -->
+            <img src="/assets/alpul-logo.png" alt="ALPUL" class="w-10 h-10 object-contain">
             <span class="flex flex-col leading-none">
                 <span class="text-lg font-bold tracking-tight">ALPUL</span>
                 <span class="text-[9px] tracking-[0.25em] font-medium mt-0.5 text-zinc-500">by AZMK</span>
@@ -537,11 +518,7 @@
             </span>
         </div>
 
-        <!-- Scroll indicator -->
-        <div class="absolute bottom-8 left-1/2 -translate-x-1/2 hidden md:flex flex-col items-center gap-2 text-zinc-600 text-xs">
-            <span class="tracking-widest uppercase">Scroll</span>
-            <div class="w-px h-12 bg-gradient-to-b from-zinc-600 to-transparent"></div>
-        </div>
+        <!-- PR #453: scroll göstəricisi (SCROLL yazısı + xətt) silindi -->
     </div>
 </section>
 
@@ -557,15 +534,11 @@
                 </div>
                 <h2 class="text-4xl sm:text-5xl md:text-6xl font-black tracking-tight">
                     Səviyyən yüksəldikcə,<br>
-                    <span class="gradient-text">faizin düşür.</span>
+                    <span class="gradient-text">daha sərfəli.</span>
                 </h2>
                 <p class="mt-4 text-zinc-400 max-w-xl">
                     Hər vaxtında ödəniş səni bir pillə yuxarı qaldırır. Hər pillə daha ucuz kredit deməkdir.
                 </p>
-            </div>
-            <div class="scroll-hint">
-                <span>Sürüşdür</span>
-                <span class="scroll-hint-arrow">→</span>
             </div>
         </div>
     </div>
@@ -655,7 +628,8 @@
             <span>Səviyyəni başla</span>
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
         </a>
-        <p class="text-xs text-zinc-500 mt-4">YENİ səviyyəsindən başlayırsan. 5 dəqiqədə müraciət.</p>
+        <!-- PR #453: alt-mətn böyüdüldü (text-xs → text-sm) -->
+        <p class="text-sm text-zinc-500 mt-4">YENİ səviyyəsindən başlayırsan. 5 dəqiqədə müraciət.</p>
     </div>
 </section>
 
@@ -743,7 +717,8 @@
         <div class="grid grid-cols-1 md:grid-cols-4 gap-10">
             <div class="md:col-span-1">
                 <div class="flex items-center gap-3 mb-4">
-                    <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-violet-500 flex items-center justify-center font-black text-lg text-black">A</div>
+                    <!-- PR #453: alpul-logo.png bərpa edildi -->
+                    <img src="/assets/alpul-logo.png" alt="ALPUL.AZ" class="w-10 h-10 object-contain">
                     <span class="text-lg font-bold">ALPUL.AZ</span>
                 </div>
                 <div class="space-y-2 text-sm text-zinc-500">
