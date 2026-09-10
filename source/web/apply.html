@@ -241,15 +241,133 @@
         .level-valuable { background: rgba(245, 158, 11, 0.1); color: #B45309; border: 1px solid rgba(245, 158, 11, 0.3); }
         .level-elite { background: rgba(16, 185, 129, 0.1); color: #047857; border: 1px solid rgba(16, 185, 129, 0.3); }
 
-        .summary-panel {
-            position: sticky;
-            top: 88px;
-            max-height: calc(100vh - 104px);
-            overflow-y: auto;
+        /* PR #458: mobildə xülasə normal axındadır (formdan ƏVVƏL — order-first),
+           yalnız desktop-da (lg+) sağda sticky olur. */
+        @media (min-width: 1024px) {
+            .summary-panel {
+                position: sticky;
+                top: 88px;
+                max-height: calc(100vh - 104px);
+                overflow-y: auto;
+            }
         }
         .summary-panel::-webkit-scrollbar { width: 4px; }
         .summary-panel::-webkit-scrollbar-track { background: transparent; }
         .summary-panel::-webkit-scrollbar-thumb { background: var(--alpul-border); border-radius: 2px; }
+
+        /* ============ PR #458: LEVEL CARD — landing 4-pillə dizaynı ============
+           (landing.html-dən uyğunlaşdırılıb: width 100%, hover-lift və scroll-snap
+           silinib — tək kartır və fit-zoom jitter yaratmasın) */
+        .level-card {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 1.586 / 1;
+            border-radius: 20px;
+            overflow: hidden;
+            padding: 1.5rem;
+            color: #fff;
+            box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.5),
+                        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        }
+        .level-card::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(
+                105deg,
+                transparent 35%,
+                rgba(255, 255, 255, 0.35) 45%,
+                rgba(255, 255, 255, 0.1) 50%,
+                transparent 60%
+            );
+            transform: translateX(-120%);
+            animation: lvl-card-shine 5s ease-in-out infinite;
+            pointer-events: none;
+        }
+        @keyframes lvl-card-shine {
+            0%, 50% { transform: translateX(-120%); }
+            80%, 100% { transform: translateX(120%); }
+        }
+        /* Metal gradientlər (landing ilə eyni) */
+        .level-card.new {
+            background:
+                radial-gradient(120% 120% at 20% 0%, rgba(255,255,255,0.15), transparent 45%),
+                linear-gradient(135deg, #475569 0%, #334155 40%, #1e293b 100%);
+        }
+        .level-card.trusted {
+            background:
+                radial-gradient(120% 120% at 20% 0%, rgba(255,255,255,0.3), transparent 45%),
+                linear-gradient(135deg, #e5e7eb 0%, #9ca3af 40%, #4b5563 100%);
+            color: #1f2937;
+        }
+        .level-card.valuable {
+            background:
+                radial-gradient(120% 120% at 20% 0%, rgba(255,255,255,0.35), transparent 45%),
+                linear-gradient(135deg, #fbbf24 0%, #f59e0b 40%, #b45309 100%);
+            color: #451a03;
+        }
+        .level-card.elite {
+            background:
+                radial-gradient(120% 120% at 20% 0%, rgba(255,255,255,0.4), transparent 45%),
+                linear-gradient(135deg, #064E3B 0%, #065F46 40%, #34D399 75%, #022C22 100%);
+        }
+        .card-chip {
+            width: 36px;
+            height: 28px;
+            border-radius: 6px;
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #b45309 100%);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.3);
+            position: relative;
+        }
+        .card-chip::before {
+            content: '';
+            position: absolute;
+            inset: 4px;
+            border: 1px solid rgba(0,0,0,0.2);
+            border-radius: 3px;
+            background:
+                linear-gradient(90deg, transparent 25%, rgba(0,0,0,0.1) 25%, rgba(0,0,0,0.1) 50%, transparent 50%, transparent 75%, rgba(0,0,0,0.1) 75%);
+            background-size: 4px 100%;
+        }
+        .card-level-name {
+            font-size: 1.75rem;
+            font-weight: 900;
+            letter-spacing: -0.02em;
+            margin-top: 0.5rem;
+            font-family: 'Geist', 'IBM Plex Sans', sans-serif;
+        }
+        .card-commission {
+            position: absolute;
+            bottom: 1.5rem;
+            left: 1.5rem;
+        }
+        .card-commission-label {
+            font-size: 0.65rem;
+            font-weight: 600;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            opacity: 0.7;
+        }
+        .card-commission-value {
+            font-size: 2.25rem;
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: -0.03em;
+            font-family: 'Geist', 'IBM Plex Sans', sans-serif;
+        }
+        .card-details {
+            position: absolute;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            text-align: right;
+        }
+        .card-detail-row {
+            font-size: 0.7rem;
+            font-family: 'Geist Mono', 'IBM Plex Sans', monospace;
+            opacity: 0.85;
+            letter-spacing: 0.02em;
+        }
+        .card-detail-row + .card-detail-row { margin-top: 0.15rem; }
 
         .checkbox-wrapper {
             display: flex;
@@ -738,21 +856,30 @@
                 </div><!-- /offer (x-show) -->
             </div><!-- /LEFT form kartı -->
 
-            <!-- RIGHT: PR #456 — Kredit xülasəsi paneli (sticky, demo dizayn) -->
-            <aside x-show="offer" class="summary-panel hidden lg:block">
-                <div class="card p-5 space-y-4">
-                    <div>
-                        <div class="text-xs uppercase tracking-wider font-semibold mb-1.5" style="color: var(--alpul-text-soft)">Kredit xülasəsi</div>
-                        <div class="flex items-baseline gap-2">
-                            <span class="text-3xl font-bold whitespace-nowrap tabular-nums" x-text="form.amount"></span>
-                            <span class="text-sm" style="color: var(--alpul-text-soft)">AZN</span>
-                        </div>
-                        <span class="level-badge mt-2" :class="levelBadgeClass(offer?.credit_level)"
-                              x-text="levelNameAz(offer?.credit_level) + ' səviyyə'"></span>
+            <!-- RIGHT: PR #458 — Kredit xülasəsi: landing 4-pillə kart dizaynı +
+                 dinamik rəqəmlər box-u. Mobildə formdan ƏVVƏL görünür (order-first),
+                 desktop-da sağda sticky. -->
+            <aside x-show="offer" class="summary-panel order-first lg:order-none">
+                <div class="text-xs uppercase tracking-wider font-semibold mb-2" style="color: var(--alpul-text-soft)">Kredit xülasəsi</div>
+
+                <!-- Kartın ÜZƏRİNDƏ landing məlumatları: səviyyə adı, komissiya %,
+                     məbləğ aralığı, illik faiz, müddət (offer-dən dinamik) -->
+                <div class="level-card" :class="offer?.credit_level">
+                    <div class="card-chip"></div>
+                    <div class="card-level-name" x-text="levelNameAz(offer?.credit_level)"></div>
+                    <div class="card-commission">
+                        <div class="card-commission-label">Komissiya</div>
+                        <div class="card-commission-value whitespace-nowrap"><span x-text="selectedRange?.commission?.toFixed(0) || '—'"></span>%</div>
                     </div>
+                    <div class="card-details">
+                        <div class="card-detail-row whitespace-nowrap"><span x-text="rangeMin"></span> — <span x-text="rangeMax"></span> ₼</div>
+                        <div class="card-detail-row whitespace-nowrap">İllik <span x-text="selectedRange?.annual_interest_rate?.toFixed(0) || '—'"></span>%</div>
+                        <div class="card-detail-row whitespace-nowrap"><span x-text="selectedRange?.term_months || '—'"></span> ay</div>
+                    </div>
+                </div>
 
-                    <div class="divider"></div>
-
+                <!-- Kartın ALTINDAKI box: aylıq ödəniş, yekun ödəniş və s. -->
+                <div class="card p-4 sm:p-5 space-y-4 mt-4">
                     <div class="grid grid-cols-2 gap-3">
                         <div class="card-inset p-3">
                             <div class="text-xs mb-1" style="color: var(--alpul-text-soft)">Aylıq ödəniş</div>
@@ -761,7 +888,7 @@
                             </div>
                         </div>
                         <div class="card-inset p-3">
-                            <div class="text-xs mb-1" style="color: var(--alpul-text-soft)">Ümumi qaytarılacaq</div>
+                            <div class="text-xs mb-1" style="color: var(--alpul-text-soft)">Yekun ödəniş</div>
                             <div class="text-xl font-bold font-mono whitespace-nowrap">
                                 <span x-text="totalRepayment"></span> ₼
                             </div>
@@ -780,14 +907,6 @@
                         <div class="flex justify-between">
                             <dt style="color: var(--alpul-text-soft)">Köçürüləcək</dt>
                             <dd class="font-mono font-medium whitespace-nowrap"><span x-text="form.amount.toFixed(2)"></span> ₼</dd>
-                        </div>
-                        <div class="flex justify-between">
-                            <dt style="color: var(--alpul-text-soft)">İllik faiz</dt>
-                            <dd class="font-mono font-medium whitespace-nowrap"><span x-text="selectedRange?.annual_interest_rate?.toFixed(0) || '—'"></span>%</dd>
-                        </div>
-                        <div class="flex justify-between">
-                            <dt style="color: var(--alpul-text-soft)">Müddət</dt>
-                            <dd class="font-mono font-medium whitespace-nowrap"><span x-text="selectedRange?.term_months || '—'"></span> ay</dd>
                         </div>
                     </dl>
 
