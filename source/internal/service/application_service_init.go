@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -237,8 +238,17 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
 				"application_id", app.ID,
 				"customer_pin", app.CustomerPIN,
 				"reason", app.RejectionReason)
-			// PR #362: KYC reject — müştəriyə imtina SMS-i (non-fatal)
-			s.sendRejectionSMS(ctx, app)
+			// PR #477: servis xətasında (AZMK down/timeout — ErrKycServiceUnavailable)
+			// imtina SMS-i GEDİRMİR: reject texniki səbəblədir, müştəri günahkar deyil.
+			// SMS yalnız müştərinin özündən asılı imtinaya gedir (KYC-i özü təsdiq etmədi).
+			if errors.Is(kycErr, ErrKycServiceUnavailable) {
+				slog.Warn("PR #477: KYC service error — rejection SMS skipped",
+					"application_id", app.ID,
+					"error", kycErr)
+			} else {
+				// PR #362: KYC reject — müştəriyə imtina SMS-i (non-fatal)
+				s.sendRejectionSMS(ctx, app)
+			}
 			return app, nil
 		}
 	} else if s.azmkProvider != nil && !s.kycVerifyEnabled {
@@ -287,6 +297,14 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
 	return app, nil
 }
 
+// ErrKycServiceUnavailable — AZMK KYC/Partner xidmətinin TEXNİKİ xətasıdır
+// (şəbəkə, timeout, 5xx). PR #477: belə xətalarda müraciət texniki səbəbdən
+// rejected olur, amma müştəriyə imtina SMS-i GEDİRMİR — reject müştərinin
+// özündən asılı deyil (PR #421 pattern-i: AZMK create rollback-da da SMS yoxdur).
+// Müştərinin özündən asılı olan KYC imtinası (3 dəqiqə ərzində şəxsiyyətini
+// təsdiq etməməsi) sentinel ilə wrap OL MUR — SMS gedir (imza timeout kimi).
+var ErrKycServiceUnavailable = errors.New("kyc service unavailable")
+
 // runAzmkKycAndPartner performs AZMK KYC verification and Partner registration.
 // PR #117: OTP-dən sonra, cutoff-dan əvvəl çağrılır.
 //
@@ -297,6 +315,8 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
 //  4. Save kyc_id + partner_id to the application
 //
 // Returns error if KYC fails or is not verified.
+// PR #477: texniki xətalar (1-3 addımların servis xətaları) ErrKycServiceUnavailable
+// ilə wrap olunur — çağıran tərəf bununla imtina SMS-ini skip edir.
 func (s *ApplicationService) runAzmkKycAndPartner(ctx context.Context, app *model.LoanApplication) error {
 	// Build PartnerData from application info
 	phone := app.CustomerPhone
@@ -324,7 +344,7 @@ func (s *ApplicationService) runAzmkKycAndPartner(ctx context.Context, app *mode
 			"application_id", app.ID,
 			"customer_pin", app.CustomerPIN,
 			"error", err)
-		return fmt.Errorf("KYC yaradıla bilmədi: %w", err)
+		return fmt.Errorf("KYC yaradıla bilmədi: %w: %w", err, ErrKycServiceUnavailable)
 	}
 	slog.Info("PR #281: step 2 — AZMK KYC session created",
 		"step", "2.kyc_create",
@@ -346,7 +366,7 @@ func (s *ApplicationService) runAzmkKycAndPartner(ctx context.Context, app *mode
 				"kyc_id", kycID,
 				"attempt", attempt,
 				"error", err)
-			return fmt.Errorf("KYC yoxlanıla bilmədi: %w", err)
+			return fmt.Errorf("KYC yoxlanıla bilmədi: %w: %w", err, ErrKycServiceUnavailable)
 		}
 		if verified {
 			slog.Info("AZMK KYC verified",
@@ -381,7 +401,7 @@ func (s *ApplicationService) runAzmkKycAndPartner(ctx context.Context, app *mode
 			"application_id", app.ID,
 			"kyc_id", kycID,
 			"error", err)
-		return fmt.Errorf("Partner qeydiyyatı uğursuz: %w", err)
+		return fmt.Errorf("Partner qeydiyyatı uğursuz: %w: %w", err, ErrKycServiceUnavailable)
 	}
 	slog.Info("PR #281: step 3 — AZMK Partner registered",
 		"step", "3.partner_register",
