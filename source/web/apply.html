@@ -1889,6 +1889,21 @@ function applyApp() {
                     if (reason === 'SERVICE_ERROR') {
                         this.engineRejectionReason = 'Texniki xəta baş verdi. Xarici servislər mövcud deyil və ya cavab vermir. Zəhmət olmasa bir az sonra yenidən cəhd edin.';
                         this.isTechnicalError = true; // PR #250: 'Yenidən cəhd et' buttonu üçün
+                    } else if (reason === 'SERIAL_MISMATCH') {
+                        // PR #487: identiklik qapısı — seriya FIN ilə uyğun deyil (typo).
+                        // Generic mesaj: oracle dəyərini azaldır (enumerasiya qarşısı).
+                        this.engineRejectionReason = 'Daxil etdiyiniz məlumatlar uyğun gəlmir. FIN kodu və seriya nömrəsini yoxlayıb yenidən cəhd edin.';
+                        this.isTechnicalError = true; // 'Yenidən cəhd et' düyməsi — typo düzəldilə bilər
+                    } else if (reason === 'SERIAL_MISMATCH_BLOCKED') {
+                        // PR #487: anti-enumeration — 24 saatda 3+ yanlış cəhd.
+                        this.engineRejectionReason = 'Çoxlu yanlış cəhd qeydə alınıb. Zəhmət olmasa 24 saat sonra yenidən cəhd edin.';
+                        this.isTechnicalError = false;
+                    } else if (reason === 'AGE_UNDER_18') {
+                        this.engineRejectionReason = 'Kredit müraciəti üçün yaş 18-dən aşağı ola bilməz.';
+                        this.isTechnicalError = false;
+                    } else if (reason === 'AGE_OVER_69') {
+                        this.engineRejectionReason = 'Kredit müraciəti üçün yaş həddi (69+) aşılıb.';
+                        this.isTechnicalError = false;
                     } else {
                         this.engineRejectionReason = reason;
                         this.isTechnicalError = false;

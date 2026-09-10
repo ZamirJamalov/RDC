@@ -101,6 +101,20 @@ func (s *ApplicationService) InitApplication(ctx context.Context, req *InitAppli
 		return nil, fmt.Errorf("Sizin artıq işlənməkdə olan müraciətiniz var (№%d, status: %s). Bu müraciət həll olunana qədər yeni müraciət edə bilməzsiniz", existingID, existingStatus)
 	}
 
+	// PR #487: anti-enumeration — FIN başına son 24 saatda 3+ SERIAL_MISMATCH
+	// rəddi varsa yeni müraciət yaradılmır (robotlarla seriya combination axtarışına qarşı).
+	mismatchCount, err := s.repo.CountRecentSerialMismatches(ctx, req.CustomerPIN, 24)
+	if err != nil {
+		slog.Warn("PR #487: failed to count serial mismatches — fail-soft (allowing)",
+			"customer_pin", req.CustomerPIN, "error", err)
+	} else if mismatchCount >= s.serialMismatchBlockLimit {
+		slog.Warn("PR #487: serial mismatch limit reached — new application blocked",
+			"customer_pin", req.CustomerPIN,
+			"mismatch_count_24h", mismatchCount,
+			"limit", s.serialMismatchBlockLimit)
+		return nil, fmt.Errorf("Çoxlu yanlış cəhd qeydə alınıb. Zəhmət olmasa 24 saat sonra yenidən cəhd edin")
+	}
+
 	// Yeni app yarat
 	app := &model.LoanApplication{
 		CustomerPIN:    req.CustomerPIN,
@@ -214,13 +228,40 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
 		return nil, fmt.Errorf("application is not in pending_customer status (current: %s)", app.Status)
 	}
 
-	// 3. PR #117: AZMK KYC + Partner registration
-	// Müştəri kimliyini təsdiq etmədən cutoff yoxlamaq mənasızdır.
-	// PR #168: audit log üçün appID set et
-	// PR #259: SetAuditAppID shared mutable state race yaradırdı (10 paralel goroutine
-	// eyni provider-də appID overwrite edirdi). Əvəzinə context value istifadə olunur.
+	// 3. PR #487: İdentiklik qapısı — KYC-dən ƏVVƏL.
+	// Cheap-first: AZMK_GET_PERSONAL_INFO (ən ucuz) serial+yaş yoxlayır; yalnız
+	// keçən müraciət bahalı KYC/Partner/AKB mərhələsinə düşür.
+	// PR #259: SetAuditAppID race — əvəzinə context value (yuxarıda set olunub).
 	appID := app.ID
 	ctx = azmk.WithAppID(ctx, &appID)
+	gateRejection, err := s.runIdentityGate(ctx, app)
+	if err != nil {
+		// Texniki xəta — fail-soft: qapı skip, axın davam edir (köhnə davranış)
+		slog.Error("PR #487: identity gate technical error — proceeding (fail-soft)",
+			"application_id", app.ID, "error", err)
+	} else if gateRejection != "" {
+		app.Status = model.StatusRejected
+		app.RejectionReason = gateRejection
+		if err := s.repo.UpdateApplicationDecision(ctx, app.ID,
+			app.Status, "", gateRejection, 0, 0, 0); err != nil {
+			return nil, fmt.Errorf("failed to save gate rejection: %w", err)
+		}
+		slog.Info("PR #487: identity gate rejected",
+			"application_id", app.ID,
+			"customer_pin", app.CustomerPIN,
+			"rejection_reason", gateRejection)
+		// PR #487: SERIAL_MISMATCH (typo) və SERIAL_MISMATCH_BLOCKED üçün SMS YOX —
+		// müştəri ekrandadır, UI mesajı kifayətdir. AGE_* üçün SMS gedir
+		// (mövcud cutoff rəddləri ilə uyğun davranış, PR #362).
+		if gateRejection != "SERIAL_MISMATCH" && gateRejection != "SERIAL_MISMATCH_BLOCKED" {
+			s.sendRejectionSMS(ctx, app)
+		}
+		return app, nil
+	}
+
+	// 4. PR #117: AZMK KYC + Partner registration
+	// Müştəri kimliyini təsdiq etmədən cutoff yoxlamaq mənasızdır.
+	// (appID ctx-ə yuxarıda — identity gate-dən əvvəl — set olunub, PR #487.)
 	// PR #170: KYC verify toggle — əgər enabled=false isə KYC skip olunur
 	if s.azmkProvider != nil && s.kycVerifyEnabled {
 		slog.Info("AZMK KYC verify enabled — starting KYC + Partner registration",
@@ -433,6 +474,122 @@ func serialMatches(azmkSeria, enteredSerial string) bool {
 		return s
 	}
 	return norm(azmkSeria) == norm(enteredSerial)
+}
+
+// runIdentityGate — PR #487: identiklik qapısı. OTP verify-dən DƏRHAL sonra,
+// KYC-dən ƏVVƏL işə düşür (KYC/Partner/AKB bahalıdır — identiklik ən ucuz
+// servis olan AZMK_GET_PERSONAL_INFO (10 qəpik) ilə yoxlanılır).
+//
+// Yoxlamalar (sıra ilə):
+//  1. Anti-enumeration hard-stop: son 24 saatda 3+ SERIAL_MISMATCH varsa — AZMK
+//     çağrılmadan rədd (pulu yığılır). Limit serialMismatchBlockLimit (default 3).
+//  2. AZMK_GET_PERSONAL_INFO (cache-first, PR #486 açarı: PIN+serial):
+//     - SERIAL_MISMATCH: cavabdakı DocumentSeriaNumber ≠ daxil edilən seriya → rədd.
+//     SMS GEDİRMİR (typo halı — müştəri ekrandadır, UI mesajı kifayətdir).
+//     - AGE_UNDER_18 / AGE_OVER_69: yaş 18-69 aralığında deyilsə → rədd (SMS gedir —
+//     mövcud cutoff davranışı ilə uyğun). Bozuk BirthDate → Age()=0 → 18-dən kiçik kimi rədd.
+//
+// Fail-soft: provider nil, cutoff-lar deaktiv və ya AZMK texniki xətası (data=nil)
+// olanda qapı skip olunur — müştəri bloklanmır (köhnə davranış).
+//
+// Returns: rejection reason ("" = keçdi) və ya texniki error.
+func (s *ApplicationService) runIdentityGate(ctx context.Context, app *model.LoanApplication) (string, error) {
+	// Cutoff-lar deaktivdirsə qapı da deaktiv (dev/test rejimi)
+	if !s.cutoffChecksEnabled {
+		slog.Info("PR #487: identity gate skipped — cutoff checks disabled",
+			"application_id", app.ID)
+		return "", nil
+	}
+	// Provider yoxdursa yaş/seriya mənbəyi yoxdur — skip
+	if s.customerDataProvider == nil {
+		slog.Info("PR #487: identity gate skipped — customerDataProvider is nil",
+			"application_id", app.ID)
+		return "", nil
+	}
+
+	appID := app.ID
+	customerPIN := app.CustomerPIN
+	serial := app.CustomerSerial
+
+	// 1. Anti-enumeration hard-stop — AZMK çağrılmadan əvvəl.
+	if s.serialMismatchBlockLimit > 0 {
+		mismatchCount, err := s.repo.CountRecentSerialMismatches(ctx, customerPIN, 24)
+		if err != nil {
+			slog.Warn("PR #487: gate — mismatch count failed — fail-soft (continuing)",
+				"application_id", appID, "error", err)
+		} else if mismatchCount >= s.serialMismatchBlockLimit {
+			slog.Warn("PR #487: gate — serial mismatch limit reached — rejecting without AZMK call",
+				"application_id", appID,
+				"customer_pin", customerPIN,
+				"mismatch_count_24h", mismatchCount,
+				"limit", s.serialMismatchBlockLimit)
+			s.logCutoff(ctx, appID, "SERIAL_MISMATCH_BLOCKED", "Seriya cəhd limiti (24 saatda 3+)", "IDENTITY_GATE", false, false,
+				fmt.Sprintf("mismatches_24h = %d, limit = %d", mismatchCount, s.serialMismatchBlockLimit), "attempts < limit", "")
+			return "SERIAL_MISMATCH_BLOCKED", nil
+		}
+	}
+
+	// 2. PERSONAL_INFO — cache-first (PR #486: açar PIN + serial).
+	var data *azmk.CustomerData
+	if cached, ok := s.GetCachedServiceResponse(ctx, &appID, "AZMK_GET_PERSONAL_INFO", customerPIN, serial); ok {
+		data = customerDataFromCache(cached)
+	}
+	if data == nil {
+		data = s.fetchCustomerDataFromAzmk(ctx, customerPIN, serial)
+	}
+	// AZMK texniki xətası / boş cavab → fail-soft skip (müştərini bloklamırıq)
+	if data == nil {
+		slog.Warn("PR #487: gate — no personal data (service error?) — fail-soft skip",
+			"application_id", appID, "customer_pin", customerPIN)
+		s.logCutoff(ctx, appID, "IDENTITY_GATE_SKIPPED", "Identiklik qapısı — servis xətası, skip", "AZMK_GET_PERSONAL_INFO", false, true, "service error / empty", "serial+age checked", "")
+		return "", nil
+	}
+
+	// 2a. SERIAL_MISMATCH — identiklik yoxlaması.
+	if serial != "" && data.DocumentSeriaNumber != "" && !serialMatches(data.DocumentSeriaNumber, serial) {
+		slog.Error("PR #487: gate — SERIAL_MISMATCH",
+			"application_id", appID, "customer_pin", customerPIN,
+			"azmk_seria", data.DocumentSeriaNumber, "entered_serial", serial)
+		s.logCutoff(ctx, appID, "SERIAL_MISMATCH", "Sənəd seriyası FIN kodu ilə uyğun gəlmir", "AZMK_GET_PERSONAL_INFO", true, false,
+			fmt.Sprintf("azmk = %s, entered = %s", data.DocumentSeriaNumber, serial), "seriya uyğun", "")
+		return "SERIAL_MISMATCH", nil
+	}
+
+	// 2b. Yaş qapısı — 18 ≤ yaş ≤ 69 (PR #487: AGE_UNDER_18 əlavə olundu).
+	age := data.Age()
+	if age < 18 {
+		slog.Info("PR #487: gate — AGE_UNDER_18",
+			"application_id", appID, "customer_pin", customerPIN, "age", age)
+		s.logCutoff(ctx, appID, "AGE_UNDER_18", "Yaşı 18-dən aşağı olduqda imtina", "AZMK_GET_PERSONAL_INFO", true, false,
+			fmt.Sprintf("age = %d", age), "18 <= age", "")
+		return "AGE_UNDER_18", nil
+	}
+	if age > 69 {
+		slog.Info("PR #487: gate — AGE_OVER_69",
+			"application_id", appID, "customer_pin", customerPIN, "age", age)
+		s.logCutoff(ctx, appID, "AGE_OVER_69", "Yaşı 69+ olduqda imtina", "AZMK_GET_PERSONAL_INFO", true, false,
+			fmt.Sprintf("age = %d", age), "age <= 69", "")
+		return "AGE_OVER_69", nil
+	}
+
+	// PR #243/#245: adı və qeydiyyat ünvanını DƏRHAL saxla (KYC-dən əvvəl —
+	// dashboard-da adı tez göstərilir; cutoff zənciri sonra cache-HIT ilə oxuyur).
+	if fullName := data.FullName(); fullName != "" && app.CustomerFullName == "" {
+		app.CustomerFullName = fullName
+		if err := s.repo.UpdateCustomerFullName(ctx, appID, fullName); err != nil {
+			slog.Warn("failed to save customer full name to DB", "error", err)
+		}
+	}
+	if data.RegistrationAddress != "" && app.RegistrationAddress == "" {
+		app.RegistrationAddress = data.RegistrationAddress
+		if err := s.repo.UpdateRegistrationAddress(ctx, appID, data.RegistrationAddress); err != nil {
+			slog.Warn("failed to save registration address to DB", "error", err)
+		}
+	}
+
+	slog.Info("PR #487: identity gate passed",
+		"application_id", appID, "customer_pin", customerPIN, "age", age)
+	return "", nil
 }
 
 // runEarlyCutoffChecks performs AUTO cutoff checks after OTP verification,

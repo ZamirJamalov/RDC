@@ -203,6 +203,11 @@ func (m *mockApplicationStore) HasPendingApplication(_ context.Context, _ string
 	return m.pendingAppID, m.pendingStatus, 0, m.pendingErr
 }
 
+// CountRecentSerialMismatches — PR #487: mock (0 mismatch = limit yox).
+func (m *mockApplicationStore) CountRecentSerialMismatches(_ context.Context, _ string, _ int) (int, error) {
+	return 0, nil
+}
+
 // GetRecentPendingApplication — PR #217: mock (returns nil = no recent app).
 func (m *mockApplicationStore) GetRecentPendingApplication(_ context.Context, _, _ string, _ int) (*model.LoanApplication, error) {
 	return nil, nil

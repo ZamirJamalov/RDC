@@ -158,8 +158,8 @@ func (r *ApplicationRepo) GetApplicationByID(ctx context.Context, id int) (*mode
 		&partnerID,
 		&cardID,
 		&lwApplicationID,
-	&azmkLoanID,
-	&azmkCreatedAt,
+		&azmkLoanID,
+		&azmkCreatedAt,
 		&app.TimerSeconds,
 		&processedByUserID,
 		&processedByUsername,
@@ -599,7 +599,31 @@ func (r *ApplicationRepo) checkLastRejectionCutoff(ctx context.Context, customer
 	return 0, "", 0, nil
 }
 
-// UpdateContactNotes saves the expert's call notes for each contact (PR #266).
+// CountRecentSerialMismatches counts rejected applications with a
+// SERIAL_MISMATCH* rejection_reason for the given PIN within the trailing
+// window (PR #487). Anti-enumeration guard: FIN başına 3 yanlış seriya
+// cəhdindən sonra yeni müraciətlər bloklanır.
+func (r *ApplicationRepo) CountRecentSerialMismatches(ctx context.Context, customerPIN string, windowHours int) (int, error) {
+	if windowHours <= 0 {
+		return 0, nil
+	}
+	var count int
+	err := r.db.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		FROM loan_applications
+		WHERE customer_pin = ?
+		  AND status = 'rejected'
+		  AND rejection_reason LIKE 'SERIAL_MISMATCH%'
+		  AND updated_at >= DATEADD(hour, -?, GETDATE())`,
+		customerPIN, windowHours,
+	).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count recent serial mismatches: %w", err)
+	}
+	return count, nil
+}
+
+// UpdateContactNotes saves expert call notes for each contact (PR #266).
 // Called when the frontend textarea loses focus (blur event).
 func (r *ApplicationRepo) UpdateContactNotes(ctx context.Context, id int, app *model.LoanApplication) error {
 	_, err := r.db.ExecContext(ctx, `
