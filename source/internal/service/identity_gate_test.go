@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"rdc-source/internal/model"
@@ -182,6 +183,28 @@ func TestIdentityGate_ServiceErrorFailSoft(t *testing.T) {
 	}
 	if reason != "" {
 		t.Fatalf("expected fail-soft pass on service error, got %q", reason)
+	}
+}
+
+// PR #488: AZMK result=0 ("Sorğuya uyğun nəticə tapılmadı") — definitiv mənfi
+// cavabdır, texniki xəta deyil → SERIAL_MISMATCH ilə rədd.
+// Real hadisə: sehv serial AA3161226 + düzgün FIN 1SNK08P → AZMK result=0 →
+// köhnə kod fail-soft skip edib KYC-yə buraxırdı.
+func TestIdentityGate_NotFoundRejected(t *testing.T) {
+	store := newMockStore()
+	store.appByID[1] = newGateApp()
+	svc := newGateTestService(store)
+	// Sentinel-i wrap edirik — HTTP provider fmt.Errorf("%w: %s") ilə qaytarır
+	svc.SetCustomerDataProvider(&mockAzmkCustomerData{
+		personalErr: fmt.Errorf("%w: AZMK CustomerDataService error: Sorğuya uyğun nəticə tapılmadı. (result=0)", azmk.ErrCustomerNotFound),
+	})
+
+	reason, err := svc.runIdentityGate(context.Background(), newGateApp())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if reason != "SERIAL_MISMATCH" {
+		t.Fatalf("expected SERIAL_MISMATCH for result=0, got %q", reason)
 	}
 }
 

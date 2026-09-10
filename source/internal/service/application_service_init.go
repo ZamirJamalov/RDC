@@ -535,13 +535,33 @@ func (s *ApplicationService) runIdentityGate(ctx context.Context, app *model.Loa
 		data = customerDataFromCache(cached)
 	}
 	if data == nil {
-		data = s.fetchCustomerDataFromAzmk(ctx, customerPIN, serial)
+		// PR #488: birbaşa provider çağırışı — fetchCustomerDataFromAzmk error-i
+		// udur (fail-soft), amma qapı üçün error TİPİ kritikdir:
+		// ErrCustomerNotFound (result=0 "tapılmadı") = definitiv mənfi cavab → rədd;
+		// digər xətalar = texniki → fail-soft skip.
+		pd, perr := s.customerDataProvider.GetPersonalInfo(ctx, customerPIN, serial)
+		if perr != nil {
+			if errors.Is(perr, azmk.ErrCustomerNotFound) {
+				slog.Warn("PR #488: gate — AZMK result=0 (FIN+seriya mövcud deyil) — SERIAL_MISMATCH",
+					"application_id", appID, "customer_pin", customerPIN,
+					"serial", serial, "azmk_error", perr.Error())
+				s.logCutoff(ctx, appID, "SERIAL_MISMATCH", "FIN+seriya kombinasiyası AZMK-da tapılmadı (result=0)", "AZMK_GET_PERSONAL_INFO", true, false,
+					"result=0: Sorğuya uyğun nəticə tapılmadı", "kombinasiya mövcuddur", perr.Error())
+				return "SERIAL_MISMATCH", nil
+			}
+			// Texniki xəta — fail-soft skip (müştərini bloklamırıq)
+			slog.Warn("PR #488: gate — PERSONAL_INFO technical error — fail-soft skip",
+				"application_id", appID, "customer_pin", customerPIN, "error", perr)
+			s.logCutoff(ctx, appID, "IDENTITY_GATE_SKIPPED", "Identiklik qapısı — servis xətası, skip", "AZMK_GET_PERSONAL_INFO", false, true, "service error / empty", "serial+age checked", perr.Error())
+			return "", nil
+		}
+		data = pd
 	}
-	// AZMK texniki xətası / boş cavab → fail-soft skip (müştərini bloklamırıq)
+	// data nil halı (mock və ya gözlənilməz) — fail-soft skip
 	if data == nil {
-		slog.Warn("PR #487: gate — no personal data (service error?) — fail-soft skip",
+		slog.Warn("PR #487: gate — no personal data — fail-soft skip",
 			"application_id", appID, "customer_pin", customerPIN)
-		s.logCutoff(ctx, appID, "IDENTITY_GATE_SKIPPED", "Identiklik qapısı — servis xətası, skip", "AZMK_GET_PERSONAL_INFO", false, true, "service error / empty", "serial+age checked", "")
+		s.logCutoff(ctx, appID, "IDENTITY_GATE_SKIPPED", "Identiklik qapısı — data yoxdur, skip", "AZMK_GET_PERSONAL_INFO", false, true, "empty data", "serial+age checked", "")
 		return "", nil
 	}
 

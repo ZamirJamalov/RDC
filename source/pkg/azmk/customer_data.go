@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -943,6 +944,12 @@ func NewHTTPCustomerDataProvider(baseURL, username, password string, timeoutS in
 	}
 }
 
+// ErrCustomerNotFound — AZMK CustomerDataService result=0 cavabı: sorğuya
+// uyğun kayıt tapılmadı (FIN+seriya kombinasiyası mövcud deyil). Bu TEXNİKİ
+// xəta deyil — definitiv mənfi cavabdır (PR #488): identiklik qapısı bunu
+// SERIAL_MISMATCH kimi qiymətləndirir, fail-soft YOX.
+var ErrCustomerNotFound = errors.New("azmk: customer not found")
+
 // GetPersonalInfo calls the real AZMK CustomerDataService.
 func (p *HTTPCustomerDataProvider) GetPersonalInfo(ctx context.Context, finCode, serialNumber string) (*CustomerData, error) {
 	reqBody := CustomerDataRequest{
@@ -986,6 +993,11 @@ func (p *HTTPCustomerDataProvider) GetPersonalInfo(ctx context.Context, finCode,
 	if cdResp.Result != 1 {
 		errMsg := fmt.Sprintf("AZMK CustomerDataService error: %s (result=%d)", cdResp.Message, cdResp.Result)
 		p.auditLog(ctx, "AZMK_GET_PERSONAL_INFO", "POST", url, string(jsonBody), respBodyStr, resp.StatusCode, durationMs, errMsg)
+		// PR #488: result=0 = "Sorğuya uyğun nəticə tapılmadı" — sentinel ilə qaytar
+		// ki çağırıcı texniki xəta ilə fərqləndirə bilsin.
+		if cdResp.Result == 0 {
+			return nil, fmt.Errorf("%w: %s", ErrCustomerNotFound, errMsg)
+		}
 		return nil, fmt.Errorf("%s", errMsg)
 	}
 
