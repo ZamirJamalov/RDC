@@ -154,6 +154,15 @@
             color: transparent;
         }
 
+        /* PR #484: ALPUL sözü üçün ayrıca qızıl qradient — "daha sərfəli."
+           sətrinin animated üçrəngli qradientindən aydın fərqlənir. */
+        .alpul-grad-text {
+            background: linear-gradient(135deg, #FBBF24 0%, #F59E0B 100%);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
         /* ============ BUTTONS ============ */
         .btn-primary {
             background: linear-gradient(135deg, #10B981 0%, #059669 100%);
@@ -744,8 +753,8 @@
         <!-- Headline -->
         <div class="text-center reveal">
             <h1 class="headline-hero">
-                <span class="block text-outline">ALPUL-DAN KREDİT</span>
-                <span class="block gradient-text">daha sərfəli.</span>
+                <span class="block text-outline">KREDİT</span>
+                <span class="block"><span class="alpul-grad-text">ALPUL</span> <span class="gradient-text">daha sərfəli.</span></span>
             </h1>
 
             <p class="mt-10 text-lg sm:text-xl text-zinc-400 max-w-2xl mx-auto leading-relaxed">
