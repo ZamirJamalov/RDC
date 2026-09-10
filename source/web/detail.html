@@ -182,11 +182,12 @@
         /* PR #467: Müştəri cədvəli sütunları artıq JS-dən idarə olunur (PR #468 resize) */
         .contact-row > * { padding: 3px 6px; min-width: 0; border-left: 1px solid var(--border); display: flex; align-items: center; }
         .contact-row > *:first-child { border-left: none; justify-content: center; }
-        /* PR #468: sütun resize tutacağı — başlıq hücrəsinin sağ kənarı */
-        .contacts-thead > span { position: relative; }
-        .th-rs { position: absolute; right: -3px; top: 0; bottom: 0; width: 7px; cursor: col-resize; user-select: none; z-index: 2; }
+        /* PR #468/#469: sütun resize tutacağı — başlıq hücrəsinin sağ kənarı (DAAXİLƏDƏ,
+           clip olunmasın deyə; geniş tutum üçün 9px) */
+        .contacts-thead > span { position: relative; padding-right: 14px !important; }
+        .th-rs { position: absolute; right: 0; top: 0; bottom: 0; width: 9px; cursor: col-resize; user-select: none; z-index: 2; }
         .th-rs::after { content: ''; position: absolute; right: 3px; top: 8px; bottom: 8px; width: 2px; border-radius: 1px; background: var(--border); }
-        .contacts-thead > span:hover .th-rs::after { background: #2D9CDB; }
+        .contacts-thead > span:hover .th-rs::after, .th-rs:hover::after { background: #2D9CDB; }
         .ct-zebra { background: rgba(100, 116, 139, 0.05); }
         [data-theme="dark"] .ct-zebra { background: rgba(255, 255, 255, 0.03); }
         .ct-group:hover { background: rgba(45, 156, 219, 0.06); }
@@ -353,26 +354,20 @@
                     <h1 class="text-base font-bold text-gray-800 truncate flex items-center gap-2" :class="{'panel-title': true}">
                         <span x-text="app?.customer_full_name || 'Müraciət'"></span>
                     </h1>
-                    <!-- PR #468: PIN (copy) | Seriya | Telefon 0-formatda (copy) -->
+                    <!-- PR #468/#469: PIN | Seriya | Telefon 0-formatda — dəyərin ÖZÜNƏ kliklə copy -->
                     <div class="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs hidden sm:flex" x-show="app">
-                        <span class="inline-flex items-center gap-1" title="PIN">
-                            <span class="font-mono font-semibold text-gray-600 dark:text-gray-300" x-text="app?.customer_pin || '-'"></span>
-                            <button x-show="app?.customer_pin" @click="copyToClipboard(app?.customer_pin)"
-                                    class="text-teal-500 hover:text-teal-700 transition" title="PIN-i kopyala">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                            </button>
-                        </span>
+                        <span class="inline-flex items-center gap-1 cursor-pointer hover:text-teal-600 transition"
+                              title="PIN — kopyalamaq üçün klikləyin"
+                              @click="copyToClipboard(app?.customer_pin)"
+                              x-text="app?.customer_pin || '-'"></span>
                         <span class="text-gray-300 dark:text-gray-600">·</span>
-                        <span class="inline-flex items-center gap-1 font-semibold text-gray-600 dark:text-gray-300" title="Seriya"
+                        <span class="font-semibold text-gray-600 dark:text-gray-300" title="Seriya"
                               x-text="app?.customer_serial || '-'"></span>
                         <span class="text-gray-300 dark:text-gray-600">·</span>
-                        <span class="inline-flex items-center gap-1" title="Telefon (lokal format)">
-                            <span class="font-mono font-semibold text-gray-600 dark:text-gray-300" x-text="phoneLocal(app?.customer_phone)"></span>
-                            <button x-show="app?.customer_phone" @click="copyPhoneLocal(app?.customer_phone)"
-                                    class="text-teal-500 hover:text-teal-700 transition" title="Nömrəni kopyala (0 ilə)">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                            </button>
-                        </span>
+                        <span class="inline-flex items-center gap-1 font-mono font-semibold text-gray-600 dark:text-gray-300 cursor-pointer hover:text-teal-600 transition"
+                              title="Nömrəni kopyala (0-formatda)"
+                              @click="copyPhoneLocal(app?.customer_phone)"
+                              x-text="phoneLocal(app?.customer_phone)"></span>
                     </div>
                     <p class="text-xs text-gray-500 sm:hidden" x-text="app?.customer_pin || ''"></p>
                 </div>
@@ -651,10 +646,10 @@
                                 </button>
                             </div>
                             <div><span class="value-strong font-semibold text-xs whitespace-nowrap" x-text="app?.card_number ? '**** ' + app.card_number.slice(-4) : '-'"></span></div>
-                            <!-- PR #468: Qeydiyyat ünvanı — qısaldılmış sütun -->
+                            <!-- PR #468/#469: Qeydiyyat ünvanı — qısaldılmış sütun (min 100 simvol) -->
                             <div class="justify-between gap-1">
                                 <span class="value-strong text-xs truncate" :title="app?.registration_address || ''"
-                                      x-text="trunc(app?.registration_address, 45)"></span>
+                                      x-text="trunc(app?.registration_address, 100)"></span>
                                 <button x-show="app?.registration_address" @click="copyToClipboard(app?.registration_address)"
                                         class="text-teal-500 hover:text-teal-700 transition shrink-0" title="Kopyala">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1080,21 +1075,27 @@
                     return entries;
                 },
 
-                // PR #468: resizable sütunlar — hər cədvəlin başlanğıc enləri (px)
+                // PR #468/#469: resizable sütunlar — hər cədvəlin başlanğıc MINIMUM enləri (px)
                 colWidths: {
-                    cust: [230, 110, 260, 260],
-                    contacts: [28, 128, 165, 180, 205, 240],
+                    // PR #469: qeydiyyat ünvanı min 100 simvol üçün en başlanğıc 300
+                    cust: [230, 110, 300, 260],
+                    contacts: [28, 130, 165, 180, 200, 240],
                     kredit: [150, 110, 130, 190, 180, 140],
                 },
                 colResize: { table: null, idx: -1, startX: 0, startW: 0 },
-                // grid-template sətri: bütün sütunlar px, sonuncu minmax(px, 1fr) — tam eni doldurur
+                // PR #469: trek heç vaxt məzmundan dar olmasın deyə minmax(px, max-content).
+                // Sonuncu sütun minmax(px, 1fr) — qalan eni doldurur. Üst-üstə düşmə qeyri-mümkündür.
                 gridTpl(name) {
                     const w = this.colWidths[name] || [];
                     if (!w.length) return '';
-                    return w.slice(0, -1).map(x => x + 'px').join(' ') + ' minmax(' + w[w.length - 1] + 'px, 1fr)';
+                    return w.map((x, i) =>
+                        (i === w.length - 1 ? 'minmax(' : 'minmax(') + x + 'px, ' + (i === w.length - 1 ? '1fr)' : 'max-content)')
+                    ).join(' ');
                 },
                 startColResize(table, idx, e) {
                     this.colResize = { table, idx, startX: e.clientX, startW: this.colWidths[table][idx] };
+                    document.body.style.userSelect = 'none';
+                    document.body.style.cursor = 'col-resize';
                 },
                 onColResize(e) {
                     const r = this.colResize;
@@ -1103,6 +1104,8 @@
                 },
                 endColResize() {
                     this.colResize = { table: null, idx: -1, startX: 0, startW: 0 };
+                    document.body.style.userSelect = '';
+                    document.body.style.cursor = '';
                 },
 
                 // PR #468: telefonu 0-formatda göstər (+994501234567 → 0501234567)
