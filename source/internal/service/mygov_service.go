@@ -39,7 +39,8 @@ type MyGovService struct {
 // üzərindən — cache mənbəyi service_audit_logs cədvəlidir).
 type serviceCacheLookup interface {
 	GetCacheDays(ctx context.Context, serviceName string) (int, error)
-	GetCachedResponse(ctx context.Context, serviceName, customerPIN string, cacheDays int) (string, bool, error)
+	// PR #486: customerSerial — cache açarı PIN + serial ikilisinə bağlandı
+	GetCachedResponse(ctx context.Context, serviceName, customerPIN, customerSerial string, cacheDays int) (string, bool, error)
 	// PR #379: cache HIT audit cədvəlində görünür (method='CACHE' marker row)
 	LogCacheHit(ctx context.Context, appID *int, serviceName, customerPIN, responseBody string) error
 }
@@ -87,12 +88,13 @@ func (s *MyGovService) SetServiceCacheLookup(l serviceCacheLookup) {
 	s.cacheLookup = l
 }
 
-// cachedResponse returns the cached response body for a service+PIN if caching
-// is enabled (service_cache_config.cache_days > 0) and a fresh successful entry
-// exists in service_audit_logs. PR #375 — ApplicationService.GetCachedServiceResponse
+// cachedResponse returns the cached response body for a service+PIN+serial if
+// caching is enabled (service_cache_config.cache_days > 0) and a fresh successful
+// entry exists in service_audit_logs. PR #375 — ApplicationService.GetCachedServiceResponse
 // ilə eyni məntiq (PR #205). PR #379: HIT olanda service_audit_logs-a method='CACHE'
 // marker row yazılır ki, cədvəldə cache-dən oxunduğu görünsün.
-func (s *MyGovService) cachedResponse(ctx context.Context, appID int, serviceName, customerPIN string) (string, bool) {
+// PR #486: cache açarına customer_serial daxil edildi.
+func (s *MyGovService) cachedResponse(ctx context.Context, appID int, serviceName, customerPIN, customerSerial string) (string, bool) {
 	if s.cacheLookup == nil {
 		return "", false // cache deaktiv
 	}
@@ -104,7 +106,7 @@ func (s *MyGovService) cachedResponse(ctx context.Context, appID int, serviceNam
 	if days <= 0 {
 		return "", false // cache_days=0 → birbaşa servisə müraciət
 	}
-	body, found, err := s.cacheLookup.GetCachedResponse(ctx, serviceName, customerPIN, days)
+	body, found, err := s.cacheLookup.GetCachedResponse(ctx, serviceName, customerPIN, customerSerial, days)
 	if err != nil {
 		slog.Warn("mygov verify cache: failed to get cached response", "service", serviceName, "error", err)
 		return "", false
