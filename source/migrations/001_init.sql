@@ -175,9 +175,13 @@ GO
 -- ============================================================
 -- Seed data: credit levels (39 rate rows from business rules document)
 -- Rates are percentages for the full loan term
+-- PR #478: COL_LENGTH guard — rate sütunu yoxdursa (021 rename artıq tətbiq
+-- olunub) seed-i SKIP et; 021 öz commission seed-ini yenidən qoyur.
+-- Boş cədvəl + köhnə (rate-siz) şema kombinasiyasında “Invalid column
+-- name 'rate'” ilə migration partlayıb app başlamırdı (502).
 -- ============================================================
 
-IF NOT EXISTS (SELECT 1 FROM credit_levels)
+IF NOT EXISTS (SELECT 1 FROM credit_levels) AND COL_LENGTH('credit_levels', 'rate') IS NOT NULL
 BEGIN
     -- New Level: 2 ranges, only 3-month term (all phase 1 — starting level)
     INSERT INTO credit_levels (level_name, min_amount, max_amount, term_months, rate, unlock_phase, is_active) VALUES
