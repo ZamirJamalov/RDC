@@ -437,10 +437,10 @@ func (s *ApplicationService) sendDisburseApprovalSMS(ctx context.Context, app *m
 		return
 	}
 
-	smsMsg := fmt.Sprintf("Hörmətli müştərimiz! Sizin %.2f AZN məbləğində kreditiniz təsdiq edildi, kartınıza %.2f AZN köçürüldü.",
+	smsMsg := fmt.Sprintf("Hormetli musterimiz! Sizin %.2f AZN mebleginde kreditiniz tesdiq edildi, kartiniza %.2f AZN kochuruldu.",
 		app.TotalAmount, app.Amount)
 	if app.AzmkLoanID != "" {
-		smsMsg += fmt.Sprintf(" Müştəri kodunuz: %s.", app.AzmkLoanID)
+		smsMsg += fmt.Sprintf(" Mushteri kodunuz: %s.", app.AzmkLoanID)
 	}
 	if err := s.smsProvider.Send(ctx, app.CustomerPhone, smsMsg); err != nil {
 		slog.Error("disburse: failed to send approval SMS (non-fatal)",
@@ -475,7 +475,9 @@ func (s *ApplicationService) sendRejectionSMS(ctx context.Context, app *model.Lo
 		return
 	}
 
-	msg := "Hörmətli müştərimiz! Təəssüf ki, müraciətiniz bu dəfə təsdiq olunmadı. Hörmətlə, ALPUL.AZ"
+	// PR #460: yeni imtina mətni (auto-reject SMS ilə eyni) + AZ hərfləri
+	// transliterasiya olunub (GSM-7 uyğunluğu üçün)
+	msg := "Hormetli musteri,taessuf ki,daxili sertlerimize esasen hazirda kredit elde etmeniz mumkun deyil."
 	if err := s.smsProvider.Send(ctx, app.CustomerPhone, msg); err != nil {
 		slog.Error("PR #362: failed to send rejection SMS (non-fatal)",
 			"application_id", app.ID,
@@ -600,7 +602,7 @@ func (s *ApplicationService) sendReferralSMSWithCode(ctx context.Context, app *m
 		percent = 5 // default
 	}
 
-	smsMsg := fmt.Sprintf("Endirim kodunu dostunla paylaş,dostun %d%% endirimlə kredit əldə etsin,sən də növbəti kreditində %d%% endirim qazan! Kod: %s",
+	smsMsg := fmt.Sprintf("Endirim kodunu dostunla paylas,dostun %d%% endirimle kredit elde etsin,sen de novbeti kreditinde %d%% endirim qazan! Kod: %s",
 		percent, percent, code.Code)
 	if err := s.smsProvider.Send(ctx, app.CustomerPhone, smsMsg); err != nil {
 		slog.Error("disburse: failed to send referral SMS (non-fatal)",

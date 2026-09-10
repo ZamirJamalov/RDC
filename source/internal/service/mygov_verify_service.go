@@ -508,7 +508,7 @@ func (s *MyGovService) autoReject(ctx context.Context, appID int, reason string)
 	// PR #85: Send SMS to customer about the rejection
 	// PR #284: yeni imtina mətni — daxili şərtlər əsasən kredit mümkün deyil
 	if app.CustomerPhone != "" {
-		smsMessage := "Hörmətli müştəri,təəssüf ki,daxili şərtlərimizə əsasən hazırda kredit əldə etməyiniz mümkün deyil."
+		smsMessage := "Hormetli musteri,taessuf ki,daxili sertlerimize esasen hazirda kredit elde etmeniz mumkun deyil."
 		if err := s.smsProvider.Send(ctx, app.CustomerPhone, smsMessage); err != nil {
 			slog.Error("auto-reject: failed to send rejection SMS",
 				"application_id", appID,
