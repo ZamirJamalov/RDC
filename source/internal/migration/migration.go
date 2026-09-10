@@ -25,6 +25,13 @@ type Options struct {
 // runtime-da diskdən migrations/ qovluğu tələb olunmur. fs.ReadDir fayl adlarına
 // görə sıralı qaytarır, ona görə 001_, 002_ ... prefiksləri sıranı təmin edir.
 //
+// PR #479: schema_migrations tracking — hər fayl yalnız BİR dəfə icra olunur.
+// Tracking cədvəli kodla yaradılır (migration faylı deyil — toy-toy problemi:
+// cədvəl oxunmazdan əvvəl mövcud olmalıdır). Mövcud DB-də ilk icra bütün
+// faylları bir son dəfə işə salır (idempotent guard-lar buna hesablanıb), hər
+// birini qeyd edir və sonrakı startlarda yalnız YENİ fayllar tətbiq olunur.
+// Faylları rename etmək olmaz — yeni ad yeni migration kimi görünür.
+//
 // SQL Server batches: statements separated by a line containing only "GO" are
 // submitted as separate exec calls — required for DDL like CREATE TABLE that
 // must be the only statement in a batch.
@@ -37,20 +44,42 @@ func Run(db *sql.DB, migrationsFS fs.FS, opts Options) error {
 		}
 	}
 
+	// PR #479: tracking cədvəlini yarat və artıq tətbiq olunmuş faylları yüklə.
+	if err := ensureTrackingTable(db); err != nil {
+		return fmt.Errorf("failed to ensure schema_migrations table: %w", err)
+	}
+	applied, err := loadAppliedMigrations(db)
+	if err != nil {
+		return fmt.Errorf("failed to load applied migrations: %w", err)
+	}
+
 	entries, err := fs.ReadDir(migrationsFS, ".")
 	if err != nil {
 		return fmt.Errorf("failed to read migrations: %w", err)
 	}
 
+	appliedNow, skipped := 0, 0
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".sql") {
+			continue
+		}
+		if applied[entry.Name()] {
+			skipped++
 			continue
 		}
 		if err := runFile(db, migrationsFS, entry.Name()); err != nil {
 			return fmt.Errorf("migration %s failed: %w", entry.Name(), err)
 		}
+		if err := recordAppliedMigration(db, entry.Name()); err != nil {
+			return fmt.Errorf("failed to record migration %s: %w", entry.Name(), err)
+		}
+		appliedNow++
 		slog.Info("migration applied", "file", entry.Name())
 	}
+	slog.Info("migrations complete",
+		"applied_now", appliedNow,
+		"skipped_already_applied", skipped,
+		"total_files", appliedNow+skipped)
 	return nil
 }
 
@@ -89,6 +118,8 @@ func dropAllTables(db *sql.DB) error {
 		"DROP TABLE IF EXISTS video_records",
 		// PR #205: service cache config
 		"DROP TABLE IF EXISTS service_cache_config",
+		// PR #479: migration tracking (no FK deps, drop last).
+		"DROP TABLE IF EXISTS schema_migrations",
 	}
 	for _, stmt := range dropStatements {
 		if _, err := db.Exec(stmt); err != nil {
@@ -96,6 +127,47 @@ func dropAllTables(db *sql.DB) error {
 		}
 	}
 	return nil
+}
+
+// ensureTrackingTable creates the schema_migrations table if it does not exist
+// yet (PR #479). Created from Go code rather than a migration file because the
+// table must exist before the runner can check which files were applied.
+// CREATE TABLE is allowed inside IF in T-SQL (unlike CREATE PROC/VIEW).
+func ensureTrackingTable(db *sql.DB) error {
+	_, err := db.Exec(`IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'schema_migrations')
+CREATE TABLE schema_migrations (
+	filename   NVARCHAR(260) NOT NULL PRIMARY KEY,
+	applied_at DATETIME2 NOT NULL CONSTRAINT DF_schema_migrations_applied_at DEFAULT (SYSUTCDATETIME())
+)`)
+	return err
+}
+
+// loadAppliedMigrations returns the set of migration filenames recorded in
+// schema_migrations (PR #479).
+func loadAppliedMigrations(db *sql.DB) (map[string]bool, error) {
+	rows, err := db.Query("SELECT filename FROM schema_migrations")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	applied := make(map[string]bool)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		applied[name] = true
+	}
+	return applied, rows.Err()
+}
+
+// recordAppliedMigration marks a migration file as applied (PR #479).
+// IF NOT EXISTS insert keeps it idempotent and tolerant of a rare race where
+// two instances start simultaneously against the same DB.
+func recordAppliedMigration(db *sql.DB, name string) error {
+	_, err := db.Exec(`IF NOT EXISTS (SELECT 1 FROM schema_migrations WHERE filename = ?)
+INSERT INTO schema_migrations (filename) VALUES (?)`, name, name)
+	return err
 }
 
 // runFile reads a single .sql file from migrationsFS and executes its batches
