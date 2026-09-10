@@ -16,40 +16,42 @@
     <style>
         /* PR #83: Theme variables — dark (default) and light */
         :root, [data-theme="dark"] {
-            /* PR #176: AZMK Dark Navy palette */
-            --alpul-bg: #081a33;           /* AZMK əsas tünd mavi */
-            --alpul-bg-soft: #0d2444;      /* navbar/cards üçün bir ton açıq */
-            --alpul-card: #112d52;         /* kalkulyator kartı */
-            --alpul-border: #1d3b66;       /* incə mavi sərhəd */
-            --alpul-text: #F5F5F7;         /* ağ mətn */
-            --alpul-text-soft: #A3B3CC;    /* yumşaq mavi-boz */
-            --alpul-accent: #2D9CDB;       /* canlı maliyyə mavisi */
-            --alpul-accent-2: #F2C94C;     /* AZMK qızılı aksent */
+            /* PR #454: Apply-optimized palette — calm, focused, trustworthy
+               (yeni landing/Aurora Dark ilə uyğun: near-black + emerald) */
+            --alpul-bg: #0A0A0A;           /* əsas fon (near-black) */
+            --alpul-bg-soft: #141414;      /* navbar/inset səthlər */
+            --alpul-card: #1A1A1A;         /* kartlar (surface-raised) */
+            --alpul-border: #2A2A2A;       /* incə sərhəd */
+            --alpul-text: #FAFAFA;         /* ağ mətn */
+            --alpul-text-soft: #A1A1AA;    /* muted mətn */
+            --alpul-accent: #10B981;       /* primary — emerald */
+            --alpul-accent-2: #059669;     /* primary-hover (qradiyent sonu) */
             --alpul-success: #10B981;
-            --alpul-gold: #F59E0B;
+            --alpul-gold: #F59E0B;         /* warning — amber */
             --alpul-error: #EF4444;
-            --alpul-input-bg: #0d2444;
-            --alpul-hover: rgba(45, 156, 219, 0.1);
-            --alpul-shadow: rgba(45, 156, 219, 0.15);
+            --alpul-input-bg: #141414;
+            --alpul-hover: rgba(16, 185, 129, 0.1);
+            --alpul-shadow: rgba(16, 185, 129, 0.15);
             --alpul-divider: rgba(255,255,255,0.08);
             --alpul-card-inner: rgba(0,0,0,0.25);
         }
 
         [data-theme="light"] {
-            --alpul-bg: #F0F4F8;
-            --alpul-bg-soft: #E2E8F0;
+            /* PR #454: light palitra — emerald aksent ilə (mavi əvəzinə) */
+            --alpul-bg: #F5F5F5;
+            --alpul-bg-soft: #ECECEC;
             --alpul-card: #FFFFFF;
-            --alpul-border: #CBD5E1;
-            --alpul-text: #1E293B;
-            --alpul-text-soft: #64748B;
-            --alpul-accent: #2D9CDB;
-            --alpul-accent-2: #F2C94C;
+            --alpul-border: #D4D4D8;
+            --alpul-text: #18181B;
+            --alpul-text-soft: #71717A;
+            --alpul-accent: #10B981;
+            --alpul-accent-2: #059669;
             --alpul-success: #059669;
             --alpul-gold: #D97706;
             --alpul-error: #DC2626;
-            --alpul-input-bg: #F8FAFC;
+            --alpul-input-bg: #FFFFFF;
             --alpul-hover: rgba(0,0,0,0.03);
-            --alpul-shadow: rgba(45, 156, 219, 0.1);
+            --alpul-shadow: rgba(16, 185, 129, 0.1);
             --alpul-divider: rgba(0,0,0,0.08);
             --alpul-card-inner: rgba(0,0,0,0.02);
         }
@@ -85,11 +87,11 @@
         }
 
         .gradient-accent {
-            background: linear-gradient(135deg, #2D9CDB 0%, #1d5a8f 100%);
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
         }
 
         .gradient-accent-text {
-            background: linear-gradient(135deg, #2D9CDB 0%, #F2C94C 100%);
+            background: linear-gradient(135deg, #34D399 0%, #059669 100%);
             -webkit-background-clip: text;
             background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -109,8 +111,8 @@
         }
         .input-field:focus {
             outline: none;
-            border-color: #2D9CDB;
-            box-shadow: 0 0 0 3px rgba(45, 156, 219, 0.15);
+            border-color: #10B981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
         }
         .input-field::placeholder { color: var(--alpul-text-soft); opacity: 0.5; }
 
@@ -138,9 +140,9 @@
             height: 22px; width: 22px;
             margin-top: -8px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #2D9CDB, #F2C94C);
-            box-shadow: 0 0 0 4px rgba(45, 156, 219, 0.2);
-            border: 2px solid #fff;
+            background: #FFFFFF;
+            border: 3px solid #10B981;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
         }
         input[type="range"]::-moz-range-track {
             height: 6px;
@@ -149,18 +151,19 @@
         }
         input[type="range"]::-moz-range-thumb {
             height: 22px; width: 22px;
-            border: 2px solid #fff;
+            border: 3px solid #10B981;
             border-radius: 50%;
-            background: linear-gradient(135deg, #2D9CDB, #F2C94C);
+            background: #FFFFFF;
         }
 
         .cta-btn {
-            background: linear-gradient(135deg, #2D9CDB 0%, #1d5a8f 100%);
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            color: #0A0A0A;
             transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
         }
         .cta-btn:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: 0 15px 40px -10px rgba(45, 156, 219, 0.5);
+            box-shadow: 0 15px 40px -10px rgba(16, 185, 129, 0.35);
         }
         .cta-btn:active:not(:disabled) { transform: translateY(0); }
         .cta-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -169,8 +172,8 @@
             transition: all 0.3s ease;
         }
         .step-dot.active {
-            background: linear-gradient(135deg, #2D9CDB, #F2C94C);
-            color: white;
+            background: linear-gradient(135deg, #10B981, #059669);
+            color: #0A0A0A;
         }
         .step-dot.done {
             background: var(--alpul-success);
@@ -208,9 +211,9 @@
         [data-theme="light"] .text-white { color: var(--alpul-text) !important; }
         [data-theme="light"] .bg-white\/5 { background: var(--alpul-hover) !important; }
         [data-theme="light"] .border-white\/20 { border-color: var(--alpul-border) !important; }
-        [data-theme="light"] .from-teal-500\/10 { --tw-gradient-from: rgba(45, 156, 219,0.05) !important; }
-        [data-theme="light"] .to-indigo-500\/10 { --tw-gradient-to: rgba(242, 201, 76,0.05) !important; }
-        [data-theme="light"] .border-teal-500\/20 { border-color: rgba(45, 156, 219,0.2) !important; }
+        [data-theme="light"] .from-emerald-500\/10 { --tw-gradient-from: rgba(16, 185, 129, 0.05) !important; }
+        [data-theme="light"] .to-indigo-500\/10 { --tw-gradient-to: rgba(16, 185, 129, 0.05) !important; }
+        [data-theme="light"] .border-emerald-500\/20 { border-color: rgba(16, 185, 129, 0.2) !important; }
     </style>
 </head>
 <body x-data="applyApp()" x-init="init()" x-cloak data-theme="light">
@@ -332,7 +335,7 @@
                     <div class="flex gap-3">
                         <button type="button" @click="form.hasOfficialIncome = true"
                                 :disabled="otpSent"
-                                :class="form.hasOfficialIncome === true ? 'bg-teal-500 text-white border-teal-500' : 'input-field text-gray-300 hover:border-teal-400'"
+                                :class="form.hasOfficialIncome === true ? 'bg-emerald-500 text-white border-emerald-500' : 'input-field text-gray-300 hover:border-emerald-400'"
                                 class="flex-1 py-3 rounded-xl text-base font-semibold border transition">
                             ✓ Bəli
                         </button>
@@ -356,7 +359,7 @@
                     <p class="text-sm text-rose-300/80 max-w-sm mx-auto">
                         Rəsmi gəlir olmadığına görə kredit müraciətiniz qəbul edilmir.
                     </p>
-                    <a href="/landing" class="inline-block mt-4 text-teal-400 hover:text-teal-300 text-sm transition">
+                    <a href="/landing" class="inline-block mt-4 text-emerald-400 hover:text-emerald-300 text-sm transition">
                         ← Ana səhifəyə qayıt
                     </a>
                 </div>
@@ -376,7 +379,7 @@
                 <div class="pt-4">
                     <button x-show="!otpSent && !incomeRejected" @click="sendOtp"
                             :disabled="loading || applicationId || !form.fin || !form.serialPrefix || !form.serialNumber || !form.phone || form.hasOfficialIncome === null"
-                            class="cta-btn w-full text-white font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
+                            class="cta-btn w-full font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
                         <span x-show="!loading">OTP Göndər →</span>
                         <span x-show="loading" class="flex items-center gap-2">
                             <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
@@ -386,7 +389,7 @@
 
                     <button x-show="otpSent" @click="verifyOtp"
                             :disabled="loading || form.otp.length !== 6"
-                            class="cta-btn w-full text-white font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
+                            class="cta-btn w-full font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
                         <span x-show="!loading">Müraciət Göndər →</span>
                         <span x-show="loading" class="flex items-center gap-2">
                             <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
@@ -410,15 +413,15 @@
 
             <!-- PR #155: KYC verify countdown — 3 dəqiqə geri sayım -->
             <div x-show="kycVerifyActive" x-transition class="mt-6 max-w-md mx-auto">
-                <div class="bg-teal-500/10 border border-teal-500/30 rounded-xl p-4">
+                <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
                     <div class="flex items-center justify-center gap-3 mb-2">
-                        <svg class="w-6 h-6 text-teal-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-6 h-6 text-emerald-400 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <circle cx="12" cy="12" r="10" stroke-width="2"/>
                             <polyline points="12 6 12 12 16 14" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                         </svg>
-                        <span class="text-2xl font-bold font-mono text-teal-400 tabular-nums" x-text="kycCountdownDisplay"></span>
+                        <span class="text-2xl font-bold font-mono text-emerald-400 tabular-nums" x-text="kycCountdownDisplay"></span>
                     </div>
-                    <p class="text-sm text-teal-300">Kimlik təsdiqi gözlənilir — zəhmət olmasa telefondan təsdiqləyin</p>
+                    <p class="text-sm text-emerald-300">Kimlik təsdiqi gözlənilir — zəhmət olmasa telefondan təsdiqləyin</p>
                     <p class="text-xs text-gray-500 mt-2">Bu vaxt ərzində səhifə yenilənsə belə, proses davam edəcək</p>
                 </div>
             </div>
@@ -576,7 +579,7 @@
                 <!-- Card ownership checkbox -->
                 <label class="flex items-start gap-3 cursor-pointer p-3 rounded-xl hover:bg-white/5 transition">
                     <input type="checkbox" x-model="form.cardConfirmed"
-                           class="mt-0.5 w-5 h-5 rounded accent-teal-500 flex-shrink-0">
+                           class="mt-0.5 w-5 h-5 rounded accent-emerald-500 flex-shrink-0">
                     <span class="text-xs text-gray-300 font-semibold leading-tight"
                           x-text="(savedCards.length > 0 && selectedCardId)
                               ? 'Seçdiyim kartın mənim kartım olduğunu və bu kartın kredit məqsədilə istifadəsinə razılığımı təsdiq edirəm.'
@@ -611,10 +614,10 @@
                 <!-- PR #92: Internal rules confirmation checkbox -->
                 <label class="flex items-start gap-3 cursor-pointer p-3 rounded-xl hover:bg-white/5 transition">
                     <input type="checkbox" x-model="form.rulesConfirmed"
-                           class="mt-0.5 w-5 h-5 rounded accent-teal-500 flex-shrink-0">
+                           class="mt-0.5 w-5 h-5 rounded accent-emerald-500 flex-shrink-0">
                     <span class="text-xs text-gray-300 font-semibold leading-relaxed">
                         Daxili <button type="button" @click="rulesModalOpen = true"
-                                class="text-teal-400 hover:text-teal-300 underline underline-offset-2 decoration-teal-400/50 hover:decoration-teal-300 font-semibold transition">
+                                class="text-emerald-400 hover:text-emerald-300 underline underline-offset-2 decoration-emerald-400/50 hover:decoration-emerald-300 font-semibold transition">
                             qaydalarla
                         </button> tanış olduğumu və məlumatların düzgünlüyünə görə məsuliyyət daşıdığımı təsdiq edirəm.
                     </span>
@@ -625,7 +628,7 @@
                     <button @click="startVideoRecord"
                             :disabled="videoLoading || videoRecorded"
                             class="w-full text-white font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2 transition"
-                            :class="videoRecorded ? 'bg-emerald-500 cursor-not-allowed' : 'bg-gradient-to-r from-[#2D9CDB] to-[#1d5a8f] hover:from-[#5BC0EF] hover:to-[#2D9CDB]'">
+                            :class="videoRecorded ? 'bg-emerald-500 cursor-not-allowed' : 'bg-gradient-to-r from-[#10B981] to-[#059669] hover:from-[#34D399] hover:to-[#10B981]'">
                         <span x-show="!videoLoading && !videoRecorded" class="flex items-center gap-2">
                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                             Video qeydi
@@ -646,7 +649,7 @@
                 <button @click="confirmApplication"
                         x-ref="confirmBtn"
                         :disabled="loading || !form.amount || !cardSelectionValid || !form.cardConfirmed || !form.address || !form.rulesConfirmed || discountValid === 'invalid' || (videoRequired && !videoRecorded)"
-                        class="cta-btn w-full text-white font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
+                        class="cta-btn w-full font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
                     <span x-show="!loading">Təsdiq edirəm →</span>
                     <span x-show="loading" class="flex items-center gap-2">
                         <span class="inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
@@ -697,7 +700,7 @@
                         Yeni müraciət etmək üçün <span class="font-bold text-white" x-text="blockedRejectionDays"></span> gün gözləməlisiniz.
                     </span>
                 </p>
-                <a href="/landing" class="inline-block mt-4 text-teal-400 hover:text-teal-300 text-sm transition">
+                <a href="/landing" class="inline-block mt-4 text-emerald-400 hover:text-emerald-300 text-sm transition">
                     ← Ana səhifəyə qayıt
                 </a>
             </div>
@@ -718,20 +721,20 @@
                 <p class="text-sm text-gray-500 mb-6">
                     Müraciət nömrəniz:
                     <span @click="copyAppId()" title="Kopyalamaq üçün klikləyin"
-                          class="font-mono font-semibold text-white cursor-pointer hover:text-teal-300 underline decoration-dotted underline-offset-4 transition-colors select-none"
+                          class="font-mono font-semibold text-white cursor-pointer hover:text-emerald-300 underline decoration-dotted underline-offset-4 transition-colors select-none"
                           x-text="appIdCopied ? '✓ Kopyalandı' : applicationId"></span>
                 </p>
                 <!-- PR #250: Texniki xəta halında 'Yenidən cəhd et' buttonu -->
                 <div x-show="isTechnicalError" x-cloak class="mb-4">
                     <button @click="resetToStep0()" type="button"
-                            class="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-white font-semibold text-sm transition shadow-lg shadow-teal-500/20">
+                            class="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-semibold text-sm transition shadow-lg shadow-emerald-500/20">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                         </svg>
                         Yenidən cəhd et
                     </button>
                 </div>
-                <a href="/landing" class="inline-block mt-4 text-teal-400 hover:text-teal-300 text-sm transition">
+                <a href="/landing" class="inline-block mt-4 text-emerald-400 hover:text-emerald-300 text-sm transition">
                     ← Ana səhifəyə qayıt
                 </a>
             </div>
@@ -747,7 +750,7 @@
                 <p class="text-gray-400 max-w-md mx-auto mb-8">
                     Müraciət nömrəniz:
                     <span @click="copyAppId()" title="Kopyalamaq üçün klikləyin"
-                          class="font-mono font-semibold text-white cursor-pointer hover:text-teal-300 underline decoration-dotted underline-offset-4 transition-colors select-none"
+                          class="font-mono font-semibold text-white cursor-pointer hover:text-emerald-300 underline decoration-dotted underline-offset-4 transition-colors select-none"
                           x-text="appIdCopied ? '✓ Kopyalandı' : applicationId"></span>
                 </p>
                 <div class="bg-black/30 border border-white/5 rounded-xl p-5 max-w-sm mx-auto text-left">
@@ -765,7 +768,7 @@
                     </div>
                 </div>
                 <p class="text-sm text-gray-500 mt-8" x-text="outsideExpertWorkHours() ? 'Ekspertimiz iş saatlarında (' + expertWorkHoursLabel() + ') sizinlə əlaqə saxlayacaq.' : 'Ekspertimiz sizinlə əlaqə saxlayacaq.'"></p>
-                <a href="/landing" class="inline-block mt-6 text-teal-400 hover:text-teal-300 text-sm transition">
+                <a href="/landing" class="inline-block mt-6 text-emerald-400 hover:text-emerald-300 text-sm transition">
                     ← Ana səhifəyə qayıt
                 </a>
             </div>
@@ -781,13 +784,13 @@
                 <p class="text-gray-400 max-w-md mx-auto mb-8">
                     Müraciət nömrəniz:
                     <span @click="copyAppId()" title="Kopyalamaq üçün klikləyin"
-                          class="font-mono font-semibold text-white cursor-pointer hover:text-teal-300 underline decoration-dotted underline-offset-4 transition-colors select-none"
+                          class="font-mono font-semibold text-white cursor-pointer hover:text-emerald-300 underline decoration-dotted underline-offset-4 transition-colors select-none"
                           x-text="appIdCopied ? '✓ Kopyalandı' : applicationId"></span>
                 </p>
                 <p class="text-sm text-gray-500 max-w-md mx-auto">
                     Sistem müraciətinizi yoxlayır. Ekspertimiz qısa müddətdə sizinlə əlaqə saxlayacaq.
                 </p>
-                <a href="/landing" class="inline-block mt-6 text-teal-400 hover:text-teal-300 text-sm transition">
+                <a href="/landing" class="inline-block mt-6 text-emerald-400 hover:text-emerald-300 text-sm transition">
                     ← Ana səhifəyə qayıt
                 </a>
             </div>
