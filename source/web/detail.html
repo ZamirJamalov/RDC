@@ -153,7 +153,7 @@
         img.cust-avatar { object-fit: cover; border: 2px solid var(--border); cursor: zoom-in; }
 
         /* PR #465: toolbar qrup qutuları — hər növ öz rəng tonunda ayrılır */
-        .tb-group { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
+        .tb-group { border: 1px solid var(--border); border-radius: 10px; padding: 6px 8px; }
         .tb-video      { background: rgba(128, 90, 213, 0.07); border-color: rgba(128, 90, 213, 0.35); }
         .tb-compliance { background: rgba(20, 184, 166, 0.07); border-color: rgba(20, 184, 166, 0.35); }
         .tb-mygov      { background: rgba(99, 102, 241, 0.07); border-color: rgba(99, 102, 241, 0.35); }
@@ -165,22 +165,19 @@
 
         /* ============ PR #466/#467: APEX-grid cədvəllər ============ */
         .contacts-table { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; overflow-x: auto; }
-        /* PR #467: 6 sütun (Qeyd əlavə) + sütunlar məzmun uzunluğuna göre (№|Əlaqə|Telefon|Ad|Status|Qeyd) */
-        .contacts-thead {
-            display: grid; grid-template-columns: 28px 128px 165px minmax(140px, 1fr) auto minmax(180px, 1.1fr);
-            background: #F1F5F9; border-bottom: 2px solid var(--border);
-        }
-        [data-theme="dark"] .contacts-thead { background: #0d2444; }
+        /* PR #471: KÖK HƏLL — cədvəl TƏK grid-dir; thead / contact-row / ct-group
+           display:contents ilə hüceyrələri ümumi gridə qatır. Trek eni (max-content)
+           başlıq VƏ data məzmununu BİRLİKDƏ nəzərə alır → başlıqlar sütunlardan
+           sürüşüb üst-üstə düşə bilməz (əvvəl thead/setir ayrı grid idi). */
+        .contacts-table { display: grid; }
+        .contacts-thead, .contact-row, .ct-group { display: contents; }
         .contacts-thead > span {
             padding: 7px 8px; font-size: 12px; font-weight: 600; text-transform: uppercase;
             letter-spacing: 0.04em; color: var(--text-soft); white-space: nowrap;
+            background: #F1F5F9; border-bottom: 2px solid var(--border);
         }
-        .contact-row {
-            display: grid; grid-template-columns: 28px 128px 165px minmax(140px, 1fr) auto minmax(180px, 1.1fr);
-            align-items: stretch; border-bottom: 1px solid var(--border);
-        }
-        /* PR #467: Müştəri cədvəli sütunları artıq JS-dən idarə olunur (PR #468 resize) */
-        .contact-row > * { padding: 3px 6px; min-width: 0; border-left: 1px solid var(--border); display: flex; align-items: center; }
+        [data-theme="dark"] .contacts-thead > span { background: #0d2444; }
+        .contact-row > * { padding: 3px 6px; min-width: 0; border-left: 1px solid var(--border); border-bottom: 1px solid var(--border); display: flex; align-items: center; }
         .contact-row > *:first-child { border-left: none; justify-content: center; }
         /* PR #468/#469: sütun resize tutacağı — başlıq hücrəsinin sağ kənarı (DAAXİLƏDƏ,
            clip olunmasın deyə; geniş tutum üçün 9px) */
@@ -188,10 +185,11 @@
         .th-rs { position: absolute; right: 0; top: 0; bottom: 0; width: 9px; cursor: col-resize; user-select: none; z-index: 2; }
         .th-rs::after { content: ''; position: absolute; right: 3px; top: 8px; bottom: 8px; width: 2px; border-radius: 1px; background: var(--border); }
         .contacts-thead > span:hover .th-rs::after, .th-rs:hover::after { background: #2D9CDB; }
-        .ct-zebra { background: rgba(100, 116, 139, 0.05); }
-        [data-theme="dark"] .ct-zebra { background: rgba(255, 255, 255, 0.03); }
-        .ct-group:hover { background: rgba(45, 156, 219, 0.06); }
-        [data-theme="dark"] .ct-group:hover { background: rgba(45, 156, 219, 0.1); }
+        /* PR #471: zebra/hover — display:contents qruplar fon boyamır, hücrələrə keçib */
+        .ct-zebra .contact-row > * { background: rgba(100, 116, 139, 0.05); }
+        [data-theme="dark"] .ct-zebra .contact-row > * { background: rgba(255, 255, 255, 0.03); }
+        .contact-row > *:hover { background: rgba(45, 156, 219, 0.06); }
+        [data-theme="dark"] .contact-row > *:hover { background: rgba(45, 156, 219, 0.1); }
         /* hücrə-dolduran inputlar — APEX üslubu (PR #467: textarea da daxil) */
         .contacts-table .field-input {
             border-color: transparent; background: transparent; border-radius: 0;
@@ -201,9 +199,10 @@
         .contacts-table .field-input.bg-rose-50 { background: #FFF1F2; border-color: #FDA4AF; }
         .ct-note { padding: 5px 8px 8px 34px; }
         @media (max-width: 767px) {
+            /* PR #471: mobil — ümumi grid əvəzinə blok düzülüş, sütunlar alt-alta */
+            .contacts-table { display: block; }
             .contacts-thead { display: none; }
-            /* PR #468: inline grid-template (resize) media-ni üstələməsin deyə !important */
-            .contacts-thead, .contact-row { grid-template-columns: 1fr !important; }
+            .ct-group, .contact-row { display: block; }
             .th-rs { display: none; }
             .contact-row > * { border-left: none; border-bottom: 1px dashed var(--border); justify-content: flex-start; }
             .ct-note { padding-left: 8px; }
@@ -472,7 +471,7 @@
                 <!-- PR #447: TOOLBAR — bütün əməliyyat düymələri bir yerdə
                      (video banner, MyGov, Komplayns, Qərar bölmələrini əvəz edir) -->
                 <section class="panel p-3 mt-2 flex flex-col gap-2">
-                    <div class="flex flex-wrap items-end gap-x-4 gap-y-3">
+                    <div class="flex flex-nowrap items-end gap-x-3 overflow-x-auto">
 
                         <!-- ===== VIDEO qrupu (PR #465: bənövşəyi ton) ===== -->
                         <div class="tb-group tb-video flex flex-col gap-1">
@@ -480,7 +479,7 @@
                             <div class="flex gap-1.5">
                                 <button @click="openVideoDialog()"
                                         :disabled="videoStreamLoading"
-                                        class="text-white px-2.5 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition"
+                                        class="text-white px-2 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition"
                                         style="background:#805AD5">
                                     <span x-show="!videoStreamLoading"><span x-show="videoWatched" class="text-emerald-300 mr-1 font-bold">✓</span>▶ Videoya bax</span>
                                     <span x-show="videoStreamLoading">Açılır...</span>
@@ -489,9 +488,9 @@
                                 <button @click="videoRequest()"
                                         :disabled="videoLoading || app?.status !== 'pending_expert'"
                                         :title="app?.status !== 'pending_expert' ? 'Video müraciət yalnız «Ekspert gözləyir» statusunda göndərilə bilər' : 'SMS ilə video çəkilmə linki göndər'"
-                                        class="text-white px-2.5 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition"
+                                        class="text-white px-2 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition"
                                         style="background:#38B2AC">
-                                    <span x-show="!videoLoading"><span x-show="videoOrderSent" class="text-emerald-300 mr-1 font-bold">✓</span>📤 Video müraciət göndər</span>
+                                    <span x-show="!videoLoading"><span x-show="videoOrderSent" class="text-emerald-300 mr-1 font-bold">✓</span>📤 Video istə</span>
                                     <span x-show="videoLoading">Göndərilir...</span>
                                 </button>
                             </div>
@@ -503,19 +502,19 @@
                             <div class="flex gap-1.5">
                                 <button @click="complianceChecked = true; copyToClipboard(app?.customer_full_name); markDone('compliance_name')"
                                         :title="app?.customer_full_name || ''"
-                                        class="sub-card !py-1.5 px-2.5 rounded-md text-xs font-medium hover:border-teal-300 transition inline-flex items-center gap-1.5">
+                                        class="sub-card !py-1.5 px-2 rounded-md text-xs font-medium hover:border-teal-300 transition inline-flex items-center gap-1.5">
                                     📋 Adı kopyala
                                     <span x-show="compliance.name" class="text-emerald-500 font-bold">✓</span>
                                 </button>
                                 <a href="https://hms.gov.az/" target="_blank" rel="noopener noreferrer"
                                    @click="markDone('compliance_hms')"
-                                   class="sub-card !py-1.5 px-2.5 rounded-md text-xs font-medium hover:border-teal-300 transition inline-flex items-center gap-1.5 no-underline">
+                                   class="sub-card !py-1.5 px-2 rounded-md text-xs font-medium hover:border-teal-300 transition inline-flex items-center gap-1.5 no-underline">
                                     HMS
                                     <span x-show="compliance.hms" class="text-emerald-500 font-bold">✓</span>
                                 </a>
                                 <a href="https://www.opensanctions.org/" target="_blank" rel="noopener noreferrer"
                                    @click="markDone('compliance_os')"
-                                   class="sub-card !py-1.5 px-2.5 rounded-md text-xs font-medium hover:border-teal-300 transition inline-flex items-center gap-1.5 no-underline">
+                                   class="sub-card !py-1.5 px-2 rounded-md text-xs font-medium hover:border-teal-300 transition inline-flex items-center gap-1.5 no-underline">
                                     OpenSanctions
                                     <span x-show="compliance.os" class="text-emerald-500 font-bold">✓</span>
                                 </a>
@@ -530,14 +529,14 @@
                                     <span class="text-[10px] text-gray-400 font-medium">İş yeri:</span>
                                     <button @click="employmentRequest()"
                                             :disabled="employmentLoading || employmentResult === 'passed' || mygovCooldown.empReq > 0"
-                                            class="alpul-btn text-white px-2.5 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition">
+                                            class="alpul-btn text-white px-2 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition">
                                         <span x-show="!employmentLoading && mygovCooldown.empReq <= 0"><span x-show="employmentSMSDone" class="text-emerald-300 mr-0.5 font-bold">✓</span>📤 Sorgu</span>
                                         <span x-show="employmentLoading">...</span>
                                         <span x-show="!employmentLoading && mygovCooldown.empReq > 0" x-text="'⏳ ' + mygovCooldown.empReq + ' san'"></span>
                                     </button>
                                     <button @click="employmentVerify()"
                                             :disabled="employmentVerifying || employmentResult === 'passed' || mygovCooldown.empVerify > 0"
-                                            class="bg-indigo-600 text-white px-2.5 py-1.5 rounded-md text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition">
+                                            class="bg-indigo-600 text-white px-2 py-1.5 rounded-md text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition">
                                         <span x-show="!employmentVerifying && mygovCooldown.empVerify <= 0"><span x-show="employmentVerified" class="text-emerald-300 mr-0.5 font-bold">✓</span>Yoxla</span>
                                         <span x-show="employmentVerifying">...</span>
                                         <span x-show="!employmentVerifying && mygovCooldown.empVerify > 0" x-text="'⏳ ' + mygovCooldown.empVerify + ' san'"></span>
@@ -552,14 +551,14 @@
                                     <span class="text-[10px] text-gray-400 font-medium">Pensiya:</span>
                                     <button @click="pensionRequest()"
                                             :disabled="pensionLoading || pensionResult === 'passed' || mygovCooldown.penReq > 0"
-                                            class="alpul-btn text-white px-2.5 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition">
+                                            class="alpul-btn text-white px-2 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 transition">
                                         <span x-show="!pensionLoading && mygovCooldown.penReq <= 0"><span x-show="pensionSMSDone" class="text-emerald-300 mr-0.5 font-bold">✓</span>📤 Sorgu</span>
                                         <span x-show="pensionLoading">...</span>
                                         <span x-show="!pensionLoading && mygovCooldown.penReq > 0" x-text="'⏳ ' + mygovCooldown.penReq + ' san'"></span>
                                     </button>
                                     <button @click="pensionVerify()"
                                             :disabled="pensionVerifying || pensionResult === 'passed' || mygovCooldown.penVerify > 0"
-                                            class="bg-indigo-600 text-white px-2.5 py-1.5 rounded-md text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition">
+                                            class="bg-indigo-600 text-white px-2 py-1.5 rounded-md text-xs font-medium hover:bg-indigo-700 disabled:opacity-50 transition">
                                         <span x-show="!pensionVerifying && mygovCooldown.penVerify <= 0"><span x-show="pensionVerified" class="text-emerald-300 mr-0.5 font-bold">✓</span>Yoxla</span>
                                         <span x-show="pensionVerifying">...</span>
                                         <span x-show="!pensionVerifying && mygovCooldown.penVerify > 0" x-text="'⏳ ' + mygovCooldown.penVerify + ' san'"></span>
@@ -576,26 +575,26 @@
                             <div class="flex flex-wrap gap-1.5 items-center">
                                 <!-- Təsdiq (PR #441: disburse_failed-də YOX — yalnız imtina mümkündür) -->
                                 <button x-show="app?.status !== 'disburse_failed'" @click="approve()"
-                                        class="bg-emerald-600 text-white px-3 py-1.5 rounded-md text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition inline-flex items-center gap-1.5"
+                                        class="bg-emerald-600 text-white px-2.5 py-1.5 rounded-md text-xs font-semibold hover:bg-emerald-700 disabled:opacity-50 transition inline-flex items-center gap-1.5"
                                         :disabled="actionLoading">
                                     <svg x-show="!actionLoading" class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
                                     <svg x-show="actionLoading" class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                                    <span x-text="actionLoading ? 'Əməliyyat...' : 'Təsdiq Et'"></span>
+                                    <span x-text="actionLoading ? 'Əməliyyat...' : 'Təsdiq'"></span>
                                 </button>
 
                                 <!-- İmtina səbəbi (PR #441: disburse_failed-də yalnız MANUAL_DISBURSE_FAILED) -->
-                                <select x-model="rejectReason" class="field-input !py-1.5 text-xs w-[190px]">
-                                    <option value="">İmtina səbəbini seçin...</option>
+                                <select x-model="rejectReason" class="field-input !py-1.5 text-xs w-[150px]">
+                                    <option value="">Səbəb seçin...</option>
                                     <template x-for="opt in rejectOptions" :key="opt.value">
                                         <option :value="opt.value" x-text="opt.label"></option>
                                     </template>
                                 </select>
 
                                 <button @click="reject()"
-                                        class="btn-reject px-3 py-1.5 rounded-md text-xs font-semibold transition disabled:opacity-50 inline-flex items-center gap-1.5"
+                                        class="btn-reject px-2.5 py-1.5 rounded-md text-xs font-semibold transition disabled:opacity-50 inline-flex items-center gap-1.5"
                                         :disabled="actionLoading || !rejectReason">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
-                                    <span x-text="actionLoading ? 'Əməliyyat...' : 'İmtina Et'"></span>
+                                    <span x-text="actionLoading ? 'Əməliyyat...' : 'İmtina'"></span>
                                 </button>
                             </div>
                         </div>
@@ -626,15 +625,15 @@
                         <span class="icon-chip">👤</span>
                         <h2 class="panel-title">Müştəri</h2>
                     </div>
-                    <div class="contacts-table" @mousemove.window="onColResize($event)" @mouseup.window="endColResize()">
+                    <div class="contacts-table" :style="gridTpl('cust')" @mousemove.window="onColResize($event)" @mouseup.window="endColResize()">
                         <!-- PR #468: PIN/Seriya/Telefon header-ə keçdi; ünvanlar sütun oldu -->
-                        <div class="contacts-thead" :style="gridTpl('cust')">
+                        <div class="contacts-thead">
                             <!-- PR #470: Ad Soyad sütunu silindi — ad header-də (h1) var -->
                             <span>Kart<span class="th-rs" @mousedown.prevent="startColResize('cust', 0, $event)"></span></span>
                             <span>Qeydiyyat ünvanı<span class="th-rs" @mousedown.prevent="startColResize('cust', 1, $event)"></span></span>
                             <span>Faktiki ünvan<span class="th-rs" @mousedown.prevent="startColResize('cust', 2, $event)"></span></span>
                         </div>
-                        <div class="contact-row" :style="gridTpl('cust')">
+                        <div class="contact-row">
                             <div><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="app?.card_number ? '**** ' + app.card_number.slice(-4) : '-'"></span></div>
                             <!-- PR #468/#469: Qeydiyyat ünvanı — qısaldılmış sütun (min 100 simvol) -->
                             <div class="justify-between gap-1">
@@ -692,8 +691,8 @@
                         <h2 class="panel-title">Əlaqə Nömrələri</h2>
                     </div>
                     <!-- PR #466/#468: APEX-grid + resizable sütunlar -->
-                    <div class="contacts-table flex-1" @mousemove.window="onColResize($event)" @mouseup.window="endColResize()">
-                        <div class="contacts-thead" :style="gridTpl('contacts')">
+                    <div class="contacts-table flex-1" :style="gridTpl('contacts')" @mousemove.window="onColResize($event)" @mouseup.window="endColResize()">
+                        <div class="contacts-thead">
                             <span>№<span class="th-rs" @mousedown.prevent="startColResize('contacts', 0, $event)"></span></span>
                             <span>Əlaqə<span class="th-rs" @mousedown.prevent="startColResize('contacts', 1, $event)"></span></span>
                             <span>Telefon<span class="th-rs" @mousedown.prevent="startColResize('contacts', 2, $event)"></span></span>
@@ -704,7 +703,7 @@
                         <template x-for="(contact, idx) in contacts" :key="idx">
                             <div class="ct-group" :class="idx % 2 === 1 ? 'ct-zebra' : ''">
                                 <!-- PR #465/#468: üfüqi sətir gridi — № | Əlaqə | Telefon | Ad | Status | Qeyd -->
-                                <div class="contact-row" :style="gridTpl('contacts')">
+                                <div class="contact-row">
                                     <span class="text-sm font-bold text-gray-400 text-center" x-text="(idx+1)"></span>
                                     <div class="min-w-0">
                                         <!-- PR #467: qohumluq birbaşa seçilir (edit düyməsi lazımsız — blur-da save) -->
@@ -809,8 +808,8 @@
                         <span x-show="app?.credit_level" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700" x-text="levelAz(app?.credit_level)"></span>
                     </div>
                     <!-- PR #468: Kredit də APEX-table — tək sətir, 6 göstərici -->
-                    <div class="contacts-table" @mousemove.window="onColResize($event)" @mouseup.window="endColResize()">
-                        <div class="contacts-thead" :style="gridTpl('kredit')">
+                    <div class="contacts-table" :style="gridTpl('kredit')" @mousemove.window="onColResize($event)" @mouseup.window="endColResize()">
+                        <div class="contacts-thead">
                             <span>Məbləğ<span class="th-rs" @mousedown.prevent="startColResize('kredit', 0, $event)"></span></span>
                             <span>Müddət<span class="th-rs" @mousedown.prevent="startColResize('kredit', 1, $event)"></span></span>
                             <span>Komissiya<span class="th-rs" @mousedown.prevent="startColResize('kredit', 2, $event)"></span></span>
@@ -818,7 +817,7 @@
                             <span>Karta köçürülən<span class="th-rs" @mousedown.prevent="startColResize('kredit', 4, $event)"></span></span>
                             <span>İllik faiz<span class="th-rs" @mousedown.prevent="startColResize('kredit', 5, $event)"></span></span>
                         </div>
-                        <div class="contact-row" :style="gridTpl('kredit')">
+                        <div class="contact-row">
                             <div><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="((app?.total_amount || app?.amount) ?? '-') + ' AZN'"></span></div>
                             <div><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.term_months ?? '-') + ' ay'"></span></div>
                             <div><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.approved_rate !== undefined && app?.approved_rate !== null) ? app.approved_rate + '%' : '-'"></span></div>
@@ -1065,23 +1064,23 @@
                     return entries;
                 },
 
-                // PR #468/#470: resizable sütunlar — sabit px enlər.
-                // Qeydiyyat ünvanı ~700px (100 simvol @14px), Ümumi başlığı 210px.
+                // PR #468/#471: resizable sütunlar — MINIMUM enlər (px); cədvəl tək grid
+                // olduğundan max-content trek-lər başlıq+data məzmununa görə avtomatik
+                // genişlənir, colWidths yalnız aşağı həddi müəyyən edir.
                 colWidths: {
                     cust: [110, 700, 320],
                     contacts: [28, 130, 165, 180, 200, 240],
                     kredit: [150, 110, 130, 210, 180, 140],
                 },
                 colResize: { table: null, idx: -1, startX: 0, startW: 0 },
-                // PR #470: thead və sətirlər AYRI grid-lərdir — max-content hər griddə
-                // öz məzmunundan hesablanıb başlıqları datadan kaydırırdı (üst-üstə düşmə).
-                // Trek-lər sabit px olanda (yalnız sonuncu minmax(px,1fr)) hər iki grid
-                // eyni ölçülür — başlıqlar sütunlarla dəqiq uyğunlaşır, resize-da da qalır.
+                // PR #471: cədvəl TƏK grid-dir (thead/setir display:contents) — max-content
+                // həm başlığı, həm datanı birlikdə nəzərə alır, trek məzmundan dar ola bilməz;
+                // sonuncu trek qalan eni (1fr) alır.
                 gridTpl(name) {
                     const w = this.colWidths[name] || [];
                     if (!w.length) return '';
                     return w.map((x, i) =>
-                        (i === w.length - 1 ? 'minmax(' + x + 'px, 1fr)' : x + 'px')
+                        'minmax(' + x + 'px, ' + (i === w.length - 1 ? '1fr)' : 'max-content)')
                     ).join(' ');
                 },
                 startColResize(table, idx, e) {
