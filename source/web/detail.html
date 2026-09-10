@@ -142,16 +142,31 @@
         .card-head { display: flex; align-items: center; gap: 8px; padding-bottom: 12px; border-bottom: 2px solid var(--border); margin-bottom: 16px; }
         .card-head h2 { font-size: 18px; font-weight: 700; color: var(--text); }
 
-        /* 3 sütun: Müştəri | Kredit+MyGov+Komplayans | Əlaqə+Qərar */
-        .detail-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; align-items: start; margin-top: 24px; }
-        .dg-col { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
-        @media (max-width: 1199px) { .detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-        @media (max-width: 767px)  { .detail-grid { grid-template-columns: 1fr; } }
+        /* PR #465: bölmələr ALT-ALTA (Müştəri → Nömrələr → Kredit), tam en */
+        .detail-grid { display: grid; grid-template-columns: 1fr; gap: 24px; align-items: start; margin-top: 24px; }
 
         /* Header müştəri avatarı (40px dairə) */
         .cust-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
             background: linear-gradient(135deg, rgba(45,156,219,.15), rgba(242,201,76,.15));
             display: flex; align-items: center; justify-content: center; font-size: 17px; }
+        /* PR #465: header avatarı real şəkildirsə */
+        img.cust-avatar { object-fit: cover; border: 2px solid var(--border); cursor: zoom-in; }
+
+        /* PR #465: toolbar qrup qutuları — hər növ öz rəng tonunda ayrılır */
+        .tb-group { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; }
+        .tb-video      { background: rgba(128, 90, 213, 0.07); border-color: rgba(128, 90, 213, 0.35); }
+        .tb-compliance { background: rgba(20, 184, 166, 0.07); border-color: rgba(20, 184, 166, 0.35); }
+        .tb-mygov      { background: rgba(99, 102, 241, 0.07); border-color: rgba(99, 102, 241, 0.35); }
+        .tb-decision   { background: rgba(245, 158, 11, 0.07); border-color: rgba(245, 158, 11, 0.35); }
+
+        /* PR #465: sətir-grid sahələr (auto-fit sətirlər) */
+        .row-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px 20px; }
+        .row-full { grid-column: 1 / -1; }
+        .photo-cell { width: 84px; height: 104px; object-fit: cover; border: 2px solid var(--border); border-radius: 8px; cursor: zoom-in; flex-shrink: 0; }
+
+        /* PR #465: kontakt sətri — üfüqi grid (№ | Əlaqə | Telefon | Ad | Status) */
+        .contact-row { display: grid; grid-template-columns: 22px 140px minmax(170px, 1.1fr) minmax(150px, 1fr) auto; gap: 8px; align-items: center; }
+        @media (max-width: 767px) { .contact-row { grid-template-columns: 1fr; } }
 
         /* PR #447: video-banner CSS silindi — toolbar banner-i əvəz etdi */
 
@@ -279,8 +294,12 @@
             </a>
             <div class="h-6 w-px bg-gray-300"></div>
             <div class="flex items-center gap-3 flex-1 min-w-0">
-                <!-- PR #443: 40px müştəri avatarı (böyük loqo əvəzinə) -->
-                <div class="cust-avatar" title="Müştəri">👤</div>
+                <!-- PR #465: 40px müştəri avatarı — real şəkil (klik → tam ölçü), yoxdursa 👤 siluet -->
+                <template x-if="customerPhoto">
+                    <img :src="customerPhoto" alt="Müştəri şəkli" title="Şəkilə klik — tam ölçü"
+                         @click="photoDialogOpen = true" class="cust-avatar">
+                </template>
+                <div x-show="!customerPhoto" class="cust-avatar" title="Müştəri">👤</div>
                 <div class="min-w-0">
                     <h1 class="text-base font-bold text-gray-800 truncate flex items-center gap-2" :class="{'panel-title': true}">
                         <span x-text="app?.customer_full_name || 'Müraciət'"></span>
@@ -358,10 +377,10 @@
                 <!-- PR #447: TOOLBAR — bütün əməliyyat düymələri bir yerdə
                      (video banner, MyGov, Komplayns, Qərar bölmələrini əvəz edir) -->
                 <section class="panel p-3 mt-6 flex flex-col gap-2">
-                    <div class="flex flex-wrap items-end gap-x-3 gap-y-2">
+                    <div class="flex flex-wrap items-end gap-x-4 gap-y-3">
 
-                        <!-- ===== VIDEO qrupu ===== -->
-                        <div class="flex flex-col gap-1">
+                        <!-- ===== VIDEO qrupu (PR #465: bənövşəyi ton) ===== -->
+                        <div class="tb-group tb-video flex flex-col gap-1">
                             <span class="text-[10px] uppercase tracking-wide text-gray-400 font-semibold">🎥 Video</span>
                             <div class="flex gap-1.5">
                                 <button @click="openVideoDialog()"
@@ -383,8 +402,8 @@
                             </div>
                         </div>
 
-                        <!-- PR #447/A2: ===== KOMPLAYNS qrupu (yalnız pending statuslarda) ===== -->
-                        <div class="flex flex-col gap-1" x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert'">
+                        <!-- PR #447/A2: ===== KOMPLAYNS qrupu (PR #465: teal ton) ===== -->
+                        <div class="tb-group tb-compliance flex flex-col gap-1" x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert'">
                             <span class="text-[10px] uppercase tracking-wide text-gray-400 font-semibold">🔍 Komplayns</span>
                             <div class="flex gap-1.5">
                                 <button @click="complianceChecked = true; copyToClipboard(app?.customer_full_name); markDone('compliance_name')"
@@ -407,8 +426,8 @@
                                 </a>
                             </div>
                         </div>
-                        <!-- PR #447/A3: ===== MYGOV qrupu (yalnız pending statuslarda) ===== -->
-                        <div class="flex flex-col gap-1" x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert'">
+                        <!-- PR #447/A3: ===== MYGOV qrupu (PR #465: indigo ton) ===== -->
+                        <div class="tb-group tb-mygov flex flex-col gap-1" x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert'">
                             <span class="text-[10px] uppercase tracking-wide text-gray-400 font-semibold">🏛️ MyGov</span>
                             <div class="flex flex-wrap gap-1.5 items-center">
                                 <!-- İş yeri: Sorgu + Yoxla (PR #415 cooldown, 'passed' olanda deaktiv) -->
@@ -456,8 +475,8 @@
                                 </div>
                             </div>
                         </div>
-                        <!-- PR #447/A4: ===== QƏRAR qrupu (pending + disburse_failed admin) ===== -->
-                        <div class="flex flex-col gap-1" x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert' || (app?.status === 'disburse_failed' && currentUser?.role === 'admin')">
+                        <!-- PR #447/A4: ===== QƏRAR qrupu (PR #465: amber ton) ===== -->
+                        <div class="tb-group tb-decision flex flex-col gap-1" x-show="app?.status === 'pending_approval' || app?.status === 'pending_expert' || (app?.status === 'disburse_failed' && currentUser?.role === 'admin')">
                             <span class="text-[10px] uppercase tracking-wide text-gray-400 font-semibold" x-text="app?.status === 'disburse_failed' ? '⚖️ Admin Qərarı' : '⚖️ Qərar'"></span>
                             <div class="flex flex-wrap gap-1.5 items-center">
                                 <!-- Təsdiq (PR #441: disburse_failed-də YOX — yalnız imtina mümkündür) -->
@@ -503,34 +522,30 @@
                     </div>
                 </section>
 
-                <div class="detail-grid">
-                <div class="dg-col"> <!-- ===== SOL SÜTUN ===== -->
+                <div class="detail-grid"> <!-- PR #465: alt-alta — Müştəri → Nömrələr → Kredit -->
 
-                <!-- Müştəri Məlumatları -->
+                <!-- Müştəri Məlumatları (1-ci grid) -->
                 <section class="panel p-6 flex flex-col">
                     <div class="card-head">
                         <span class="icon-chip">👤</span>
                         <h2 class="panel-title">Müştəri</h2>
                     </div>
-                    <!-- PR #443: PIN + Seriya yan-yana -->
-                    <div class="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                            <div class="label-soft text-[11px] uppercase tracking-wide">PIN</div>
-                            <div class="value-strong font-semibold" x-text="app?.customer_pin || '-'"></div>
-                        </div>
-                        <div>
-                            <div class="label-soft text-[11px] uppercase tracking-wide">Seriya</div>
-                            <div class="value-strong font-semibold" x-text="app?.customer_serial || '-'"></div>
-                        </div>
-                    </div>
-                    <!-- PR #408/#443: vətəndaşın şəkli — mərkəzdə 120px (klik → tam ölçü) -->
-                    <template x-if="customerPhoto">
-                        <img :src="customerPhoto" alt="Müştəri şəkli" title="Şəkilə klik — tam ölçü"
-                             @click="photoDialogOpen = true"
-                             class="photo-center cursor-zoom-in hover:shadow-md transition">
-                    </template>
-                    <!-- PR #443: sahələr alt-alta -->
-                    <div class="space-y-3 text-sm">
+                    <!-- PR #465: şəkil solda + sahələr row-grid sətirlərində -->
+                    <div class="flex flex-col sm:flex-row gap-4">
+                        <template x-if="customerPhoto">
+                            <img :src="customerPhoto" alt="Müştəri şəkli" title="Şəkilə klik — tam ölçü"
+                                 @click="photoDialogOpen = true"
+                                 class="photo-cell hover:shadow-md transition">
+                        </template>
+                        <div class="row-grid flex-1 min-w-0">
+                            <div>
+                                <div class="label-soft text-[11px] uppercase tracking-wide">PIN</div>
+                                <div class="value-strong font-semibold" x-text="app?.customer_pin || '-'"></div>
+                            </div>
+                            <div>
+                                <div class="label-soft text-[11px] uppercase tracking-wide">Seriya</div>
+                                <div class="value-strong font-semibold" x-text="app?.customer_serial || '-'"></div>
+                            </div>
                         <div>
                             <div class="label-soft text-[11px] uppercase tracking-wide flex items-center justify-between">
                                 <span>Ad Soyad Ata adı</span>
@@ -560,12 +575,13 @@
                             <div class="label-soft text-[11px] uppercase tracking-wide">Kart</div>
                             <div class="value-strong font-semibold" x-text="app?.card_number ? '**** ' + app.card_number.slice(-4) : '-'"></div>
                         </div>
+                        </div>
                     </div>
 
-                    <!-- PR #410: ünvanlar panelin TAM eni üzrə — wrap ilə tam görünür (~2 sətir) -->
-                    <div class="text-sm mt-4">
-                        <!-- PR #245: Qeydiyyat ünvanı — AZMK GetPersonalInfo-dən (read-only) -->
-                        <div>
+                    <!-- PR #465: ünvanlar + audit — tam en sətirlər -->
+                    <div class="text-sm mt-4 row-grid">
+                        <!-- PR #245: Qeydiyyat ünvanı — AZMK GetPersonalInfo-dan (read-only) -->
+                        <div class="row-full">
                             <div class="label-soft text-[11px] uppercase tracking-wide flex items-center justify-between">
                                 <span>Qeydiyyat ünvanı</span>
                                 <button x-show="app?.registration_address" @click="copyToClipboard(app?.registration_address)"
@@ -580,7 +596,7 @@
                                  x-text="app?.registration_address || '-'"></div>
                         </div>
                         <!-- PR #245: Faktiki ünvan — ekspert redaktə edə bilər -->
-                        <div class="mt-1.5">
+                        <div class="row-full mt-1.5">
                             <div class="label-soft text-[11px] uppercase tracking-wide flex items-center justify-between">
                                 <span class="flex items-center gap-1">Faktiki ünvan
                                     <!-- PR #402: ünvan dəyişilibsə yaşıl ✓ (PR #249 audit sahələrindən) -->
@@ -640,10 +656,120 @@
                         </div>
                     </div>
                 </section>
-                </div><!-- /SOL SÜTUN -->
 
-                <div class="dg-col"> <!-- ===== ORTA SÜTUN ===== -->
-                <!-- Kredit Məlumatları -->
+                <!-- PR #465: Əlaqə Nömrələri (2-ci grid) — Müştəridən sonra -->
+                <section class="panel p-6 flex flex-col">
+                    <div class="card-head">
+                        <span class="icon-chip">📞</span>
+                        <h2 class="panel-title">Əlaqə Nömrələri</h2>
+                    </div>
+                    <div class="space-y-3 flex-1">
+                        <template x-for="(contact, idx) in contacts" :key="idx">
+                            <div class="contact-block">
+                                <!-- PR #465: üfüqi sətir gridi — № | Əlaqə | Telefon | Ad | Status + düymələr -->
+                                <div class="contact-row">
+                                    <span class="text-xs font-bold text-gray-400 text-center" x-text="(idx+1)"></span>
+                                    <div class="flex gap-1.5 items-center min-w-0">
+                                        <select x-model="contact.relation"
+                                                @blur="onRelationBlur(idx)"
+                                                :disabled="isReadOnly || (contact.saved && contact.relation && !contact.editing)"
+                                                class="field-input !py-1.5 !px-2 w-full text-xs disabled:opacity-60 disabled:cursor-not-allowed">
+                                            <option value="">Əlaqə *</option>
+                                            <!-- PR #136: yeni oxunaqlı relation adları + unique məhdudiyyət (Atası/Anası/Qayınatası/Qayınanası) -->
+                                            <template x-for="opt in ['Atası','Anası','Qayınatası','Qayınanası','Əri','Arvadı','Oğlu','Qızı','Qardaşı','Bacısı','Bacanağı','Yeznəsi','Baldızı','Qayını','Dostu','Qohumu','Qonşusu','Həmkarı','Digər']" :key="opt">
+                                                <option :value="opt" x-text="opt"
+                                                        :disabled="isUniqueRelationUsedByOther(idx, opt)"
+                                                        :class="isUniqueRelationUsedByOther(idx, opt) ? 'text-gray-300' : ''"></option>
+                                            </template>
+                                        </select>
+                                        <!-- PR #132: Edit button — əlaqə dəyişdirmək üçün (read-only olanda gizlən) -->
+                                        <button x-show="!isReadOnly && contact.saved && contact.relation && !contact.editing"
+                                                @click="contact.editing = true"
+                                                class="text-gray-400 hover:text-teal-600 transition shrink-0"
+                                                title="Əlaqə növünü dəyiş">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                        </button>
+                                    </div>
+                                    <div class="relative min-w-0">
+                                        <input type="text"
+                                               x-model="contact.phone"
+                                               @input="contact.phone = formatPhone(contact.phone)"
+                                               @blur="saveContactIfChanged(idx)"
+                                               :disabled="isReadOnly || !contact.relation"
+                                               maxlength="17"
+                                               placeholder="+994 XX XXX XX XX"
+                                               :class="(contact.phone && !isPhoneComplete(contact.phone)) ? 'border-rose-400 focus:border-rose-500 bg-rose-50' : ''"
+                                               class="field-input !py-1.5 w-full text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100">
+                                        <!-- PR #138: nömrə tam deyil xəbərdarlıq ikonu -->
+                                        <span x-show="contact.phone && !isPhoneComplete(contact.phone)"
+                                              class="absolute right-2 top-1/2 -translate-y-1/2 text-rose-500"
+                                              title="Nömrə tam deyil — format: +994 XX XXX XX XX">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                        </span>
+                                    </div>
+                                    <div class="relative min-w-0">
+                                        <input type="text"
+                                               x-model.trim="contact.name"
+                                               @blur="saveContactIfChanged(idx)"
+                                               :disabled="isReadOnly || !contact.relation"
+                                               placeholder="Ad Soyad"
+                                               :class="isNameUsedByOther(idx, contact.name) ? 'border-rose-400 focus:border-rose-500 bg-rose-50' : ''"
+                                               class="field-input !py-1.5 w-full text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100">
+                                        <!-- PR #137: təkrar ad xəbərdarlıq ikonu -->
+                                        <span x-show="isNameUsedByOther(idx, contact.name)"
+                                              class="absolute right-2 top-1/2 -translate-y-1/2 text-rose-500"
+                                              title="Bu ad digər əlaqədə artıq istifadə olunub">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                        </span>
+                                    </div>
+                                    <div class="flex gap-1.5 items-center shrink-0">
+                                        <!-- Save indicator (PR #465: status hücrəsinə keçirilib) -->
+                                        <span x-show="contact.saving" class="text-xs text-gray-400 animate-pulse shrink-0">...</span>
+                                        <svg x-show="contact.saved && !contact.saving" class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                                        <!-- Verified badge -->
+                                        <span x-show="contact.verified === true" class="badge text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-700 shrink-0">✓ Təsdiq</span>
+                                    <span x-show="contact.verified === false" class="badge text-[10px] px-2 py-0.5 bg-rose-100 text-rose-700 shrink-0">✗ İmtina</span>
+                                    <span x-show="contact.verified === null || contact.verified === undefined" class="badge text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 shrink-0">Yoxlanılmayıb</span>
+
+                                    <!-- Verify/reject buttons — read-only olanda və ya əlaqə/telefon yoxdanda disabled -->
+                                    <button x-show="!isReadOnly"
+                                            @click="verifyContact(idx, true)"
+                                            :disabled="!contact.relation || !contact.phone"
+                                            :class="!contact.relation || !contact.phone ? 'opacity-30 cursor-not-allowed' : 'text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50'"
+                                            class="inline-flex items-center gap-0.5 text-[11px] font-medium px-1.5 py-1 rounded transition shrink-0"
+                                            title="Nömrə doğrulandı — zəng etdiniz və doğru şəxs cavab verdi">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+                                    </button>
+                                    <button x-show="!isReadOnly"
+                                            @click="verifyContact(idx, false)"
+                                            :disabled="!contact.relation || !contact.phone"
+                                            :class="!contact.relation || !contact.phone ? 'opacity-30 cursor-not-allowed' : 'text-rose-600 hover:text-rose-800 hover:bg-rose-50'"
+                                            class="inline-flex items-center gap-0.5 text-[11px] font-medium px-1.5 py-1 rounded transition shrink-0"
+                                            title="Nömrə imtina — zəng etdiniz və ya yanlış nömrədir, ya da şəxs münasibəti təsdiqləmədi">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
+                                    </button>
+                                    </div>
+                                </div>
+                                <!-- PR #266: Zəng qeydi — blur olanda avtomatik save olunur (PR #465: tam en) -->
+                                <div class="mt-1.5">
+                                    <textarea x-model="contact.callNote"
+                                              @blur="saveContactNote(idx)"
+                                              :disabled="isReadOnly"
+                                              rows="2" maxlength="1000"
+                                              placeholder="Zəng zamanı qeyd (müşahidə, razılıq, səbəb və s.)"
+                                              class="field-input !py-1.5 w-full text-xs resize-none disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100"></textarea>
+                                    <div class="flex items-center justify-between mt-0.5">
+                                        <span class="text-[10px] text-gray-400" x-show="contact.noteSaving">Saxlanılır...</span>
+                                        <span class="text-[10px] text-emerald-500" x-show="contact.noteSaved && !contact.noteSaving">✓ Saxlanıldı</span>
+                                        <span class="text-[10px] text-gray-400 ml-auto" x-text="(contact.callNote || '').length + '/1000'"></span>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </section>
+
+                <!-- PR #465: Kredit (3-cü grid) — Nömrələrdən SONRA -->
                 <section class="panel p-6 flex flex-col">
                     <div class="card-head">
                         <span class="icon-chip">💳</span>
@@ -683,129 +809,7 @@
                     </div>
                 </section>
 
-                <!-- PR #447/B1: MyGov Təsdiqi bölməsi silindi — toolbar-a (A3) köçürüldü -->
-
-                <!-- PR #447/B2: Komplayns Yoxlaması bölməsi silindi — toolbar-a (A2) köçürüldü -->
-
-                </div><!-- /ORTA SÜTUN -->
-
-                <div class="dg-col"> <!-- ===== SAĞ SÜTUN ===== -->
-
-                <!-- Əlaqə Nömrələri — PR #443: SAĞ sütunda, contact-block stilində -->
-                <section class="panel p-6 flex flex-col">
-                    <div class="card-head">
-                        <span class="icon-chip">📞</span>
-                        <h2 class="panel-title">Əlaqə Nömrələri</h2>
-                    </div>
-                    <div class="space-y-3 flex-1">
-                        <template x-for="(contact, idx) in contacts" :key="idx">
-                            <div class="contact-block flex flex-col gap-1.5">
-                                <!-- Input row 1: relation + phone -->
-                                <div class="flex gap-2 items-center">
-                                    <span class="text-xs font-bold text-gray-400 w-5 text-center" x-text="(idx+1)"></span>
-                                    <div class="relative">
-                                        <select x-model="contact.relation"
-                                                @blur="onRelationBlur(idx)"
-                                                :disabled="isReadOnly || (contact.saved && contact.relation && !contact.editing)"
-                                                class="field-input !py-1.5 !px-2 w-28 text-xs disabled:opacity-60 disabled:cursor-not-allowed">
-                                            <option value="">Əlaqə *</option>
-                                            <!-- PR #136: yeni oxunaqlı relation adları + unique məhdudiyyət (Atası/Anası/Qayınatası/Qayınanası) -->
-                                            <template x-for="opt in ['Atası','Anası','Qayınatası','Qayınanası','Əri','Arvadı','Oğlu','Qızı','Qardaşı','Bacısı','Bacanağı','Yeznəsi','Baldızı','Qayını','Dostu','Qohumu','Qonşusu','Həmkarı','Digər']" :key="opt">
-                                                <option :value="opt" x-text="opt"
-                                                        :disabled="isUniqueRelationUsedByOther(idx, opt)"
-                                                        :class="isUniqueRelationUsedByOther(idx, opt) ? 'text-gray-300' : ''"></option>
-                                            </template>
-                                        </select>
-                                    </div>
-                                    <!-- PR #132: Edit button — əlaqə dəyişdirmək üçün (read-only olanda gizlən) -->
-                                    <button x-show="!isReadOnly && contact.saved && contact.relation && !contact.editing"
-                                            @click="contact.editing = true"
-                                            class="text-gray-400 hover:text-teal-600 transition shrink-0"
-                                            title="Əlaqə növünü dəyiş">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-                                    </button>
-                                    <div class="relative flex-1">
-                                        <input type="text"
-                                               x-model="contact.phone"
-                                               @input="contact.phone = formatPhone(contact.phone)"
-                                               @blur="saveContactIfChanged(idx)"
-                                               :disabled="isReadOnly || !contact.relation"
-                                               maxlength="17"
-                                               placeholder="+994 XX XXX XX XX"
-                                               :class="(contact.phone && !isPhoneComplete(contact.phone)) ? 'border-rose-400 focus:border-rose-500 bg-rose-50' : ''"
-                                               class="field-input !py-1.5 w-full text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100">
-                                        <!-- PR #138: nömrə tam deyil xəbərdarlıq ikonu -->
-                                        <span x-show="contact.phone && !isPhoneComplete(contact.phone)"
-                                              class="absolute right-2 top-1/2 -translate-y-1/2 text-rose-500"
-                                              title="Nömrə tam deyil — format: +994 XX XXX XX XX">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                        </span>
-                                    </div>
-                                    <!-- Save indicator -->
-                                    <span x-show="contact.saving" class="text-xs text-gray-400 animate-pulse shrink-0">...</span>
-                                    <svg x-show="contact.saved && !contact.saving" class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                                </div>
-                                <!-- Input row 2: name + verification buttons -->
-                                <div class="flex gap-2 items-center pl-7">
-                                    <div class="relative flex-1">
-                                        <input type="text"
-                                               x-model.trim="contact.name"
-                                               @blur="saveContactIfChanged(idx)"
-                                               :disabled="isReadOnly || !contact.relation"
-                                               placeholder="Ad Soyad"
-                                               :class="isNameUsedByOther(idx, contact.name) ? 'border-rose-400 focus:border-rose-500 bg-rose-50' : ''"
-                                               class="field-input !py-1.5 w-full text-xs disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100">
-                                        <!-- PR #137: təkrar ad xəbərdarlıq ikonu -->
-                                        <span x-show="isNameUsedByOther(idx, contact.name)"
-                                              class="absolute right-2 top-1/2 -translate-y-1/2 text-rose-500"
-                                              title="Bu ad digər əlaqədə artıq istifadə olunub">
-                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                                        </span>
-                                    </div>
-                                    <!-- Verified badge -->
-                                    <span x-show="contact.verified === true" class="badge text-[10px] px-2 py-0.5 bg-emerald-100 text-emerald-700 shrink-0">✓ Təsdiq</span>
-                                    <span x-show="contact.verified === false" class="badge text-[10px] px-2 py-0.5 bg-rose-100 text-rose-700 shrink-0">✗ İmtina</span>
-                                    <span x-show="contact.verified === null || contact.verified === undefined" class="badge text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 shrink-0">Yoxlanılmayıb</span>
-
-                                    <!-- Verify/reject buttons — read-only olanda və ya əlaqə/telefon yoxdanda disabled -->
-                                    <button x-show="!isReadOnly"
-                                            @click="verifyContact(idx, true)"
-                                            :disabled="!contact.relation || !contact.phone"
-                                            :class="!contact.relation || !contact.phone ? 'opacity-30 cursor-not-allowed' : 'text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50'"
-                                            class="inline-flex items-center gap-0.5 text-[11px] font-medium px-1.5 py-1 rounded transition shrink-0"
-                                            title="Nömrə doğrulandı — zəng etdiniz və doğru şəxs cavab verdi">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
-                                    </button>
-                                    <button x-show="!isReadOnly"
-                                            @click="verifyContact(idx, false)"
-                                            :disabled="!contact.relation || !contact.phone"
-                                            :class="!contact.relation || !contact.phone ? 'opacity-30 cursor-not-allowed' : 'text-rose-600 hover:text-rose-800 hover:bg-rose-50'"
-                                            class="inline-flex items-center gap-0.5 text-[11px] font-medium px-1.5 py-1 rounded transition shrink-0"
-                                            title="Nömrə imtina — zəng etdiniz və ya yanlış nömrədir, ya da şəxs münasibəti təsdiqləmədi">
-                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M6 18L18 6M6 6l12 12"/></svg>
-                                    </button>
-                                </div>
-                                <!-- PR #266: Zəng qeydi — blur olanda avtomatik save olunur -->
-                                <div class="pl-7 mt-1">
-                                    <textarea x-model="contact.callNote"
-                                              @blur="saveContactNote(idx)"
-                                              :disabled="isReadOnly"
-                                              rows="2" maxlength="1000"
-                                              placeholder="Zəng zamanı qeyd (müşahidə, razılıq, səbəb və s.)"
-                                              class="field-input !py-1.5 w-full text-xs resize-none disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-100"></textarea>
-                                    <div class="flex items-center justify-between mt-0.5">
-                                        <span class="text-[10px] text-gray-400" x-show="contact.noteSaving">Saxlanılır...</span>
-                                        <span class="text-[10px] text-emerald-500" x-show="contact.noteSaved && !contact.noteSaving">✓ Saxlanıldı</span>
-                                        <span class="text-[10px] text-gray-400 ml-auto" x-text="(contact.callNote || '').length + '/1000'"></span>
-                                    </div>
-                                </div>
-                            </div>
-                        </template>
-                    </div>
-                </section>
-
                 <!-- PR #447/B3: Ekspert Qərarı bölməsi silindi — toolbar-a (A4) köçürüldü -->
-                </div><!-- /SAĞ SÜTUN -->
                 </div><!-- /detail-grid -->
 
                 <!-- PR #312: AZMK imza gözləmə paneli — PR #443: full-width (grid-dən kənar) -->
