@@ -1895,8 +1895,8 @@ function applyApp() {
                         this.engineRejectionReason = 'Daxil etdiyiniz məlumatlar uyğun gəlmir. FIN kodu və seriya nömrəsini yoxlayıb yenidən cəhd edin.';
                         this.isTechnicalError = true; // 'Yenidən cəhd et' düyməsi — typo düzəldilə bilər
                     } else if (reason === 'SERIAL_MISMATCH_BLOCKED') {
-                        // PR #487: anti-enumeration — 24 saatda 3+ yanlış cəhd.
-                        this.engineRejectionReason = 'Çoxlu yanlış cəhd qeydə alınıb. Zəhmət olmasa 24 saat sonra yenidən cəhd edin.';
+                        // PR #487 (PR #490: 1 saat): anti-enumeration — 1 saatda 3+ yanlış cəhd.
+                        this.engineRejectionReason = 'Çoxlu yanlış cəhd qeydə alınıb. Zəhmət olmasa 1 saat sonra yenidən cəhd edin.';
                         this.isTechnicalError = false;
                     } else if (reason === 'AGE_UNDER_18') {
                         this.engineRejectionReason = 'Kredit müraciəti üçün yaş 18-dən aşağı ola bilməz.';
