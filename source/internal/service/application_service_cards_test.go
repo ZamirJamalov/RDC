@@ -20,20 +20,21 @@ var errSomeAzmkFailure = errors.New("azmk: simulated outage")
 // fakeAzmkOnlineProvider is a test-only implementation of azmk.Provider
 // (OnlineLending) with configurable card list and call counters.
 type fakeAzmkOnlineProvider struct {
-	cards              []azmk.CardInfo
-	cardsErr           error
-	registerCardErr    error // PR #350: yeni kart xətasını simulyasiya etmək üçün
-	registerPartnerErr error // PR #357: partner re-register xətasını simulyasiya etmək üçün
-	sendPhonesErr      error // PR #404: partner phones xətasını simulyasiya etmək üçün
-	createAppErr       error // PR #421: approve rollback path-i üçün (AZMK create xətası)
-	kycErr             error // PR #477: KYC create xətası (servis xətası sentinel testi)
-	verifyKycErr       error // PR #477: KYC verify çağırış xətası (sentinel testi)
-	getCards           int
-	registerCard       int
-	createAppReq       *azmk.ApplicationCreateRequest // PR #353: son create request-i (assert üçün)
-	partnerReq         *azmk.PartnerRequest           // PR #357: son partner re-register request-i
-	phonesReq          *azmk.PartnerPhonesRequest     // PR #404: son phones request-i (assert üçün)
-	phonesPartnerID    string                         // PR #404: phones çağırılışında göndərilən partner id
+	cards                []azmk.CardInfo
+	cardsErr             error
+	registerCardErr      error // PR #350: yeni kart xətasını simulyasiya etmək üçün
+	registerPartnerErr   error // PR #357: partner re-register xətasını simulyasiya etmək üçün
+	sendPhonesErr        error // PR #404: partner phones xətasını simulyasiya etmək üçün
+	createAppErr         error // PR #421: approve rollback path-i üçün (AZMK create xətası)
+	kycErr               error // PR #477: KYC create xətası (servis xətası sentinel testi)
+	verifyKycErr         error // PR #477: KYC verify çağırış xətası (sentinel testi)
+	verifyKycNotVerified bool  // PR #496: KYC verified DEYİL — polling davam etsin (disconnect testi)
+	getCards             int
+	registerCard         int
+	createAppReq         *azmk.ApplicationCreateRequest // PR #353: son create request-i (assert üçün)
+	partnerReq           *azmk.PartnerRequest           // PR #357: son partner re-register request-i
+	phonesReq            *azmk.PartnerPhonesRequest     // PR #404: son phones request-i (assert üçün)
+	phonesPartnerID      string                         // PR #404: phones çağırılışında göndərilən partner id
 }
 
 func (f *fakeAzmkOnlineProvider) KYC(context.Context, *azmk.KYCRequest) (string, error) {
@@ -45,6 +46,9 @@ func (f *fakeAzmkOnlineProvider) KYC(context.Context, *azmk.KYCRequest) (string,
 func (f *fakeAzmkOnlineProvider) VerifyKYC(context.Context, string) (bool, error) {
 	if f.verifyKycErr != nil {
 		return false, f.verifyKycErr
+	}
+	if f.verifyKycNotVerified {
+		return false, nil // PR #496: status SENT qalır — polling davam edir
 	}
 	return true, nil
 }

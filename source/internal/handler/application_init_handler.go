@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -95,12 +96,22 @@ func (h *ApplicationHandler) VerifyInitApplication(w http.ResponseWriter, r *htt
 
 	app, err := h.service.VerifyInitApplication(r.Context(), req)
 	if err != nil {
+		// PR #496: müştəri bağlantını kəsib (brauzer bağlandı / şəbəkə düşdü) —
+		// bu xəta deyil, ERROR səviyyəsində log-lamaq spam yaradır.
+		if errors.Is(err, context.Canceled) {
+			slog.Info("verify init application: client disconnected",
+				"application_id", req.ApplicationID,
+				"public_id", req.ApplicationPublicID)
+			writeError(w, http.StatusBadRequest, "Bağlantı kəsildi. Zəhmət olmasa yenidən cəhd edin.")
+			return
+		}
 		slog.Error("verify init application failed", "application_id", req.ApplicationID, "public_id", req.ApplicationPublicID, "error", err)
 		// PR #193: istifadəçi üçün uyğun xəta mesajı
 		msg := err.Error()
 		if strings.Contains(msg, "tapılmadı") || strings.Contains(msg, "not found") {
 			writeError(w, http.StatusBadRequest, "Müraciət tapılmadı. Zəhmət olmasa yenidən cəhd edin.")
-		} else if strings.Contains(msg, "invalid OTP") {
+		} else if strings.Contains(msg, "invalid OTP") || strings.Contains(msg, "OTP kodu") {
+			// PR #496: "OTP kodu artıq istifadə olunub..." mesajı da birbaşa keçsin
 			writeError(w, http.StatusBadRequest, msg)
 		} else {
 			writeError(w, http.StatusBadRequest, sanitizeError(err))
