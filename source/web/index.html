@@ -292,11 +292,12 @@
                         }
                         if (!resp.ok) throw new Error('Auth yoxlanıla bilmədi');
                         this.currentUser = await resp.json();
+                        // PR #497: authChecking yalnız uğurda söndürülür. Əvvəl finally-də
+                        // söndürülürdü — login redirect-i gedərkən dashboard 1 san görünürdü (flash).
+                        this.authChecking = false;
                     } catch (e) {
                         window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname + window.location.search);
                         return;
-                    } finally {
-                        this.authChecking = false;
                     }
                 },
 
