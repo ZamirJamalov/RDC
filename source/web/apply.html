@@ -1402,6 +1402,13 @@ function applyApp() {
             } else {
                 // PR #70: Restore state from localStorage on page load
                 this.restoreState();
+                // PR #504: stale-state yoxlaması — köhnə müraciət artıq pending_customer
+                // deyilsə (məs. OTP keçilib, ekspert gözlənir — pending_expert), OTP
+                // (6 rəqəm) ekranı göstərilməsin: state təmizlənib fresh başlanğıc.
+                // (Backend init-də “işlənməkdə olan müraciətiniz var” xətası verir,
+                // amma restore olunan localStorage applicationId = true olduğundan
+                // frontend backend-ə heç getmədən OTP istəyirdi.)
+                this.validateRestoredOtpState();
                 // PR #157: əgər KYC verify aktivdirsə, backend polling yenidən başlat
                 if (this.kycVerifyActive && this.applicationId) {
                     this.resumeKYCVerify();
@@ -1452,6 +1459,30 @@ function applyApp() {
             const h = this.expertWorkHours || { start: 9, end: 20 };
             const p = (n) => String(n).padStart(2, '0');
             return p(h.start) + ':00-' + p(h.end) + ':00';
+        },
+
+        // PR #504: restore olunan OTP mərhələsi etibarlıdırmı? Yalnız OTP addımında
+        // (otpSent=true, step < 2) yoxlanılır — offer/video addımları (step 2+)
+        // pending_expert statusunda qanuni davam edir, onlara toxunulmur.
+        // Status pending_customer deyilsə → localStorage təmizlənir, istifadəçi
+        // step 0-dan fresh başlayır (FIN/serial/phone onsuz da restore olunmur).
+        async validateRestoredOtpState() {
+            if (!this.applicationId || !this.otpSent || this.currentStep >= 2) return;
+            try {
+                const resp = await fetch('/api/applications/' + this.applicationId);
+                if (!resp.ok) {
+                    // Müraciət tapılmadı/silinib — state köhnədir
+                    this.clearState();
+                    this.resetToStep0();
+                    return;
+                }
+                const data = await resp.json();
+                if (data.status && data.status !== 'pending_customer') {
+                    // OTP artıq keçilib (pending_expert/rejected/...) — OTP ekranı mənasızdır
+                    this.clearState();
+                    this.resetToStep0();
+                }
+            } catch (e) { /* şəbəkə xətası — köhnə davranış: state saxlanılır */ }
         },
 
         // PR #70: Save current state to localStorage
@@ -1794,10 +1825,33 @@ function applyApp() {
             // PR #202: OTP göndərilməsi zamanı təkrar klik qadağan et
             // Əgər artıq applicationId varsa (əvvəlki uğurlu göndermə), təkrar göndermə
             if (this.applicationId) {
-                this.error = 'Artıq OTP göndərilib. Zəhmət olmasa OTP kodunu daxil edin və ya "Geri qayıt" düyməsini klik edin.';
-                this.loading = false;
-                this.otpSent = true; // OTP input ekranını göstər
-                return;
+                // PR #504: applicationId köhnə (stale) ola bilər — müraciət artıq
+                // pending_customer deyilsə (məs. pending_expert) “Artıq OTP göndərilib”
+                // demək yanlışdır. Əvvəl statusu yoxla; stale-dursa state təmizlə
+                // və init-i yenidən çağır (backend düzgün xətanı göstərsin).
+                let stillPendingCustomer = true;
+                try {
+                    const checkResp = await fetch('/api/applications/' + this.applicationId);
+                    if (checkResp.ok) {
+                        const checkData = await checkResp.json();
+                        if (checkData.status && checkData.status !== 'pending_customer') {
+                            stillPendingCustomer = false;
+                        }
+                    } else {
+                        stillPendingCustomer = false; // tapılmadı — state köhnədir
+                    }
+                } catch (e) { /* şəbəkə xətası — köhnə davranış */ }
+                if (!stillPendingCustomer) {
+                    this.clearState();
+                    this.applicationId = null;
+                    this.otpSent = false;
+                    // fall through — aşağıda init yenidən çağrılır
+                } else {
+                    this.error = 'Artıq OTP göndərilib. Zəhmət olmasa OTP kodunu daxil edin və ya "Geri qayıt" düyməsini klik edin.';
+                    this.loading = false;
+                    this.otpSent = true; // OTP input ekranını göstər
+                    return;
+                }
             }
             try {
                 // PR #491: belt-and-suspenders — mobil IME/autofill 7+ simvol keçirə bilər;
