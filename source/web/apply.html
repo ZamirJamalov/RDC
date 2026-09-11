@@ -1187,10 +1187,13 @@ function applyApp() {
         blockedRejectionDays: -1,
 
         // Computed: min/max for the slider (first range in the offer)
-        // PR #252: rangeMin default 0; PR #253: rangeMin default 1 (minimum kredit məbləği 1 AZN)
+        // PR #252: rangeMin default 0; PR #253: rangeMin default 1;
+        // PR #498: minimum kredit məbləği 50 AZN — DB min_amount=1 qalsa belə
+        // frontend 50-dən aşağı düşmür (migration 057 DB-də də 50 edir)
         get rangeMin() {
-            if (!this.offer || !this.offer.ranges || !this.offer.ranges.length) return 1;
-            return Math.min(...this.offer.ranges.map(r => r.min_amount));
+            const MIN_AMOUNT = 50;
+            if (!this.offer || !this.offer.ranges || !this.offer.ranges.length) return MIN_AMOUNT;
+            return Math.max(MIN_AMOUNT, Math.min(...this.offer.ranges.map(r => r.min_amount)));
         },
         get rangeMax() {
             if (!this.offer || !this.offer.ranges || !this.offer.ranges.length) return 300;
