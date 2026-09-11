@@ -648,10 +648,20 @@
                     </p>
                 </div>
 
+                <!-- PR #505: preflight blok xəbərdarlığı — init basmazdan əvvəl -->
+                <div x-show="preflightBlocked && !otpSent && !incomeRejected" x-cloak
+                     class="mb-4 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-start gap-3">
+                    <svg class="w-5 h-5 text-amber-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                    <p class="text-sm text-amber-200/90 leading-relaxed" x-text="preflightMessage"></p>
+                </div>
+                <p x-show="preflightChecking && !preflightBlocked && !otpSent" x-cloak class="text-xs text-gray-500 mb-2 text-center">Məlumatlar yoxlanılır...</p>
+
                 <!-- Action buttons -->
                 <div class="pt-4">
                     <button x-show="!otpSent && !incomeRejected" @click="sendOtp"
-                            :disabled="loading || applicationId || !form.fin || !form.serialPrefix || !form.serialNumber || !form.phone || form.hasOfficialIncome === null"
+                            :disabled="loading || applicationId || !form.fin || !form.serialPrefix || !form.serialNumber || !form.phone || form.hasOfficialIncome === null || preflightBlocked"
                             class="cta-btn w-full font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
                         <span x-show="!loading">OTP Göndər →</span>
                         <span x-show="loading" class="flex items-center gap-2">
@@ -1232,6 +1242,14 @@ function applyApp() {
         // blockedRejectionDays = -1 → block yoxdur; 0 → permanent; >0 → N gün qalır
         blockedRejectionDays: -1,
 
+        // PR #505: init preflight — FIN+seriya+telefon doldurulan kimi blok yoxlaması
+        // (aktiv müraciət / rejection cooldown). “OTP Göndər”ə basmazdan əvvəl xəbərdarlıq.
+        preflightBlocked: false,
+        preflightMessage: '',
+        preflightChecking: false,
+        preflightKey: '',      // son yoxlanmış pin|serial|phone — təkrar sorğu getmesin
+        preflightTimer: null,
+
         // Computed: min/max for the slider (first range in the offer)
         // PR #252: rangeMin default 0; PR #253: rangeMin default 1;
         // PR #498: minimum kredit məbləği 50 AZN — DB min_amount=1 qalsa belə
@@ -1438,6 +1456,10 @@ function applyApp() {
             this.setupFit(); // PR #412: səhifəni ekrana sığdır (detail.html ilə eyni mexanizm)
             // PR #360: ekspert iş saatlarını yüklə (success mesajı üçün)
             this.loadExpertWorkHours();
+            // PR #505: preflight trigger — forma sahələri dəyişəndə debounce-la yoxla
+            ['fin', 'serialPrefix', 'serialNumber', 'phone'].forEach(f => {
+                this.$watch('form.' + f, () => this.onPreflightFieldChange());
+            });
             // PR #74: If navigated from landing page (?from=landing), clear
             // localStorage so the form starts fresh from step 0.
             const params = new URLSearchParams(window.location.search);
@@ -1654,6 +1676,10 @@ function applyApp() {
             this.form.phone = '';
             // PR #256: blockedRejectionDays sıfırla
             this.blockedRejectionDays = -1;
+            // PR #505: preflight state-i sıfırla
+            this.preflightBlocked = false;
+            this.preflightMessage = '';
+            this.preflightKey = '';
             this.applicationId = null;
             this.error = '';
             this.confirmError = '';
@@ -1846,6 +1872,68 @@ function applyApp() {
             ta.select();
             try { document.execCommand('copy'); done(); } catch (e) { /* ignore */ }
             document.body.removeChild(ta);
+        },
+
+        // ===== PR #505: init preflight =====
+        // FIN+seriya+telefon doldurulan kimi (600ms debounce) backend-ə yan-təsirsiz
+        // yoxlama atılır: aktiv müraciət / rejection bloku varsa “OTP Göndər” düyməsi
+        // bloklanır və səbəb göstərilir. Şəbəkə xətasında fail-open (düymə açıq qalır —
+        // əsl yoxlama klikdə init-in özündədir, preflight yalnız UX-lift-dir).
+        preflightFieldsComplete() {
+            return this.form.fin.length === 7
+                && this.form.serialPrefix.length >= 2
+                && this.form.serialNumber.length === 7
+                && this.form.phone.length === 9;
+        },
+
+        onPreflightFieldChange() {
+            // Sahə dəyişdi — köhnə xəbərdarlıq dərhal itir, yenidən yoxlanacaq
+            this.preflightBlocked = false;
+            this.preflightMessage = '';
+            if (this.preflightTimer) clearTimeout(this.preflightTimer);
+            if (!this.preflightFieldsComplete() || this.otpSent || this.applicationId || this.currentStep !== 0) return;
+            this.preflightTimer = setTimeout(() => this.runPreflight(), 600);
+        },
+
+        async runPreflight() {
+            const key = this.form.fin + '|' + this.fullSerial + '|' + this.form.phone;
+            if (key === this.preflightKey || !this.preflightFieldsComplete()) return;
+            this.preflightKey = key;
+            this.preflightChecking = true;
+            try {
+                const resp = await fetch('/api/applications/init/preflight', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        customer_pin: this.form.fin,
+                        customer_serial: this.fullSerial,
+                        customer_phone: '+994' + this.form.phone,
+                    }),
+                });
+                const data = await resp.json();
+                // Stale cavab: yoxlama əsnasında sahələr dəyişibsə nəticəni ötür
+                const nowKey = this.form.fin + '|' + this.fullSerial + '|' + this.form.phone;
+                if (nowKey !== key) return;
+                if (!resp.ok) return; // validasiya/infra xətası — fail-open
+                if (data.ok) return;  // blok yoxdur
+                // BLOCKED_REJECTION_* — sendOtp ilə eyni UX: rejeksiya ekranına keç
+                if (data.code === 'BLOCKED_REJECTION_PERMANENT' || data.code === 'BLOCKED_REJECTION_DAYS') {
+                    this.blockedRejectionDays = data.code === 'BLOCKED_REJECTION_DAYS' ? (data.retry_days || 0) : 0;
+                    this.engineStatus = 'rejected';
+                    this.engineRejectionReason = '';
+                    this.isTechnicalError = false;
+                    this.currentStep = 3;
+                    this.clearState();
+                    return;
+                }
+                // Aktiv müraciət / çoxlu yanlış cəhd — inline xəbərdarlıq + düymə bloku
+                this.preflightBlocked = true;
+                this.preflightMessage = data.error || 'Hal-hazırda yeni müraciət edə bilməzsiniz.';
+            } catch (e) {
+                /* şəbəkə xətası — fail-open */
+            } finally {
+                this.preflightChecking = false;
+            }
         },
 
         async sendOtp() {

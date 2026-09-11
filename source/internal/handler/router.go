@@ -84,6 +84,9 @@ func NewRouter(
 	// --- Loan application endpoints (PUBLIC — used by apply.html customer form) ---
 	// PR #149: Rate-limited public endpoints
 	mux.Handle("POST /api/applications/init", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.InitApplication)))
+	// PR #505: init-in yan-təsirsiz preflight-i — frontend “OTP Göndər”ə basmazdan
+	// əvvəl bloku (aktiv müraciət / rejection cooldown) müştəriyə göstərir.
+	mux.Handle("POST /api/applications/init/preflight", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.PreflightInitApplication)))
 	mux.Handle("POST /api/applications/init/verify", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.VerifyInitApplication)))
 	// PR #417: Create — admin/legacy axınıdır (heç bir frontend səhifəsi çağırmır);
 	// auth-sız istənilən kəs birbaşa API ilə müraciət yarada bilirdi → RequireAuth.

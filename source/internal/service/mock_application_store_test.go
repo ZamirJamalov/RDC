@@ -51,7 +51,10 @@ type mockApplicationStore struct {
 	// HasPendingApplication
 	pendingAppID  int
 	pendingStatus string
-	pendingErr    error
+
+	// GetRecentPendingApplication — PR #505 test hook (nil = no recent app)
+	recentApp  *model.LoanApplication
+	pendingErr error
 
 	// GetCreditLevelRate
 	commission float64
@@ -208,9 +211,10 @@ func (m *mockApplicationStore) CountRecentSerialMismatches(_ context.Context, _ 
 	return 0, nil
 }
 
-// GetRecentPendingApplication — PR #217: mock (returns nil = no recent app).
+// GetRecentPendingApplication — PR #217: mock. PR #505: recentApp field ilə
+// test-lər reuse ssenarisini simulyasiya edə bilər (nil = no recent app).
 func (m *mockApplicationStore) GetRecentPendingApplication(_ context.Context, _, _ string, _ int) (*model.LoanApplication, error) {
-	return nil, nil
+	return m.recentApp, nil
 }
 
 // ListByStatus returns all stored applications (by ID) that match the status.
