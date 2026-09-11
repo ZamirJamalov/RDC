@@ -59,7 +59,41 @@ func (h *ApplicationHandler) InitApplication(w http.ResponseWriter, r *http.Requ
 	})
 }
 
-// VerifyInitApplication handles POST /api/applications/init/verify.
+// PreflightInitApplication handles POST /api/applications/init/preflight (PR #505).
+// Init-in yan-təsirsiz yoxlaması: müraciət YARADMIR, OTP GÖNDƏRMİR.
+// Frontend FIN+seriya+telefon doldurulan kimi çağırır ki blok (aktiv müraciət /
+// rejection cooldown / serial-mismatch) “OTP Göndər” klikinə qədər müştəriyə
+// görünsün. İnfra xətası 500 qaytarır — frontend fail-open edir (düyməni bloklamır,
+// əsl yoxlama klikdə init-in özündədir).
+func (h *ApplicationHandler) PreflightInitApplication(w http.ResponseWriter, r *http.Request) {
+	var req service.InitApplicationRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "yanlış request body")
+		return
+	}
+	// Init ilə eyni validasiya — preflight-in dediyi init-in deyəcəyi ilə fərqlənməsin
+	if !isValidPIN(req.CustomerPIN) {
+		writeError(w, http.StatusBadRequest, "FIN kodu 7 simvol olmalıdır (yalnız hərf və rəqəm)")
+		return
+	}
+	if req.CustomerSerial != "" && !isValidSerial(req.CustomerSerial) {
+		writeError(w, http.StatusBadRequest, "Seriya nömrəsi düzgün deyil (prefix + 7 rəqəm, məs: AZE1234567)")
+		return
+	}
+	if !isValidPhone(req.CustomerPhone) {
+		writeError(w, http.StatusBadRequest, "Telefon nömrəsi düzgün deyil (format: +994XXXXXXXXX)")
+		return
+	}
+
+	resp, err := h.service.PreflightInitApplication(r.Context(), &req)
+	if err != nil {
+		slog.Error("init preflight failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "preflight unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
 // Customer enters the OTP code. If valid, application transitions to
 // "pending_expert" status (waiting for expert to complete the application).
 // PR #149: OTP attempt limit — 3 wrong attempts blocks the application.

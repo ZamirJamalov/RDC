@@ -589,3 +589,111 @@ func TestLWCustomerLoan_Serialization(t *testing.T) {
 // Ensure strings import is used (we use strings.Contains as a fallback when
 // the local contains helper is shadowed).
 var _ = strings.Contains
+
+// --- PR #505: PreflightInitApplication tests ---
+
+// TestPreflightInitApplication_BlockedWhenPendingExpert — aktiv (pending_expert)
+// müraciəti olan FIN preflight-də ok=false + ACTIVE_APPLICATION qaytarmalı və
+// heç bir müraciət yaratmamalıdır (preflight yan-təsirsizdir).
+func TestPreflightInitApplication_BlockedWhenPendingExpert(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.pendingAppID = 7
+        store.pendingStatus = model.StatusPendingExpert
+
+        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
+
+        resp, err := svc.PreflightInitApplication(ctx, &InitApplicationRequest{
+                CustomerPIN:    "PIN1",
+                CustomerSerial: "AA1234567",
+                CustomerPhone:  "+994551112233",
+        })
+        if err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+        if resp.OK {
+                t.Fatal("expected OK=false for pending_expert FIN")
+        }
+        if resp.ErrorCode != "ACTIVE_APPLICATION" {
+                t.Errorf("code = %q, want ACTIVE_APPLICATION", resp.ErrorCode)
+        }
+        if !contains(resp.Error, "işlənməkdə olan") {
+                t.Errorf("error = %q, want Azerbaijani duplicate message", resp.Error)
+        }
+        if len(store.createdApps) != 0 {
+                t.Errorf("preflight must be side-effect-free: %d apps created", len(store.createdApps))
+        }
+}
+
+// TestPreflightInitApplication_Reusable — son 10 dəqiqəlik pending_customer app
+// varsa blok deyil: init onu reuse edəcək (ok=true, reusable=true).
+func TestPreflightInitApplication_Reusable(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.recentApp = &model.LoanApplication{ID: 42, Status: model.StatusPendingCustomer}
+
+        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
+
+        resp, err := svc.PreflightInitApplication(ctx, &InitApplicationRequest{
+                CustomerPIN:    "PIN1",
+                CustomerSerial: "AA1234567",
+                CustomerPhone:  "+994551112233",
+        })
+        if err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+        if !resp.OK || !resp.Reusable {
+                t.Fatalf("expected OK=true Reusable=true, got OK=%v Reusable=%v", resp.OK, resp.Reusable)
+        }
+}
+
+// TestPreflightInitApplication_Clean — blok yoxduran FIN üçün ok=true.
+func TestPreflightInitApplication_Clean(t *testing.T) {
+        ctx := context.Background()
+
+        svc := NewApplicationService(newMockStore(), NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
+
+        resp, err := svc.PreflightInitApplication(ctx, &InitApplicationRequest{
+                CustomerPIN:    "PIN1",
+                CustomerSerial: "AA1234567",
+                CustomerPhone:  "+994551112233",
+        })
+        if err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+        if !resp.OK {
+                t.Fatalf("expected OK=true, got %+v", resp)
+        }
+        if resp.Reusable {
+                t.Error("expected Reusable=false for clean FIN")
+        }
+}
+
+// TestPreflightInitApplication_BlockedRejectionPermanent — rejected + cooldown
+// bitməyib (daysRemaining=0 → permanent) → BLOCKED_REJECTION_PERMANENT code-u.
+func TestPreflightInitApplication_BlockedRejectionPermanent(t *testing.T) {
+        ctx := context.Background()
+
+        store := newMockStore()
+        store.pendingAppID = 9
+        store.pendingStatus = model.StatusRejected // mock daysRemaining=0 → permanent
+
+        svc := NewApplicationService(store, NewCreditEngine(newMockLWProvider(), newMockStore()), newMockCustomerStore(), NewOTPService(nil, nil))
+
+        resp, err := svc.PreflightInitApplication(ctx, &InitApplicationRequest{
+                CustomerPIN:    "PIN1",
+                CustomerSerial: "AA1234567",
+                CustomerPhone:  "+994551112233",
+        })
+        if err != nil {
+                t.Fatalf("unexpected error: %v", err)
+        }
+        if resp.OK {
+                t.Fatal("expected OK=false for rejected-with-cooldown FIN")
+        }
+        if resp.ErrorCode != "BLOCKED_REJECTION_PERMANENT" {
+                t.Errorf("code = %q, want BLOCKED_REJECTION_PERMANENT", resp.ErrorCode)
+        }
+}

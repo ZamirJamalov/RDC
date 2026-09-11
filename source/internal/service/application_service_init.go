@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -39,11 +40,11 @@ func (s *ApplicationService) InitApplication(ctx context.Context, req *InitAppli
 		return nil, fmt.Errorf("customer_phone is required")
 	}
 
-	// PR #217/#221: Idempotent — son 10 dəqiqə ərzində eyni PIN+phone ilə pending_customer app var?
-	// PR #221: window 5→10 dəq artırıldı (cutoff-lar OTP verify-də işləyir, vaxt ala bilər)
-	recentApp, err := s.repo.GetRecentPendingApplication(ctx, req.CustomerPIN, req.CustomerPhone, 10)
+	// PR #505: yan-təsirsiz yoxlamalar helper-lərdədir — PreflightInitApplication
+	// eyni məntiqi işlədir (preflight nə deyirsə, init o qərarı verir).
+	recentApp, err := s.findReusableApplication(ctx, req.CustomerPIN, req.CustomerPhone)
 	if err != nil {
-		return nil, fmt.Errorf("failed to check recent applications: %w", err)
+		return nil, err
 	}
 	if recentApp != nil {
 		// Mövcud pending_customer app var — reuse et (yeni yaratma)
@@ -81,39 +82,9 @@ func (s *ApplicationService) InitApplication(ctx context.Context, req *InitAppli
 		return recentApp, nil
 	}
 
-	// PR #70: Check for duplicate — customer must not have an existing non-final application.
-	// PR #208: pending_customer blocklanmır (yarımçıq müraciət → təkrar cəhd mümkün).
-	// PR #247: pending_expert blocklanır — ekspert təsdiqində olan FIN-yə yeni müraciət yox
-	// (fərqli mobil nömrədən gəlsə belə).
-	// PR #256: HasPendingApplication daysRemaining də qaytarır.
-	existingID, existingStatus, daysRemaining, err := s.repo.HasPendingApplication(ctx, req.CustomerPIN)
-	if err != nil {
-		return nil, fmt.Errorf("failed to check existing applications: %w", err)
-	}
-	if existingID > 0 {
-		// PR #256: blocked rejection halında fərqli error mesajı (frontend parse edir)
-		if existingStatus == "rejected" {
-			if daysRemaining == 0 {
-				return nil, fmt.Errorf("BLOCKED_REJECTION_PERMANENT")
-			}
-			return nil, fmt.Errorf("BLOCKED_REJECTION_DAYS:%d", daysRemaining)
-		}
-		return nil, fmt.Errorf("Sizin artıq işlənməkdə olan müraciətiniz var (№%d, status: %s). Bu müraciət həll olunana qədər yeni müraciət edə bilməzsiniz", existingID, existingStatus)
-	}
-
-	// PR #487 (PR #490: pəncərə 24h → 1h): anti-enumeration — FIN başına
-	// son 1 saatda 3+ SERIAL_MISMATCH rəddi varsa yeni müraciət yaradılmır
-	// (robotlarla seriya combination axtarışına qarşı; typo edən maksimum 1 saat gözləyir).
-	mismatchCount, err := s.repo.CountRecentSerialMismatches(ctx, req.CustomerPIN, 1)
-	if err != nil {
-		slog.Warn("PR #487: failed to count serial mismatches — fail-soft (allowing)",
-			"customer_pin", req.CustomerPIN, "error", err)
-	} else if mismatchCount >= s.serialMismatchBlockLimit {
-		slog.Warn("PR #487: serial mismatch limit reached — new application blocked",
-			"customer_pin", req.CustomerPIN,
-			"mismatch_count_1h", mismatchCount,
-			"limit", s.serialMismatchBlockLimit)
-		return nil, fmt.Errorf("Çoxlu yanlış cəhd qeydə alınıb. Zəhmət olmasa 1 saat sonra yenidən cəhd edin")
+	// PR #505: blok yoxlaması (dublikat / rejection cooldown / serial-mismatch) helper-də.
+	if err := s.initBlockReason(ctx, req.CustomerPIN); err != nil {
+		return nil, err
 	}
 
 	// Yeni app yarat
@@ -159,6 +130,107 @@ func (s *ApplicationService) InitApplication(ctx context.Context, req *InitAppli
 		"phone", req.CustomerPhone)
 
 	return app, nil
+}
+
+// findReusableApplication — PR #505: init/preflight paylaşan reuse yoxlaması.
+// Son 10 dəqiqə ərzində eyni PIN+phone ilə pending_customer app varsa onu qaytarır
+// (init bu app-i davam etdirir, yenisini yaratmır — yetim müraciətlərin qarşısı).
+func (s *ApplicationService) findReusableApplication(ctx context.Context, pin, phone string) (*model.LoanApplication, error) {
+	// PR #217/#221: Idempotent — window 5→10 dəq (cutoff-lar OTP verify-də işləyir,
+	// vaxt ala bilər).
+	recentApp, err := s.repo.GetRecentPendingApplication(ctx, pin, phone, 10)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check recent applications: %w", err)
+	}
+	return recentApp, nil
+}
+
+// initBlockReason — PR #505: init/preflight paylaşan blok yoxlamaları.
+// nil → yeni müraciət icazəlidir; error → blok səbəbi (istifadəçiyə göstərilən
+// mesaj və ya BLOCKED_REJECTION_* protokol prefiksi — frontend parse edir).
+func (s *ApplicationService) initBlockReason(ctx context.Context, pin string) error {
+	// PR #70: Check for duplicate — customer must not have an existing non-final application.
+	// PR #208: pending_customer blocklanmır (yarımçıq müraciət → təkrar cəhd mümkün).
+	// PR #247: pending_expert blocklanır — ekspert təsdiqində olan FIN-yə yeni müraciət yox
+	// (fərqli mobil nömrədən gəlsə belə).
+	// PR #256: HasPendingApplication daysRemaining də qaytarır.
+	existingID, existingStatus, daysRemaining, err := s.repo.HasPendingApplication(ctx, pin)
+	if err != nil {
+		return fmt.Errorf("failed to check existing applications: %w", err)
+	}
+	if existingID > 0 {
+		// PR #256: blocked rejection halında fərqli error mesajı (frontend parse edir)
+		if existingStatus == "rejected" {
+			if daysRemaining == 0 {
+				return fmt.Errorf("BLOCKED_REJECTION_PERMANENT")
+			}
+			return fmt.Errorf("BLOCKED_REJECTION_DAYS:%d", daysRemaining)
+		}
+		return fmt.Errorf("Sizin artıq işlənməkdə olan müraciətiniz var (№%d, status: %s). Bu müraciət həll olunana qədər yeni müraciət edə bilməzsiniz", existingID, existingStatus)
+	}
+
+	// PR #487 (PR #490: pəncərə 24h → 1h): anti-enumeration — FIN başına
+	// son 1 saatda 3+ SERIAL_MISMATCH rəddi varsa yeni müraciət yaradılmır
+	// (robotlarla seriya combination axtarışına qarşı; typo edən maksimum 1 saat gözləyir).
+	mismatchCount, err := s.repo.CountRecentSerialMismatches(ctx, pin, 1)
+	if err != nil {
+		slog.Warn("PR #487: failed to count serial mismatches — fail-soft (allowing)",
+			"customer_pin", pin, "error", err)
+	} else if mismatchCount >= s.serialMismatchBlockLimit {
+		slog.Warn("PR #487: serial mismatch limit reached — new application blocked",
+			"customer_pin", pin,
+			"mismatch_count_1h", mismatchCount,
+			"limit", s.serialMismatchBlockLimit)
+		return fmt.Errorf("Çoxlu yanlış cəhd qeydə alınıb. Zəhmət olmasa 1 saat sonra yenidən cəhd edin")
+	}
+	return nil
+}
+
+// InitPreflightResponse — POST /api/applications/init/preflight cavabı (PR #505).
+type InitPreflightResponse struct {
+	OK        bool   `json:"ok"`
+	Reusable  bool   `json:"reusable,omitempty"` // son 10 dəq pending_customer app var — init reuse edəcək
+	ErrorCode string `json:"code,omitempty"`     // ACTIVE_APPLICATION | SERIAL_MISMATCH_LIMIT | BLOCKED_REJECTION_PERMANENT | BLOCKED_REJECTION_DAYS
+	Error     string `json:"error,omitempty"`    // istifadəçiyə göstəriləcək mesaj (BLOCKED_REJECTION_* üçün boş — frontend öz UI-ı var)
+	RetryDays int    `json:"retry_days,omitempty"`
+}
+
+// PreflightInitApplication — PR #505: init-in yan-təsirsiz (side-effect-free)
+// versiyası. Heç bir müraciət yaratmır, OTP göndərmir; yalnız init-in blok
+// yoxlamalarını işlədib nəticəni qaytarır ki frontend “OTP Göndər” klikinə
+// qədər xəbərdarlıq göstərə bilsin. Əsl icazə hər zaman init-in özündə verilir.
+func (s *ApplicationService) PreflightInitApplication(ctx context.Context, req *InitApplicationRequest) (*InitPreflightResponse, error) {
+	if req.CustomerPIN == "" || req.CustomerPhone == "" {
+		return nil, fmt.Errorf("customer_pin and customer_phone are required")
+	}
+
+	// 1) Reuse: son 10 dəqiqədə yarımçıq (pending_customer) müraciət varsa blok deyil
+	recentApp, err := s.findReusableApplication(ctx, req.CustomerPIN, req.CustomerPhone)
+	if err != nil {
+		return nil, err
+	}
+	if recentApp != nil {
+		return &InitPreflightResponse{OK: true, Reusable: true}, nil
+	}
+
+	// 2) Bloklar: aktiv müraciət / rejection cooldown / serial-mismatch limiti
+	blockErr := s.initBlockReason(ctx, req.CustomerPIN)
+	if blockErr == nil {
+		return &InitPreflightResponse{OK: true}, nil
+	}
+	msg := blockErr.Error()
+	switch {
+	case msg == "BLOCKED_REJECTION_PERMANENT":
+		return &InitPreflightResponse{OK: false, ErrorCode: "BLOCKED_REJECTION_PERMANENT"}, nil
+	case strings.HasPrefix(msg, "BLOCKED_REJECTION_DAYS:"):
+		days, _ := strconv.Atoi(strings.TrimPrefix(msg, "BLOCKED_REJECTION_DAYS:"))
+		return &InitPreflightResponse{OK: false, ErrorCode: "BLOCKED_REJECTION_DAYS", RetryDays: days}, nil
+	case strings.HasPrefix(msg, "Çoxlu yanlış"):
+		return &InitPreflightResponse{OK: false, ErrorCode: "SERIAL_MISMATCH_LIMIT", Error: msg}, nil
+	default:
+		// Aktiv müraciət bloku — mesaj istifadəçiyə göstərilə bilər (init ilə eyni)
+		return &InitPreflightResponse{OK: false, ErrorCode: "ACTIVE_APPLICATION", Error: msg}, nil
+	}
 }
 
 // VerifyInitApplicationRequest is the body for POST /api/applications/init/verify.
