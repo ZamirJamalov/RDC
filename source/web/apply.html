@@ -150,6 +150,11 @@
             100% { transform: scale(1); }
         }
 
+        /* PR #506: preflight xəbərdarlıq mətni — hər iki temada oxunaqlı rəng
+           (amber-200/90 dark-da solğun, light temada isə görünməz idi) */
+        .preflight-warn-text { color: #FDE68A; font-weight: 500; }        /* dark: amber-100 */
+        body[data-theme="light"] .preflight-warn-text { color: #92400E; } /* light: amber-800 */
+
         /* PR #316: kart seçimi dropdown-u — açılan siyahı da theme rənglərində olsun */
         select.input-field option {
             background: var(--alpul-input-bg);
@@ -650,17 +655,17 @@
 
                 <!-- PR #505: preflight blok xəbərdarlığı — init basmazdan əvvəl -->
                 <div x-show="preflightBlocked && !otpSent && !incomeRejected" x-cloak
-                     class="mb-4 bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-start gap-3">
+                     class="mb-4 bg-amber-500/10 border border-amber-500/40 rounded-xl p-4 flex items-start gap-3">
                     <svg class="w-5 h-5 text-amber-400 mt-0.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                     </svg>
-                    <p class="text-sm text-amber-200/90 leading-relaxed" x-text="preflightMessage"></p>
+                    <p class="text-sm preflight-warn-text leading-relaxed" x-text="preflightMessage"></p>
                 </div>
 
                 <!-- Action buttons -->
                 <div class="pt-4">
                     <button x-show="!otpSent && !incomeRejected" @click="sendOtp"
-                            :disabled="loading || applicationId || !form.fin || !form.serialPrefix || !form.serialNumber || !form.phone || form.hasOfficialIncome === null || preflightBlocked"
+                            :disabled="loading || applicationId || !form.fin || !form.serialPrefix || !form.serialNumber || !form.phone || form.hasOfficialIncome !== true || preflightBlocked"
                             class="cta-btn w-full font-semibold py-4 rounded-xl text-base flex items-center justify-center gap-2">
                         <span x-show="!loading">OTP Göndər →</span>
                         <span x-show="loading" class="flex items-center gap-2">
