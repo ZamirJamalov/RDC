@@ -116,6 +116,40 @@
         }
         .input-field::placeholder { color: var(--alpul-text-soft); opacity: 0.5; }
 
+        /* PR #504: OTP 6 xanalı slot displey — nöqtələr + mərkəzdən yazma (pop) effekti */
+        .otp-slot {
+            width: 2.25rem;
+            height: 3.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Geist Mono', 'IBM Plex Sans', monospace;
+            font-size: 1.375rem;
+            font-weight: 600;
+            border-radius: 0.75rem;
+            border: 1px solid var(--alpul-border);
+            background: var(--alpul-input-bg);
+            color: var(--alpul-text-soft);
+            opacity: 0.6;
+            transition: border-color 0.15s ease, background 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease;
+        }
+        .otp-slot-filled {
+            color: var(--alpul-text);
+            opacity: 1;
+            border-color: rgba(16, 185, 129, 0.5);
+            background: rgba(16, 185, 129, 0.08);
+            animation: otp-pop 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .otp-wrap:focus-within .otp-slot-active {
+            border-color: #10B981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+            opacity: 1;
+        }
+        @keyframes otp-pop {
+            0% { transform: scale(1.35); }
+            100% { transform: scale(1); }
+        }
+
         /* PR #316: kart seçimi dropdown-u — açılan siyahı da theme rənglərində olsun */
         select.input-field option {
             background: var(--alpul-input-bg);
@@ -594,9 +628,21 @@
                 <!-- OTP section -->
                 <div x-show="otpSent" x-transition class="pt-2">
                     <label class="text-sm text-gray-400 mb-2 block">OTP kodu <span class="text-red-400">*</span></label>
-                    <input type="text" x-model="form.otp" maxlength="6" placeholder="6 rəqəm"
-                           class="input-field w-full px-4 py-3.5 rounded-xl text-2xl font-bold tracking-[0.5em] text-center"
-                           @input="form.otp = form.otp.replace(/[^0-9]/g, '')">
+                    <!-- PR #504: OTP 6 xanalı displey — "6 rəqəm" mətni əvəzinə nöqtələr,
+                         rəqəmlər mərkəzləşmiş xanalarda görünür (bank tətbiqi UX).
+                         Real input şəffaf overlay kimi üstdədir — x-model saxlanılır. -->
+                    <div class="otp-wrap relative flex justify-center gap-2 select-none">
+                        <template x-for="i in [0,1,2,3,4,5]" :key="i">
+                            <div class="otp-slot"
+                                 :class="{'otp-slot-filled': i < form.otp.length, 'otp-slot-active': i === form.otp.length}"
+                                 x-text="i < form.otp.length ? form.otp[i] : '•'"></div>
+                        </template>
+                        <input type="text" id="otp-input" x-ref="otpInput" x-model="form.otp" maxlength="6"
+                               inputmode="numeric" autocomplete="one-time-code" placeholder="••••••"
+                               aria-label="OTP kodu"
+                               class="absolute inset-0 w-full h-full opacity-0 cursor-text"
+                               @input="form.otp = form.otp.replace(/[^0-9]/g, '')">
+                    </div>
                     <p class="text-xs text-gray-500 mt-2" x-show="otpSent">
                         ✉️ OTP kodu <span class="text-white" x-text="'+' + form.phone"></span> nömrəsinə göndərildi.
                     </p>
