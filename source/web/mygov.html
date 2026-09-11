@@ -33,10 +33,10 @@
             const clientId = "cbc7c4da-6717-4903-841d-ab48848023d6";
             const redirectUri = "https://azmk.az/RDC/callback.php";
 
-            // PR #493: query param dəstəyi — URL-də client_id/nonce/state/redirect_uri
-            // varsa onlara üstünlük verilir (BuildWebURL ilə parametrli link göndərilsə
-            // uyğunluq). Parametrsiz statik link (cari SMS axını) üçün nonce/state
-            // client tərəfdə yaranır — Netlify versiyası ilə eyni davranış.
+            // PR #492: query param dəstəyi — URL-də client_id/nonce/state/redirect_uri
+            // varsa onlara üstünlük verilir (gələcəkdə BuildWebURL ilə parametrli link
+            // göndərilsə uyğunluq). Parametrsiz statistik link (cari SMS axını) üçün
+            // nonce/state client tərəfdə yaranır — Netlify versiyası ilə eyni.
             const qs = new URLSearchParams(window.location.search);
             const qClientId = qs.get('client_id');
             const qNonce = qs.get('nonce');

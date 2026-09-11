@@ -3,9 +3,9 @@
 Bu fayl layihənin gözləyən tasklarını izləmək üçün qlobal siyahıdır.
 Konvensiya:
 
-- Yeni task `- [ ]` kimi əlavə olunur ("Backlog" bölməsinə)
+- Yeni task `- [ ]` kimi əlavə olunur (ən yuxarıya, "Backlog" bölməsinə)
 - Hall olunanda `- [x]` edilir və **"Done"** bölməsinə keçirilir (yeni bitənlər üstdə)
-- Hər taskda PR № qeyd olunur ki, tarixçə itmesin
+- Hər taskda PR № və tarix qeyd olunur ki, tarixçə itmesin
 
 ---
 
@@ -14,13 +14,14 @@ Konvensiya:
 ### alpul.az aktivləşəndə keçid (domen 72 saat gözləmədədir) — YÜKSƏK
 
 - [ ] `config.go` — `MYGOV_WEB_URL` default-u `https://alpul.az/mygov.html` olmalı
-      (hazırda müvəqqəti `https://linkmygov.netlify.app/` — PR #493; öz
-      `web/mygov.html`-imiz hazırdır, alpul.az-da host olunacaq)
+      (hazırda müvəqqəti `https://185.161.225.102/mygov.html` — PR #492)
 - [ ] Caddy — `alpul.az` blokunun `mygov.html`-i problemsiz serve etdiyini yoxla
       (bloklanan path-lərə düşmür, əlavə dəyişiklik lazım deyil — sadəcə test)
-- [ ] Netlify səhifəsi söndürülsün (`linkmygov.netlify.app`)
+- [ ] Netlify səhifəsi söndürülsün (`lively-pie-17ab5c.netlify.app`)
 - [ ] 185 IP-nin public istifadəsini dayandır (əgər başqa iş üçün lazım deyilsə,
       Caddy bloku məhdudlaşdırıla bilər — Caddy əl ilə idarə olunur)
+      Not: IP-də `tls internal` xəbərdarlığı var — alpul.az keçidi bunu da aradan
+      qaldırır (real LE sertifikat)
 
 ### MyGov konfiqurasiya uyğunsuzluqları — YÜKSƏK (yoxlanılmalı)
 
@@ -63,14 +64,14 @@ Konvensiya:
 - [ ] `internal/service` paketində 22 pre-existing test failure (LW/phase1
       infra) — main-də də eynidir; təmizlənməli və ya skip marker ilə
       sənədləşdirilməli (yeni PR-lərin 0-yeni-fail meyarını asanlaşdırar)
-- [ ] `pkg/mygov/crypto.go` → `BuildWebURL` hazırda dead code; mygov.html
-      query-param dəstəyi (PR #493) əlavə olundu — istifadə olunacaqsa saxla,
-      yoxsa sil
+- [ ] `pkg/mygov/crypto.go` → `BuildWebURL` dead code (heç bir yerdə çağırılmır;
+      PR #492-də mygov.html query-param dəstəyi əlavə olundu — istifadə olunacaqsa
+      saxla, yoxsa sil)
 
 ---
 
 ## Done
 
 - [x] mygov.html səhifəsinin Netlify-dan RDC-yə köçürülməsi — PR #492
-- [x] SMS linkinin `https://linkmygov.netlify.app/`-ə keçirilməsi + mygov.html
-      query-param dəstəyi — PR #493
+- [x] SMS-dəki linkin `https://185.161.225.102/mygov.html`-ə keçirilməsi — PR #492
+      (`MYGOV_WEB_URL` default; env-də override yoxdur)
