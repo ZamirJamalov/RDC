@@ -463,24 +463,24 @@
             margin-top: 0.5rem;
         }
 
-        .card-commission {
+        /* PR #500: yer dəyişmə — məbləğ sol aşağıda ƏSAS anker (köhnə komissiya
+           yeri, 2.25rem), komissiya + illik faiz + müddət isə sağda vahid
+           ölçüdə (1.35rem) sətir-sətir. "Limit" sözü silinib — böyük rəqəm
+           özü-özünü izah edir. */
+        .card-amount {
             position: absolute;
             bottom: 1.5rem;
             left: 1.5rem;
-        }
-        .card-commission-label {
-            font-size: 0.65rem;
-            font-weight: 600;
-            letter-spacing: 0.15em;
-            text-transform: uppercase;
-            opacity: 0.7;
-        }
-        .card-commission-value {
             font-size: 2.25rem;
             font-weight: 900;
             line-height: 1;
             letter-spacing: -0.03em;
             font-family: 'Geist', sans-serif;
+        }
+        .card-amount-suffix {
+            font-size: 0.5em;
+            font-weight: 700;
+            opacity: 0.8;
         }
         /* PR #498: "min" prefiksi — komissiya ədədindən kiçik vizual */
         .card-commission-min {
@@ -491,42 +491,29 @@
             letter-spacing: 0.02em;
         }
 
-        /* PR #499: kart limiti — detallar sətirlərindən böyük, komissiyadan kiçik.
-           Sol aşağı "KOMİSSIYA 14%" ilə simmetrik sağ aşağı "LİMİT 500 ₼-dək" ankeri. */
-        .card-amount-label {
-            font-size: 0.65rem;
-            font-weight: 600;
-            letter-spacing: 0.15em;
-            text-transform: uppercase;
-            opacity: 0.7;
-        }
-        .card-amount {
-            font-size: 1.35rem;
-            font-weight: 900;
-            line-height: 1.05;
-            letter-spacing: -0.02em;
-            font-family: 'Geist', sans-serif;
-            margin-bottom: 0.5rem;
-        }
-        .card-amount-suffix {
-            font-size: 0.6em;
-            font-weight: 700;
-            opacity: 0.8;
-        }
-
-        .card-details {
+        .card-side {
             position: absolute;
             bottom: 1.5rem;
             right: 1.5rem;
             text-align: right;
         }
-        .card-detail-row {
-            font-size: 0.7rem;
-            font-family: 'Geist Mono', monospace;
-            opacity: 0.85;
-            letter-spacing: 0.02em;
+        .card-side-label {
+            font-size: 0.65rem;
+            font-weight: 600;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            opacity: 0.7;
+            margin-bottom: 0.3rem;
         }
-        .card-detail-row + .card-detail-row { margin-top: 0.15rem; }
+        /* PR #500: komissiya, illik faiz və müddət — eyni ölçüdə */
+        .card-side-row {
+            font-size: 1.35rem;
+            font-weight: 900;
+            line-height: 1.2;
+            letter-spacing: -0.01em;
+            font-family: 'Geist', sans-serif;
+        }
+        .card-side-row + .card-side-row { margin-top: 0.1rem; }
 
         /* ============ PR #463: PREMIUM TIMELINE ============ */
         .timeline {
@@ -853,15 +840,12 @@
                 <div class="level-card new">
                     <div class="card-chip"></div>
                     <div class="card-level-name">YENİ</div>
-                    <div class="card-commission">
-                        <div class="card-commission-label">Komissiya</div>
-                        <div class="card-commission-value">14%</div>
-                    </div>
-                    <div class="card-details">
-                        <div class="card-amount-label">Limit</div>
-                        <div class="card-amount">500 ₼<span class="card-amount-suffix">-dək</span></div>
-                        <div class="card-detail-row">İllik 55%</div>
-                        <div class="card-detail-row">3 ay</div>
+                    <div class="card-amount">500 ₼<span class="card-amount-suffix">-dək</span></div>
+                    <div class="card-side">
+                        <div class="card-side-label">Komissiya</div>
+                        <div class="card-side-row">14%</div>
+                        <div class="card-side-row">İllik 55%</div>
+                        <div class="card-side-row">3 ay</div>
                     </div>
                 </div>
                 <div class="level-card level-card-back new">
@@ -883,15 +867,12 @@
                         <span>YENİ → 2 kredit</span>
                     </div>
                     <div class="card-level-name">ETİBARLI</div>
-                    <div class="card-commission">
-                        <div class="card-commission-label">Komissiya</div>
-                        <div class="card-commission-value"><span class="card-commission-min">min</span> 13%</div>
-                    </div>
-                    <div class="card-details">
-                        <div class="card-amount-label">Limit</div>
-                        <div class="card-amount">900 ₼<span class="card-amount-suffix">-dək</span></div>
-                        <div class="card-detail-row">İllik 52%</div>
-                        <div class="card-detail-row">3 — 6 ay</div>
+                    <div class="card-amount">900 ₼<span class="card-amount-suffix">-dək</span></div>
+                    <div class="card-side">
+                        <div class="card-side-label">Komissiya</div>
+                        <div class="card-side-row"><span class="card-commission-min">min</span> 13%</div>
+                        <div class="card-side-row">İllik 52%</div>
+                        <div class="card-side-row">3 — 6 ay</div>
                     </div>
                 </div>
                 <div class="level-card level-card-back trusted">
@@ -913,15 +894,12 @@
                         <span>ETİBARLI → 2 kredit</span>
                     </div>
                     <div class="card-level-name">DƏYƏRLİ</div>
-                    <div class="card-commission">
-                        <div class="card-commission-label">Komissiya</div>
-                        <div class="card-commission-value"><span class="card-commission-min">min</span> 11%</div>
-                    </div>
-                    <div class="card-details">
-                        <div class="card-amount-label">Limit</div>
-                        <div class="card-amount">1300 ₼<span class="card-amount-suffix">-dək</span></div>
-                        <div class="card-detail-row">İllik 48%</div>
-                        <div class="card-detail-row">3 — 9 ay</div>
+                    <div class="card-amount">1300 ₼<span class="card-amount-suffix">-dək</span></div>
+                    <div class="card-side">
+                        <div class="card-side-label">Komissiya</div>
+                        <div class="card-side-row"><span class="card-commission-min">min</span> 11%</div>
+                        <div class="card-side-row">İllik 48%</div>
+                        <div class="card-side-row">3 — 9 ay</div>
                     </div>
                 </div>
                 <div class="level-card level-card-back valuable">
@@ -943,15 +921,12 @@
                         <span>DƏYƏRLİ → 2 kredit</span>
                     </div>
                     <div class="card-level-name">ELİT</div>
-                    <div class="card-commission">
-                        <div class="card-commission-label">Komissiya</div>
-                        <div class="card-commission-value"><span class="card-commission-min">min</span> 9%</div>
-                    </div>
-                    <div class="card-details">
-                        <div class="card-amount-label">Limit</div>
-                        <div class="card-amount">3000 ₼<span class="card-amount-suffix">-dək</span></div>
-                        <div class="card-detail-row">İllik 45%</div>
-                        <div class="card-detail-row">3 — 12 ay</div>
+                    <div class="card-amount">3000 ₼<span class="card-amount-suffix">-dək</span></div>
+                    <div class="card-side">
+                        <div class="card-side-label">Komissiya</div>
+                        <div class="card-side-row"><span class="card-commission-min">min</span> 9%</div>
+                        <div class="card-side-row">İllik 45%</div>
+                        <div class="card-side-row">3 — 12 ay</div>
                     </div>
                 </div>
                 <div class="level-card level-card-back elite">
