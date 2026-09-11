@@ -14,10 +14,12 @@ Konvensiya:
 ### alpul.az aktivləşəndə keçid (domen 72 saat gözləmədədir) — YÜKSƏK
 
 - [ ] `config.go` — `MYGOV_WEB_URL` default-u `https://alpul.az/mygov.html` olmalı
-      (hazırda müvəqqəti `https://185.161.225.102/mygov.html` — PR #492)
+      (hazırda müvəqqəti `https://linkmygov.netlify.app/` — PR #495; 185 IP
+      self-signed sertifikat xəbərdarlığı səbəbilə Netlify-a qaytarıldı, öz
+      `web/mygov.html`-imiz hazırdır — alpul.az-da host olunacaq)
 - [ ] Caddy — `alpul.az` blokunun `mygov.html`-i problemsiz serve etdiyini yoxla
       (bloklanan path-lərə düşmür, əlavə dəyişiklik lazım deyil — sadəcə test)
-- [ ] Netlify səhifəsi söndürülsün (`lively-pie-17ab5c.netlify.app`)
+- [ ] Netlify səhifəsi söndürülsün (`linkmygov.netlify.app`)
 - [ ] 185 IP-nin public istifadəsini dayandır (əgər başqa iş üçün lazım deyilsə,
       Caddy bloku məhdudlaşdırıla bilər — Caddy əl ilə idarə olunur)
       Not: IP-də `tls internal` xəbərdarlığı var — alpul.az keçidi bunu da aradan
@@ -73,5 +75,9 @@ Konvensiya:
 ## Done
 
 - [x] mygov.html səhifəsinin Netlify-dan RDC-yə köçürülməsi — PR #492
-- [x] SMS-dəki linkin `https://185.161.225.102/mygov.html`-ə keçirilməsi — PR #492
+- [x] SMS-dəki linkin müvəqqəti `https://185.161.225.102/mygov.html` — PR #493
+      (öz mygov.html-imizdən serve)
+- [x] SMS linkinin `https://linkmygov.netlify.app/`-ə qaytarılması — PR #495
+      (185-in self-signed sertifikat xəbərdarlığı müştərilər üçün əlverişsizdir;
+      alpul.az aktivləşəndə öz səhifəmizə qayıdacağıq — yuxarıdakı keçid taskı)
       (`MYGOV_WEB_URL` default; env-də override yoxdur)
