@@ -11,6 +11,8 @@ import (
 
 	"rdc-source/internal/middleware"
 	"rdc-source/internal/service"
+
+	"github.com/google/uuid"
 )
 
 // InitApplication handles POST /api/applications/init.
@@ -128,7 +130,7 @@ func (h *ApplicationHandler) VerifyInitApplication(w http.ResponseWriter, r *htt
 		OTPCode:             local.OTPCode,
 	}
 
-	app, err := h.service.VerifyInitApplication(r.Context(), req)
+	result, err := h.service.VerifyInitApplication(r.Context(), req)
 	if err != nil {
 		// PR #496: müştəri bağlantını kəsib (brauzer bağlandı / şəbəkə düşdü) —
 		// bu xəta deyil, ERROR səviyyəsində log-lamaq spam yaradır.
@@ -153,7 +155,55 @@ func (h *ApplicationHandler) VerifyInitApplication(w http.ResponseWriter, r *htt
 		return
 	}
 
-	writeJSON(w, http.StatusOK, app)
+	// PR #507: kyc_pending=true → KYC hələ təsdiq olunmayıb; frontend qısa
+	// polling-ə keçir (GET /api/applications/{public_id}/kyc-status).
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"id":               result.App.ID,
+		"public_id":        result.App.PublicID,
+		"status":           result.App.Status,
+		"rejection_reason": result.App.RejectionReason,
+		"kyc_id":           result.App.KycID,
+		"kyc_pending":      result.KycPending,
+	})
+}
+
+// KycPollStatus handles GET /api/applications/{id}/kyc-status (PR #507).
+// {id} — müraciətin PUBLIC id-si (UUID). Frontend KYC gözləyərkən hər 3s
+// çağırır; hər sorğu qısadır (bir AZMK status çeki, ~100ms) — heç bir
+// proxy timeout-u vurmur. KYC təsdiqlənəndə partner+cutoff-lar BURADA bitir
+// və final cavab (status/rejection_reason) qayıdır.
+func (h *ApplicationHandler) KycPollStatus(w http.ResponseWriter, r *http.Request) {
+	publicID := r.PathValue("id")
+	if _, err := uuid.Parse(publicID); err != nil {
+		writeError(w, http.StatusBadRequest, "Müraciət tapılmadı. Zəhmət olmasa yenidən cəhd edin.")
+		return
+	}
+
+	result, err := h.service.PollKycStatus(r.Context(), publicID)
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			slog.Info("kyc status poll: client disconnected", "public_id", publicID)
+			writeError(w, http.StatusBadRequest, "Bağlantı kəsildi. Zəhmət olmasa yenidən cəhd edin.")
+			return
+		}
+		slog.Warn("kyc status poll failed", "public_id", publicID, "error", err)
+		msg := err.Error()
+		if strings.Contains(msg, "tapılmadı") || strings.Contains(msg, "not found") {
+			writeError(w, http.StatusBadRequest, "Müraciət tapılmadı. Zəhmət olmasa yenidən cəhd edin.")
+			return
+		}
+		writeError(w, http.StatusBadRequest, sanitizeError(err))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"id":               result.App.ID,
+		"public_id":        result.App.PublicID,
+		"status":           result.App.Status,
+		"rejection_reason": result.App.RejectionReason,
+		"kyc_id":           result.App.KycID,
+		"kyc_pending":      result.KycPending,
+	})
 }
 
 // CompleteApplication handles PUT /api/applications/{id}/complete.

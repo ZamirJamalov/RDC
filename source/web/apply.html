@@ -1210,6 +1210,9 @@ function applyApp() {
         kycVerifyInterval: null,
         kycVerifyActive: false,
         kycVerifyEnabled: true, // PR #206: backend-dən gəlir (AZMK_KYC_VERIFY_ENABLED)
+        // PR #507: KYC qısa polling state-i (verify ~15s-də kyc_pending qaytarır)
+        kycPollInterval: null,
+        kycPollInFlight: false,
 
         // OTP/UI state
         // PR #271: resmi gelir yoxlaması — 'xeyr' secilende reject mesajı
@@ -1741,6 +1744,7 @@ function applyApp() {
                 this.kycVerifyInterval = null;
             }
             localStorage.removeItem('alpul_apply_kyc_countdown');
+            this.stopKycPolling(); // PR #507: KYC polling də dayansın
         },
 
         // PR #155: KYC countdown format (MM:SS)
@@ -1783,7 +1787,11 @@ function applyApp() {
                     this.currentStep = 3;
                     this.clearState();
                 }
-                // Əgər pending_customer dirsə — heç nə etmə, countdown davam etsin
+                // PR #507: pending_customer + kyc_id varsa KYC polling-i başlat —
+                // refresh olanda gözləmə donmur, qısa sorğularla davam edir.
+                if (app.status === 'pending_customer' && app.kyc_id && this.kycVerifyActive) {
+                    this.startKycPolling();
+                }
             } catch (e) {
                 // Backend catılmadı — countdown davam etsin
             }
@@ -2047,7 +2055,8 @@ function applyApp() {
                     this.kycVerifyActive = false; // countdown yox
                 }
 
-                // 1. Verify OTP — backend KYC verify + cutoff-ları edir (3 dəqiqə polling)
+                // 1. Verify OTP — backend KYC yaradır, ~15s gözləyir (PR #507),
+                // sonra cutoff-lar. KYC təsdiqi gəlməsə kyc_pending qaytarır → polling.
                 const resp = await fetch('/api/applications/init/verify', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
@@ -2060,100 +2069,164 @@ function applyApp() {
                 const data = await resp.json();
                 if (!resp.ok) throw new Error(data.error || 'OTP təsdiq olunmadı');
 
-                // KYC verify tamamlandı — countdown dayandır
-                this.stopKYCCountdown();
-
-                // PR #115: əgər early cutoff rədd etdisə, rədd ekranını göstər
-                if (data.status === 'rejected') {
-                    this.engineStatus = 'rejected';
-                    // PR #207: SERVICE_ERROR üçün istifadəçi dostu mesaj
-                    const reason = data.rejection_reason || '';
-                    if (reason === 'SERVICE_ERROR') {
-                        this.engineRejectionReason = 'Texniki xəta baş verdi. Xarici servislər mövcud deyil və ya cavab vermir. Zəhmət olmasa bir az sonra yenidən cəhd edin.';
-                        this.isTechnicalError = true; // PR #250: 'Yenidən cəhd et' buttonu üçün
-                    } else if (reason === 'SERIAL_MISMATCH') {
-                        // PR #487: identiklik qapısı — seriya FIN ilə uyğun deyil (typo).
-                        // Generic mesaj: oracle dəyərini azaldır (enumerasiya qarşısı).
-                        this.engineRejectionReason = 'Daxil etdiyiniz məlumatlar uyğun gəlmir. FIN kodu və seriya nömrəsini yoxlayıb yenidən cəhd edin.';
-                        this.isTechnicalError = true; // 'Yenidən cəhd et' düyməsi — typo düzəldilə bilər
-                    } else if (reason === 'SERIAL_MISMATCH_BLOCKED') {
-                        // PR #487 (PR #490: 1 saat): anti-enumeration — 1 saatda 3+ yanlış cəhd.
-                        this.engineRejectionReason = 'Çoxlu yanlış cəhd qeydə alınıb. Zəhmət olmasa 1 saat sonra yenidən cəhd edin.';
-                        this.isTechnicalError = false;
-                    } else if (reason === 'AGE_UNDER_18') {
-                        this.engineRejectionReason = 'Kredit müraciəti üçün yaş 18-dən aşağı ola bilməz.';
-                        this.isTechnicalError = false;
-                    } else if (reason === 'AGE_OVER_69') {
-                        this.engineRejectionReason = 'Kredit müraciəti üçün yaş həddi (69+) aşılıb.';
-                        this.isTechnicalError = false;
-                    } else {
-                        this.engineRejectionReason = reason;
-                        this.isTechnicalError = false;
-                    }
-                    this.currentStep = 3; // rədd ekranı
-                    this.clearState();
+                // PR #507: KYC hələ təsdiq olunmayıb — backend qısa pəncərədə (~15s)
+                // gözlədi və təsdiq gəlmədi. Qısa polling-ə keç: hər 3s kyc-status
+                // sorğusu (proxy timeout-ları vurmur). İstifadəçi step 1-də qalır.
+                if (data.kyc_pending) {
+                    this.startKycPolling();
                     return;
                 }
 
-                // PR #121: KYC loading state-ləri — cutoff yoxlamaları
-                this.kycLoadingTitle = 'Kredit tarixçəniz yoxlanılır...';
-                this.kycLoadingMessage = 'AKB skor, qara siyahı və gecikmə tarixçəniz yoxlanılır.';
-
-                // Animasiya üçün mərhələləri yenilə (timer-ləri track et)
-                this._kycLoadingTimers.push(setTimeout(() => {
-                    this.kycLoadingTitle = 'Təklif hazırlanır...';
-                    this.kycLoadingMessage = 'Sizin kredit səviyyənizə uyğun təklif hazırlanır.';
-                }, 2000));
-
-                // 3. Fetch offer — PR #149: Changed from GET to POST (FIN in body, not URL query param)
-                // PR #379: serial da göndərilir — AZMK inquireByIdCard serialsız 400 qaytarır
-                const offerResp = await fetch('/api/applications/offer', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        customer_pin: this.form.fin,
-                        customer_serial: this.fullSerial,
-                        akb_score: 0,
-                    }),
-                });
-                const offerData = await offerResp.json();
-                if (!offerResp.ok) throw new Error(offerData.error || 'Təklif əldə edilə bilmədi');
-
-                this.offer = offerData;
-                // Pick the range that matches the lowest amount as default selection
-                // (so the slider starts at the minimum of the first range)
-                if (this.offer.ranges && this.offer.ranges.length > 0) {
-                    // PR #101: slider max-da başlasın (əvvəl min-də başlayırdı)
-                    this.form.amount = this.rangeMax;
-                    this.syncAmountIndex(); // PR #354: index-i son tick-ə sinxronlaşdır
-                    // PR #232: updateSelectedRange çağır ki ən kiçik term seçilsin
-                    // və selectedRange amount-a və term-ə uyğun olsun
-                    this.form.term = 0; // reset — ən kiçik term seçilsin
-                    this.updateSelectedRange();
-                }
-
-                // 4. Move to offer step
-                this.currentStep = 2;
-                this.saveState();
-                this.checkVideoRequired(); // PR #188: video record tələbini yoxla
-                this.loadSavedCards(); // PR #313: köhnə kartları yüklə (varsa)
+                await this.handleVerifyResult(data);
             } catch (e) {
-                this.stopKYCCountdown(); // PR #155: countdown dayandır
-                this.error = e.message;
-                // PR #155: KYC verify xətası olanda loading ekranında qal və xəta göstər
-                if (e.message.includes('KYC') || e.message.includes('təsdiq olunmadı')) {
-                    this.kycLoadingTitle = 'KYC təsdiq olunmadı';
-                    this.kycLoadingMessage = e.message;
-                    // currentStep = 1-də qal (loading ekranı)
-                } else {
-                    this.currentStep = 0; // back to init on error
-                }
-                this.saveState();
+                this.handleVerifyError(e);
             } finally {
                 // PR #121: KYC loading timer-ləri təmizlə
                 this._kycLoadingTimers.forEach(t => clearTimeout(t));
                 this._kycLoadingTimers = [];
                 this.loading = false;
+            }
+        },
+
+        // PR #507: verifyOtp və pollKycStatus-in ortaq NƏTİCƏ emalı — rejected
+        // ekranı / offer fetch / step 2 keçidi. (verifyOtp-un köhnə məntiqi
+        // buraya köçüb; hər iki yol eyni kodu işlədir.)
+        async handleVerifyResult(data) {
+            // PR #121: köhnə timer-ləri təmizlə (polling yolu ilə gələndə qala bilər)
+            this._kycLoadingTimers.forEach(t => clearTimeout(t));
+            this._kycLoadingTimers = [];
+
+            // KYC verify tamamlandı — countdown dayandır (polling də dayanır)
+            this.stopKYCCountdown();
+
+            // PR #115: əgər early cutoff rədd etdisə, rədd ekranını göstər
+            if (data.status === 'rejected') {
+                this.engineStatus = 'rejected';
+                // PR #207: SERVICE_ERROR üçün istifadəçi dostu mesaj
+                const reason = data.rejection_reason || '';
+                if (reason === 'SERVICE_ERROR') {
+                    this.engineRejectionReason = 'Texniki xəta baş verdi. Xarici servislər mövcud deyil və ya cavab vermir. Zəhmət olmasa bir az sonra yenidən cəhd edin.';
+                    this.isTechnicalError = true; // PR #250: 'Yenidən cəhd et' buttonu üçün
+                } else if (reason === 'SERIAL_MISMATCH') {
+                    // PR #487: identiklik qapısı — seriya FIN ilə uyğun deyil (typo).
+                    // Generic mesaj: oracle dəyərini azaldır (enumerasiya qarşısı).
+                    this.engineRejectionReason = 'Daxil etdiyiniz məlumatlar uyğun gəlmir. FIN kodu və seriya nömrəsini yoxlayıb yenidən cəhd edin.';
+                    this.isTechnicalError = true; // 'Yenidən cəhd et' düyməsi — typo düzəldilə bilər
+                } else if (reason === 'SERIAL_MISMATCH_BLOCKED') {
+                    // PR #487 (PR #490: 1 saat): anti-enumeration — 1 saatda 3+ yanlış cəhd.
+                    this.engineRejectionReason = 'Çoxlu yanlış cəhd qeydə alınıb. Zəhmət olmasa 1 saat sonra yenidən cəhd edin.';
+                    this.isTechnicalError = false;
+                } else if (reason === 'AGE_UNDER_18') {
+                    this.engineRejectionReason = 'Kredit müraciəti üçün yaş 18-dən aşağı ola bilməz.';
+                    this.isTechnicalError = false;
+                } else if (reason === 'AGE_OVER_69') {
+                    this.engineRejectionReason = 'Kredit müraciəti üçün yaş həddi (69+) aşılıb.';
+                    this.isTechnicalError = false;
+                } else {
+                    this.engineRejectionReason = reason;
+                    this.isTechnicalError = false;
+                }
+                this.currentStep = 3; // rədd ekranı
+                this.clearState();
+                return;
+            }
+
+            // PR #121: KYC loading state-ləri — cutoff yoxlamaları
+            this.kycLoadingTitle = 'Kredit tarixçəniz yoxlanılır...';
+            this.kycLoadingMessage = 'AKB skor, qara siyahı və gecikmə tarixçəniz yoxlanılır.';
+
+            // Animasiya üçün mərhələləri yenilə (timer-ləri track et)
+            this._kycLoadingTimers.push(setTimeout(() => {
+                this.kycLoadingTitle = 'Təklif hazırlanır...';
+                this.kycLoadingMessage = 'Sizin kredit səviyyənizə uyğun təklif hazırlanır.';
+            }, 2000));
+
+            // 3. Fetch offer — PR #149: Changed from GET to POST (FIN in body, not URL query param)
+            // PR #379: serial da göndərilir — AZMK inquireByIdCard serialsız 400 qaytarır
+            const offerResp = await fetch('/api/applications/offer', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    customer_pin: this.form.fin,
+                    customer_serial: this.fullSerial,
+                    akb_score: 0,
+                }),
+            });
+            const offerData = await offerResp.json();
+            if (!offerResp.ok) throw new Error(offerData.error || 'Təklif əldə edilə bilmədi');
+
+            this.offer = offerData;
+            // Pick the range that matches the lowest amount as default selection
+            // (so the slider starts at the minimum of the first range)
+            if (this.offer.ranges && this.offer.ranges.length > 0) {
+                // PR #101: slider max-da başlasın (əvvəl min-də başlayırdı)
+                this.form.amount = this.rangeMax;
+                this.syncAmountIndex(); // PR #354: index-i son tick-ə sinxronlaşdır
+                // PR #232: updateSelectedRange çağır ki ən kiçik term seçilsin
+                // və selectedRange amount-a və term-ə uyğun olsun
+                this.form.term = 0; // reset — ən kiçik term seçilsin
+                this.updateSelectedRange();
+            }
+
+            // 4. Move to offer step
+            this.currentStep = 2;
+            this.saveState();
+            this.checkVideoRequired(); // PR #188: video record tələbini yoxla
+            this.loadSavedCards(); // PR #313: köhnə kartları yüklə (varsa)
+        },
+
+        // PR #507: verify/polling xətasının emalı — köhnə verifyOtp catch məntiqi.
+        handleVerifyError(e) {
+            this.stopKYCCountdown(); // PR #155 (+ PR #507: polling də dayanır)
+            this.error = e.message;
+            // PR #155: KYC verify xətası olanda loading ekranında qal və xəta göstər
+            if (e.message.includes('KYC') || e.message.includes('təsdiq olunmadı')) {
+                this.kycLoadingTitle = 'KYC təsdiq olunmadı';
+                this.kycLoadingMessage = e.message;
+                // currentStep = 1-də qal (loading ekranı)
+            } else {
+                this.currentStep = 0; // back to init on error
+            }
+            this.saveState();
+        },
+
+        // PR #507: KYC qısa polling — verify kyc_pending qaytaran kimi başlayır.
+        startKycPolling() {
+            if (this.kycPollInterval) return; // artıq işləyir
+            this.kycPollInFlight = false;
+            this.pollKycStatus(); // dərhal bir dəfə (3s gözləmədən)
+            this.kycPollInterval = setInterval(() => this.pollKycStatus(), 3000);
+        },
+
+        // PR #507: KYC polling-i dayandır (countdown bitəndə avtomatik — stopKYCCountdown)
+        stopKycPolling() {
+            if (this.kycPollInterval) {
+                clearInterval(this.kycPollInterval);
+                this.kycPollInterval = null;
+            }
+        },
+
+        // PR #507: hər 3s GET /api/applications/{public_id}/kyc-status — hər sorğu
+        // qısadır (bir AZMK status çeki, ~100ms). Transient xəta/pending → sükutla
+        // növbəti poll; final cavab → handleVerifyResult/handleVerifyError.
+        async pollKycStatus() {
+            if (!this.applicationId || this.kycPollInFlight) return;
+            if (!this.kycVerifyActive) { this.stopKycPolling(); return; } // countdown bitib
+            this.kycPollInFlight = true;
+            try {
+                const resp = await fetch(`/api/applications/${this.applicationId}/kyc-status`);
+                const data = await resp.json();
+                if (!resp.ok || data.kyc_pending) return; // transient — növbəti poll
+                this.stopKycPolling();
+                try {
+                    await this.handleVerifyResult(data);
+                } catch (e) {
+                    this.handleVerifyError(e);
+                }
+            } catch (e) {
+                // şəbəkə xətası — sükutla növbəti poll
+            } finally {
+                this.kycPollInFlight = false;
             }
         },
 
