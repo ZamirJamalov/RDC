@@ -184,11 +184,14 @@ func (s *OTPService) VerifyOTP(ctx context.Context, phone, code string) (*model.
         stored, err := s.repo.GetActiveByPhone(ctx, phone)
         if err != nil {
                 // OTP tapılmadı (status='active' yoxdur)
+                // PR #496: NotFound işarələ — çağıran tərəf "yanlış kod" yerinə
+                // "yeni kod istəyin" mesajı göstərsin (kod artıq istehlak edilib).
                 slog.Info("OTP verify: no active OTP found", "phone", phone, "error", err)
                 return &model.OTPVerifyResponse{
                         Phone:    phone,
                         Valid:    false,
                         Attempts: model.OTPMaxAttempts,
+                        NotFound: true,
                 }, nil
         }
 

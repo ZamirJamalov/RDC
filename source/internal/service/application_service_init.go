@@ -198,6 +198,13 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
 		return nil, fmt.Errorf("OTP verification failed: %w", err)
 	}
 	if !verifyResp.Valid {
+		// PR #496: aktiv OTP yoxdursa (kod artıq istehlak edilib / vaxtı bitib /
+		// heç göndərilməyib) "yanlış kod" demək yanlışdır — müştəri eyni kodu
+		// təkrar daxil edib (məs. bağlantı kəsilib, cavab görə bilməyib).
+		// Aydın mesaj: yeni kod istəsin.
+		if verifyResp.NotFound {
+			return nil, fmt.Errorf("OTP kodu artıq istifadə olunub və ya vaxtı bitib. Zəhmət olmasa yeni kod istəyin.")
+		}
 		return nil, fmt.Errorf("invalid OTP code, %d attempts remaining", verifyResp.Attempts)
 	}
 
@@ -269,6 +276,18 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
 			"application_id", app.ID)
 		kycErr := s.runAzmkKycAndPartner(ctx, app)
 		if kycErr != nil {
+			// PR #496: müştəri brauzeri bağlayıb / mobil şəbəkə kəsilib (context.Canceled).
+			// Bu KYC imtinası DEYİL — müraciət rejected EDİLMİR, pending_customer qalır,
+			// imtina SMS-i getmir. Müştəri yenidən daxil olanda init reused-application
+			// yolu ilə yeni OTP alıb axını yenidən başladır.
+			// (Əvvəl: disconnect → rejected yazılmağa çalışılırdı — DB yaz da canceled
+			// ctx ilə fail olduğundan "failed to save KYC rejection" xətası yaranırdı.)
+			if errors.Is(kycErr, context.Canceled) {
+				slog.Warn("PR #496: client disconnected during KYC — application stays pending_customer",
+					"application_id", app.ID,
+					"customer_pin", app.CustomerPIN)
+				return nil, kycErr
+			}
 			// KYC rədd olundu — müştəriyə xəbər ver
 			app.Status = model.StatusRejected
 			app.RejectionReason = kycErr.Error()
@@ -403,6 +422,15 @@ func (s *ApplicationService) runAzmkKycAndPartner(ctx context.Context, app *mode
 	for attempt := 1; attempt <= maxKYCAttempts; attempt++ {
 		verified, err = s.azmkProvider.VerifyKYC(ctx, kycID)
 		if err != nil {
+			// PR #496: client disconnect — servis xətası DEYİL. Raw qaytarılır ki,
+			// çağıran tərəf errors.Is(err, context.Canceled) ilə tanısın və reject YAZMASIN.
+			if errors.Is(err, context.Canceled) {
+				slog.Warn("PR #496: client disconnected during KYC polling",
+					"application_id", app.ID,
+					"kyc_id", kycID,
+					"attempt", attempt)
+				return err
+			}
 			slog.Error("AZMK KYC verify failed — invalid ID",
 				"application_id", app.ID,
 				"kyc_id", kycID,
@@ -423,7 +451,18 @@ func (s *ApplicationService) runAzmkKycAndPartner(ctx context.Context, app *mode
 			"attempt", attempt,
 			"max_attempts", maxKYCAttempts)
 		if attempt < maxKYCAttempts {
-			time.Sleep(kycPollInterval)
+			// PR #496: ctx-aware gözləmə — disconnect olanda 3 san gözləmədən
+			// dərhal çıxırıq (əvvəl time.Sleep disconnect-i yalnız növbəti
+			// polling-də görürdü).
+			select {
+			case <-ctx.Done():
+				slog.Warn("PR #496: client disconnected during KYC polling (wait)",
+					"application_id", app.ID,
+					"kyc_id", kycID,
+					"attempt", attempt)
+				return ctx.Err()
+			case <-time.After(kycPollInterval):
+			}
 		}
 	}
 	if !verified {
