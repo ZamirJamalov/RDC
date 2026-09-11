@@ -301,11 +301,11 @@
                         }
                         if (!resp.ok) throw new Error('Auth failed');
                         this.currentUser = await resp.json();
+                        // PR #497: authChecking yalnız uğurda söndürülür (flash fix — finally-dən köçürülüb).
+                        this.authChecking = false;
                     } catch (e) {
                         window.location.href = '/login?redirect=/admin';
                         return;
-                    } finally {
-                        this.authChecking = false;
                     }
                 },
 
