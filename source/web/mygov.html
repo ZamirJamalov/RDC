@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="az">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>myGov Təsdiqinə Yönləndirilir...</title>
+    <!-- PR #492: Netlify-dan köçürüldü. Məntiq dəyişməz (client_id, redirect_uri,
+         nonce/state generasiyası). Təkmilləşmələr:
+         1) visibility-aware fallback — tətbiq açılıb istifadəçi geri qayıdarsa,
+            3 saniyəlik timeout onu my.gov.az-a zorlamır (köhnü versiyada edirdi).
+         2) ALPUL brend dizaynı (landing/apply ilə uyğun qara fon), CDN asılılığı yoxdur —
+            inline CSS/JS CSP-yə uyğundur ('unsafe-inline').
+         Diqqət: window.crypto secure context tələb edir — Caddy http→https redirect edir,
+         self-signed sertifikatda istifadəçi xəbərdarliqi qəbul etdikdən sonra context
+         secure sayılır və crypto işləyir. -->
+    <script>
+        // Base64URL formatında 16-32 baytluq kriptoqrafik data yaradan funksiya
+        function generateSecureParam(byteLength = 32) {
+            const array = new Uint8Array(byteLength);
+            window.crypto.getRandomValues(array);
+
+            let str = '';
+            for (let i = 0; i < array.length; i++) {
+                str += String.fromCharCode(array[i]);
+            }
+
+            let base64 = btoa(str);
+            return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        }
+
+        window.onload = function() {
+            // Sabit qalan təməl məlumatlar (MyGov client_id və callback)
+            const clientId = "cbc7c4da-6717-4903-841d-ab48848023d6";
+            const redirectUri = "https://azmk.az/RDC/callback.php";
+
+            // Dinamik yaranan təhlükəsiz parametrlər
+            const nonce = generateSecureParam(32);
+            const state = generateSecureParam(32);
+
+            // myGov linkinin dinamik olaraq qurulması
+            const myGovLink = `mygov://consent?client_id=${clientId}&nonce=${nonce}&state=${state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+
+            // Səhifədəki manual düymənin linkini yeni yaradılmış linklə əvəz edirik
+            document.getElementById('manual-btn').href = myGovLink;
+
+            // 1. Avtomatik yönləndirmə cəhdi
+            window.location.href = myGovLink;
+
+            // 2. Fallback (PR #492 təkmilləşməsi): yalnız tətbiq AÇILMAYIBSA yönləndir.
+            //    İstifadəçi myGov tətbiqinə keçibsə (səhifə görünməz olubsa) və geri
+            //    qayıdıbsa — onu my.gov.az-a zorlamırıq, manual düymə qalır.
+            let appOpened = false;
+            document.addEventListener('visibilitychange', function() {
+                if (document.hidden) appOpened = true;
+            });
+            window.addEventListener('pagehide', function() { appOpened = true; });
+
+            setTimeout(function() {
+                if (!appOpened && !document.hidden) {
+                    window.location.href = "https://my.gov.az";
+                }
+            }, 3000);
+        }
+    </script>
+    <style>
+        * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            text-align: center;
+            background-color: #0A0A0A;
+            color: #FAFAFA;
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+        }
+        .card { max-width: 420px; }
+        .spinner {
+            width: 44px; height: 44px;
+            margin: 0 auto 20px;
+            border: 4px solid rgba(16, 185, 129, 0.2);
+            border-top-color: #10B981;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        h2 { font-size: 1.25rem; margin: 0 0 8px; }
+        p { color: #A1A1AA; font-size: 0.95rem; line-height: 1.5; margin: 8px 0; }
+        .btn {
+            display: inline-block;
+            margin-top: 16px;
+            padding: 14px 32px;
+            background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+            color: #0A0A0A;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 1rem;
+        }
+        .hint { font-size: 0.8rem; color: #52525B; margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="spinner"></div>
+        <h2>myGov tətbiqinə yönləndirilirsiniz...</h2>
+        <p>Razılıq vermək üçün tətbiq avtomatik açılmalıdır.</p>
+
+        <!-- Bəzi brauzerlər JS avtomatik redirect-i bloklayır, bu düymə mütləq olmalıdır -->
+        <p>Əgər tətbiq açılmadısa, aşağıdakı düyməyə klikləyin:</p>
+        <a id="manual-btn" href="#" class="btn">Tətbiqi Aç</a>
+
+        <p class="hint">Tətbiqiniz quraşdırılmayıbsa rəsmi myGov portalından istifadə edə bilərsiniz.</p>
+    </div>
+</body>
+</html>
