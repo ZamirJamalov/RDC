@@ -651,6 +651,13 @@
                     <p class="text-xs text-gray-500 mt-2" x-show="otpSent">
                         ✉️ OTP kodu <span class="text-white" x-text="'+' + form.phone"></span> nömrəsinə göndərildi.
                     </p>
+                    <!-- PR #508: SMS gəlmədikdə təkrar göndərmə çıxışı — resendOtp
+                         backend reuse axınına düşür: aktiv OTP varsa təkrar SMS
+                         getmir (köhnə kod etibarlıdır), expire olubsə yeni kod gedir. -->
+                    <button x-show="otpSent" @click="resendOtp" :disabled="loading"
+                            class="mt-2 text-xs text-emerald-400 hover:text-emerald-300 transition disabled:opacity-50">
+                        Kod gəlmədi? Yenidən göndər
+                    </button>
                 </div>
 
                 <!-- PR #505: preflight blok xəbərdarlığı — init basmazdan əvvəl -->
@@ -2234,7 +2241,26 @@ function applyApp() {
             this.otpSent = false;
             this.form.otp = '';
             this.error = '';
+            // PR #508: applicationId-ni də təmizlə — "OTP Göndər" düyməsi
+            // (:disabled="... || applicationId || ...") yenidən açılsın.
+            // Backend reuse axını eyni PIN+phone müraciəti davam etdirir.
+            this.applicationId = null;
+            this.clearState();
             this.saveState();
+        },
+
+        // PR #508: "Kod gəlmədi? Yenidən göndər" — OTP state-ini sıfırlayıb
+        // sendOtp ilə yenidən göndər. Backend reuse axını qərar verir:
+        // aktiv OTP varsa təkrar SMS getmir (köhnə kod etibarlıdır),
+        // vaxtı bitibsə / xəta ilə expire olubsə yeni kod gedir.
+        // Rate-limit (1 OTP/dəq) backend tərəfindən qorunur.
+        async resendOtp() {
+            this.otpSent = false;
+            this.form.otp = '';
+            this.applicationId = null;
+            this.error = '';
+            this.clearState();
+            await this.sendOtp();
         },
 
         async confirmApplication() {

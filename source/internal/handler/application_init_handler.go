@@ -44,6 +44,15 @@ func (h *ApplicationHandler) InitApplication(w http.ResponseWriter, r *http.Requ
 	app, err := h.service.InitApplication(r.Context(), &req)
 	if err != nil {
 		slog.Error("init application failed", "error", err)
+		// PR #508: OTP göndərmə xətası texnikiidir (SMS şlüzü timeout/down) —
+		// sanitizeError bunu "daxili xəta baş verdi" generikinə çevirir və
+		// istifadəçi nə edəcəyini bilmir. Aydın retry mesajı göstər.
+		// (Rate-limit mesajı "OTP göndürmək üçün N saniyə..." buraya düşmür —
+		// o ayrı error-dur və olduğu kimi keçir.)
+		if strings.Contains(err.Error(), "failed to send OTP") {
+			writeError(w, http.StatusBadRequest, "SMS göndərilə bilmədi. Zəhmət olmasa bir azdan yenidən cəhd edin.")
+			return
+		}
 		// PR #149: sanitize error
 		writeError(w, http.StatusBadRequest, sanitizeError(err))
 		return
