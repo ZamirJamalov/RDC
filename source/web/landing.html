@@ -498,6 +498,16 @@
             letter-spacing: 0.02em;
         }
         .card-side-row + .card-side-row { margin-top: 0.15rem; }
+        /* PR #503: müddət sətri bir az böyük — kartda ən dəyişən parametrdir */
+        .card-side-row.card-side-term {
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        /* PR #503: komissiya "-dən" şəkilçisi (aralıqdan asılı dəyişən komissiya) */
+        .card-side-suffix {
+            font-size: 0.85em;
+            opacity: 0.8;
+        }
         /* PR #502: reload zamanı reveal animasiyası keçilməsin — məzmun dərhal görünsün */
         .reveal.no-transition {
             transition: none !important;
@@ -832,7 +842,7 @@
                     <div class="card-side">
                         <div class="card-side-row">Komissiya 14%</div>
                         <div class="card-side-row">İllik 55%</div>
-                        <div class="card-side-row">3 ay</div>
+                        <div class="card-side-row card-side-term">3 ay</div>
                     </div>
                 </div>
                 <div class="level-card level-card-back new">
@@ -856,9 +866,9 @@
                     <div class="card-level-name">ETİBARLI</div>
                     <div class="card-amount" data-count="900"><span class="card-amount-value">900</span> ₼<span class="card-amount-suffix">-dək</span></div>
                     <div class="card-side">
-                        <div class="card-side-row">Komissiya 13%</div>
+                        <div class="card-side-row">Komissiya 13%<span class="card-side-suffix">-dən</span></div>
                         <div class="card-side-row">İllik 52%</div>
-                        <div class="card-side-row">3 — 6 ay</div>
+                        <div class="card-side-row card-side-term">3 — 6 ay</div>
                     </div>
                 </div>
                 <div class="level-card level-card-back trusted">
@@ -882,9 +892,9 @@
                     <div class="card-level-name">DƏYƏRLİ</div>
                     <div class="card-amount" data-count="1300"><span class="card-amount-value">1300</span> ₼<span class="card-amount-suffix">-dək</span></div>
                     <div class="card-side">
-                        <div class="card-side-row">Komissiya 11%</div>
+                        <div class="card-side-row">Komissiya 11%<span class="card-side-suffix">-dən</span></div>
                         <div class="card-side-row">İllik 48%</div>
-                        <div class="card-side-row">3 — 9 ay</div>
+                        <div class="card-side-row card-side-term">3 — 9 ay</div>
                     </div>
                 </div>
                 <div class="level-card level-card-back valuable">
@@ -910,7 +920,7 @@
                     <div class="card-side">
                         <div class="card-side-row">Komissiya 9%</div>
                         <div class="card-side-row">İllik 45%</div>
-                        <div class="card-side-row">3 — 12 ay</div>
+                        <div class="card-side-row card-side-term">3 — 12 ay</div>
                     </div>
                 </div>
                 <div class="level-card level-card-back elite">
