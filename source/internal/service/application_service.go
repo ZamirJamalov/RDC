@@ -45,8 +45,8 @@ type ApplicationService struct {
 	// PR #278: Cutoff checks enabled — false=cutoff-lar TAMAMƏN skip olunur
 	cutoffChecksEnabled bool
 
-	// PR #487: anti-enumeration — FIN başına 24 saatda icazə verilən maksimum
-	// SERIAL_MISMATCH cəhdi. Bu həddə çatanda yeni müraciət bloklanır.
+	// PR #487 (PR #490: pəncərə 1 saat): anti-enumeration — FIN başına 1 saatda
+	// icazə verilən maksimum SERIAL_MISMATCH cəhdi. Bu həddə çatanda yeni müraciət bloklanır.
 	serialMismatchBlockLimit int
 
 	// PR #188: Video record service (Kvadrat Lab)
@@ -85,7 +85,7 @@ func NewApplicationService(repo ApplicationStore, engine *CreditEngine, customer
 		creditEngine: engine,
 		customerRepo: customerRepo,
 		otpService:   otpService,
-		// PR #487: default anti-enumeration limiti — 24 saatda 3 yanlış seriya
+		// PR #487: default anti-enumeration limiti — 1 saatda (PR #490) 3 yanlış seriya
 		// cəhdindən sonra FIN bloklanır (config ilə üstələnə bilər: SetSerialMismatchBlockLimit).
 		serialMismatchBlockLimit: 3,
 	}

@@ -101,18 +101,19 @@ func (s *ApplicationService) InitApplication(ctx context.Context, req *InitAppli
 		return nil, fmt.Errorf("Sizin artıq işlənməkdə olan müraciətiniz var (№%d, status: %s). Bu müraciət həll olunana qədər yeni müraciət edə bilməzsiniz", existingID, existingStatus)
 	}
 
-	// PR #487: anti-enumeration — FIN başına son 24 saatda 3+ SERIAL_MISMATCH
-	// rəddi varsa yeni müraciət yaradılmır (robotlarla seriya combination axtarışına qarşı).
-	mismatchCount, err := s.repo.CountRecentSerialMismatches(ctx, req.CustomerPIN, 24)
+	// PR #487 (PR #490: pəncərə 24h → 1h): anti-enumeration — FIN başına
+	// son 1 saatda 3+ SERIAL_MISMATCH rəddi varsa yeni müraciət yaradılmır
+	// (robotlarla seriya combination axtarışına qarşı; typo edən maksimum 1 saat gözləyir).
+	mismatchCount, err := s.repo.CountRecentSerialMismatches(ctx, req.CustomerPIN, 1)
 	if err != nil {
 		slog.Warn("PR #487: failed to count serial mismatches — fail-soft (allowing)",
 			"customer_pin", req.CustomerPIN, "error", err)
 	} else if mismatchCount >= s.serialMismatchBlockLimit {
 		slog.Warn("PR #487: serial mismatch limit reached — new application blocked",
 			"customer_pin", req.CustomerPIN,
-			"mismatch_count_24h", mismatchCount,
+			"mismatch_count_1h", mismatchCount,
 			"limit", s.serialMismatchBlockLimit)
-		return nil, fmt.Errorf("Çoxlu yanlış cəhd qeydə alınıb. Zəhmət olmasa 24 saat sonra yenidən cəhd edin")
+		return nil, fmt.Errorf("Çoxlu yanlış cəhd qeydə alınıb. Zəhmət olmasa 1 saat sonra yenidən cəhd edin")
 	}
 
 	// Yeni app yarat
@@ -481,7 +482,8 @@ func serialMatches(azmkSeria, enteredSerial string) bool {
 // servis olan AZMK_GET_PERSONAL_INFO (10 qəpik) ilə yoxlanılır).
 //
 // Yoxlamalar (sıra ilə):
-//  1. Anti-enumeration hard-stop: son 24 saatda 3+ SERIAL_MISMATCH varsa — AZMK
+//  1. Anti-enumeration hard-stop: son 1 saatda (PR #490: 24h → 1h) 3+ SERIAL_MISMATCH
+//     varsa — AZMK
 //     çağrılmadan rədd (pulu yığılır). Limit serialMismatchBlockLimit (default 3).
 //  2. AZMK_GET_PERSONAL_INFO (cache-first, PR #486 açarı: PIN+serial):
 //     - SERIAL_MISMATCH: cavabdakı DocumentSeriaNumber ≠ daxil edilən seriya → rədd.
@@ -513,7 +515,7 @@ func (s *ApplicationService) runIdentityGate(ctx context.Context, app *model.Loa
 
 	// 1. Anti-enumeration hard-stop — AZMK çağrılmadan əvvəl.
 	if s.serialMismatchBlockLimit > 0 {
-		mismatchCount, err := s.repo.CountRecentSerialMismatches(ctx, customerPIN, 24)
+		mismatchCount, err := s.repo.CountRecentSerialMismatches(ctx, customerPIN, 1)
 		if err != nil {
 			slog.Warn("PR #487: gate — mismatch count failed — fail-soft (continuing)",
 				"application_id", appID, "error", err)
@@ -521,10 +523,10 @@ func (s *ApplicationService) runIdentityGate(ctx context.Context, app *model.Loa
 			slog.Warn("PR #487: gate — serial mismatch limit reached — rejecting without AZMK call",
 				"application_id", appID,
 				"customer_pin", customerPIN,
-				"mismatch_count_24h", mismatchCount,
+				"mismatch_count_1h", mismatchCount,
 				"limit", s.serialMismatchBlockLimit)
-			s.logCutoff(ctx, appID, "SERIAL_MISMATCH_BLOCKED", "Seriya cəhd limiti (24 saatda 3+)", "IDENTITY_GATE", false, false,
-				fmt.Sprintf("mismatches_24h = %d, limit = %d", mismatchCount, s.serialMismatchBlockLimit), "attempts < limit", "")
+			s.logCutoff(ctx, appID, "SERIAL_MISMATCH_BLOCKED", "Seriya cəhd limiti (1 saatda 3+)", "IDENTITY_GATE", false, false,
+				fmt.Sprintf("mismatches_1h = %d, limit = %d", mismatchCount, s.serialMismatchBlockLimit), "attempts < limit", "")
 			return "SERIAL_MISMATCH_BLOCKED", nil
 		}
 	}
