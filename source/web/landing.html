@@ -491,6 +491,29 @@
             letter-spacing: 0.02em;
         }
 
+        /* PR #499: kart limiti — detallar sətirlərindən böyük, komissiyadan kiçik.
+           Sol aşağı "KOMİSSIYA 14%" ilə simmetrik sağ aşağı "LİMİT 500 ₼-dək" ankeri. */
+        .card-amount-label {
+            font-size: 0.65rem;
+            font-weight: 600;
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+            opacity: 0.7;
+        }
+        .card-amount {
+            font-size: 1.35rem;
+            font-weight: 900;
+            line-height: 1.05;
+            letter-spacing: -0.02em;
+            font-family: 'Geist', sans-serif;
+            margin-bottom: 0.5rem;
+        }
+        .card-amount-suffix {
+            font-size: 0.6em;
+            font-weight: 700;
+            opacity: 0.8;
+        }
+
         .card-details {
             position: absolute;
             bottom: 1.5rem;
@@ -835,7 +858,8 @@
                         <div class="card-commission-value">14%</div>
                     </div>
                     <div class="card-details">
-                        <div class="card-detail-row">500 ₼-dək</div>
+                        <div class="card-amount-label">Limit</div>
+                        <div class="card-amount">500 ₼<span class="card-amount-suffix">-dək</span></div>
                         <div class="card-detail-row">İllik 55%</div>
                         <div class="card-detail-row">3 ay</div>
                     </div>
@@ -864,7 +888,8 @@
                         <div class="card-commission-value"><span class="card-commission-min">min</span> 13%</div>
                     </div>
                     <div class="card-details">
-                        <div class="card-detail-row">900 ₼-dək</div>
+                        <div class="card-amount-label">Limit</div>
+                        <div class="card-amount">900 ₼<span class="card-amount-suffix">-dək</span></div>
                         <div class="card-detail-row">İllik 52%</div>
                         <div class="card-detail-row">3 — 6 ay</div>
                     </div>
@@ -893,7 +918,8 @@
                         <div class="card-commission-value"><span class="card-commission-min">min</span> 11%</div>
                     </div>
                     <div class="card-details">
-                        <div class="card-detail-row">1300 ₼-dək</div>
+                        <div class="card-amount-label">Limit</div>
+                        <div class="card-amount">1300 ₼<span class="card-amount-suffix">-dək</span></div>
                         <div class="card-detail-row">İllik 48%</div>
                         <div class="card-detail-row">3 — 9 ay</div>
                     </div>
@@ -922,7 +948,8 @@
                         <div class="card-commission-value"><span class="card-commission-min">min</span> 9%</div>
                     </div>
                     <div class="card-details">
-                        <div class="card-detail-row">3000 ₼-dək</div>
+                        <div class="card-amount-label">Limit</div>
+                        <div class="card-amount">3000 ₼<span class="card-amount-suffix">-dək</span></div>
                         <div class="card-detail-row">İllik 45%</div>
                         <div class="card-detail-row">3 — 12 ay</div>
                     </div>
