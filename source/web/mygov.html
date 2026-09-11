@@ -33,12 +33,24 @@
             const clientId = "cbc7c4da-6717-4903-841d-ab48848023d6";
             const redirectUri = "https://azmk.az/RDC/callback.php";
 
-            // Dinamik yaranan təhlükəsiz parametrlər
-            const nonce = generateSecureParam(32);
-            const state = generateSecureParam(32);
+            // PR #492: query param dəstəyi — URL-də client_id/nonce/state/redirect_uri
+            // varsa onlara üstünlük verilir (gələcəkdə BuildWebURL ilə parametrli link
+            // göndərilsə uyğunluq). Parametrsiz statistik link (cari SMS axını) üçün
+            // nonce/state client tərəfdə yaranır — Netlify versiyası ilə eyni.
+            const qs = new URLSearchParams(window.location.search);
+            const qClientId = qs.get('client_id');
+            const qNonce = qs.get('nonce');
+            const qState = qs.get('state');
+            const qRedirect = qs.get('redirect_uri');
+
+            // Dinamik yaranan təhlükəsiz parametrlər (query-də yoxdursa)
+            const nonce = qNonce || generateSecureParam(32);
+            const state = qState || generateSecureParam(32);
+            const finalClientId = qClientId || clientId;
+            const finalRedirectUri = qRedirect || redirectUri;
 
             // myGov linkinin dinamik olaraq qurulması
-            const myGovLink = `mygov://consent?client_id=${clientId}&nonce=${nonce}&state=${state}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+            const myGovLink = `mygov://consent?client_id=${finalClientId}&nonce=${nonce}&state=${state}&redirect_uri=${encodeURIComponent(finalRedirectUri)}`;
 
             // Səhifədəki manual düymənin linkini yeni yaradılmış linklə əvəz edirik
             document.getElementById('manual-btn').href = myGovLink;
