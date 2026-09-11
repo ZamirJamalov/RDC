@@ -11,9 +11,8 @@ import (
 
 // PR #477: KYC servis xətaları (AZMK down/timeout/5xx) ErrKycServiceUnavailable
 // ilə wrap olunmalıdır — VerifyInitApplication bunu görüb imtina SMS-ini skip edir.
-// Müştərinin 3 dəqiqə ərzində KYC-i təsdiq etməməsi sentinel ilə wrap OL MUR
-// (müştəri tərəflidir, SMS gedir) — amma o yol 60×3san polling gözləyir və
-// unit test-də praktik deyil (180 san), ona görə yalnız wrap-lanan yollar test edilir.
+// PR #507: runAzmkKycAndPartner üç üsula bölündü (azmkKycCreate / azmkKycPoll /
+// azmkPartnerRegister) — testlər də həmin üsulları birbaşa yoxlayır.
 
 func newKycTestApp() *model.LoanApplication {
 	return &model.LoanApplication{
@@ -25,13 +24,13 @@ func newKycTestApp() *model.LoanApplication {
 	}
 }
 
-// TestRunAzmkKycAndPartner_KycCreateErrorWrapped — KYC session yaradıla
-// bilmədsə xəta sentinel ilə wrap olunmalıdır.
-func TestRunAzmkKycAndPartner_KycCreateErrorWrapped(t *testing.T) {
+// TestAzmkKycCreate_ErrorWrapped — KYC session yaradıla bilməsə xəta sentinel
+// ilə wrap olunmalıdır.
+func TestAzmkKycCreate_ErrorWrapped(t *testing.T) {
 	p := &fakeAzmkOnlineProvider{kycErr: errSomeAzmkFailure}
 	svc := newCardsTestService(newCardsTestStore(), p)
 
-	err := svc.runAzmkKycAndPartner(context.Background(), newKycTestApp())
+	_, err := svc.azmkKycCreate(context.Background(), newKycTestApp())
 	if err == nil {
 		t.Fatal("expected error from KYC creation failure")
 	}
@@ -40,13 +39,13 @@ func TestRunAzmkKycAndPartner_KycCreateErrorWrapped(t *testing.T) {
 	}
 }
 
-// TestRunAzmkKycAndPartner_VerifyCallErrorWrapped — VerifyKYC çağırışı xəta
-// qaytarsa (invalid ID / şəbəkə) xəta sentinel ilə wrap olunmalıdır.
-func TestRunAzmkKycAndPartner_VerifyCallErrorWrapped(t *testing.T) {
+// TestAzmkKycPoll_VerifyErrorWrapped — VerifyKYC çağırışı xəta qaytarsa
+// (invalid ID / şəbəkə) xəta sentinel ilə wrap olunmalıdır.
+func TestAzmkKycPoll_VerifyErrorWrapped(t *testing.T) {
 	p := &fakeAzmkOnlineProvider{verifyKycErr: errSomeAzmkFailure}
 	svc := newCardsTestService(newCardsTestStore(), p)
 
-	err := svc.runAzmkKycAndPartner(context.Background(), newKycTestApp())
+	_, err := svc.azmkKycPoll(context.Background(), newKycTestApp(), "KYC-1", 6)
 	if err == nil {
 		t.Fatal("expected error from KYC verify call failure")
 	}
@@ -55,13 +54,13 @@ func TestRunAzmkKycAndPartner_VerifyCallErrorWrapped(t *testing.T) {
 	}
 }
 
-// TestRunAzmkKycAndPartner_PartnerRegisterErrorWrapped — Partner qeydiyyatı
-// xətası da sentinel ilə wrap olunmalıdır (texniki xəta → SMS yox).
-func TestRunAzmkKycAndPartner_PartnerRegisterErrorWrapped(t *testing.T) {
+// TestAzmkPartnerRegister_ErrorWrapped — Partner qeydiyyatı xətası da sentinel
+// ilə wrap olunmalıdır (texniki xəta → SMS yox).
+func TestAzmkPartnerRegister_ErrorWrapped(t *testing.T) {
 	p := &fakeAzmkOnlineProvider{registerPartnerErr: errSomeAzmkFailure}
 	svc := newCardsTestService(newCardsTestStore(), p)
 
-	err := svc.runAzmkKycAndPartner(context.Background(), newKycTestApp())
+	err := svc.azmkPartnerRegister(context.Background(), newKycTestApp())
 	if err == nil {
 		t.Fatal("expected error from partner registration failure")
 	}
@@ -73,11 +72,11 @@ func TestRunAzmkKycAndPartner_PartnerRegisterErrorWrapped(t *testing.T) {
 // PR #496: client disconnect (context.Canceled) KYC xətası DEYİL — xəta raw
 // qaytarılmalıdır ki, VerifyInitApplication errors.Is ilə tanıyıb müraciəti
 // rejected ETMƏSİN (pending_customer qalır, imtina SMS-i getmir).
-func TestRunAzmkKycAndPartner_ClientDisconnectNotWrapped(t *testing.T) {
+func TestAzmkKycPoll_ClientDisconnectNotWrapped(t *testing.T) {
 	p := &fakeAzmkOnlineProvider{verifyKycErr: context.Canceled}
 	svc := newCardsTestService(newCardsTestStore(), p)
 
-	err := svc.runAzmkKycAndPartner(context.Background(), newKycTestApp())
+	_, err := svc.azmkKycPoll(context.Background(), newKycTestApp(), "KYC-1", 6)
 	if err == nil {
 		t.Fatal("expected error from client disconnect")
 	}
@@ -92,7 +91,7 @@ func TestRunAzmkKycAndPartner_ClientDisconnectNotWrapped(t *testing.T) {
 // PR #496: KYC gözləməsi (3 san polling intervalı) zamanı disconnect olanda
 // funksiya dərhal çıxmalıdır — növbəti polling-i gözləməməli, ErrKycServiceUnavailable
 // ilə wrap etməməlidir.
-func TestRunAzmkKycAndPartner_DisconnectDuringWaitReturnsFast(t *testing.T) {
+func TestAzmkKycPoll_DisconnectDuringWaitReturnsFast(t *testing.T) {
 	// VerifyKYC (false, nil) qaytarır — status hələ SENT, polling davam edərdi.
 	// ctx isə artıq ləğv edilib (müştəri gedib).
 	p := &fakeAzmkOnlineProvider{verifyKycNotVerified: true}
@@ -102,7 +101,7 @@ func TestRunAzmkKycAndPartner_DisconnectDuringWaitReturnsFast(t *testing.T) {
 	cancel() // disconnect simulyasiyası — müştəri bağlantını kəsib
 
 	start := time.Now()
-	err := svc.runAzmkKycAndPartner(ctx, newKycTestApp())
+	_, err := svc.azmkKycPoll(ctx, newKycTestApp(), "KYC-1", 6)
 	if err == nil {
 		t.Fatal("expected error from canceled context")
 	}

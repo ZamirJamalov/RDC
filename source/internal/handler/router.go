@@ -88,6 +88,9 @@ func NewRouter(
 	// əvvəl bloku (aktiv müraciət / rejection cooldown) müştəriyə göstərir.
 	mux.Handle("POST /api/applications/init/preflight", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.PreflightInitApplication)))
 	mux.Handle("POST /api/applications/init/verify", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.VerifyInitApplication)))
+	// PR #507: KYC status polling — verify ~15s-də kyc_pending qaytarır, frontend
+	// hər 3s bu endpoint-i çağırır (hər sorğu qısadır — proxy timeout-ları vurmur).
+	mux.Handle("GET /api/applications/{id}/kyc-status", middleware.RateLimit(apiLimiter)(http.HandlerFunc(appHandler.KycPollStatus)))
 	// PR #417: Create — admin/legacy axınıdır (heç bir frontend səhifəsi çağırmır);
 	// auth-sız istənilən kəs birbaşa API ilə müraciət yarada bilirdi → RequireAuth.
 	mux.Handle("POST /api/applications", middleware.RequireAuth(authSvc)(http.HandlerFunc(appHandler.Create)))

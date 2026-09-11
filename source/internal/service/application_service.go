@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 
 	"rdc-source/internal/model"
 	"rdc-source/internal/repository"
@@ -48,6 +49,10 @@ type ApplicationService struct {
 	// PR #487 (PR #490: pəncərə 1 saat): anti-enumeration — FIN başına 1 saatda
 	// icazə verilən maksimum SERIAL_MISMATCH cəhdi. Bu həddə çatanda yeni müraciət bloklanır.
 	serialMismatchBlockLimit int
+
+	// PR #507: app-ID başına finishPostKyc mutex-u — iki paralel polling
+	// eyni müraciəti iki dəfə finish etməsin (partner double-register qarşısı).
+	kycFinishLocks sync.Map
 
 	// PR #188: Video record service (Kvadrat Lab)
 	videoRecordProvider    videorecord.Provider

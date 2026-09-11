@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -242,9 +243,21 @@ type VerifyInitApplicationRequest struct {
 	OTPCode             string `json:"otp_code"`
 }
 
+// VerifyResult — init/verify və KYC polling-in ortaq cavabı (PR #507).
+// KycPending=true → KYC hələ təsdiq olunmayıb, frontend qısa sorğularla
+// (GET /api/applications/{id}/kyc-status) gözləməyə davam edir.
+type VerifyResult struct {
+	App        *model.LoanApplication
+	KycPending bool
+}
+
 // VerifyInitApplication verifies the OTP code and transitions the application
 // PR #221: cutoff-lar OTP verify-də işləyir, amma status pending_customer qalır.
 // Customer-confirm-də pending_expert-ə keçir.
+//
+// PR #507: KYC gözləməsi artıq BU requestdə 180s uzanmır (proxy-lər ~30s-də
+// kəsir — LiteSpeed). Burada yalnız QISA pəncərə (~15s) gözlənilir; təsdiq
+// gəlməsə KycPending=true qaytarılır və frontend qısa polling-lə davam edir.
 //
 // PR #117: AZMK KYC və Partner registration OTP-dən SONRA, cutoff-dan ƏVVƏL baş verir.
 // PR #112: AUTO cutoff yoxlamaları KYC-dən sonra, kredit təklifindən ƏVVƏL baş verir.
@@ -256,7 +269,7 @@ type VerifyInitApplicationRequest struct {
 //  3. AZMK Partner registration (get partner_id)
 //  4. AUTO cutoff checks (AKB, blacklist, age, delay, active loan, etc.)
 //  5. If all pass → pending_customer qalır (PR #221 — customer-confirm-də pending_expert-ə keçəcək)
-func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *VerifyInitApplicationRequest) (*model.LoanApplication, error) {
+func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *VerifyInitApplicationRequest) (*VerifyResult, error) {
 	if req.ApplicationPublicID == "" && req.ApplicationID <= 0 {
 		return nil, fmt.Errorf("application_id is required")
 	}
@@ -336,61 +349,232 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
 		if gateRejection != "SERIAL_MISMATCH" && gateRejection != "SERIAL_MISMATCH_BLOCKED" {
 			s.sendRejectionSMS(ctx, app)
 		}
-		return app, nil
+		return &VerifyResult{App: app}, nil
 	}
 
-	// 4. PR #117: AZMK KYC + Partner registration
+	// 4. PR #117/#507: AZMK KYC — sessiyanı yaradıb QISA pəncərədə gözlə.
 	// Müştəri kimliyini təsdiq etmədən cutoff yoxlamaq mənasızdır.
 	// (appID ctx-ə yuxarıda — identity gate-dən əvvəl — set olunub, PR #487.)
 	// PR #170: KYC verify toggle — əgər enabled=false isə KYC skip olunur
 	if s.azmkProvider != nil && s.kycVerifyEnabled {
 		slog.Info("AZMK KYC verify enabled — starting KYC + Partner registration",
 			"application_id", app.ID)
-		kycErr := s.runAzmkKycAndPartner(ctx, app)
-		if kycErr != nil {
-			// PR #496: müştəri brauzeri bağlayıb / mobil şəbəkə kəsilib (context.Canceled).
-			// Bu KYC imtinası DEYİL — müraciət rejected EDİLMİR, pending_customer qalır,
-			// imtina SMS-i getmir. Müştəri yenidən daxil olanda init reused-application
-			// yolu ilə yeni OTP alıb axını yenidən başladır.
-			// (Əvvəl: disconnect → rejected yazılmağa çalışılırdı — DB yaz da canceled
-			// ctx ilə fail olduğundan "failed to save KYC rejection" xətası yaranırdı.)
-			if errors.Is(kycErr, context.Canceled) {
-				slog.Warn("PR #496: client disconnected during KYC — application stays pending_customer",
-					"application_id", app.ID,
-					"customer_pin", app.CustomerPIN)
-				return nil, kycErr
-			}
-			// KYC rədd olundu — müştəriyə xəbər ver
-			app.Status = model.StatusRejected
-			app.RejectionReason = kycErr.Error()
-			if err := s.repo.UpdateApplicationDecision(ctx, app.ID,
-				app.Status, "", app.RejectionReason, 0, 0, 0); err != nil {
-				return nil, fmt.Errorf("failed to save KYC rejection: %w", err)
-			}
-			slog.Info("AZMK KYC: application rejected",
-				"application_id", app.ID,
-				"customer_pin", app.CustomerPIN,
-				"reason", app.RejectionReason)
-			// PR #477: servis xətasında (AZMK down/timeout — ErrKycServiceUnavailable)
-			// imtina SMS-i GEDİRMİR: reject texniki səbəblədir, müştəri günahkar deyil.
-			// SMS yalnız müştərinin özündən asılı imtinaya gedir (KYC-i özü təsdiq etmədi).
-			if errors.Is(kycErr, ErrKycServiceUnavailable) {
-				slog.Warn("PR #477: KYC service error — rejection SMS skipped",
-					"application_id", app.ID,
-					"error", kycErr)
-			} else {
-				// PR #362: KYC reject — müştəriyə imtina SMS-i (non-fatal)
-				s.sendRejectionSMS(ctx, app)
-			}
-			return app, nil
+		kycID, err := s.azmkKycCreate(ctx, app)
+		if err != nil {
+			return s.rejectOnKycError(ctx, app, err)
 		}
+		// PR #507: yalnız 6 cəhd (~15s) gözlə — 30s proxy limitindən uzaq.
+		// Təsdif gəlməsə cavab kyc_pending qayıdır, gözləməyə frontend davam edir.
+		verified, err := s.azmkKycPoll(ctx, app, kycID, 6)
+		if err != nil {
+			return s.rejectOnKycError(ctx, app, err)
+		}
+		if !verified {
+			slog.Info("PR #507: KYC pending — frontend polling-ə keçir",
+				"application_id", app.ID,
+				"kyc_id", kycID)
+			return &VerifyResult{App: app, KycPending: true}, nil
+		}
+		return s.finishPostKyc(ctx, app)
 	} else if s.azmkProvider != nil && !s.kycVerifyEnabled {
 		slog.Info("AZMK KYC verify DISABLED — skipping KYC + Partner registration",
 			"application_id", app.ID)
 	}
 
-	// 4. PR #112: Early AUTO cutoff yoxlamaları
-	// Müştəri kredit təklifi görməzdən əvvəl yoxlanılır.
+	return s.finishPostKyc(ctx, app)
+}
+
+// ErrKycServiceUnavailable — AZMK KYC/Partner xidmətinin TEXNİKİ xətasıdır
+// (şəbəkə, timeout, 5xx). PR #477: belə xətalarda müraciət texniki səbəbdən
+// rejected olur, amma müştəriyə imtina SMS-i GEDİRMİR — reject müştərinin
+// özündən asılı deyil (PR #421 pattern-i: AZMK create rollback-da da SMS yoxdur).
+// Müştərinin özündən asılı olan KYC imtinası (3 dəqiqə ərzində şəxsiyyətini
+// təsdiq etməməsi) sentinel ilə wrap OL MUR — SMS gedir (imza timeout kimi).
+var ErrKycServiceUnavailable = errors.New("kyc service unavailable")
+
+// buildPartnerData — AZMK PartnerData-nı müraciət məlumatlarından qurur
+// (KYC create və Partner register eyni datanı istifadə edir). PR #507.
+func (s *ApplicationService) buildPartnerData(app *model.LoanApplication) azmk.PartnerData {
+	// AZMK expects phone without +994 prefix (məs. "513153393")
+	phone := strings.TrimPrefix(app.CustomerPhone, "+994")
+	return azmk.PartnerData{
+		AsanFinanceEmployeeInfo: false,
+		AsanFinancePersonalInfo: false,
+		FirstName:               "-", // müştəri info hələ yoxdur
+		LastName:                "-",
+		Mkr:                     false,
+		Mobile:                  phone,
+		Pin:                     app.CustomerPIN,
+		BranchCode:              s.azmkBranch,
+		Passport:                app.CustomerSerial,
+		HomeAddress:             "-",
+	}
+}
+
+// azmkKycCreate — AZMK KYC sessiyasını yaradır və kyc_id-ni DƏRHAL DB-yə yazır
+// (PR #507: kyc-status polling endpoint-i app.KycID üzərindən işləyir; əvvəl
+// kyc_id yalnız partner qeydiyyatından SONRA saxlanırdı).
+func (s *ApplicationService) azmkKycCreate(ctx context.Context, app *model.LoanApplication) (string, error) {
+	kycID, err := s.azmkProvider.KYC(ctx, &azmk.KYCRequest{PartnerData: s.buildPartnerData(app)})
+	if err != nil {
+		slog.Error("AZMK KYC creation failed",
+			"application_id", app.ID,
+			"customer_pin", app.CustomerPIN,
+			"error", err)
+		return "", fmt.Errorf("KYC yaradıla bilmədi: %w: %w", err, ErrKycServiceUnavailable)
+	}
+	slog.Info("PR #281: step 2 — AZMK KYC session created",
+		"step", "2.kyc_create",
+		"application_id", app.ID,
+		"kyc_id", kycID)
+
+	app.KycID = kycID
+	if err := s.repo.UpdateApplicationDetails(ctx, app.ID, app); err != nil {
+		// Non-fatal: ID yaddaşda da var, növbəti update-də yazılacaq
+		slog.Warn("PR #507: failed to save kyc_id immediately (non-fatal)",
+			"application_id", app.ID,
+			"error", err)
+	}
+	return kycID, nil
+}
+
+// azmkKycPoll — KYC statusunu AZMK-dan maxAttempts dəfə (3s aralıqla) yoxlayır.
+// PR #507: verify yalnız QISA pəncərə (~15s, 6 cəhd) üçün istifadə edir —
+// uzun gözləmə (180s) proxy-lərdə kəsildiyindən frontend polling ilə aparılır.
+// Cəhdlər bitib təsdiq gəlməsə (false, nil) — bu XƏTA deyil, pending deməkdir.
+func (s *ApplicationService) azmkKycPoll(ctx context.Context, app *model.LoanApplication, kycID string, maxAttempts int) (bool, error) {
+	const kycPollInterval = 3 * time.Second
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		verified, err := s.azmkProvider.VerifyKYC(ctx, kycID)
+		if err != nil {
+			// PR #496: client disconnect — servis xətası DEYİL. Raw qaytarılır ki,
+			// çağıran tərəf errors.Is(err, context.Canceled) ilə tanısın və reject YAZMASIN.
+			if errors.Is(err, context.Canceled) {
+				slog.Warn("PR #496: client disconnected during KYC polling",
+					"application_id", app.ID,
+					"kyc_id", kycID,
+					"attempt", attempt)
+				return false, err
+			}
+			slog.Error("AZMK KYC verify failed — invalid ID",
+				"application_id", app.ID,
+				"kyc_id", kycID,
+				"attempt", attempt,
+				"error", err)
+			return false, fmt.Errorf("KYC yoxlanıla bilmədi: %w: %w", err, ErrKycServiceUnavailable)
+		}
+		if verified {
+			slog.Info("AZMK KYC verified",
+				"application_id", app.ID,
+				"kyc_id", kycID,
+				"attempt", attempt)
+			return true, nil
+		}
+		slog.Info("AZMK KYC not verified yet, polling...",
+			"application_id", app.ID,
+			"kyc_id", kycID,
+			"attempt", attempt,
+			"max_attempts", maxAttempts)
+		if attempt < maxAttempts {
+			// PR #496: ctx-aware gözləmə — disconnect olanda dərhal çıxırıq.
+			select {
+			case <-ctx.Done():
+				slog.Warn("PR #496: client disconnected during KYC polling (wait)",
+					"application_id", app.ID,
+					"kyc_id", kycID,
+					"attempt", attempt)
+				return false, ctx.Err()
+			case <-time.After(kycPollInterval):
+			}
+		}
+	}
+	return false, nil
+}
+
+// azmkPartnerRegister — AZMK Partner qeydiyyatı (kycId ilə) + partner_id-nin
+// DB-yə yazılması. PR #507: runAzmkKycAndPartner-dan ayrılıb.
+func (s *ApplicationService) azmkPartnerRegister(ctx context.Context, app *model.LoanApplication) error {
+	pd := s.buildPartnerData(app)
+	pd.KycID = app.KycID
+	partnerID, err := s.azmkProvider.RegisterPartner(ctx, &azmk.PartnerRequest{PartnerData: pd})
+	if err != nil {
+		slog.Error("AZMK Partner registration failed",
+			"application_id", app.ID,
+			"kyc_id", app.KycID,
+			"error", err)
+		return fmt.Errorf("Partner qeydiyyatı uğursuz: %w: %w", err, ErrKycServiceUnavailable)
+	}
+	slog.Info("PR #281: step 3 — AZMK Partner registered",
+		"step", "3.partner_register",
+		"application_id", app.ID,
+		"kyc_id", app.KycID,
+		"partner_id", partnerID)
+
+	app.PartnerID = partnerID
+	if err := s.repo.UpdateApplicationDetails(ctx, app.ID, app); err != nil {
+		slog.Error("AZMK: failed to save kyc_id/partner_id",
+			"application_id", app.ID,
+			"error", err)
+		// Non-fatal: IDs are in memory, will be saved on next UpdateApplicationDetails call
+	}
+	return nil
+}
+
+// rejectOnKycError — KYC/Partner xətasında müraciəti rejected edir.
+// PR #496: client disconnect (context.Canceled) → reject YOX — xəta yuxarı
+// ötürülür, müraciət pending_customer qalır.
+// PR #477: texniki servis xətası (ErrKycServiceUnavailable) → imtina SMS-i YOX.
+// PR #362: müştərinin özündən asılı imtina → SMS gedir.
+func (s *ApplicationService) rejectOnKycError(ctx context.Context, app *model.LoanApplication, kycErr error) (*VerifyResult, error) {
+	if errors.Is(kycErr, context.Canceled) {
+		slog.Warn("PR #496: client disconnected during KYC — application stays pending_customer",
+			"application_id", app.ID,
+			"customer_pin", app.CustomerPIN)
+		return nil, kycErr
+	}
+	app.Status = model.StatusRejected
+	app.RejectionReason = kycErr.Error()
+	if err := s.repo.UpdateApplicationDecision(ctx, app.ID,
+		app.Status, "", app.RejectionReason, 0, 0, 0); err != nil {
+		return nil, fmt.Errorf("failed to save KYC rejection: %w", err)
+	}
+	slog.Info("AZMK KYC: application rejected",
+		"application_id", app.ID,
+		"customer_pin", app.CustomerPIN,
+		"reason", app.RejectionReason)
+	if errors.Is(kycErr, ErrKycServiceUnavailable) {
+		slog.Warn("PR #477: KYC service error — rejection SMS skipped",
+			"application_id", app.ID,
+			"error", kycErr)
+	} else {
+		// PR #362: KYC reject — müştəriyə imtina SMS-i (non-fatal)
+		s.sendRejectionSMS(ctx, app)
+	}
+	return &VerifyResult{App: app}, nil
+}
+
+// finishPostKyc — KYC təsdiqləndikdən SONRAKI addımlar (PR #507): Partner
+// qeydiyyatı → early cutoff-lar → final status. Həm verify-nin fast-path-i,
+// həm kyc-status polling-i eyni məntiqi işlədir (single source of truth).
+// Eyni app üzrə paralel çağırış TryLock ilə bloklanır (partner double-register qarşısı).
+func (s *ApplicationService) finishPostKyc(ctx context.Context, app *model.LoanApplication) (*VerifyResult, error) {
+	muAny, _ := s.kycFinishLocks.LoadOrStore(app.ID, &sync.Mutex{})
+	mu := muAny.(*sync.Mutex)
+	if !mu.TryLock() {
+		slog.Info("PR #507: finishPostKyc already in progress — returning pending",
+			"application_id", app.ID)
+		return &VerifyResult{App: app, KycPending: true}, nil
+	}
+	defer mu.Unlock()
+
+	// Partner qeydiyyatı — KYC disabled → skip; əvvəldən keçibsə → skip (idempotensiya)
+	if s.azmkProvider != nil && s.kycVerifyEnabled && app.PartnerID == "" {
+		if err := s.azmkPartnerRegister(ctx, app); err != nil {
+			return s.rejectOnKycError(ctx, app, err)
+		}
+	}
+
+	// PR #112: Early AUTO cutoff yoxlamaları — müştəri kredit təklifi görməzdən əvvəl.
 	rejectionReason, err := s.runEarlyCutoffChecks(ctx, app)
 	if err != nil {
 		slog.Error("early cutoff checks failed — proceeding to pending_expert (fail-soft)",
@@ -399,7 +583,7 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
 			"error", err)
 		// Fail-soft: cutoff xətası olanda müştərini bloklamırıq — normal flow davam edir
 	} else if rejectionReason != "" {
-		// Cutoff rədd etdi — statusu rejected et və səbəbi yaz
+		// Cutoff rədd etdi — statusu rejected et və səbəci yaz
 		// PR #168: cutoff nəticəsini log et
 		s.logCutoff(ctx, app.ID, rejectionReason, rejectionReason, "", true, false, "", "", "Müraciət bu kesim nöqtəsinə görə rədd edildi")
 		app.Status = model.StatusRejected
@@ -414,10 +598,10 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
 			"rejection_reason", rejectionReason)
 		// PR #362: early cutoff reject — müştəriyə imtina SMS-i (non-fatal)
 		s.sendRejectionSMS(ctx, app)
-		return app, nil
+		return &VerifyResult{App: app}, nil
 	}
 
-	// 5. Cutoff keçdi — PR #221: status pending_customer qalır (pending_expert-ə keçmə)
+	// Cutoff keçdi — PR #221: status pending_customer qalır (pending_expert-ə keçmə)
 	// Cutoff-lar işlədi, amma istifadəçi hələ "Təsdiq edirəm" düyməsini klikləməyib.
 	// Customer-confirm-də pending_expert-ə keçəcək (RDC dashboard-a göndərilir).
 	slog.Info("PR #281: step 1-4 completed — OTP verified, KYC passed, partner registered, cutoffs passed",
@@ -427,152 +611,57 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
 		"kyc_id", app.KycID,
 		"partner_id", app.PartnerID)
 
-	return app, nil
+	return &VerifyResult{App: app}, nil
 }
 
-// ErrKycServiceUnavailable — AZMK KYC/Partner xidmətinin TEXNİKİ xətasıdır
-// (şəbəkə, timeout, 5xx). PR #477: belə xətalarda müraciət texniki səbəbdən
-// rejected olur, amma müştəriyə imtina SMS-i GEDİRMİR — reject müştərinin
-// özündən asılı deyil (PR #421 pattern-i: AZMK create rollback-da da SMS yoxdur).
-// Müştərinin özündən asılı olan KYC imtinası (3 dəqiqə ərzində şəxsiyyətini
-// təsdiq etməməsi) sentinel ilə wrap OL MUR — SMS gedir (imza timeout kimi).
-var ErrKycServiceUnavailable = errors.New("kyc service unavailable")
-
-// runAzmkKycAndPartner performs AZMK KYC verification and Partner registration.
-// PR #117: OTP-dən sonra, cutoff-dan əvvəl çağrılır.
-//
-// Steps:
-//  1. Create KYC session (POST /kyc) → get kyc_id
-//  2. Verify KYC (GET /kyc/{id}) → must be VERIFIED
-//  3. Register Partner (POST /partner with kycId) → get partner_id
-//  4. Save kyc_id + partner_id to the application
-//
-// Returns error if KYC fails or is not verified.
-// PR #477: texniki xətalar (1-3 addımların servis xətaları) ErrKycServiceUnavailable
-// ilə wrap olunur — çağıran tərəf bununla imtina SMS-ini skip edir.
-func (s *ApplicationService) runAzmkKycAndPartner(ctx context.Context, app *model.LoanApplication) error {
-	// Build PartnerData from application info
-	phone := app.CustomerPhone
-	// AZMK expects phone without +994 prefix (məs. "513153393")
-	phone = strings.TrimPrefix(phone, "+994")
-
-	pd := azmk.PartnerData{
-		AsanFinanceEmployeeInfo: false,
-		AsanFinancePersonalInfo: false,
-		FirstName:               "-", // müşteri info henüz yoxdur
-		LastName:                "-",
-		Mkr:                     false,
-		Mobile:                  phone,
-		Pin:                     app.CustomerPIN,
-		BranchCode:              s.azmkBranch,
-		Passport:                app.CustomerSerial,
-		HomeAddress:             "-",
+// PollKycStatus — GET /api/applications/{id}/kyc-status (PR #507).
+// Frontend KYC gözləyərkən hər 3s çağırır; hər sorğu QISADIR (bir AZMK status
+// çeki, ~100ms) — heç bir proxy timeout-u vurmur. KYC təsdiqlənəndə
+// partner+cutoff-lar BURADA bitirilir və final cavab qayıdır.
+func (s *ApplicationService) PollKycStatus(ctx context.Context, publicID string) (*VerifyResult, error) {
+	if publicID == "" {
+		return nil, fmt.Errorf("invalid public id")
 	}
-
-	// 1. Create KYC session
-	kycReq := &azmk.KYCRequest{PartnerData: pd}
-	kycID, err := s.azmkProvider.KYC(ctx, kycReq)
+	app, err := s.repo.GetApplicationByPublicID(ctx, publicID)
 	if err != nil {
-		slog.Error("AZMK KYC creation failed",
-			"application_id", app.ID,
-			"customer_pin", app.CustomerPIN,
-			"error", err)
-		return fmt.Errorf("KYC yaradıla bilmədi: %w: %w", err, ErrKycServiceUnavailable)
+		return nil, fmt.Errorf("müraciət tapılmadı")
 	}
-	slog.Info("PR #281: step 2 — AZMK KYC session created",
-		"step", "2.kyc_create",
-		"application_id", app.ID,
-		"kyc_id", kycID)
 
-	// 2. Verify KYC — PR #155: 3 dəqiqə polling (hər 3 san., maksimum 60 cəhd)
-	// AZMK status: SENT → VERIFIED (və ya Invalidid)
-	// SENT olanda polling edirik — müştəri verify edənə qədər gözləyirik.
-	// 3 dəqiqə (180 san) / 3 san = 60 cəhd
-	const maxKYCAttempts = 60
-	const kycPollInterval = 3 * time.Second
-	var verified bool
-	for attempt := 1; attempt <= maxKYCAttempts; attempt++ {
-		verified, err = s.azmkProvider.VerifyKYC(ctx, kycID)
-		if err != nil {
-			// PR #496: client disconnect — servis xətası DEYİL. Raw qaytarılır ki,
-			// çağıran tərəf errors.Is(err, context.Canceled) ilə tanısın və reject YAZMASIN.
-			if errors.Is(err, context.Canceled) {
-				slog.Warn("PR #496: client disconnected during KYC polling",
-					"application_id", app.ID,
-					"kyc_id", kycID,
-					"attempt", attempt)
-				return err
-			}
-			slog.Error("AZMK KYC verify failed — invalid ID",
-				"application_id", app.ID,
-				"kyc_id", kycID,
-				"attempt", attempt,
-				"error", err)
-			return fmt.Errorf("KYC yoxlanıla bilmədi: %w: %w", err, ErrKycServiceUnavailable)
+	// Final statuslar — olduğu kimi qaytar (rejected → frontend rədd ekranı göstərir)
+	if app.Status != model.StatusPendingCustomer {
+		return &VerifyResult{App: app}, nil
+	}
+	// Partner onsuz da qeydiyyatdan keçibsə bu app artıq finish edilib (idempotensiya)
+	if app.PartnerID != "" {
+		return &VerifyResult{App: app}, nil
+	}
+	if app.KycID == "" {
+		return nil, fmt.Errorf("KYC sessiyası tapılmadı")
+	}
+	if s.azmkProvider == nil || !s.kycVerifyEnabled {
+		return nil, fmt.Errorf("KYC verify deaktivdir")
+	}
+
+	verified, err := s.azmkProvider.VerifyKYC(ctx, app.KycID)
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return nil, err
 		}
-		if verified {
-			slog.Info("AZMK KYC verified",
-				"application_id", app.ID,
-				"kyc_id", kycID,
-				"attempt", attempt)
-			break
-		}
-		slog.Info("AZMK KYC not verified yet, polling...",
+		// Transient AZMK xətası — reject ETMƏ: növbəti poll təkrar yoxlayacaq
+		// (countdown 3 dəqiqə ilə sərhədlənir).
+		slog.Warn("PR #507: KYC status poll failed — will retry on next poll",
 			"application_id", app.ID,
-			"kyc_id", kycID,
-			"attempt", attempt,
-			"max_attempts", maxKYCAttempts)
-		if attempt < maxKYCAttempts {
-			// PR #496: ctx-aware gözləmə — disconnect olanda 3 san gözləmədən
-			// dərhal çıxırıq (əvvəl time.Sleep disconnect-i yalnız növbəti
-			// polling-də görürdü).
-			select {
-			case <-ctx.Done():
-				slog.Warn("PR #496: client disconnected during KYC polling (wait)",
-					"application_id", app.ID,
-					"kyc_id", kycID,
-					"attempt", attempt)
-				return ctx.Err()
-			case <-time.After(kycPollInterval):
-			}
-		}
+			"kyc_id", app.KycID,
+			"error", err)
+		return &VerifyResult{App: app, KycPending: true}, nil
 	}
 	if !verified {
-		slog.Info("AZMK KYC not verified after 3 minutes",
-			"application_id", app.ID,
-			"kyc_id", kycID,
-			"attempts", maxKYCAttempts)
-		return fmt.Errorf("KYC təsdiq olunmadı — 3 dəqiqə ərzində verify olunmadı")
+		return &VerifyResult{App: app, KycPending: true}, nil
 	}
-
-	// 3. Register Partner (with kycId)
-	pd.KycID = kycID
-	partnerReq := &azmk.PartnerRequest{PartnerData: pd}
-	partnerID, err := s.azmkProvider.RegisterPartner(ctx, partnerReq)
-	if err != nil {
-		slog.Error("AZMK Partner registration failed",
-			"application_id", app.ID,
-			"kyc_id", kycID,
-			"error", err)
-		return fmt.Errorf("Partner qeydiyyatı uğursuz: %w: %w", err, ErrKycServiceUnavailable)
-	}
-	slog.Info("PR #281: step 3 — AZMK Partner registered",
-		"step", "3.partner_register",
+	slog.Info("PR #507: KYC verified via polling — finishing application",
 		"application_id", app.ID,
-		"kyc_id", kycID,
-		"partner_id", partnerID)
-
-	// 4. Save kyc_id + partner_id to application
-	app.KycID = kycID
-	app.PartnerID = partnerID
-	if err := s.repo.UpdateApplicationDetails(ctx, app.ID, app); err != nil {
-		slog.Error("AZMK: failed to save kyc_id/partner_id",
-			"application_id", app.ID,
-			"error", err)
-		// Non-fatal: IDs are in memory, will be saved on next UpdateApplicationDetails call
-	}
-
-	return nil
+		"kyc_id", app.KycID)
+	return s.finishPostKyc(ctx, app)
 }
 
 // serialMatches compares the AZMK document seria (məs. "AZE1234567") with the
