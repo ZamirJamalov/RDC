@@ -116,6 +116,40 @@
         }
         .input-field::placeholder { color: var(--alpul-text-soft); opacity: 0.5; }
 
+        /* PR #504: OTP 6 xanalı slot displey — nöqtələr + mərkəzdən yazma (pop) effekti */
+        .otp-slot {
+            width: 2.25rem;
+            height: 3.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Geist Mono', 'IBM Plex Sans', monospace;
+            font-size: 1.375rem;
+            font-weight: 600;
+            border-radius: 0.75rem;
+            border: 1px solid var(--alpul-border);
+            background: var(--alpul-input-bg);
+            color: var(--alpul-text-soft);
+            opacity: 0.6;
+            transition: border-color 0.15s ease, background 0.15s ease, opacity 0.15s ease, box-shadow 0.15s ease;
+        }
+        .otp-slot-filled {
+            color: var(--alpul-text);
+            opacity: 1;
+            border-color: rgba(16, 185, 129, 0.5);
+            background: rgba(16, 185, 129, 0.08);
+            animation: otp-pop 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .otp-wrap:focus-within .otp-slot-active {
+            border-color: #10B981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
+            opacity: 1;
+        }
+        @keyframes otp-pop {
+            0% { transform: scale(1.35); }
+            100% { transform: scale(1); }
+        }
+
         /* PR #316: kart seçimi dropdown-u — açılan siyahı da theme rənglərində olsun */
         select.input-field option {
             background: var(--alpul-input-bg);
@@ -594,9 +628,21 @@
                 <!-- OTP section -->
                 <div x-show="otpSent" x-transition class="pt-2">
                     <label class="text-sm text-gray-400 mb-2 block">OTP kodu <span class="text-red-400">*</span></label>
-                    <input type="text" x-model="form.otp" maxlength="6" placeholder="6 rəqəm"
-                           class="input-field w-full px-4 py-3.5 rounded-xl text-2xl font-bold tracking-[0.5em] text-center"
-                           @input="form.otp = form.otp.replace(/[^0-9]/g, '')">
+                    <!-- PR #504: OTP 6 xanalı displey — "6 rəqəm" mətni əvəzinə nöqtələr,
+                         rəqəmlər mərkəzləşmiş xanalarda görünür (bank tətbiqi UX).
+                         Real input şəffaf overlay kimi üstdədir — x-model saxlanılır. -->
+                    <div class="otp-wrap relative flex justify-center gap-2 select-none">
+                        <template x-for="i in [0,1,2,3,4,5]" :key="i">
+                            <div class="otp-slot"
+                                 :class="{'otp-slot-filled': i < form.otp.length, 'otp-slot-active': i === form.otp.length}"
+                                 x-text="i < form.otp.length ? form.otp[i] : '•'"></div>
+                        </template>
+                        <input type="text" id="otp-input" x-ref="otpInput" x-model="form.otp" maxlength="6"
+                               inputmode="numeric" autocomplete="one-time-code" placeholder="••••••"
+                               aria-label="OTP kodu"
+                               class="absolute inset-0 w-full h-full opacity-0 cursor-text"
+                               @input="form.otp = form.otp.replace(/[^0-9]/g, '')">
+                    </div>
                     <p class="text-xs text-gray-500 mt-2" x-show="otpSent">
                         ✉️ OTP kodu <span class="text-white" x-text="'+' + form.phone"></span> nömrəsinə göndərildi.
                     </p>
@@ -1402,6 +1448,13 @@ function applyApp() {
             } else {
                 // PR #70: Restore state from localStorage on page load
                 this.restoreState();
+                // PR #504: stale-state yoxlaması — köhnə müraciət artıq pending_customer
+                // deyilsə (məs. OTP keçilib, ekspert gözlənir — pending_expert), OTP
+                // (6 rəqəm) ekranı göstərilməsin: state təmizlənib fresh başlanğıc.
+                // (Backend init-də “işlənməkdə olan müraciətiniz var” xətası verir,
+                // amma restore olunan localStorage applicationId = true olduğundan
+                // frontend backend-ə heç getmədən OTP istəyirdi.)
+                this.validateRestoredOtpState();
                 // PR #157: əgər KYC verify aktivdirsə, backend polling yenidən başlat
                 if (this.kycVerifyActive && this.applicationId) {
                     this.resumeKYCVerify();
@@ -1452,6 +1505,30 @@ function applyApp() {
             const h = this.expertWorkHours || { start: 9, end: 20 };
             const p = (n) => String(n).padStart(2, '0');
             return p(h.start) + ':00-' + p(h.end) + ':00';
+        },
+
+        // PR #504: restore olunan OTP mərhələsi etibarlıdırmı? Yalnız OTP addımında
+        // (otpSent=true, step < 2) yoxlanılır — offer/video addımları (step 2+)
+        // pending_expert statusunda qanuni davam edir, onlara toxunulmur.
+        // Status pending_customer deyilsə → localStorage təmizlənir, istifadəçi
+        // step 0-dan fresh başlayır (FIN/serial/phone onsuz da restore olunmur).
+        async validateRestoredOtpState() {
+            if (!this.applicationId || !this.otpSent || this.currentStep >= 2) return;
+            try {
+                const resp = await fetch('/api/applications/' + this.applicationId);
+                if (!resp.ok) {
+                    // Müraciət tapılmadı/silinib — state köhnədir
+                    this.clearState();
+                    this.resetToStep0();
+                    return;
+                }
+                const data = await resp.json();
+                if (data.status && data.status !== 'pending_customer') {
+                    // OTP artıq keçilib (pending_expert/rejected/...) — OTP ekranı mənasızdır
+                    this.clearState();
+                    this.resetToStep0();
+                }
+            } catch (e) { /* şəbəkə xətası — köhnə davranış: state saxlanılır */ }
         },
 
         // PR #70: Save current state to localStorage
@@ -1794,10 +1871,33 @@ function applyApp() {
             // PR #202: OTP göndərilməsi zamanı təkrar klik qadağan et
             // Əgər artıq applicationId varsa (əvvəlki uğurlu göndermə), təkrar göndermə
             if (this.applicationId) {
-                this.error = 'Artıq OTP göndərilib. Zəhmət olmasa OTP kodunu daxil edin və ya "Geri qayıt" düyməsini klik edin.';
-                this.loading = false;
-                this.otpSent = true; // OTP input ekranını göstər
-                return;
+                // PR #504: applicationId köhnə (stale) ola bilər — müraciət artıq
+                // pending_customer deyilsə (məs. pending_expert) “Artıq OTP göndərilib”
+                // demək yanlışdır. Əvvəl statusu yoxla; stale-dursa state təmizlə
+                // və init-i yenidən çağır (backend düzgün xətanı göstərsin).
+                let stillPendingCustomer = true;
+                try {
+                    const checkResp = await fetch('/api/applications/' + this.applicationId);
+                    if (checkResp.ok) {
+                        const checkData = await checkResp.json();
+                        if (checkData.status && checkData.status !== 'pending_customer') {
+                            stillPendingCustomer = false;
+                        }
+                    } else {
+                        stillPendingCustomer = false; // tapılmadı — state köhnədir
+                    }
+                } catch (e) { /* şəbəkə xətası — köhnə davranış */ }
+                if (!stillPendingCustomer) {
+                    this.clearState();
+                    this.applicationId = null;
+                    this.otpSent = false;
+                    // fall through — aşağıda init yenidən çağrılır
+                } else {
+                    this.error = 'Artıq OTP göndərilib. Zəhmət olmasa OTP kodunu daxil edin və ya "Geri qayıt" düyməsini klik edin.';
+                    this.loading = false;
+                    this.otpSent = true; // OTP input ekranını göstər
+                    return;
+                }
             }
             try {
                 // PR #491: belt-and-suspenders — mobil IME/autofill 7+ simvol keçirə bilər;
