@@ -357,7 +357,11 @@ func main() {
 	// 500 statusu da "request_completed" kimi loglansın (əvvəl panic-lər
 	// request_completed olmadan itirdi).
 	rootHandler := middleware.Logger(slog.Default())(
-		middleware.Recovery(slog.Default())(httpHandler))
+		// PR #502: gzip compression — /apply, /detail kimi ~140KB HTML-lər ~10x
+		// kiçilir; "Kredit al" keçidi sürətlənir. Logger xaricdə qalır ki,
+		// bytes sahəti sıxılmış (real şəbəkə) ölçünü göstərsin.
+		middleware.Compress(
+			middleware.Recovery(slog.Default())(httpHandler)))
 	rootHandler = middleware.RequestID(rootHandler)
 	rootHandler = middleware.CORS(cfg.AllowedOrigin)(rootHandler)
 
