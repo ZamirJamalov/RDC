@@ -103,6 +103,12 @@ type Config struct {
 	// PR #170: KYC verify toggle — true=KYC verify tələb olunur, false=skip
 	AzmkKycVerifyEnabled bool // default: true
 
+	// PR #516: verify sinxron pəncərəsi (identity gate + KYC create + poll) üçün
+	// ümumi zaman büdcəsi (san). LiteSpeed proxy ~30s-də cavabı kəsib HTML error
+	// səhifəsi qaytarır — default 20s cavabı həmişə ondan tez qaytarır.
+	// 0 = deaktiv (köhnə davranış) — kill-switch.
+	VerifySyncBudgetS int
+
 	// PR #404: LW partner phones — approve zamanı 3 kontakt nömrəsi LW Loan
 	// Management System-ə göndərilir (application create-dən ƏVVƏL).
 	// KOD SƏVİYYƏSİNDƏ idarə olunur (env YOX): aktivləşdirmək üçün
@@ -226,6 +232,9 @@ func Load() *Config {
 
 		// PR #170: KYC verify toggle
 		AzmkKycVerifyEnabled: getEnvBool("AZMK_KYC_VERIFY_ENABLED", true),
+
+		// PR #516: verify sinxron pəncərə büdcəsi (0 = off / kill-switch)
+		VerifySyncBudgetS: getEnvInt("VERIFY_SYNC_BUDGET_S", 20),
 
 		// PR #404: LW partner phones — PR #430 ilə AKTİVLƏŞDİRİLDİ (kod səviyyəsində,
 		// env YOX). Approve zamanı 3 kontakt nömrəsi LW-yə göndərilir

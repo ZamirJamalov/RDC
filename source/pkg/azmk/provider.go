@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"rdc-source/pkg/extlog" // PR #304: xarici çağırışların Loki log-u
@@ -302,7 +303,13 @@ const appIDKey contextKey = "azmk_app_id"
 
 // WithAppID returns a new context with the given application ID (PR #259).
 // Thread-safe way to pass appID to auditLog without shared mutable state.
+// PR #516: ctx-də AppIDSink varsa (Logger middleware qoyur) həm sink-ə yazır —
+// beləcə request_completed sətri application_id daşıyır (handler-in daxili
+// ctx-i middleware-ə görünmür, pointer-write isə görünür).
 func WithAppID(ctx context.Context, appID *int) context.Context {
+	if sink, ok := ctx.Value(appIDSinkKey{}).(*AppIDSink); ok && appID != nil {
+		sink.Set(*appID)
+	}
 	return context.WithValue(ctx, appIDKey, appID)
 }
 
@@ -312,6 +319,34 @@ func AppIDFromContext(ctx context.Context) *int {
 		return v
 	}
 	return nil
+}
+
+// PR #516: AppIDSink — Logger middleware üçün mutable holder. azmk.WithAppID
+// çağırılanda dəyər buraya da yazılır; middleware request bitəndə oxuyub
+// request_completed sətrinə qoyur. Loki: {job="go-app"} | json | application_id=N
+type AppIDSink struct {
+	mu  sync.Mutex
+	id  int
+	has bool
+}
+
+func (s *AppIDSink) Set(id int) {
+	s.mu.Lock()
+	s.id, s.has = id, true
+	s.mu.Unlock()
+}
+
+func (s *AppIDSink) Get() (int, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.id, s.has
+}
+
+type appIDSinkKey struct{}
+
+// WithAppIDSink places the sink into ctx (middleware çağırır, PR #516).
+func WithAppIDSink(ctx context.Context, sink *AppIDSink) context.Context {
+	return context.WithValue(ctx, appIDSinkKey{}, sink)
 }
 
 // auditLog writes a service call audit log to the database.

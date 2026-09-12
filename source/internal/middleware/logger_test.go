@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"rdc-source/pkg/azmk" // PR #516: AppIDSink testi
 )
 
 // PR #292: Logger middleware testləri — HTML səhifə keçidləri, asset səviyyəsi,
@@ -61,6 +63,42 @@ func TestLogger_IPWithoutXFF(t *testing.T) {
 
 	if !strings.Contains(buf.String(), `"ip":"10.20.30.40"`) {
 		t.Errorf("expected ip=10.20.30.40 (RemoteAddr host, portsuz), got: %s", buf.String())
+	}
+}
+
+// PR #516: handler azmk.WithAppID çağırırsa request_completed sətri application_id
+// daşımalıdır — Logger middleware ctx-ə AppIDSink qoyur, WithAppID ora yazır.
+// Loki-də bir müraciətin bütün logları application_id=N ilə yığılır.
+func TestLogger_ApplicationID(t *testing.T) {
+	var buf bytes.Buffer
+	h := Logger(newBufferLogger(&buf, slog.LevelInfo))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := 34
+		_ = azmk.WithAppID(r.Context(), &id) // sink-ə yazılır (provider.go, PR #516)
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/applications/init/verify", nil)
+	h.ServeHTTP(httptest.NewRecorder(), req)
+
+	out := buf.String()
+	if !strings.Contains(out, `"application_id":34`) {
+		t.Errorf("expected application_id in request_completed, got: %s", out)
+	}
+}
+
+// PR #516: WithAppID çağırılmayıbsa application_id OLMAMALIdır (random request-lər
+// çirklənməsin — field yalnız domain axını olan request-lərdə görünür).
+func TestLogger_NoApplicationIDWithoutWithAppID(t *testing.T) {
+	var buf bytes.Buffer
+	h := Logger(newBufferLogger(&buf, slog.LevelInfo))(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	h.ServeHTTP(httptest.NewRecorder(), req)
+
+	if strings.Contains(buf.String(), "application_id") {
+		t.Errorf("application_id must not appear without WithAppID, got: %s", buf.String())
 	}
 }
 

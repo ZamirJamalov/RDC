@@ -186,13 +186,14 @@ func main() {
 		customerDataProvider = azmk.NewHTTPCustomerDataProvider(cfg.AzmkCustomerDataURL, cfg.AzmkUsername, cfg.AzmkPassword, cfg.AzmkTimeoutS)
 	}
 	appService.SetCustomerDataProvider(customerDataProvider)
-	creditEngine.SetCustomerDataProvider(customerDataProvider)         // PR #265
-	creditEngine.SetServiceCacheLookup(serviceCacheRepo)               // PR #379: personal info cache (3 gün)
-	appService.SetCutoffRepo(cutoffResultRepo)                         // PR #168
-	appService.SetKycVerifyEnabled(cfg.AzmkKycVerifyEnabled)           // PR #170
-	appService.SetCutoffStopOnFirstFail(cfg.CutoffStopOnFirstFail)     // PR #171
-	appService.SetCutoffChecksEnabled(cfg.CutoffChecksEnabled)         // PR #278
-	appService.SetReferralDiscountPercent(cfg.ReferralDiscountPercent) // PR #284
+	creditEngine.SetCustomerDataProvider(customerDataProvider)                         // PR #265
+	creditEngine.SetServiceCacheLookup(serviceCacheRepo)                               // PR #379: personal info cache (3 gün)
+	appService.SetCutoffRepo(cutoffResultRepo)                                         // PR #168
+	appService.SetKycVerifyEnabled(cfg.AzmkKycVerifyEnabled)                           // PR #170
+	appService.SetVerifySyncBudget(time.Duration(cfg.VerifySyncBudgetS) * time.Second) // PR #516: 0 = off
+	appService.SetCutoffStopOnFirstFail(cfg.CutoffStopOnFirstFail)                     // PR #171
+	appService.SetCutoffChecksEnabled(cfg.CutoffChecksEnabled)                         // PR #278
+	appService.SetReferralDiscountPercent(cfg.ReferralDiscountPercent)                 // PR #284
 
 	// PR #163: Audit log — CustomerData provider-a DB əlaqəsi ver
 	if httpCDP, ok := customerDataProvider.(*azmk.HTTPCustomerDataProvider); ok {

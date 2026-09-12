@@ -72,6 +72,8 @@ services:
       - "grafana-data:/var/lib/grafana"
       # PR #290: Loki datasource avtomatik provision olunur — əl ilə əlavə etmək lazım deyil
       - "./grafana/provisioning:/etc/grafana/provisioning:ro"
+      # PR #516: dashboard-lar avtomatik provision olunur (dashboards.yml → bu qovluq)
+      - "./grafana/dashboards:/var/lib/grafana/dashboards:ro"
     networks:
       - monitoring
     restart: unless-stopped

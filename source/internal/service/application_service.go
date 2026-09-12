@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"time"
 
 	"rdc-source/internal/model"
 	"rdc-source/internal/repository"
@@ -45,6 +46,11 @@ type ApplicationService struct {
 	cutoffStopOnFirstFail bool
 	// PR #278: Cutoff checks enabled — false=cutoff-lar TAMAMƏN skip olunur
 	cutoffChecksEnabled bool
+
+	// PR #516: verify sinxron pəncərəsinin zaman büdcəsi (0 = deaktiv).
+	// Identity gate + KYC create + KYC poll birlikdə bu büdcəyə sığmalı —
+	// proxy (~30s, LiteSpeed) HTML error qaytarmadan SERVICE_ERROR/kyc_pending çıxmalı.
+	verifySyncBudget time.Duration
 
 	// PR #487 (PR #490: pəncərə 1 saat): anti-enumeration — FIN başına 1 saatda
 	// icazə verilən maksimum SERIAL_MISMATCH cəhdi. Bu həddə çatanda yeni müraciət bloklanır.
@@ -162,6 +168,12 @@ func (s *ApplicationService) SetCutoffRepo(repo *repository.CutoffResultRepo) {
 // false=KYC verify skip olunur, cutoff-lar birbaşa yoxlanılır.
 func (s *ApplicationService) SetKycVerifyEnabled(enabled bool) {
 	s.kycVerifyEnabled = enabled
+}
+
+// SetVerifySyncBudget sets the sync verify window budget (PR #516).
+// Identity gate + KYC create + poll bu ctx-ə sarılır; d <= 0 = deaktiv.
+func (s *ApplicationService) SetVerifySyncBudget(d time.Duration) {
+	s.verifySyncBudget = d
 }
 
 // IsKycVerifyEnabled returns whether KYC verify is enabled (PR #206).

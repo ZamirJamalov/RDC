@@ -116,3 +116,68 @@ func TestAzmkKycPoll_DisconnectDuringWaitReturnsFast(t *testing.T) {
 		t.Fatalf("disconnect detected too slowly: %v", elapsed)
 	}
 }
+
+// PR #516: verify sinxron pəncərəsi büdcəsi. Proxy (LiteSpeed) ~30s-də kəsir —
+// büdcə bitəndə VerifyInitApplication poll xətasını tanıyıb kyc_pending qaytarmalıdır.
+// Bu test azmkKycPoll-un DeadlineExceeded-i RAW qaytardığını yoxlayır (wrap YOX —
+// yoxsa errors.Is(err, context.DeadlineExceeded) caller-da işləməzdi).
+func TestAzmkKycPoll_BudgetDeadlineReturnsRaw(t *testing.T) {
+	p := &fakeAzmkOnlineProvider{verifyKycNotVerified: true} // hər status SENT — polling davam edərdi
+	svc := newCardsTestService(newCardsTestStore(), p)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	_, err := svc.azmkKycPoll(ctx, newKycTestApp(), "KYC-1", 6)
+	if err == nil {
+		t.Fatal("expected DeadlineExceeded from expired budget")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected context.DeadlineExceeded, got: %v", err)
+	}
+	if errors.Is(err, ErrKycServiceUnavailable) {
+		t.Fatalf("budget expiry must NOT be wrapped as ErrKycServiceUnavailable (kyc_pending yox, reject olunardı): %v", err)
+	}
+	// büdcə dərhal bitsin — 6 cəhd × 3s = 18s gözləməməli
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("budget expiry detected too slowly: %v", elapsed)
+	}
+}
+
+// PR #516: büdcə bitməsi VerifiedKYC çağırışı ZAMANI baş verərsə (select gözləməsində
+// yox, birbaşa çağırışda) xəta ErrKycServiceUnavailable ilə wrap olunur —
+// VerifyInitApplication bunu görüb SERVICE_ERROR reject edir (KYC create-yə bənzər
+// kanal). DİQQƏT: bu halda wrap MƏQSƏDLİDİR — fiziki xətadan ayrılması üçün
+// errors.Is(err, context.DeadlineExceeded) çağırış yerində MüQAYİSƏ edilmir,
+// amma VerifyInitApplication-da ctx.Err() yoxlanışı ilə ayrılır.
+func TestAzmkKycPoll_ProviderDeadlineWrapped(t *testing.T) {
+	p := &fakeAzmkOnlineProvider{verifyKycErr: context.DeadlineExceeded}
+	svc := newCardsTestService(newCardsTestStore(), p)
+
+	_, err := svc.azmkKycPoll(context.Background(), newKycTestApp(), "KYC-1", 6)
+	if err == nil {
+		t.Fatal("expected error from deadline-exceeded provider")
+	}
+	if !errors.Is(err, ErrKycServiceUnavailable) {
+		t.Fatalf("provider deadline must be wrapped as ErrKycServiceUnavailable: %v", err)
+	}
+	// Wrap-ə baxmayaraq DeadlineExceeded identiyası qorunmalıdır —
+	// VerifyInitApplication-da errors.Is(err, context.DeadlineExceeded) bunu görəcək
+	// və kyc_pending (reject deyil) qaytaracaq.
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("DeadlineExceeded identity must survive the wrap: %v", err)
+	}
+}
+
+// PR #516: SetVerifySyncBudget — 0 = deaktiv (büdcə yox, köhnə davranış).
+func TestSetVerifySyncBudget(t *testing.T) {
+	svc := newCardsTestService(newCardsTestStore(), &fakeAzmkOnlineProvider{})
+	if svc.verifySyncBudget != 0 {
+		t.Fatalf("default budget must be 0 (off), got: %v", svc.verifySyncBudget)
+	}
+	svc.SetVerifySyncBudget(20 * time.Second)
+	if svc.verifySyncBudget != 20*time.Second {
+		t.Fatalf("expected 20s budget, got: %v", svc.verifySyncBudget)
+	}
+}
