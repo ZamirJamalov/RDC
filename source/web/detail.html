@@ -682,8 +682,15 @@
                                         <div class="flex flex-col items-stretch gap-1">
                                             <div class="flex items-center justify-between gap-1 w-full min-w-0">
                                                 <span class="flex items-center gap-1 min-w-0">
-                                                    <span x-show="app?.actual_address_updated_by_username || app?.actual_address_updated_at" class="text-emerald-500 font-bold shrink-0">✓</span>
-                                                    <span class="value-strong text-sm truncate block" :title="app?.actual_address || ''"
+                                                    <!-- PR #513: redaktə edilib → emerald ✓ (approve icazəsi);
+                                                         redaktə edilməyib → amber ⚠ (approve bloklanır) -->
+                                                    <span x-show="app?.actual_address_updated_by_username || app?.actual_address_updated_at"
+                                                          class="text-emerald-500 font-bold shrink-0" title="Faktiki ünvan redaktə edilib">✓</span>
+                                                    <span x-show="!isReadOnly && !(app?.actual_address_updated_by_username || app?.actual_address_updated_at)"
+                                                          class="text-amber-500 shrink-0" title="Təsdiq üçün faktiki ünvanı redaktə edib saxlayın (məcburidir)">
+                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                                    </span>
+                                                    <span class="value-strong text-sm truncate block" :class="!isReadOnly && !(app?.actual_address_updated_by_username || app?.actual_address_updated_at) ? '!font-normal !text-gray-400' : ''" :title="app?.actual_address || ''"
                                                           x-text="trunc(app?.actual_address, 45)"></span>
                                                 </span>
                                                 <button x-show="!isReadOnly && !addressEditing" @click="startAddressEdit()"
@@ -1376,6 +1383,13 @@
                     // yoxlanılırdı — bir düymə kifayət edirdi.
                     if (!this.compliance.name || !this.compliance.hms || !this.compliance.os) {
                         errors.push('Komplayans: Ad, HMS və OpenSanctions yoxlamalarının HƏR 3-ü açılmalıdır');
+                    }
+                    // PR #513: faktiki ünvan ekspert tərəfindən redaktə edilməlidir —
+                    // müştərinin confirm-dən gələn ünvan kifayət deyil (audit sahələri
+                    // yalnız UpdateAddress/ekspert redaktəsində set olur). Redaktə
+                    // edilmasə approve keçmir; UI-da amber ⚠ göstərilir.
+                    if (!(this.app?.actual_address_updated_by_username || this.app?.actual_address_updated_at)) {
+                        errors.push('Faktiki ünvan: redaktə edib saxlanılmalıdır (müştərinin göndərdiyi kimi qəbul edilmir)');
                     }
                     // PR #405: video baxışı tələb olunur — yalnız backend video_required=true
                     // olanda (video deaktiv olanda approve bloklanmır). ✓ yalnız video
