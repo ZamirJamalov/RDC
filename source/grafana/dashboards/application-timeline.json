@@ -1,0 +1,132 @@
+{
+  "uid": "rdc-app-timeline",
+  "title": "Application Timeline (Loki)",
+  "description": "PR #516: Müraciət üzrə xronoloji log axını + verify endpoint-in 30s proxy limitini aşan çağırışları.",
+  "tags": ["rdc", "loki", "pr-516"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "application_id",
+        "label": "Application ID",
+        "type": "textbox",
+        "hide": 0,
+        "description": "Müraciət ID-si (boş buraxsan panel 1 heç nə göstərmir — doldur)",
+        "query": "1",
+        "current": { "selected": true, "text": "1", "value": "1" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "logs",
+      "title": "Müraciət üzrə xronoloji log axını (application_id)",
+      "description": "Seçilmiş müraciətin bütün logları vaxt sırası ilə — OTP, AZMK çağırışları, KYC, budget xilasları.",
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 0 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "sortOrder": "Ascending",
+            "wrapLogMessage": true,
+            "showLabels": false,
+            "showTime": true,
+            "pretifyLogMessage": false,
+            "enableInfiniteScrolling": true,
+            "enableLogDetails": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "sortOrder": "Ascending",
+        "showTime": true,
+        "wrapLogMessage": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "prettifyLogMessage": false,
+        "enableInfiniteScrolling": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"go-app\"} | json | application_id=\"$application_id\"",
+          "queryType": "range",
+          "datasource": { "type": "loki", "uid": "loki" }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "logs",
+      "title": "Verify: 30s proxy limitini aşan sorğular",
+      "description": "duration_ms > 30000 — bunlar proxy-nin HTML error qaytardığı hallardır (PR #516-nın kök səbəbi). Deploy-dan sonra azalmalıdır.",
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 14 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "sortOrder": "Descending",
+            "wrapLogMessage": true,
+            "showLabels": false,
+            "showTime": true
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "sortOrder": "Descending",
+        "showTime": true,
+        "wrapLogMessage": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "prettifyLogMessage": false,
+        "enableInfiniteScrolling": true,
+        "enableLogDetails": true,
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"go-app\"} | json | path=\"/api/applications/init/verify\" | duration_ms > 30000",
+          "queryType": "range",
+          "datasource": { "type": "loki", "uid": "loki" }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "logs",
+      "title": "Budget xilasları (WARN)",
+      "description": "Verify sync pəncərəsində budget bitəndə salınan WARN-lar — rescue kanalının nə qədər işlədiyini göstərir.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 23 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "sortOrder": "Descending",
+        "showTime": true,
+        "wrapLogMessage": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "prettifyLogMessage": false,
+        "enableInfiniteScrolling": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{job=\"go-app\", level=\"WARN\"} |= \"budget\"",
+          "queryType": "range",
+          "datasource": { "type": "loki", "uid": "loki" }
+        }
+      ]
+    }
+  ]
+}

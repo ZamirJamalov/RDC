@@ -327,6 +327,22 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
 	// PR #259: SetAuditAppID race — əvəzinə context value (yuxarıda set olunub).
 	appID := app.ID
 	ctx = azmk.WithAppID(ctx, &appID)
+
+	// PR #516: verify sinxron pəncərəsinə zaman büdcəsi (VERIFY_SYNC_BUDGET_S,
+	// default 20s). Proxy (LiteSpeed) ~30s-də cavabı kəsib HTML error səhifəsi
+	// qaytarır → frontend xam JSON xətası görürdü. Büdcə həmişə limitdən tez bitir:
+	//   - gate zamanı bitərsə  → fail-soft skip (mövcud davranış, PR #488)
+	//   - KYC create bitərsə   → SERVICE_ERROR reject (PR #477 kanalı, SMS yox)
+	//   - poll bitərsə         → kyc_pending (frontend qısa polling-lə davam edir)
+	// finishPostKyc (partner+cutoff-lar) büdcə XARİCİNDƏ, orijinal ctx ilə işləyir —
+	// KYC təsdiqli müştərini büdcə səbəbiylə rədd etmək olmaz.
+	reqCtx := ctx
+	if s.verifySyncBudget > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, s.verifySyncBudget)
+		defer cancel()
+	}
+
 	gateRejection, err := s.runIdentityGate(ctx, app)
 	if err != nil {
 		// Texniki xəta — fail-soft: qapı skip, axın davam edir (köhnə davranış)
@@ -361,13 +377,33 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
 			"application_id", app.ID)
 		kycID, err := s.azmkKycCreate(ctx, app)
 		if err != nil {
-			return s.rejectOnKycError(ctx, app, err)
+			// PR #516: büdcə KYC create zamanı bitdi — rədd yazısı büdcəsiz reqCtx
+			// ilə yazılmalıdır (ölü ctx DB yazısını da işə salmazdı).
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				slog.Warn("PR #516: verify sync budget expired during KYC create",
+					"application_id", app.ID,
+					"budget_s", s.verifySyncBudget.Seconds())
+			}
+			return s.rejectOnKycError(reqCtx, app, err)
 		}
 		// PR #507: yalnız 6 cəhd (~15s) gözlə — 30s proxy limitindən uzaq.
 		// Təsdif gəlməsə cavab kyc_pending qayıdır, gözləməyə frontend davam edir.
 		verified, err := s.azmkKycPoll(ctx, app, kycID, 6)
 		if err != nil {
-			return s.rejectOnKycError(ctx, app, err)
+			// PR #516: büdcə (DeadlineExceeded) poll zamanı bitdi — KYC sessiyası
+			// YAŞAYIR, sadəcə vaxt çatmadı. Rədd yox: kyc_pending qaytarırıq, frontend
+			// qısa polling-lə davam edir (PR #507 axını). Fiziki AZMK xətaları — reject.
+			// (context.Canceled — PR #496 client disconnect; reject yazmırıq, amma
+			// burada da pending qaytarmaq daha düzgündür: cavab müştəriyə çatmasa da,
+			// müraciət üçün ən təhlükəsiz status preservasiyadır.)
+			if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+				slog.Warn("PR #516: verify sync budget expired during KYC poll — kyc_pending",
+					"application_id", app.ID,
+					"kyc_id", kycID,
+					"budget_s", s.verifySyncBudget.Seconds())
+				return &VerifyResult{App: app, KycPending: true}, nil
+			}
+			return s.rejectOnKycError(reqCtx, app, err)
 		}
 		if !verified {
 			slog.Info("PR #507: KYC pending — frontend polling-ə keçir",
@@ -375,13 +411,15 @@ func (s *ApplicationService) VerifyInitApplication(ctx context.Context, req *Ver
 				"kyc_id", kycID)
 			return &VerifyResult{App: app, KycPending: true}, nil
 		}
-		return s.finishPostKyc(ctx, app)
+		// PR #516: fast-path — KYC büdcə pəncərəsində təsdiqləndi; partner+cutoff-lar
+		// (finishPostKyc) büdcəsiz reqCtx ilə işləyir.
+		return s.finishPostKyc(reqCtx, app)
 	} else if s.azmkProvider != nil && !s.kycVerifyEnabled {
 		slog.Info("AZMK KYC verify DISABLED — skipping KYC + Partner registration",
 			"application_id", app.ID)
 	}
 
-	return s.finishPostKyc(ctx, app)
+	return s.finishPostKyc(reqCtx, app)
 }
 
 // ErrKycServiceUnavailable — AZMK KYC/Partner xidmətinin TEXNİKİ xətasıdır

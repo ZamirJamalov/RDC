@@ -1,0 +1,16 @@
+# PR #516: Dashboard avtomatik proviziyası — dashboards.yml olmadan JSON fayllar yüklənmir.
+# application-timeline.json ../dashboards/ qovluğundadır (compose-da ayrıca
+# mount olunur) — provider öz yml-ini dashboard kimi skan etməsin deyə ayrı yolda.
+apiVersion: 1
+
+providers:
+  - name: rdc-default
+    orgId: 1
+    folder: ""
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

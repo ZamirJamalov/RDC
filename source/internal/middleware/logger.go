@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"rdc-source/pkg/azmk" // PR #516: AppIDSink — application_id request sətrinə
 )
 
 // statusRecorder wraps http.ResponseWriter to capture the status code so the
@@ -45,6 +47,12 @@ func Logger(logger *slog.Logger) func(http.Handler) http.Handler {
 			start := time.Now()
 			rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
 
+			// PR #516: application_id sink — handler/service azmk.WithAppID çağırandа
+			// dəyər buraya yazılır; request-bitən sətrə domain id düşür. Bir müraciətin
+			// bütün logları Loki-də tək sorğu ilə yığılır.
+			appSink := &azmk.AppIDSink{}
+			r = r.WithContext(azmk.WithAppIDSink(r.Context(), appSink))
+
 			next.ServeHTTP(rec, r)
 
 			duration := time.Since(start)
@@ -78,6 +86,11 @@ func Logger(logger *slog.Logger) func(http.Handler) http.Handler {
 				"content_length", r.ContentLength,
 				"scheme", schemeFromRequest(r),
 				"host", r.Host,
+			}
+
+			// PR #516: handler WithAppID çağırıbsa — request sətrinə application_id.
+			if id, ok := appSink.Get(); ok {
+				attrs = append(attrs, "application_id", id)
 			}
 
 			// PR #292: asset-lər (css/js/png və s.) DEBUG səviyyəsində — default
