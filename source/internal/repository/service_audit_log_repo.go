@@ -31,14 +31,17 @@ func (r *ServiceAuditLogRepo) GetServiceHealth(ctx context.Context, hours int) (
 		SELECT service_name,
 		       MAX(CASE WHEN (error IS NULL OR error = '') AND status_code >= 200 AND status_code < 300 THEN created_at END) AS last_success_at,
 		       MAX(CASE WHEN (error IS NOT NULL AND error <> '') OR status_code >= 400 THEN created_at END) AS last_failure_at,
+		       MAX(CASE WHEN is_fail = 1 AND rn_fail = 1 THEN application_id END) AS last_failure_app_id,
 		       COUNT(*) AS total_calls,
 		       SUM(CASE WHEN (error IS NULL OR error = '') AND status_code >= 200 AND status_code < 300 THEN 1 ELSE 0 END) AS ok_calls,
 		       SUM(CASE WHEN (error IS NOT NULL AND error <> '') OR status_code >= 400 THEN 1 ELSE 0 END) AS failed_calls,
 		       ISNULL(AVG(CAST(duration_ms AS FLOAT)), 0) AS avg_duration_ms,
 		       ISNULL(MAX(CASE WHEN rn = 1 THEN duration_ms END), 0) AS last_duration_ms
 		FROM (
-		    SELECT service_name, error, status_code, duration_ms, created_at,
-		           ROW_NUMBER() OVER (PARTITION BY service_name ORDER BY created_at DESC) AS rn
+		    SELECT service_name, error, status_code, duration_ms, created_at, application_id,
+		           CASE WHEN (error IS NOT NULL AND error <> '') OR status_code >= 400 THEN 1 ELSE 0 END AS is_fail,
+		           ROW_NUMBER() OVER (PARTITION BY service_name ORDER BY created_at DESC) AS rn,
+		           ROW_NUMBER() OVER (PARTITION BY service_name, CASE WHEN (error IS NOT NULL AND error <> '') OR status_code >= 400 THEN 0 ELSE 1 END ORDER BY created_at DESC) AS rn_fail
 		    FROM service_audit_logs
 		    WHERE created_at >= DATEADD(HOUR, ?/*hours*/ * -1, GETDATE())
 		) t
@@ -54,11 +57,16 @@ func (r *ServiceAuditLogRepo) GetServiceHealth(ctx context.Context, hours int) (
 		var h model.ServiceHealth
 		var okCalls, failedCalls sql.NullInt64
 		var avgDur sql.NullFloat64
+		var lastFailAppID sql.NullInt64
 		if err := rows.Scan(
-			&h.ServiceName, &h.LastSuccessAt, &h.LastFailureAt,
+			&h.ServiceName, &h.LastSuccessAt, &h.LastFailureAt, &lastFailAppID,
 			&h.TotalCalls, &okCalls, &failedCalls, &avgDur, &h.LastDurationMs,
 		); err != nil {
 			return nil, fmt.Errorf("failed to scan service health: %w", err)
+		}
+		if lastFailAppID.Valid {
+			v := int(lastFailAppID.Int64)
+			h.LastFailureAppID = &v
 		}
 		h.OkCalls = int(okCalls.Int64)
 		h.FailedCalls = int(failedCalls.Int64)
