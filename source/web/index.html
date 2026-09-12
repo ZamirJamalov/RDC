@@ -36,16 +36,7 @@
             --text-soft: #64748B;
             --border: #E2E8F0;
         }
-        [data-theme="dark"] {
-            --bg: #081a33; --card: #112d52; --text: #F5F5F7; --text-soft: #A3B3CC; --border: #1d3b66;
-        }
-        [data-theme="dark"] body { background: var(--bg) !important; }
-        [data-theme="dark"] .bg-white { background: var(--card) !important; }
-        [data-theme="dark"] .text-gray-800 { color: var(--text) !important; }
-        [data-theme="dark"] .text-gray-600 { color: var(--text-soft) !important; }
-        [data-theme="dark"] .text-gray-500 { color: var(--text-soft) !important; }
-        [data-theme="dark"] .border-gray-200 { border-color: var(--border) !important; }
-        [data-theme="dark"] .hover\:border-teal-300:hover { border-color: #2D9CDB !important; }
+        /* PR #509: dark theme silindi — RDC həmişə light */
         [x-cloak] { display: none !important; }
     </style>
 </head>
@@ -80,10 +71,7 @@
                    title="İstifadəçi idarəetməsi">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
                 </a>
-                <button @click="toggleTheme()" class="w-9 h-9 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-100 transition" title="Theme dəyiş">
-                    <svg x-show="theme === 'light'" class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/></svg>
-                    <svg x-show="theme === 'dark'" class="w-5 h-5 text-indigo-400" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
-                </button>
+                <!-- PR #509: theme toggle silindi — RDC həmişə light theme -->
                 <button @click="load()" class="alpul-btn text-white px-4 py-2 rounded-lg font-medium transition">
                     Yenile
                 </button>
@@ -123,7 +111,7 @@
                             </div>
                             <div class="text-[10px] text-gray-500 space-y-0.5">
                                 <div x-show="s.last_success_at">✓ <span x-text="fmtTime(s.last_success_at)"></span></div>
-                                <div x-show="s.last_failure_at" class="text-rose-600">✗ <span x-text="fmtTime(s.last_failure_at)"></span></div>
+                                <div x-show="s.last_failure_at" class="text-rose-600">✗ <span x-text="fmtTime(s.last_failure_at)"></span><span x-show="s.last_failure_app_id" class="ml-1 font-semibold">· №<span x-text="s.last_failure_app_id"></span></span></div>
                                 <div><span x-text="s.ok_calls"></span>/<span x-text="s.total_calls"></span> uğurlu · <span x-text="s.avg_duration_ms"></span>ms</div>
                             </div>
                         </div>
@@ -225,7 +213,7 @@
                 tab: 'pending', // PR #313: 'pending' | 'rejected' | 'approved' (PR #376)
                 authChecking: true,
                 currentUser: null,
-                theme: localStorage.getItem('alpul_theme') || 'light',
+                // PR #509: theme state silindi — RDC həmişə light
 
                 // PR #421: xarici servis sağlamlığı
                 healthOpen: false,
@@ -235,7 +223,7 @@
                 healthTimer: null,
 
                 async init() {
-                    this.initTheme();
+                    // PR #509: initTheme silindi — RDC həmişə light (data-theme="light" body-də sabit)
                     // PR #442: URL-dən tab parametri (?tab=rejected kimi) —
                     // reject-dən sonra birbaşa imtina siyahısına yönləndirmə üçün
                     const t = new URLSearchParams(location.search).get('tab');
@@ -261,7 +249,8 @@
                         const data = await resp.json();
                         this.services = data.services || [];
                         this.healthLoaded = true;
-                        this.healthUpdated = new Date().toLocaleTimeString('az');
+                        // PR #509: yenilənmə vaxtı da Bakı (UTC+4) tz-də göstərilir
+                        this.healthUpdated = new Date().toLocaleTimeString('az', {hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Baku'});
                     } catch (e) { /* fail-soft — panel boş qalır */ }
                 },
                 healthErrorCount() {
@@ -269,17 +258,12 @@
                 },
                 fmtTime(iso) {
                     if (!iso) return '—';
-                    return new Date(iso).toLocaleTimeString('az', {hour: '2-digit', minute: '2-digit'});
+                    // PR #509: həmişə Bakı vaxtı (UTC+4) — server UTC yazır, browser
+                    // TZ-dən asılı olmayaraq göstərici deterministik olsun.
+                    return new Date(iso).toLocaleTimeString('az', {hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Baku'});
                 },
 
-                initTheme() {
-                    document.body.setAttribute('data-theme', this.theme);
-                },
-                toggleTheme() {
-                    this.theme = this.theme === 'light' ? 'dark' : 'light';
-                    document.body.setAttribute('data-theme', this.theme);
-                    localStorage.setItem('alpul_theme', this.theme);
-                },
+                // PR #509: initTheme/toggleTheme silindi — RDC həmişə light theme.
 
                 // PR #142: Auth check
                 async checkAuth() {

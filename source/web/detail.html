@@ -42,31 +42,15 @@
         [data-theme="light"] {
             --bg: #F0F4F8; --card: #FFFFFF; --text: #1E293B; --text-soft: #64748B; --border: #E2E8F0;
         }
-        [data-theme="dark"] {
-            --bg: #081a33; --card: #112d52; --text: #F5F5F7; --text-soft: #A3B3CC; --border: #1d3b66;
-        }
-        [data-theme="dark"] body { background: var(--bg) !important; }
-        [data-theme="dark"] .panel { background: var(--card) !important; border-color: var(--border) !important; }
-        [data-theme="dark"] .panel-title { color: var(--text) !important; }
-        [data-theme="dark"] .label-soft { color: var(--text-soft) !important; }
-        [data-theme="dark"] .value-strong { color: var(--text) !important; }
-        [data-theme="dark"] .panel-divider { border-color: var(--border) !important; }
-        [data-theme="dark"] .field-input {
-            background: #0d2444 !important;
-            border-color: var(--border) !important;
-            color: var(--text) !important;
-        }
-        [data-theme="dark"] .field-input::placeholder { color: #5a6b87 !important; }
-        [data-theme="dark"] .sub-card { background: #0d2444 !important; border-color: var(--border) !important; }
-        [data-theme="dark"] .sub-card-title { color: var(--text-soft) !important; }
+        /* PR #509: dark theme silindi — RDC həmişə light. Aşağıdakı
+           [data-theme="dark"] override-ları mərkəzləşdirilmiş şəkildə silinib. */
 
         /* Sticky compact header */
         .top-header {
-            backdrop-filter: blur(8px);
-            background: rgba(255,255,255,0.85);
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(10px);
             border-bottom: 1px solid var(--border);
         }
-        [data-theme="dark"] .top-header { background: rgba(13, 36, 68, 0.85) !important; }
 
         /* Panel */
         .panel {
@@ -132,7 +116,6 @@
 
         /* ===== PR #443: yeni 3-sütunlu dizayn (approved eskiz) ===== */
         body { background: linear-gradient(180deg, #F5F9FC 0%, #EDF2F7 100%); }
-        [data-theme="dark"] body { background: var(--bg) !important; }
 
         /* PR #448: max-width 1400px silindi — 3 sütun və toolbar tam enə genişlənir
            (kənarlarda boş yer qalmır) */
@@ -175,15 +158,12 @@
             letter-spacing: 0.04em; color: var(--text-soft); white-space: nowrap;
             text-align: left; background: #F1F5F9; border-bottom: 2px solid var(--border);
         }
-        [data-theme="dark"] .apl-table th { background: #0d2444; }
         .apl-table td { padding: 3px 6px; border-left: 1px solid var(--border); border-bottom: 1px solid var(--border); vertical-align: middle; }
         .apl-table td:first-child, .apl-table th:first-child { border-left: none; }
         .apl-table tbody tr:last-child td { border-bottom: none; }
         /* zebra + hover — nth-child (PR #472: ct-zebra sinifsiz) */
         .apl-table tbody tr:nth-child(even) { background: rgba(100, 116, 139, 0.05); }
-        [data-theme="dark"] .apl-table tbody tr:nth-child(even) { background: rgba(255, 255, 255, 0.03); }
         .apl-table tbody tr:hover { background: rgba(45, 156, 219, 0.06); }
-        [data-theme="dark"] .apl-table tbody tr:hover { background: rgba(45, 156, 219, 0.1); }
         /* PR #468/#469: sütun resize tutacağı — th sağ kənarında */
         .th-rs { position: absolute; right: 0; top: 0; bottom: 0; width: 9px; cursor: col-resize; user-select: none; z-index: 2; }
         .th-rs::after { content: ''; position: absolute; right: 3px; top: 8px; bottom: 8px; width: 2px; border-radius: 1px; background: var(--border); }
@@ -205,12 +185,9 @@
         .stat-amount { background: #E6FFFA; } .stat-amount .val { color: #38B2AC; }
         .stat-term   { background: #F0FFF4; } .stat-term   .val { color: #48BB78; }
         .stat-comm   { background: #F0FFF4; } .stat-comm   .val { color: #68D391; }
-        [data-theme="dark"] .stat-amount { background: rgba(56,178,172,.12); }
-        [data-theme="dark"] .stat-term, [data-theme="dark"] .stat-comm { background: rgba(72,187,120,.10); }
 
         /* İllik faiz — qırmızı vurğu */
         .rate-red { color: #E53E3E; }
-        [data-theme="dark"] .rate-red { color: #FC8181; }
 
         /* Müştəri şəkli — mərkəzdə 120px */
         .photo-center { width: 120px; height: 120px; border: 3px solid var(--border); border-radius: 8px; object-fit: cover; margin: 16px auto; display: block; }
@@ -221,14 +198,11 @@
         /* İmtina düyməsi — açıq qırmızı (spec) */
         .btn-reject { background: #FEB2B2; color: #C53030; border: 2px solid #F56565; }
         .btn-reject:hover { background: #FC8181; }
-        [data-theme="dark"] .btn-reject { background: rgba(245,101,101,.15); color: #FC8181; border-color: #F56565; }
 
         /* Xəbərdarlıq qutuları — sol ştrixli */
         .note-warn { padding: 10px 12px; border-radius: 6px; font-size: 12px; border-left: 4px solid; }
         .note-yellow { background: #FEF3C7; color: #B7791F; border-left-color: #F6E05E; }
         .note-red    { background: #FFF5F5; color: #C53030; border-left-color: #FC8181; }
-        [data-theme="dark"] .note-yellow { background: rgba(250,204,21,.10); color: #ECC94B; }
-        [data-theme="dark"] .note-red    { background: rgba(245,101,101,.10); color: #FC8181; }
     </style>
 </head>
 <body class="min-h-screen" data-theme="light" x-data="appDetail()" x-init="init()" x-cloak>
@@ -420,11 +394,7 @@
                 </div>
             </div>
 
-            <!-- Theme toggle -->
-            <button @click="toggleTheme()" class="w-9 h-9 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-100 transition shrink-0" title="Theme dəyiş">
-                <svg x-show="theme === 'light'" class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z"/></svg>
-                <svg x-show="theme === 'dark'" class="w-5 h-5 text-indigo-400" fill="currentColor" viewBox="0 0 20 20"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
-            </button>
+            <!-- PR #509: theme toggle silindi — RDC həmişə light -->
 
             <button @click="load()" class="hidden sm:inline-flex alpul-btn text-white px-3 py-2 rounded-lg text-sm font-medium transition shrink-0 items-center gap-1.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
@@ -623,15 +593,23 @@
                                 <col :style="'width:' + colWidths.kredit[3] + 'px'">
                                 <col :style="'width:' + colWidths.kredit[4] + 'px'">
                                 <col :style="'width:' + colWidths.kredit[5] + 'px'">
+                                <col :style="'width:' + colWidths.kredit[6] + 'px'">
+                                <col :style="'width:' + colWidths.kredit[7] + 'px'">
+                                <col :style="'width:' + colWidths.kredit[8] + 'px'">
                             </colgroup>
                             <thead>
                                 <tr>
                                     <th>Məbləğ<span class="th-rs" @mousedown.prevent="startColResize('kredit', 0, $event)"></span></th>
                                     <th>Müddət<span class="th-rs" @mousedown.prevent="startColResize('kredit', 1, $event)"></span></th>
                                     <th>Komissiya<span class="th-rs" @mousedown.prevent="startColResize('kredit', 2, $event)"></span></th>
-                                    <th>Ümumi (komissiya ilə)<span class="th-rs" @mousedown.prevent="startColResize('kredit', 3, $event)"></span></th>
-                                    <th>Karta köçürülən<span class="th-rs" @mousedown.prevent="startColResize('kredit', 4, $event)"></span></th>
-                                    <th>İllik faiz<span class="th-rs" @mousedown.prevent="startColResize('kredit', 5, $event)"></span></th>
+                                    <th>Komissiya ₼<span class="th-rs" @mousedown.prevent="startColResize('kredit', 3, $event)"></span></th>
+                                    <th>Ümumi (komissiya ilə)<span class="th-rs" @mousedown.prevent="startColResize('kredit', 4, $event)"></span></th>
+                                    <th>Karta köçürülən<span class="th-rs" @mousedown.prevent="startColResize('kredit', 5, $event)"></span></th>
+                                    <th>İllik faiz<span class="th-rs" @mousedown.prevent="startColResize('kredit', 6, $event)"></span></th>
+                                    <!-- PR #509: müştərinin apply.html xülasəsindən — ekspert
+                                         zəng zamanı bütün suallara cavab versin -->
+                                    <th>Aylıq ödəniş<span class="th-rs" @mousedown.prevent="startColResize('kredit', 7, $event)"></span></th>
+                                    <th>Yekun ödəniş<span class="th-rs" @mousedown.prevent="startColResize('kredit', 8, $event)"></span></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -639,10 +617,15 @@
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="((app?.total_amount || app?.amount) ?? '-') + ' AZN'"></span></td>
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.term_months ?? '-') + ' ay'"></span></td>
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.approved_rate !== undefined && app?.approved_rate !== null) ? app.approved_rate + '%' : '-'"></span></td>
+                                    <!-- PR #509: komissiya məbləği = total_amount − amount -->
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="commissionAmountAz"></span></td>
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.total_amount ?? '-') + ' AZN'"></span></td>
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.amount ?? '-') + ' AZN'"></span></td>
                                     <!-- PR #348: illik faiz qırmızı -->
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap rate-red" x-text="app?.annual_interest_rate ? app.annual_interest_rate + '%' : '-'"></span></td>
+                                    <!-- PR #509: anuitet (apply.html ilə eyni formula) -->
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" style="color:#0f766e" x-text="monthlyPaymentAz"></span></td>
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="totalRepaymentAz"></span></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -746,6 +729,7 @@
                                 <col :style="'width:' + colWidths.contacts[3] + 'px'">
                                 <col :style="'width:' + colWidths.contacts[4] + 'px'">
                                 <col :style="'width:' + colWidths.contacts[5] + 'px'">
+                                <col :style="'width:' + colWidths.contacts[6] + 'px'">
                             </colgroup>
                             <thead>
                                 <tr>
@@ -755,6 +739,8 @@
                                     <th>Ad Soyad<span class="th-rs" @mousedown.prevent="startColResize('contacts', 3, $event)"></span></th>
                                     <th>Status<span class="th-rs" @mousedown.prevent="startColResize('contacts', 4, $event)"></span></th>
                                     <th>Qeyd<span class="th-rs" @mousedown.prevent="startColResize('contacts', 5, $event)"></span></th>
+                                    <!-- PR #509: Kopyala sütunu — nömrələrin sağında -->
+                                    <th class="text-center">⧉<span class="th-rs" @mousedown.prevent="startColResize('contacts', 6, $event)"></span></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -855,6 +841,18 @@
                                         </div>
                                         </div>
                                     </td>
+                                    <!-- PR #509: Kopyala sütunu — 0-formatda (zəng üçün),
+                                         read-only rejimdə də işləyir; nömrə yoxdanda disabled -->
+                                    <td class="text-center">
+                                        <button x-show="contact.phone && isPhoneComplete(contact.phone)"
+                                                @click="copyPhoneLocal(contact.phone)"
+                                                class="text-teal-500 hover:text-teal-700 hover:bg-teal-50 inline-flex items-center justify-center w-6 h-6 rounded transition"
+                                                :title="'Nömrəni kopyala (0-formatda): ' + phoneLocal(contact.phone)">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                            </svg>
+                                        </button>
+                                    </td>
                                 </tr>
                             </template>
                             </tbody>
@@ -925,7 +923,7 @@
                 actionMessage: '',
                 actionError: '',
                 rejectReason: '',
-                theme: localStorage.getItem('alpul_theme') || 'light',
+                // PR #509: theme state silindi — RDC həmişə light
 
                 // PR #142: Auth
                 authChecking: true,
@@ -1018,18 +1016,11 @@
                 // PR #467: audit tarixçəsi popover-i
                 auditOpen: false,
 
-                initTheme() {
-                    document.body.setAttribute('data-theme', this.theme);
-                },
-                toggleTheme() {
-                    this.theme = this.theme === 'light' ? 'dark' : 'light';
-                    document.body.setAttribute('data-theme', this.theme);
-                    localStorage.setItem('alpul_theme', this.theme);
-                },
+                // PR #509: initTheme/toggleTheme silindi — RDC həmişə light.
 
                 // PR #142: Auth
                 async init() {
-                    this.initTheme();
+                    // PR #509: initTheme silindi — RDC həmişə light
                     // PR #443: setupFit (adaptive zoom) silindi — yeni 3-sütunlu
                     // dizayn təbii scroll ilə işləyir
                     await this.checkAuth();
@@ -1102,8 +1093,8 @@
                 // üst-üstə düşmə mümkünsüz, colWidths yalnız başlanğıc/en aşağı həddidir.
                 colWidths: {
                     cust: [110, 700, 320],
-                    contacts: [28, 130, 165, 180, 200, 240],
-                    kredit: [150, 110, 130, 210, 180, 140],
+                    contacts: [28, 130, 165, 180, 200, 240, 44],
+                    kredit: [150, 110, 130, 110, 210, 180, 140, 140, 140],
                 },
                 colResize: { table: null, idx: -1, startX: 0, startW: 0 },
                 startColResize(table, idx, e) {
@@ -1128,6 +1119,38 @@
                     let d = String(phone).replace(/\D/g, '');
                     if (d.startsWith('994')) d = '0' + d.slice(3);
                     return d;
+                },
+
+                // PR #509: Kredit xülasəsi hesablayıcıları — apply.html-in
+                // "Kredit xülasəsi" paneli ilə EYNİ formullar (drift olmasın deyə
+                // burada dafrontend-də hesablanır):
+                //   aylıq ödəniş  A = K × i / (1 − (1+i)^−n), i = illik/100/12
+                //   yekun ödəniş = ceil(A × n)
+                //   komissiya ₼  = total_amount − amount (total = ceil(amount + komissiya))
+                get creditCalcReady() {
+                    const a = this.app;
+                    return !!(a && a.total_amount > 0 && a.amount > 0 && a.term_months > 0 && a.annual_interest_rate > 0);
+                },
+                get monthlyPaymentAz() {
+                    if (!this.creditCalcReady) return '-';
+                    const K = this.app.total_amount;
+                    const i = this.app.annual_interest_rate / 100 / 12;
+                    const n = this.app.term_months;
+                    const A = K * i / (1 - Math.pow(1 + i, -n));
+                    return (Math.round(A * 100) / 100).toFixed(2) + ' AZN';
+                },
+                get totalRepaymentAz() {
+                    if (!this.creditCalcReady) return '-';
+                    const K = this.app.total_amount;
+                    const i = this.app.annual_interest_rate / 100 / 12;
+                    const n = this.app.term_months;
+                    const A = K * i / (1 - Math.pow(1 + i, -n));
+                    return Math.ceil(A * n) + ' AZN';
+                },
+                get commissionAmountAz() {
+                    const a = this.app;
+                    if (!a || !(a.total_amount > 0) || !(a.amount > 0)) return '-';
+                    return (a.total_amount - a.amount).toFixed(2) + ' AZN';
                 },
 
                 // PR #468: mətni n simvolla qısalt (sonda …)
