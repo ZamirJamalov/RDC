@@ -583,10 +583,9 @@
                         <h2 class="panel-title">Kredit</h2>
                         <span x-show="app?.credit_level" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700" x-text="levelAz(app?.credit_level)"></span>
                     </div>
-                    <!-- PR #472: klassik table — tək sətir. PR #510: sütun sırası
-                         yenidən qurulub. PR #511: Kredit məbləği sütunu (karta
-                         köçürüləcək + komissiya = total_amount) Komissiya ₼-dən
-                         dərhal sonra əlavə olundu. -->
+                    <!-- PR #472: klassik table — tək sətir. PR #512: Kredit məbləği
+                         sütunu Aylıq ödəniş-dən SONRA köçürülüb, başlığında izah:
+                         əsas məbləğ + komissiya (= total_amount). -->
                     <div class="tbl-wrap" @mousemove.window="onColResize($event)" @mouseup.window="endColResize()">
                         <table class="apl-table">
                             <colgroup>
@@ -605,12 +604,13 @@
                                     <th>Müddət<span class="th-rs" @mousedown.prevent="startColResize('kredit', 0, $event)"></span></th>
                                     <th>Komissiya<span class="th-rs" @mousedown.prevent="startColResize('kredit', 1, $event)"></span></th>
                                     <th>Komissiya ₼<span class="th-rs" @mousedown.prevent="startColResize('kredit', 2, $event)"></span></th>
-                                    <!-- PR #511: kredit məbləği = karta köçürüləcək + komissiya -->
-                                    <th>Kredit məbləği<span class="th-rs" @mousedown.prevent="startColResize('kredit', 3, $event)"></span></th>
-                                    <th>İllik faiz<span class="th-rs" @mousedown.prevent="startColResize('kredit', 4, $event)"></span></th>
+                                    <th>İllik faiz<span class="th-rs" @mousedown.prevent="startColResize('kredit', 3, $event)"></span></th>
                                     <!-- PR #510: müddət üzrə ödəniləcək faiz məbləği — İllik faiz-in yanında -->
-                                    <th>Faiz məbləği<span class="th-rs" @mousedown.prevent="startColResize('kredit', 5, $event)"></span></th>
-                                    <th>Aylıq ödəniş<span class="th-rs" @mousedown.prevent="startColResize('kredit', 6, $event)"></span></th>
+                                    <th>Faiz məbləği<span class="th-rs" @mousedown.prevent="startColResize('kredit', 4, $event)"></span></th>
+                                    <th>Aylıq ödəniş<span class="th-rs" @mousedown.prevent="startColResize('kredit', 5, $event)"></span></th>
+                                    <!-- PR #511/#512: kredit məbləği = əsas məbləğ + komissiya,
+                                         Aylıq ödəniş-dən sonra -->
+                                    <th>Kredit məbləği<br><span class="font-normal text-[10px] leading-tight text-gray-400">(əsas məbləğ + komissiya)</span><span class="th-rs" @mousedown.prevent="startColResize('kredit', 6, $event)"></span></th>
                                     <th>Karta köçürülən<span class="th-rs" @mousedown.prevent="startColResize('kredit', 7, $event)"></span></th>
                                     <th>Yekun ödəniş<span class="th-rs" @mousedown.prevent="startColResize('kredit', 8, $event)"></span></th>
                                 </tr>
@@ -621,14 +621,15 @@
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.approved_rate !== undefined && app?.approved_rate !== null) ? app.approved_rate + '%' : '-'"></span></td>
                                     <!-- PR #509: komissiya məbləği = total_amount − amount -->
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="commissionAmountAz"></span></td>
-                                    <!-- PR #511: kredit məbləği = total_amount (karta + komissiya, ceil) -->
-                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.total_amount > 0 ? app.total_amount + ' AZN' : '-')"></span></td>
                                     <!-- PR #348: illik faiz qırmızı -->
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap rate-red" x-text="app?.annual_interest_rate ? app.annual_interest_rate + '%' : '-'"></span></td>
                                     <!-- PR #510: faiz məbləği = ceil(A×n) − total_amount -->
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap rate-red" x-text="interestAmountAz"></span></td>
                                     <!-- PR #509: anuitet (apply.html ilə eyni formula) -->
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap" style="color:#0f766e" x-text="monthlyPaymentAz"></span></td>
+                                    <!-- PR #511/#512: kredit məbləği = əsas məbləğ + komissiya
+                                         (= total_amount) — Aylıq ödəniş-dən sonra -->
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.total_amount > 0 ? app.total_amount + ' AZN' : '-')"></span></td>
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.amount ?? '-') + ' AZN'"></span></td>
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="totalRepaymentAz"></span></td>
                                 </tr>
@@ -1105,10 +1106,10 @@
                 // üst-üstə düşmə mümkünsüz, colWidths yalnız başlanğıc/en aşağı həddidir.
                 colWidths: {
                     cust: [110, 700, 320],
-                    // PR #511: kredit sırası — Müddət | Komissiya | Komissiya ₼ |
-                    // Kredit məbləyi | İllik faiz | Faiz məbləği | Aylıq ödəniş |
+                    // PR #512: kredit sırası — Müddət | Komissiya | Komissiya ₼ |
+                    // İllik faiz | Faiz məbləği | Aylıq ödəniş | Kredit məbləği |
                     // Karta köçürülən | Yekun ödəniş
-                    kredit: [110, 130, 110, 150, 140, 140, 140, 180, 140],
+                    kredit: [110, 130, 110, 140, 140, 140, 160, 180, 140],
                     // PR #510: ⧉ Kopyala sütunu Telefon-dan dərhal sonra
                     contacts: [28, 130, 165, 44, 180, 200, 240],
                 },
