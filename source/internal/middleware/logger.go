@@ -86,6 +86,12 @@ func Logger(logger *slog.Logger) func(http.Handler) http.Handler {
 			switch {
 			case requestType(r.URL.Path) == "asset":
 				logger.Debug("request_completed", attrs...)
+			case r.URL.Path == "/api/admin/service-health":
+				// PR #515: dashboard polling endpoint-i — admin panel hər 60s çağırır;
+				// sessiya bitib tab açıq qalandа 401-lər Loki-ni kütləvi şəkildə
+				// çirkləndirirdi. Asset pattern-i: DEBUG səviyyə — LOG_LEVEL=info
+				// (production) ilə Loki-yə düşmür, debug-a keçəndə görünür.
+				logger.Debug("request_completed", attrs...)
 			case rec.status >= 500:
 				logger.Warn("request_completed", attrs...)
 			default:
