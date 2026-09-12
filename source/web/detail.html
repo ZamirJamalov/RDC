@@ -583,7 +583,10 @@
                         <h2 class="panel-title">Kredit</h2>
                         <span x-show="app?.credit_level" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700" x-text="levelAz(app?.credit_level)"></span>
                     </div>
-                    <!-- PR #472: klassik table — tək sətir, 6 göstərici -->
+                    <!-- PR #472: klassik table — tək sətir. PR #510: sütun sırası
+                         yenidən qurulub — Məbləğ və Ümumi(komissiya ilə) silindi,
+                         İllik faiz-in yanına müddət üzrə Faiz məbləği əlavə olundu,
+                         Karta köçürülən Yekun ödəniş-dən dərhal əvvələ keçdi. -->
                     <div class="tbl-wrap" @mousemove.window="onColResize($event)" @mouseup.window="endColResize()">
                         <table class="apl-table">
                             <colgroup>
@@ -595,36 +598,33 @@
                                 <col :style="'width:' + colWidths.kredit[5] + 'px'">
                                 <col :style="'width:' + colWidths.kredit[6] + 'px'">
                                 <col :style="'width:' + colWidths.kredit[7] + 'px'">
-                                <col :style="'width:' + colWidths.kredit[8] + 'px'">
                             </colgroup>
                             <thead>
                                 <tr>
-                                    <th>Məbləğ<span class="th-rs" @mousedown.prevent="startColResize('kredit', 0, $event)"></span></th>
-                                    <th>Müddət<span class="th-rs" @mousedown.prevent="startColResize('kredit', 1, $event)"></span></th>
-                                    <th>Komissiya<span class="th-rs" @mousedown.prevent="startColResize('kredit', 2, $event)"></span></th>
-                                    <th>Komissiya ₼<span class="th-rs" @mousedown.prevent="startColResize('kredit', 3, $event)"></span></th>
-                                    <th>Ümumi (komissiya ilə)<span class="th-rs" @mousedown.prevent="startColResize('kredit', 4, $event)"></span></th>
-                                    <th>Karta köçürülən<span class="th-rs" @mousedown.prevent="startColResize('kredit', 5, $event)"></span></th>
-                                    <th>İllik faiz<span class="th-rs" @mousedown.prevent="startColResize('kredit', 6, $event)"></span></th>
-                                    <!-- PR #509: müştərinin apply.html xülasəsindən — ekspert
-                                         zəng zamanı bütün suallara cavab versin -->
-                                    <th>Aylıq ödəniş<span class="th-rs" @mousedown.prevent="startColResize('kredit', 7, $event)"></span></th>
-                                    <th>Yekun ödəniş<span class="th-rs" @mousedown.prevent="startColResize('kredit', 8, $event)"></span></th>
+                                    <th>Müddət<span class="th-rs" @mousedown.prevent="startColResize('kredit', 0, $event)"></span></th>
+                                    <th>Komissiya<span class="th-rs" @mousedown.prevent="startColResize('kredit', 1, $event)"></span></th>
+                                    <th>Komissiya ₼<span class="th-rs" @mousedown.prevent="startColResize('kredit', 2, $event)"></span></th>
+                                    <th>İllik faiz<span class="th-rs" @mousedown.prevent="startColResize('kredit', 3, $event)"></span></th>
+                                    <!-- PR #510: müddət üzrə ödəniləcək faiz məbləği — İllik faiz-in yanında -->
+                                    <th>Faiz məbləği<span class="th-rs" @mousedown.prevent="startColResize('kredit', 4, $event)"></span></th>
+                                    <th>Aylıq ödəniş<span class="th-rs" @mousedown.prevent="startColResize('kredit', 5, $event)"></span></th>
+                                    <th>Karta köçürülən<span class="th-rs" @mousedown.prevent="startColResize('kredit', 6, $event)"></span></th>
+                                    <th>Yekun ödəniş<span class="th-rs" @mousedown.prevent="startColResize('kredit', 7, $event)"></span></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr>
-                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="((app?.total_amount || app?.amount) ?? '-') + ' AZN'"></span></td>
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.term_months ?? '-') + ' ay'"></span></td>
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.approved_rate !== undefined && app?.approved_rate !== null) ? app.approved_rate + '%' : '-'"></span></td>
                                     <!-- PR #509: komissiya məbləği = total_amount − amount -->
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="commissionAmountAz"></span></td>
-                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.total_amount ?? '-') + ' AZN'"></span></td>
-                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.amount ?? '-') + ' AZN'"></span></td>
                                     <!-- PR #348: illik faiz qırmızı -->
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap rate-red" x-text="app?.annual_interest_rate ? app.annual_interest_rate + '%' : '-'"></span></td>
+                                    <!-- PR #510: faiz məbləği = ceil(A×n) − total_amount -->
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap rate-red" x-text="interestAmountAz"></span></td>
                                     <!-- PR #509: anuitet (apply.html ilə eyni formula) -->
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap" style="color:#0f766e" x-text="monthlyPaymentAz"></span></td>
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.amount ?? '-') + ' AZN'"></span></td>
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="totalRepaymentAz"></span></td>
                                 </tr>
                             </tbody>
@@ -736,11 +736,11 @@
                                     <th class="text-center">№<span class="th-rs" @mousedown.prevent="startColResize('contacts', 0, $event)"></span></th>
                                     <th>Əlaqə<span class="th-rs" @mousedown.prevent="startColResize('contacts', 1, $event)"></span></th>
                                     <th>Telefon<span class="th-rs" @mousedown.prevent="startColResize('contacts', 2, $event)"></span></th>
-                                    <th>Ad Soyad<span class="th-rs" @mousedown.prevent="startColResize('contacts', 3, $event)"></span></th>
-                                    <th>Status<span class="th-rs" @mousedown.prevent="startColResize('contacts', 4, $event)"></span></th>
-                                    <th>Qeyd<span class="th-rs" @mousedown.prevent="startColResize('contacts', 5, $event)"></span></th>
-                                    <!-- PR #509: Kopyala sütunu — nömrələrin sağında -->
-                                    <th class="text-center">⧉<span class="th-rs" @mousedown.prevent="startColResize('contacts', 6, $event)"></span></th>
+                                    <!-- PR #510: Kopyala sütunu — Telefondan DƏRHAL sonra -->
+                                    <th class="text-center">⧉<span class="th-rs" @mousedown.prevent="startColResize('contacts', 3, $event)"></span></th>
+                                    <th>Ad Soyad<span class="th-rs" @mousedown.prevent="startColResize('contacts', 4, $event)"></span></th>
+                                    <th>Status<span class="th-rs" @mousedown.prevent="startColResize('contacts', 5, $event)"></span></th>
+                                    <th>Qeyd<span class="th-rs" @mousedown.prevent="startColResize('contacts', 6, $event)"></span></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -779,6 +779,18 @@
                                               title="Nömrə tam deyil — format: +994 XX XXX XX XX">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                                         </span>
+                                    </td>
+                                    <!-- PR #510: Kopyala sütunu — Telefondan DƏRHAL sonra.
+                                         0-formatda (zəng üçün), read-only rejimdə də işləyir. -->
+                                    <td class="text-center">
+                                        <button x-show="contact.phone && isPhoneComplete(contact.phone)"
+                                                @click="copyPhoneLocal(contact.phone)"
+                                                class="text-teal-500 hover:text-teal-700 hover:bg-teal-50 inline-flex items-center justify-center w-6 h-6 rounded transition"
+                                                :title="'Nömrəni kopyala (0-formatda): ' + phoneLocal(contact.phone)">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                                            </svg>
+                                        </button>
                                     </td>
                                     <td class="relative min-w-0">
                                         <input type="text"
@@ -840,18 +852,6 @@
                                             <span class="text-[10px] text-gray-400 ml-auto" x-text="(contact.callNote || '').length + '/1000'"></span>
                                         </div>
                                         </div>
-                                    </td>
-                                    <!-- PR #509: Kopyala sütunu — 0-formatda (zəng üçün),
-                                         read-only rejimdə də işləyir; nömrə yoxdanda disabled -->
-                                    <td class="text-center">
-                                        <button x-show="contact.phone && isPhoneComplete(contact.phone)"
-                                                @click="copyPhoneLocal(contact.phone)"
-                                                class="text-teal-500 hover:text-teal-700 hover:bg-teal-50 inline-flex items-center justify-center w-6 h-6 rounded transition"
-                                                :title="'Nömrəni kopyala (0-formatda): ' + phoneLocal(contact.phone)">
-                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
-                                            </svg>
-                                        </button>
                                     </td>
                                 </tr>
                             </template>
@@ -1093,8 +1093,11 @@
                 // üst-üstə düşmə mümkünsüz, colWidths yalnız başlanğıc/en aşağı həddidir.
                 colWidths: {
                     cust: [110, 700, 320],
-                    contacts: [28, 130, 165, 180, 200, 240, 44],
-                    kredit: [150, 110, 130, 110, 210, 180, 140, 140, 140],
+                    // PR #510: kredit sırası — Müddət | Komissiya | Komissiya ₼ | İllik faiz |
+                    // Faiz məbləği | Aylıq ödəniş | Karta köçürülən | Yekun ödəniş
+                    kredit: [110, 130, 110, 140, 140, 140, 180, 140],
+                    // PR #510: ⧉ Kopyala sütunu Telefon-dan dərhal sonra
+                    contacts: [28, 130, 165, 44, 180, 200, 240],
                 },
                 colResize: { table: null, idx: -1, startX: 0, startW: 0 },
                 startColResize(table, idx, e) {
@@ -1151,6 +1154,17 @@
                     const a = this.app;
                     if (!a || !(a.total_amount > 0) || !(a.amount > 0)) return '-';
                     return (a.total_amount - a.amount).toFixed(2) + ' AZN';
+                },
+                // PR #510: müddət üzrə ödəniləcək faiz məbləği (apply.html interestAmount
+                // ilə eyni qayda): ceil-lənmiş yekun ödəniş − ceil-lənmiş kredit
+                // (total_amount) — hər ikisi tam manat olduğundan nəticə tam ededir.
+                get interestAmountAz() {
+                    if (!this.creditCalcReady) return '-';
+                    const K = this.app.total_amount;
+                    const i = this.app.annual_interest_rate / 100 / 12;
+                    const n = this.app.term_months;
+                    const A = K * i / (1 - Math.pow(1 + i, -n));
+                    return (Math.ceil(A * n) - K) + ' AZN';
                 },
 
                 // PR #468: mətni n simvolla qısalt (sonda …)
