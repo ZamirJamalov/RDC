@@ -245,6 +245,13 @@
                 async loadHealth() {
                     try {
                         const resp = await fetch('/api/admin/service-health?hours=24');
+                        // PR #515: sessiya bitibsə (401) polling-i dayandır — tab
+                        // açıq qalanda hər 60s faydasız 401 sorğusu gedib Loki-ni
+                        // çirkləndirirdi. Yeni səhifə açılanda yenidən başlayır.
+                        if (resp.status === 401) {
+                            if (this.healthTimer) { clearInterval(this.healthTimer); this.healthTimer = null; }
+                            return;
+                        }
                         if (!resp.ok) return;
                         const data = await resp.json();
                         this.services = data.services || [];

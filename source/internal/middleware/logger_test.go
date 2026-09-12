@@ -170,3 +170,29 @@ func TestClientIP(t *testing.T) {
 		t.Errorf("clientIP portless = %q, want 10.0.0.1", got)
 	}
 }
+
+// PR #515: /api/admin/service-health — dashboard polling endpoint-i.
+// Asset pattern-i kimi DEBUG səviyyəsində: INFO (production/Loki) səviyyəsində
+// loglanmamalıdır ki, sessiya bitib tab açıq qalan adminin 60s-liik 401-ləri
+// Loki-ni çirkləndirməsin.
+func TestLogger_ServiceHealthDebugOnly(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	})
+
+	// INFO səviyyəsində (Loki) loglanMAMALIdır — 401 də olsa
+	var infoBuf bytes.Buffer
+	h := Logger(newBufferLogger(&infoBuf, slog.LevelInfo))(handler)
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/admin/service-health", nil))
+	if infoBuf.Len() != 0 {
+		t.Errorf("service-health must not be logged at INFO level, got: %s", infoBuf.String())
+	}
+
+	// DEBUG səviyyəsində loglanmalıdır (debug-a keçəndə görünür)
+	var debugBuf bytes.Buffer
+	h = Logger(newBufferLogger(&debugBuf, slog.LevelDebug))(handler)
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/api/admin/service-health", nil))
+	if !strings.Contains(debugBuf.String(), `"path":"/api/admin/service-health"`) {
+		t.Errorf("service-health must be logged at DEBUG level, got: %s", debugBuf.String())
+	}
+}
