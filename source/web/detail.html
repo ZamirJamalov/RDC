@@ -584,9 +584,9 @@
                         <span x-show="app?.credit_level" class="text-xs font-semibold px-2 py-0.5 rounded-full bg-teal-100 text-teal-700" x-text="levelAz(app?.credit_level)"></span>
                     </div>
                     <!-- PR #472: klassik table — tək sətir. PR #510: sütun sırası
-                         yenidən qurulub — Məbləğ və Ümumi(komissiya ilə) silindi,
-                         İllik faiz-in yanına müddət üzrə Faiz məbləği əlavə olundu,
-                         Karta köçürülən Yekun ödəniş-dən dərhal əvvələ keçdi. -->
+                         yenidən qurulub. PR #511: Kredit məbləği sütunu (karta
+                         köçürüləcək + komissiya = total_amount) Komissiya ₼-dən
+                         dərhal sonra əlavə olundu. -->
                     <div class="tbl-wrap" @mousemove.window="onColResize($event)" @mouseup.window="endColResize()">
                         <table class="apl-table">
                             <colgroup>
@@ -598,18 +598,21 @@
                                 <col :style="'width:' + colWidths.kredit[5] + 'px'">
                                 <col :style="'width:' + colWidths.kredit[6] + 'px'">
                                 <col :style="'width:' + colWidths.kredit[7] + 'px'">
+                                <col :style="'width:' + colWidths.kredit[8] + 'px'">
                             </colgroup>
                             <thead>
                                 <tr>
                                     <th>Müddət<span class="th-rs" @mousedown.prevent="startColResize('kredit', 0, $event)"></span></th>
                                     <th>Komissiya<span class="th-rs" @mousedown.prevent="startColResize('kredit', 1, $event)"></span></th>
                                     <th>Komissiya ₼<span class="th-rs" @mousedown.prevent="startColResize('kredit', 2, $event)"></span></th>
-                                    <th>İllik faiz<span class="th-rs" @mousedown.prevent="startColResize('kredit', 3, $event)"></span></th>
+                                    <!-- PR #511: kredit məbləği = karta köçürüləcək + komissiya -->
+                                    <th>Kredit məbləği<span class="th-rs" @mousedown.prevent="startColResize('kredit', 3, $event)"></span></th>
+                                    <th>İllik faiz<span class="th-rs" @mousedown.prevent="startColResize('kredit', 4, $event)"></span></th>
                                     <!-- PR #510: müddət üzrə ödəniləcək faiz məbləği — İllik faiz-in yanında -->
-                                    <th>Faiz məbləği<span class="th-rs" @mousedown.prevent="startColResize('kredit', 4, $event)"></span></th>
-                                    <th>Aylıq ödəniş<span class="th-rs" @mousedown.prevent="startColResize('kredit', 5, $event)"></span></th>
-                                    <th>Karta köçürülən<span class="th-rs" @mousedown.prevent="startColResize('kredit', 6, $event)"></span></th>
-                                    <th>Yekun ödəniş<span class="th-rs" @mousedown.prevent="startColResize('kredit', 7, $event)"></span></th>
+                                    <th>Faiz məbləği<span class="th-rs" @mousedown.prevent="startColResize('kredit', 5, $event)"></span></th>
+                                    <th>Aylıq ödəniş<span class="th-rs" @mousedown.prevent="startColResize('kredit', 6, $event)"></span></th>
+                                    <th>Karta köçürülən<span class="th-rs" @mousedown.prevent="startColResize('kredit', 7, $event)"></span></th>
+                                    <th>Yekun ödəniş<span class="th-rs" @mousedown.prevent="startColResize('kredit', 8, $event)"></span></th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -618,6 +621,8 @@
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.approved_rate !== undefined && app?.approved_rate !== null) ? app.approved_rate + '%' : '-'"></span></td>
                                     <!-- PR #509: komissiya məbləği = total_amount − amount -->
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="commissionAmountAz"></span></td>
+                                    <!-- PR #511: kredit məbləği = total_amount (karta + komissiya, ceil) -->
+                                    <td><span class="value-strong font-semibold text-sm whitespace-nowrap" x-text="(app?.total_amount > 0 ? app.total_amount + ' AZN' : '-')"></span></td>
                                     <!-- PR #348: illik faiz qırmızı -->
                                     <td><span class="value-strong font-semibold text-sm whitespace-nowrap rate-red" x-text="app?.annual_interest_rate ? app.annual_interest_rate + '%' : '-'"></span></td>
                                     <!-- PR #510: faiz məbləği = ceil(A×n) − total_amount -->
@@ -748,7 +753,7 @@
                                 <!-- PR #472: hər kontakt klassik <tr> — № | Əlaqə | Telefon | Ad | Status | Qeyd -->
                                 <tr>
                                     <td class="text-center"><span class="text-sm font-bold text-gray-400" x-text="(idx+1)"></span></td>
-                                    <td class="min-w-0">
+                                    <td class="relative min-w-0">
                                         <!-- PR #467: qohumluq birbaşa seçilir (edit düyməsi lazımsız — blur-da save) -->
                                         <select x-model="contact.relation"
                                                 @blur="onRelationBlur(idx)"
@@ -762,13 +767,20 @@
                                                         :class="isUniqueRelationUsedByOther(idx, opt) ? 'text-gray-300' : ''"></option>
                                             </template>
                                         </select>
+                                        <!-- PR #511: nömrə daxil edilib, amma əlaqə növü seçilməyib —
+                                             xəbərdarlıq işarəsi (seçim edilən kimi yox olur) -->
+                                        <span x-show="contact.phone && !contact.relation"
+                                              class="absolute right-2 top-1/2 -translate-y-1/2 text-amber-500 pointer-events-none"
+                                              title="Əlaqə növü seçilməyib — zəng etməzdən əvvəl seçin">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                        </span>
                                     </td>
                                     <td class="relative min-w-0">
                                         <input type="text"
                                                x-model="contact.phone"
                                                @input="contact.phone = formatPhone(contact.phone)"
                                                @blur="saveContactIfChanged(idx)"
-                                               :disabled="isReadOnly || !contact.relation"
+                                               :disabled="isReadOnly"
                                                maxlength="17"
                                                placeholder="+994 XX XXX XX XX"
                                                :class="(contact.phone && !isPhoneComplete(contact.phone)) ? 'border-rose-400 focus:border-rose-500 bg-rose-50' : ''"
@@ -1093,9 +1105,10 @@
                 // üst-üstə düşmə mümkünsüz, colWidths yalnız başlanğıc/en aşağı həddidir.
                 colWidths: {
                     cust: [110, 700, 320],
-                    // PR #510: kredit sırası — Müddət | Komissiya | Komissiya ₼ | İllik faiz |
-                    // Faiz məbləği | Aylıq ödəniş | Karta köçürülən | Yekun ödəniş
-                    kredit: [110, 130, 110, 140, 140, 140, 180, 140],
+                    // PR #511: kredit sırası — Müddət | Komissiya | Komissiya ₼ |
+                    // Kredit məbləyi | İllik faiz | Faiz məbləği | Aylıq ödəniş |
+                    // Karta köçürülən | Yekun ödəniş
+                    kredit: [110, 130, 110, 150, 140, 140, 140, 180, 140],
                     // PR #510: ⧉ Kopyala sütunu Telefon-dan dərhal sonra
                     contacts: [28, 130, 165, 44, 180, 200, 240],
                 },
