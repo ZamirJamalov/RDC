@@ -1554,6 +1554,12 @@
                             throw new Error(e.error || 'Saxlanılmadı');
                         }
                         this.app.actual_address = addr;
+                        // PR #514: audit sahələrini də LOKAL yenilə — backend PUT /address
+                        // bunları set edir (hazırkı istifadəçi + vaxt), amma köhnə kod
+                        // yalnız actual_address-i yazdığından ✓ göstəricisi və approve
+                        // precondition-u səhifə refresh-inə qədər köhnə qalırdı (PR #513 bug).
+                        this.app.actual_address_updated_by_username = this.currentUser?.username || '';
+                        this.app.actual_address_updated_at = new Date().toISOString();
                         this.addressEditing = false;
                         this.actionMessage = 'Faktiki ünvan saxlanıldı.';
                         setTimeout(() => { if (this.actionMessage === 'Faktiki ünvan saxlanıldı.') this.actionMessage = ''; }, 4000);
